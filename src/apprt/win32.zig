@@ -978,7 +978,7 @@ pub const quick_select_class_name = std.unicode.utf8ToUtf16LeStringLiteral("noct
 pub const palette_row_height: i32 = 36;
 /// Max rows visible at once; beyond this, mouse wheel scrolls.
 const palette_max_visible_rows: usize = 7;
-pub const default_title = std.unicode.utf8ToUtf16LeStringLiteral("noctty");
+pub const default_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm");
 pub const prompt_label_class = std.unicode.utf8ToUtf16LeStringLiteral("STATIC");
 /// `DrawText` flags shared by the chrome paint fallback and the
 /// owner-draw handler for the confirm prompt lines.
@@ -3919,7 +3919,7 @@ pub const ColdToastCapture = struct {
 
 test "a cold toast activation start keeps the first call and reads nothing else as a target" {
     const callback = win32_toast_activator.testCallback();
-    const aumid = std.unicode.utf8ToUtf16LeStringLiteral("io.github.amanthanvi.noctty");
+    const aumid = std.unicode.utf8ToUtf16LeStringLiteral("io.github.vette1123.najm");
 
     var capture: ColdToastCapture = .{};
     win32_toast_activator.bind(capture.sink());
@@ -7147,10 +7147,10 @@ fn cliVisualStudioProfilesArgArgs(alloc: std.mem.Allocator, argv: []const []cons
 
 test "the jump list passes on only a visual-studio-profiles argument noctty was given" {
     const alloc = std.testing.allocator;
-    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{"noctty.exe"})) == null);
-    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{ "noctty.exe", "--font-size=12" })) == null);
+    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{"najm.exe"})) == null);
+    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{ "najm.exe", "--font-size=12" })) == null);
     const last = (try cliVisualStudioProfilesArgArgs(alloc, &.{
-        "noctty.exe",
+        "najm.exe",
         "--visual-studio-profiles=none",
         "--visual-studio-profiles=all",
         "-e",
@@ -7161,15 +7161,15 @@ test "the jump list passes on only a visual-studio-profiles argument noctty was 
     // argv[0] is not an option, and an empty value (back to the default)
     // is passed on as written.
     try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{"--visual-studio-profiles=all"})) == null);
-    const empty = (try cliVisualStudioProfilesArgArgs(alloc, &.{ "noctty.exe", "--visual-studio-profiles=" })).?;
+    const empty = (try cliVisualStudioProfilesArgArgs(alloc, &.{ "najm.exe", "--visual-studio-profiles=" })).?;
     defer alloc.free(empty);
     try std.testing.expectEqualStrings("--visual-studio-profiles=", empty);
     // A value the loader rejects leaves the one before it running, so the
     // link passes that one on (or none).
-    const kept = (try cliVisualStudioProfilesArgArgs(alloc, &.{ "noctty.exe", "--visual-studio-profiles=all", "--visual-studio-profiles=latest", "--visual-studio-profiles=All" })).?;
+    const kept = (try cliVisualStudioProfilesArgArgs(alloc, &.{ "najm.exe", "--visual-studio-profiles=all", "--visual-studio-profiles=latest", "--visual-studio-profiles=All" })).?;
     defer alloc.free(kept);
     try std.testing.expectEqualStrings("--visual-studio-profiles=all", kept);
-    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{ "noctty.exe", "--visual-studio-profiles=latest" })) == null);
+    try std.testing.expect((try cliVisualStudioProfilesArgArgs(alloc, &.{ "najm.exe", "--visual-studio-profiles=latest" })) == null);
     var cfg = try configpkg.Config.default(alloc);
     defer cfg.deinit();
     var iter: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
@@ -8297,12 +8297,12 @@ test "win32 palette theme save failures say what the person can do about them" {
 
 test "win32 settings save target stops at the child command boundary" {
     const alloc = std.testing.allocator;
-    const target = (try cliConfigFileOverrideArgs(alloc, &.{ "noctty", "--config-file=first.conf", "--config-file=last.conf", "-e", "tool", "--config-file=tool.conf" })).?;
+    const target = (try cliConfigFileOverrideArgs(alloc, &.{ "Najm", "--config-file=first.conf", "--config-file=last.conf", "-e", "tool", "--config-file=tool.conf" })).?;
     defer alloc.free(target);
     const expected = try absolutizePath(alloc, "last.conf");
     defer alloc.free(expected);
     try std.testing.expectEqualStrings(expected, target);
-    try std.testing.expectEqual(@as(?[]u8, null), try cliConfigFileOverrideArgs(alloc, &.{ "noctty", "-e", "tool", "--config-file=tool.conf" }));
+    try std.testing.expectEqual(@as(?[]u8, null), try cliConfigFileOverrideArgs(alloc, &.{ "Najm", "-e", "tool", "--config-file=tool.conf" }));
 }
 
 test "win32 settings save target is the last config file the loader takes from the command line" {
@@ -8311,30 +8311,30 @@ test "win32 settings save target is the last config file the loader takes from t
     // the saved value masked on the next reload. Ask the loader itself.
     const alloc = std.testing.allocator;
     const cases = [_][]const []const u8{
-        &.{ "noctty", "--config-file=first.conf", "--config-file=last.conf" },
-        &.{ "noctty", "--config-file=first.conf", "-e", "tool", "--config-file=tool.conf" },
+        &.{ "Najm", "--config-file=first.conf", "--config-file=last.conf" },
+        &.{ "Najm", "--config-file=first.conf", "-e", "tool", "--config-file=tool.conf" },
         // Not an option the loader understands: it reads no value and rejects
         // "last.conf", so no file is loaded.
-        &.{ "noctty", "--config-file", "last.conf" },
-        &.{ "noctty", "--config-file=a.conf", "--config-file" },
+        &.{ "Najm", "--config-file", "last.conf" },
+        &.{ "Najm", "--config-file=a.conf", "--config-file" },
         // An empty value clears the list, a value that is only a marker or
         // quotes is ignored, and the optional marker and quotes are not part
         // of the name.
-        &.{ "noctty", "--config-file=a.conf", "--config-file=" },
-        &.{ "noctty", "--config-file=a.conf", "--config-file=?", "--config-file=\"\"" },
-        &.{ "noctty", "--config-file=?optional.conf" },
-        &.{ "noctty", "--config-file=\"two words.conf\"" },
-        &.{ "noctty", "--config-file=?\"two words.conf\"" },
+        &.{ "Najm", "--config-file=a.conf", "--config-file=" },
+        &.{ "Najm", "--config-file=a.conf", "--config-file=?", "--config-file=\"\"" },
+        &.{ "Najm", "--config-file=?optional.conf" },
+        &.{ "Najm", "--config-file=\"two words.conf\"" },
+        &.{ "Najm", "--config-file=?\"two words.conf\"" },
         // A bare "--" ends nothing for the loader.
-        &.{ "noctty", "--config-file=a.conf", "--", "--config-file=b.conf" },
+        &.{ "Najm", "--config-file=a.conf", "--", "--config-file=b.conf" },
         // The COM activation switch ends the options, in any case.
-        &.{ "noctty", "--config-file=a.conf", "-Embedding", "--config-file=b.conf" },
-        &.{ "noctty", "--config-file=a.conf", "-embedding", "--config-file=b.conf" },
+        &.{ "Najm", "--config-file=a.conf", "-Embedding", "--config-file=b.conf" },
+        &.{ "Najm", "--config-file=a.conf", "-embedding", "--config-file=b.conf" },
         // So does the toast activator's, which comes before COM's -Embedding.
-        &.{ "noctty", "--config-file=a.conf", "-ToastActivated", "--config-file=b.conf" },
-        &.{ "noctty", "--config-file=a.conf", "-toastactivated", "--config-file=b.conf", "-Embedding" },
+        &.{ "Najm", "--config-file=a.conf", "-ToastActivated", "--config-file=b.conf" },
+        &.{ "Najm", "--config-file=a.conf", "-toastactivated", "--config-file=b.conf", "-Embedding" },
         // Keys are case sensitive and exact.
-        &.{ "noctty", "--CONFIG-FILE=a.conf", "--config-file-extra=b.conf" },
+        &.{ "Najm", "--CONFIG-FILE=a.conf", "--config-file-extra=b.conf" },
     };
     for (cases) |argv| {
         var loaded = try configpkg.Config.default(alloc);
@@ -8367,7 +8367,7 @@ test "win32 the installer restart replays only the launch's last config file and
         /// What the restarted process's argv holds after the executable,
         /// which Windows puts in front of the registered line.
         fn parse(line: [:0]const u16) ![][]u8 {
-            const full = try std.mem.concatWithSentinel(std.testing.allocator, u16, &.{ std.unicode.utf8ToUtf16LeStringLiteral("\"C:\\noctty\\noctty.exe\" "), line }, 0);
+            const full = try std.mem.concatWithSentinel(std.testing.allocator, u16, &.{ std.unicode.utf8ToUtf16LeStringLiteral("\"C:\\noctty\\najm.exe\" "), line }, 0);
             defer std.testing.allocator.free(full);
             var count: c_int = 0;
             const argv = CommandLineToArgvW(full.ptr, &count) orelse return error.ParseFailed;
@@ -8398,7 +8398,7 @@ test "win32 the installer restart replays only the launch's last config file and
     // nothing of the command, the working directory, an action or the COM
     // switch.
     const argv = [_][]const u8{
-        "noctty",
+        "Najm",
         "+new-window",
         "--class=first",
         "--config-file=C:\\first.conf",
@@ -8420,9 +8420,9 @@ test "win32 the installer restart replays only the launch's last config file and
     try std.testing.expectEqualStrings("--config-file=C:\\last.conf", replayed[0]);
     try std.testing.expectEqualStrings("--class=last", replayed[1]);
     for ([_][]const []const u8{
-        &.{ "noctty", "+new-window", "--working-directory=C:\\Windows", "-e", "cmd.exe", "--class=child" },
-        &.{ "noctty", "-Embedding", "--class=com", "--config-file=C:\\com.conf" },
-        &.{ "noctty", "-toastactivated", "--class=com", "--config-file=C:\\com.conf", "-Embedding" },
+        &.{ "Najm", "+new-window", "--working-directory=C:\\Windows", "-e", "cmd.exe", "--class=child" },
+        &.{ "Najm", "-Embedding", "--class=com", "--config-file=C:\\com.conf" },
+        &.{ "Najm", "-toastactivated", "--class=com", "--config-file=C:\\com.conf", "-Embedding" },
     }) |other| {
         try std.testing.expectEqual(@as(?[]u8, null), try cliConfigFileOverrideArgs(alloc, other));
         try std.testing.expectEqual(@as(?[]const u8, null), cliClassArgs(other));
@@ -10416,7 +10416,7 @@ test "win32 App delivery validates owned tokens by kind HWND and single consumpt
 /// registered with COM: the tests call `Activate` through the class factory
 /// the way COM does, with the App's own sink bound.
 const ToastActivatorDeliveryTest = struct {
-    const aumid = std.unicode.utf8ToUtf16LeStringLiteral("io.github.amanthanvi.noctty");
+    const aumid = std.unicode.utf8ToUtf16LeStringLiteral("io.github.vette1123.najm");
 
     fn launchFor(alloc: Allocator, target: win32_toast_activation.ActivationTarget) ![:0]u16 {
         const launch = try win32_toast_activation.buildLaunchArg(alloc, target);
@@ -20613,7 +20613,7 @@ test "automation-window-list win32 json skips empty hosts kept alive for undo hi
     try std.testing.expectEqual(@as(usize, 1), windows_json.len);
     const window = windows_json[0].object;
     try std.testing.expectEqual(@as(i64, 17), window.get("window_id").?.integer);
-    try std.testing.expectEqualStrings("noctty", window.get("title").?.string);
+    try std.testing.expectEqualStrings("Najm", window.get("title").?.string);
     const pane = window.get("tabs").?.array.items[0].object.get("panes").?.array.items[0].object;
     try std.testing.expect(pane.get("title").? == .null);
     try std.testing.expect(pane.get("working_directory").? == .null);
@@ -22023,7 +22023,7 @@ test "win32 an elevated window names a file-defined user profile and passes a co
     try std.testing.expect(!elevatesBySelector(&cfg, "vs:6bb7cfd9:cmd", false));
     {
         const vs_argv = [_][:0]const u8{ "C:\\Windows\\System32\\cmd.exe", "/k", "C:\\VS\\Common7\\Tools\\VsDevCmd.bat", "-startdir=none", "-arch=x64", "-host_arch=x64" };
-        const noctty_argv = [_][]const u8{"C:\\noctty.exe"};
+        const noctty_argv = [_][]const u8{"C:\\najm.exe"};
         const parameters = try win32_elevation.buildRelaunchParameters(alloc, &noctty_argv, null, "C:\\work", "C:\\startup", .{ .command = .{ .command = .{ .direct = &vs_argv } } });
         defer alloc.free(parameters);
         var other = try tmp.dir.createFile("other-account.ghostty", .{});
@@ -22031,7 +22031,7 @@ test "win32 an elevated window names a file-defined user profile and passes a co
         other.close();
         const other_path = try tmp.dir.realpathAlloc(alloc, "other-account.ghostty");
         defer alloc.free(other_path);
-        const child_line = try std.fmt.allocPrint(alloc, "noctty.exe {s}", .{parameters});
+        const child_line = try std.fmt.allocPrint(alloc, "najm.exe {s}", .{parameters});
         defer alloc.free(child_line);
         const child_argv = try windows_shell.splitWindowsCommandLine(alloc, child_line);
         defer {
@@ -22063,7 +22063,7 @@ test "win32 an elevated window names a file-defined user profile and passes a co
     // What the elevated process is given for a detected profile and for a
     // command-line one is as before: the argv, and the variables for the
     // latter.
-    const argv = [_][]const u8{"C:\\noctty.exe"};
+    const argv = [_][]const u8{"C:\\najm.exe"};
     const plain = try win32_elevation.buildRelaunchParameters(alloc, &argv, null, "C:\\work", "C:\\startup", .{ .command = .{ .command = .{ .direct = &.{"pwsh.exe"} } } });
     defer alloc.free(plain);
     try std.testing.expectEqualStrings("--working-directory=C:\\work --command=direct:pwsh.exe --initial-command=", plain);
@@ -24553,7 +24553,7 @@ test "win32 OSC 9 toast carries its pane's launch target" {
         .body = "Configuration reloaded",
     }));
     try std.testing.expectEqual(@as(usize, 2), w.recorder.shown);
-    try w.recorder.expect(.title, "noctty");
+    try w.recorder.expect(.title, "Najm");
     try std.testing.expect(w.recorder.launch == null);
     try std.testing.expect(w.recorder.attribution == null);
 }

@@ -374,7 +374,7 @@ fn detectedRemediationAdvice(remediation: Remediation) []const u8 {
         \\
         \\If you are on Remote Desktop, end the session and launch noctty in a local console session. In a VM, enable 3D acceleration and install the guest graphics driver.
         ,
-        .vendor_icd => "Try ending Remote Desktop and launching noctty in a local console session; enabling 3D acceleration and installing the VM guest graphics driver; or updating or reinstalling your GPU driver. On hybrid-GPU systems, you can also force noctty.exe to the discrete or integrated GPU in Windows Graphics settings.",
+        .vendor_icd => "Try ending Remote Desktop and launching noctty in a local console session; enabling 3D acceleration and installing the VM guest graphics driver; or updating or reinstalling your GPU driver. On hybrid-GPU systems, you can also force najm.exe to the discrete or integrated GPU in Windows Graphics settings.",
     };
 }
 
@@ -383,7 +383,7 @@ fn detectedRemediationAdvice(remediation: Remediation) []const u8 {
 fn stepRemediationAdvice(remediation: Remediation) []const u8 {
     return switch (remediation) {
         .arm64 => "This is a Windows on ARM PC, and Qualcomm Snapdragon systems ship no desktop OpenGL driver at all. Install the free \"OpenCL, OpenGL, and Vulkan Compatibility Pack\" from the Microsoft Store and restart noctty: it is the only way to get a desktop OpenGL implementation here, and it supplies one that runs on Direct3D 12. If it still fails, attach this text and the log to https://github.com/amanthanvi/noctty/issues/64.",
-        .vendor_icd => "Try updating or reinstalling the OEM AMD graphics driver, then the NVIDIA driver. You can also force noctty.exe to the discrete or integrated GPU in Windows Graphics settings. If it still fails, attach this text and the log to https://github.com/amanthanvi/noctty/issues/64.",
+        .vendor_icd => "Try updating or reinstalling the OEM AMD graphics driver, then the NVIDIA driver. You can also force najm.exe to the discrete or integrated GPU in Windows Graphics settings. If it still fails, attach this text and the log to https://github.com/amanthanvi/noctty/issues/64.",
     };
 }
 

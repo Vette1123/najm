@@ -22,7 +22,7 @@ pub const Options = struct {
 /// context menus for folders, folder backgrounds, and drives.
 ///
 /// The action writes only to `HKCU\Software\Classes`. It is idempotent and
-/// points every verb at the `noctty.exe` next to the current launcher.
+/// points every verb at the `najm.exe` next to the current launcher.
 pub fn run(alloc: Allocator) !u8 {
     var opts: Options = .{};
     defer opts.deinit();
@@ -63,7 +63,7 @@ fn runInner(
 
     const exe_path = shell_menu.executablePathAlloc(alloc, self_path) catch |err| {
         try stderr.print(
-            "Failed to register Explorer shell menu: noctty.exe path unavailable ({s}).\n",
+            "Failed to register Explorer shell menu: najm.exe path unavailable ({s}).\n",
             .{@errorName(err)},
         );
         return 1;

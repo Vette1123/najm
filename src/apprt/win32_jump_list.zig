@@ -2859,7 +2859,7 @@ fn testJumpListWithExe(alloc: Allocator) !JumpList {
     return .{
         .alloc = alloc,
         .state_path = try alloc.dupe(u8, "unused"),
-        .exe_path = try alloc.dupe(u8, "C:\\noctty\\noctty.exe"),
+        .exe_path = try alloc.dupe(u8, "C:\\noctty\\najm.exe"),
         .recents = .{},
         .removed_recents = .{},
         .hidden_profiles = .{},
@@ -3327,5 +3327,5 @@ test "jump_list property keys and AUMID match Windows shell contracts" {
         GUID.parse("{F29F85E0-4FF9-1068-AB91-08002B27B3D9}"),
         PKEY_Title.fmtid,
     );
-    try std.testing.expectEqualStrings("io.github.amanthanvi.noctty", win32_aumid.aumid_utf8);
+    try std.testing.expectEqualStrings("io.github.vette1123.najm", win32_aumid.aumid_utf8);
 }

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t">
+  <title id="t">Najm</title>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE29A"/>
+      <stop offset="0.55" stop-color="#F5B83D"/>
+      <stop offset="1" stop-color="#D9822B"/>
+    </linearGradient>
+    <radialGradient id="sky" cx="0.5" cy="0.38" r="0.75">
+      <stop offset="0" stop-color="#1E2A5A"/>
+      <stop offset="1" stop-color="#0A0F24"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#sky)"/>
+  <g transform="translate(128 128)">
+    <rect x="-62" y="-62" width="124" height="124" rx="6" fill="url(#gold)"/>
+    <rect x="-62" y="-62" width="124" height="124" rx="6" fill="url(#gold)" transform="rotate(45)"/>
+    <circle r="34" fill="url(#sky)"/>
+    <path d="M-14 -12 L4 0 L-14 12" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="8" y="10" width="16" height="7" rx="3.5" fill="url(#gold)"/>
+  </g>
+</svg>

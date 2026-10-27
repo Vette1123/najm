@@ -63,18 +63,18 @@ const REG_CREATED_NEW_KEY: DWORD = 1;
 const SHCNE_ASSOCCHANGED: i32 = 0x08000000;
 const SHCNF_IDLIST: u32 = 0;
 
-pub const display_name = "Open noctty here";
+pub const display_name = "Open Najm here";
 
 pub const verb_key_paths = [_][]const u8{
-    "Software\\Classes\\Directory\\shell\\noctty",
-    "Software\\Classes\\Directory\\Background\\shell\\noctty",
-    "Software\\Classes\\Drive\\shell\\noctty",
+    "Software\\Classes\\Directory\\shell\\najm",
+    "Software\\Classes\\Directory\\Background\\shell\\najm",
+    "Software\\Classes\\Drive\\shell\\najm",
 };
 
 pub const command_key_paths = [_][]const u8{
-    "Software\\Classes\\Directory\\shell\\noctty\\command",
-    "Software\\Classes\\Directory\\Background\\shell\\noctty\\command",
-    "Software\\Classes\\Drive\\shell\\noctty\\command",
+    "Software\\Classes\\Directory\\shell\\najm\\command",
+    "Software\\Classes\\Directory\\Background\\shell\\najm\\command",
+    "Software\\Classes\\Drive\\shell\\najm\\command",
 };
 
 pub const register_key_paths = [_][]const u8{
@@ -161,10 +161,10 @@ const SnapshotResult = union(enum) {
 };
 
 /// Resolve the GUI executable next to the current launcher. This intentionally
-/// avoids registering `noctty.com` when the action was reached through PATH.
+/// avoids registering `najm.com` when the action was reached through PATH.
 pub fn executablePathAlloc(alloc: Allocator, self_path: []const u8) ![]u8 {
     const dir = std.fs.path.dirname(self_path) orelse return error.FileNotFound;
-    return try std.fs.path.join(alloc, &.{ dir, "noctty.exe" });
+    return try std.fs.path.join(alloc, &.{ dir, "najm.exe" });
 }
 
 /// Build the `command` default value.
@@ -575,15 +575,15 @@ test "shell-menu key paths cover folders backgrounds and drives" {
     const testing = std.testing;
     try testing.expectEqual(@as(usize, 3), verb_key_paths.len);
     try testing.expectEqualStrings(
-        "Software\\Classes\\Directory\\shell\\noctty",
+        "Software\\Classes\\Directory\\shell\\najm",
         verb_key_paths[0],
     );
     try testing.expectEqualStrings(
-        "Software\\Classes\\Directory\\Background\\shell\\noctty",
+        "Software\\Classes\\Directory\\Background\\shell\\najm",
         verb_key_paths[1],
     );
     try testing.expectEqualStrings(
-        "Software\\Classes\\Drive\\shell\\noctty",
+        "Software\\Classes\\Drive\\shell\\najm",
         verb_key_paths[2],
     );
     try testing.expectEqual(@as(usize, 9), value_specs.len);
@@ -596,12 +596,12 @@ test "shell-menu command quotes an executable path containing spaces" {
     const testing = std.testing;
     const value = try commandValueAlloc(
         testing.allocator,
-        "C:\\Program Files\\noctty\\noctty.exe",
+        "C:\\Program Files\\noctty\\najm.exe",
     );
     defer testing.allocator.free(value);
 
     try testing.expectEqualStrings(
-        "\"C:\\Program Files\\noctty\\noctty.exe\" --single-instance=false --working-directory=\"%V\\.\"",
+        "\"C:\\Program Files\\noctty\\najm.exe\" --single-instance=false --working-directory=\"%V\\.\"",
         value,
     );
 }
@@ -658,7 +658,7 @@ fn freeParsedForTest(alloc: Allocator, argv: []const []const u8) void {
 
 test "shell-menu command survives Windows argv parsing for local and UNC folders" {
     const testing = std.testing;
-    const exe = "C:\\Program Files\\noctty\\noctty.exe";
+    const exe = "C:\\Program Files\\noctty\\najm.exe";
     const value = try commandValueAlloc(testing.allocator, exe);
     defer testing.allocator.free(value);
 
@@ -727,11 +727,11 @@ test "shell-menu command survives Windows argv parsing for local and UNC folders
 
 test "shell-menu command preserves percent placeholders in the executable path" {
     const testing = std.testing;
-    const exe = "C:\\Apps\\100%Valid\\noctty.exe";
+    const exe = "C:\\Apps\\100%Valid\\najm.exe";
     const value = try commandValueAlloc(testing.allocator, exe);
     defer testing.allocator.free(value);
     try testing.expectEqualStrings(
-        "\"C:\\Apps\\100%%Valid\\noctty.exe\" --single-instance=false --working-directory=\"%V\\.\"",
+        "\"C:\\Apps\\100%%Valid\\najm.exe\" --single-instance=false --working-directory=\"%V\\.\"",
         value,
     );
 
@@ -744,18 +744,18 @@ test "shell-menu command preserves percent placeholders in the executable path" 
 }
 
 test "shell-menu display name is stable" {
-    try std.testing.expectEqualStrings("Open noctty here", display_name);
+    try std.testing.expectEqualStrings("Open Najm here", display_name);
 }
 
 test "shell-menu register key list is exact" {
     const testing = std.testing;
     const expected = [_][]const u8{
-        "Software\\Classes\\Directory\\shell\\noctty",
-        "Software\\Classes\\Directory\\shell\\noctty\\command",
-        "Software\\Classes\\Directory\\Background\\shell\\noctty",
-        "Software\\Classes\\Directory\\Background\\shell\\noctty\\command",
-        "Software\\Classes\\Drive\\shell\\noctty",
-        "Software\\Classes\\Drive\\shell\\noctty\\command",
+        "Software\\Classes\\Directory\\shell\\najm",
+        "Software\\Classes\\Directory\\shell\\najm\\command",
+        "Software\\Classes\\Directory\\Background\\shell\\najm",
+        "Software\\Classes\\Directory\\Background\\shell\\najm\\command",
+        "Software\\Classes\\Drive\\shell\\najm",
+        "Software\\Classes\\Drive\\shell\\najm\\command",
     };
     try testing.expectEqual(expected.len, register_key_paths.len);
     for (expected, register_key_paths) |want, actual| {
@@ -766,12 +766,12 @@ test "shell-menu register key list is exact" {
 test "shell-menu unregister key list is exact and leaf first" {
     const testing = std.testing;
     const expected = [_][]const u8{
-        "Software\\Classes\\Directory\\shell\\noctty\\command",
-        "Software\\Classes\\Directory\\shell\\noctty",
-        "Software\\Classes\\Directory\\Background\\shell\\noctty\\command",
-        "Software\\Classes\\Directory\\Background\\shell\\noctty",
-        "Software\\Classes\\Drive\\shell\\noctty\\command",
-        "Software\\Classes\\Drive\\shell\\noctty",
+        "Software\\Classes\\Directory\\shell\\najm\\command",
+        "Software\\Classes\\Directory\\shell\\najm",
+        "Software\\Classes\\Directory\\Background\\shell\\najm\\command",
+        "Software\\Classes\\Directory\\Background\\shell\\najm",
+        "Software\\Classes\\Drive\\shell\\najm\\command",
+        "Software\\Classes\\Drive\\shell\\najm",
     };
     try testing.expectEqual(expected.len, unregister_key_paths.len);
     for (expected, unregister_key_paths) |want, actual| {
@@ -799,8 +799,8 @@ test "shell-menu executable path targets the GUI binary" {
     const testing = std.testing;
     const path = try executablePathAlloc(
         testing.allocator,
-        "C:\\Tools\\noctty\\noctty.com",
+        "C:\\Tools\\noctty\\najm.com",
     );
     defer testing.allocator.free(path);
-    try testing.expectEqualStrings("C:\\Tools\\noctty\\noctty.exe", path);
+    try testing.expectEqualStrings("C:\\Tools\\noctty\\najm.exe", path);
 }

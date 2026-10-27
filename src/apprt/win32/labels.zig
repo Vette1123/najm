@@ -878,12 +878,12 @@ pub fn buildHostAwareBaseTitle(
     else
         null;
     const composed = if (host.total <= 1)
-        try alloc.dupe(u8, normalized_title orelse "noctty")
+        try alloc.dupe(u8, normalized_title orelse "Najm")
     else
         try std.fmt.allocPrint(
             alloc,
             "[{d}/{d}] {s}",
-            .{ host.index + 1, host.total, normalized_title orelse "noctty" },
+            .{ host.index + 1, host.total, normalized_title orelse "Najm" },
         );
     defer alloc.free(composed);
     return try win32_elevation.allocPrefixedTitle(alloc, composed, elevated);
@@ -1137,7 +1137,7 @@ pub fn buildTabButtonLabel(
     show_pane_count: bool,
 ) ![]u8 {
     const budget = tabButtonTitleBudget(index, active, pane_count, max_width, show_pane_count);
-    const compact = try compactHostLabel(alloc, base_title orelse "noctty", budget);
+    const compact = try compactHostLabel(alloc, base_title orelse "Najm", budget);
     defer alloc.free(compact);
     if (show_pane_count and pane_count > 1) {
         return try std.fmt.allocPrint(
@@ -1502,7 +1502,7 @@ const program_prompt_title_width = 24;
 /// U+FFFD. Any prompt that can come from a tab other than the one in front
 /// names it this way.
 pub fn promptTabName(alloc: Allocator, tab_number: usize, tab_title: ?[]const u8) ![]u8 {
-    const raw = tab_title orelse "noctty";
+    const raw = tab_title orelse "Najm";
     const limit = program_prompt_title_width;
     var title: std.ArrayListUnmanaged(u8) = .empty;
     defer title.deinit(alloc);
@@ -4620,9 +4620,9 @@ test "win32 inspectorBannerStateChanged only trips on actual banner deltas" {
 test "win32 windowTitleSyncChanged only trips on actual title deltas" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-    try std.testing.expect(windowTitleSyncChanged(null, "noctty"));
-    try std.testing.expect(!windowTitleSyncChanged("noctty", "noctty"));
-    try std.testing.expect(windowTitleSyncChanged("noctty", "noctty - 2"));
+    try std.testing.expect(windowTitleSyncChanged(null, "Najm"));
+    try std.testing.expect(!windowTitleSyncChanged("Najm", "Najm"));
+    try std.testing.expect(windowTitleSyncChanged("Najm", "noctty - 2"));
 }
 
 test "win32 buildInspectorPanelTitleText reflects host inspector context" {

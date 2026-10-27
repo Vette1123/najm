@@ -4061,7 +4061,7 @@ fn copySelectionToClipboards(
     }
 
     if (copied and self.config.app_notifications.@"clipboard-copy") {
-        self.showAppNotification("noctty", "Copied selection to clipboard") catch |err| {
+        self.showAppNotification("Najm", "Copied selection to clipboard") catch |err| {
             // Clipboard delivery is the requested action; a secondary desktop
             // notification failure must not turn a successful copy into a
             // failure or strand copy mode after the clipboard was updated.
@@ -7897,7 +7897,7 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             };
 
             if (self.config.app_notifications.@"clipboard-copy") {
-                try self.showAppNotification("noctty", "Copied last command output to clipboard");
+                try self.showAppNotification("Najm", "Copied last command output to clipboard");
             }
             return true;
         },

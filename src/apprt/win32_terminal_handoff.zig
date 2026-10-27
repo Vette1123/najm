@@ -774,9 +774,9 @@ fn duplicateLocalHandle(source: HANDLE) !HANDLE {
 
 fn cloneStartupTitle(alloc: Allocator, startup_info: ?*const TERMINAL_STARTUP_INFO) ![]u8 {
     const bstr = if (startup_info) |info| info.pszTitle else null;
-    const title = bstr orelse return alloc.dupe(u8, "noctty");
+    const title = bstr orelse return alloc.dupe(u8, "Najm");
     const len: usize = com.SysStringLen(title);
-    if (len == 0) return alloc.dupe(u8, "noctty");
+    if (len == 0) return alloc.dupe(u8, "Najm");
     return startupTitleAlloc(alloc, title[0..len]);
 }
 
@@ -988,7 +988,7 @@ fn appendHandoffTrace(alloc: Allocator, line: []const u8) void {
 
     const local_app_data = std.process.getEnvVarOwned(alloc, "LOCALAPPDATA") catch return;
     defer alloc.free(local_app_data);
-    const dir_path = std.fs.path.join(alloc, &.{ local_app_data, "noctty" }) catch return;
+    const dir_path = std.fs.path.join(alloc, &.{ local_app_data, "najm" }) catch return;
     defer alloc.free(dir_path);
     std.fs.cwd().makePath(dir_path) catch return;
     const log_path = std.fs.path.join(alloc, &.{ dir_path, "handoff.log" }) catch return;
@@ -1240,7 +1240,7 @@ fn decideSelectionCommit(
 
 pub fn nocttyExePathForLauncher(alloc: Allocator, launcher_path: []const u8) ![]u8 {
     const dir = std.fs.path.dirname(launcher_path) orelse return error.InvalidExecutablePath;
-    const candidate = try std.fs.path.join(alloc, &.{ dir, "noctty.exe" });
+    const candidate = try std.fs.path.join(alloc, &.{ dir, "najm.exe" });
     defer alloc.free(candidate);
     return std.fs.path.resolve(alloc, &.{candidate});
 }
@@ -2086,7 +2086,7 @@ test "handoff pending queue resolves only identifiers it issued" {
     session.* = .{
         .alloc = alloc,
         .adopted = null,
-        .title = try alloc.dupe(u8, "noctty"),
+        .title = try alloc.dupe(u8, "Najm"),
     };
     const id = try server.queuePending(session);
     try std.testing.expect(id != 0);
@@ -2325,19 +2325,19 @@ test "handoff failure trace stays within its byte budget" {
 }
 
 test "handoff embedding argument detection respects command boundary" {
-    try std.testing.expect(isEmbeddingArgs(&.{ "noctty.exe", "-Embedding" }));
-    try std.testing.expect(isEmbeddingArgs(&.{ "noctty.exe", "-embedding" }));
-    try std.testing.expect(!isEmbeddingArgs(&.{"noctty.exe"}));
-    try std.testing.expect(!isEmbeddingArgs(&.{ "noctty.exe", "-e", "cmd.exe", "-Embedding" }));
+    try std.testing.expect(isEmbeddingArgs(&.{ "najm.exe", "-Embedding" }));
+    try std.testing.expect(isEmbeddingArgs(&.{ "najm.exe", "-embedding" }));
+    try std.testing.expect(!isEmbeddingArgs(&.{"najm.exe"}));
+    try std.testing.expect(!isEmbeddingArgs(&.{ "najm.exe", "-e", "cmd.exe", "-Embedding" }));
 }
 
 test "handoff registry builders target sibling GUI executable and quote once" {
-    const path = try nocttyExePathForLauncher(std.testing.allocator, "C:\\Apps\\noctty\\noctty.com");
+    const path = try nocttyExePathForLauncher(std.testing.allocator, "C:\\Apps\\noctty\\najm.com");
     defer std.testing.allocator.free(path);
-    try std.testing.expectEqualStrings("C:\\Apps\\noctty\\noctty.exe", path);
+    try std.testing.expectEqualStrings("C:\\Apps\\noctty\\najm.exe", path);
     const command = try localServerCommand(std.testing.allocator, path);
     defer std.testing.allocator.free(command);
-    try std.testing.expectEqualStrings("\"C:\\Apps\\noctty\\noctty.exe\"", command);
+    try std.testing.expectEqualStrings("\"C:\\Apps\\noctty\\najm.exe\"", command);
     try std.testing.expect(std.mem.indexOf(u8, command, "-Embedding") == null);
     const proxy_path = try proxyDllPathForExe(std.testing.allocator, path);
     defer std.testing.allocator.free(proxy_path);
@@ -2455,7 +2455,7 @@ const ScratchHive = struct {
 const wt_terminal_text = "{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}";
 
 /// A directory holding the proxy DLL registration insists on finding beside
-/// `noctty.exe`. The DLL is an empty file: nothing loads it.
+/// `najm.exe`. The DLL is an empty file: nothing loads it.
 const ScratchInstall = struct {
     tmp: std.testing.TmpDir,
     exe_path: []u8,
@@ -2466,7 +2466,7 @@ const ScratchInstall = struct {
         (try tmp.dir.createFile(proxy_filename, .{})).close();
         const dir = try tmp.dir.realpathAlloc(alloc, ".");
         defer alloc.free(dir);
-        return .{ .tmp = tmp, .exe_path = try std.fs.path.join(alloc, &.{ dir, "noctty.exe" }) };
+        return .{ .tmp = tmp, .exe_path = try std.fs.path.join(alloc, &.{ dir, "najm.exe" }) };
     }
 
     fn deinit(self: *ScratchInstall, alloc: Allocator) void {

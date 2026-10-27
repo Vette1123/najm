@@ -10,7 +10,7 @@ exe: *std.Build.Step.Compile,
 /// The install step for the executable.
 install_step: *std.Build.Step.InstallArtifact,
 
-/// Console launcher that shells resolve before noctty.exe.
+/// Console launcher that shells resolve before najm.exe.
 command_exe: ?*std.Build.Step.Compile = null,
 command_install_step: ?*std.Build.Step.InstallFile = null,
 command_pdb_install_step: ?*std.Build.Step.InstallFile = null,
@@ -23,7 +23,7 @@ icon_install_step: ?*std.Build.Step.InstallFile = null,
 
 pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty {
     const exe: *std.Build.Step.Compile = b.addExecutable(.{
-        .name = "noctty",
+        .name = "najm",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = cfg.target,
@@ -34,7 +34,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
             // records a debugger unwinds with; a function without one is
             // taken for a leaf, so a minidump's stacks stop making sense at
             // the first noctty frame (#299). Measured on ReleaseFast:
-            // +132,096 bytes (0.5%) on noctty.exe.
+            // +132,096 bytes (0.5%) on najm.exe.
             .unwind_tables = .sync,
         }),
         // Crashes on x86_64 self-hosted on 0.15.1
@@ -73,8 +73,8 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
             });
             command.subsystem = .Console;
             command_exe = command;
-            command_install_step = b.addInstallBinFile(command.getEmittedBin(), "noctty.com");
-            // The compiled name is noctty-command, so noctty.com's CodeView
+            command_install_step = b.addInstallBinFile(command.getEmittedBin(), "najm.com");
+            // The compiled name is noctty-command, so najm.com's CodeView
             // record asks for noctty-command.pdb. Installing the exe alone
             // would leave that PDB in the build cache.
             if (command.producesPdbFile()) {

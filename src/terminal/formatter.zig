@@ -6466,7 +6466,7 @@ test "Page HTML keeps the text of a hyperlink whose scheme is not allowed" {
         "\\\\attacker\\share\\x",
         "//attacker/share/x",
         "data:text/html,x",
-        "noctty",
+        "Najm",
         "",
     };
     for (uris) |uri| {

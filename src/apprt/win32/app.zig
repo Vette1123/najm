@@ -1058,7 +1058,7 @@ pub const App = struct {
         // attributes toasts to our AUMID. A test build never creates one, so
         // no test can reach Action Center; tests install a recorder as
         // `toast_sink` instead.
-        const aumid_utf16 = std.unicode.utf8ToUtf16LeStringLiteral("io.github.amanthanvi.noctty");
+        const aumid_utf16 = std.unicode.utf8ToUtf16LeStringLiteral("io.github.vette1123.najm");
         self.winrt_toast = if (builtin.is_test) null else win32_toast_winrt.WinrtToast.init(core_app.alloc, aumid_utf16) catch |err| blk: {
             std.log.warn("winrt toast init failed err={}; falling back to host notifications", .{err});
             break :blk null;
@@ -2347,7 +2347,7 @@ pub const App = struct {
         const hwnd = sys.CreateWindowExW(
             c.WS_EX_TOOLWINDOW | c.WS_EX_NOACTIVATE,
             lifecycle_class_name,
-            std.unicode.utf8ToUtf16LeStringLiteral("noctty"),
+            std.unicode.utf8ToUtf16LeStringLiteral("Najm"),
             c.WS_POPUP,
             0,
             0,
@@ -3432,7 +3432,7 @@ pub const App = struct {
             break :blk if (self.registry.hosts.items.len > 0) self.registry.hosts.items[0] else null;
         };
         if (host) |value| return value.setBanner(kind, message);
-        try showInfoMessage(.app, "noctty", message);
+        try showInfoMessage(.app, "Najm", message);
     }
 
     test "showUpdateInfo answers in the window whose banner button was pressed" {
@@ -4077,7 +4077,7 @@ pub const App = struct {
                 // font checks; explicitly re-announce without scanning twice.
                 if (self.reportRecordedConfigProblems()) return true;
                 if (self.config.@"app-notifications".@"config-reload") {
-                    try self.showDesktopNotification(.app, "noctty", "Configuration reloaded");
+                    try self.showDesktopNotification(.app, "Najm", "Configuration reloaded");
                 }
                 return true;
             },
@@ -4908,7 +4908,7 @@ pub const App = struct {
             built += 1;
         }
 
-        const title = try alloc.dupe(u8, host.cached_window_title orelse "noctty");
+        const title = try alloc.dupe(u8, host.cached_window_title orelse "Najm");
 
         return .{
             .window_id = host.id,
@@ -8710,7 +8710,7 @@ pub const App = struct {
         sender_title: []const u8,
     ) !bool {
         var shown = request;
-        if (shown.title.len == 0) shown.title = "noctty";
+        if (shown.title.len == 0) shown.title = "Najm";
 
         // Primary path: an Action Center toast. It persists in Action
         // Center history and surfaces system-level badging. On success we
@@ -8740,17 +8740,17 @@ pub const App = struct {
         // notifications with an empty `body` (e.g. settings-save success,
         // where title alone carries the signal) still render something
         // readable.
-        const caption = if (toastFallbackTitled(sender_title)) sender_title else "noctty";
+        const caption = if (toastFallbackTitled(sender_title)) sender_title else "Najm";
         try showInfoMessage(target, caption, message.written());
         return false;
     }
 
     fn toastFallbackTitled(title: []const u8) bool {
-        return title.len > 0 and !std.mem.eql(u8, title, "noctty");
+        return title.len > 0 and !std.mem.eql(u8, title, "Najm");
     }
 
     /// The banner says what the toast would have: `<title>: <body>`, the
-    /// body alone when the title is empty or just "noctty", and the tab
+    /// body alone when the title is empty or just "Najm", and the tab
     /// the toast came from after a dash.
     fn composeToastFallback(
         writer: *std.Io.Writer,
@@ -8769,11 +8769,11 @@ pub const App = struct {
 
     /// A notification a program asked for (OSC 9, OSC 777), one noctty
     /// shows about a pane (the core's clipboard-copy notices, titled
-    /// "noctty"), or one noctty shows for itself (an `.app` target, such as
+    /// "Najm"), or one noctty shows for itself (an `.app` target, such as
     /// a config reload). One from a pane names its tab and focuses the pane
     /// when clicked. The core sends both kinds a pane can cause the same
     /// way, so they are not told apart; by the title they could not be, as
-    /// a program can send an OSC 777 titled "noctty" too.
+    /// a program can send an OSC 777 titled "Najm" too.
     pub fn showDesktopNotification(
         self: *App,
         target: apprt.Target,
@@ -8956,7 +8956,7 @@ pub const App = struct {
     /// What the user knows a tab by: the title of its focused pane.
     fn toastTabName(tab: *const Tab, surface: *Surface) []const u8 {
         const shown = tab.focusedSurface() orelse surface;
-        return shown.effectiveTitle() orelse "noctty";
+        return shown.effectiveTitle() orelse "Najm";
     }
 
     /// The line a toast from tab `index` of `host` carries, naming the
@@ -9005,7 +9005,7 @@ pub const App = struct {
         );
         defer self.core_app.alloc.free(message);
         if (try self.showHostBanner(target, .info, message)) return;
-        try showInfoMessage(target, "noctty", message);
+        try showInfoMessage(target, "Najm", message);
     }
 
     const CommandFinishPlan = struct {
@@ -9711,7 +9711,7 @@ test "win32 a DPI change holds the terminal grid from WM_GETDPISCALEDSIZE to WM_
 
 /// Which COM server, if any, started this process. COM appends -Embedding to
 /// every `LocalServer32` command, the toast activator's
-/// (`"noctty.exe" -ToastActivated`) included, so -Embedding alone does not
+/// (`"najm.exe" -ToastActivated`) included, so -Embedding alone does not
 /// make a terminal handoff server.
 const ComStart = enum {
     none,
@@ -9774,13 +9774,13 @@ test "-ToastActivated is a launch argument, not a config diagnostic" {
 
     // It is a toast activation start, not a terminal handoff server, though
     // COM's -Embedding is there too.
-    try std.testing.expectEqual(ComStart.toast_activator, ComStart.ofArgs(&.{ "noctty.exe", "--font-size=13", "-ToastActivated", "-Embedding" }));
-    try std.testing.expectEqual(ComStart.terminal_handoff, ComStart.ofArgs(&.{ "noctty.exe", "-Embedding" }));
-    try std.testing.expectEqual(ComStart.none, ComStart.ofArgs(&.{ "noctty.exe", "-e", "x.exe", "-ToastActivated", "-Embedding" }));
-    try std.testing.expectEqual(ComStart.none, ComStart.ofArgs(&.{"noctty.exe"}));
+    try std.testing.expectEqual(ComStart.toast_activator, ComStart.ofArgs(&.{ "najm.exe", "--font-size=13", "-ToastActivated", "-Embedding" }));
+    try std.testing.expectEqual(ComStart.terminal_handoff, ComStart.ofArgs(&.{ "najm.exe", "-Embedding" }));
+    try std.testing.expectEqual(ComStart.none, ComStart.ofArgs(&.{ "najm.exe", "-e", "x.exe", "-ToastActivated", "-Embedding" }));
+    try std.testing.expectEqual(ComStart.none, ComStart.ofArgs(&.{"najm.exe"}));
 
     // The settings save target stops where the loader stops.
-    const saved = try cliConfigFileOverrideArgs(alloc, &.{ "noctty.exe", "--config-file=C:\\a.conf", "-ToastActivated", "--config-file=C:\\b.conf" });
+    const saved = try cliConfigFileOverrideArgs(alloc, &.{ "najm.exe", "--config-file=C:\\a.conf", "-ToastActivated", "--config-file=C:\\b.conf" });
     defer if (saved) |path| alloc.free(path);
     try std.testing.expect(std.mem.endsWith(u8, saved.?, "a.conf"));
 }
@@ -10689,10 +10689,10 @@ test "win32 a refused toast becomes a banner that names its tab once" {
     try std.testing.expectEqualStrings("deploy: rolled out \u{2014} Tab 2: cargo build", w.host.banner_text.?);
 
     // The core's clipboard-copy notice arrives from its pane exactly as an
-    // OSC 777 titled "noctty" would, so it names its tab and focuses the
+    // OSC 777 titled "Najm" would, so it names its tab and focuses the
     // pane like any other toast from a pane.
-    try w.osc(&w.front, "noctty", "Copied selection to clipboard");
-    try w.recorder.expect(.title, "noctty");
+    try w.osc(&w.front, "Najm", "Copied selection to clipboard");
+    try w.recorder.expect(.title, "Najm");
     try w.recorder.expect(.attribution, "Tab 1: pwsh");
     try w.recorder.expectLaunchFor(&w.front, 1);
     try std.testing.expectEqualStrings("Copied selection to clipboard \u{2014} Tab 1: pwsh", w.host.banner_text.?);

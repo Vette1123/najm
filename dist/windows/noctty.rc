@@ -33,11 +33,11 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
         //VALUE "CompanyName",        "???"
-        VALUE "FileDescription",    "noctty"
+        VALUE "FileDescription",    "Najm"
         VALUE "FileVersion",        NOCTTY_VERSION_STRING
         //VALUE "LegalCopyright",     "(C) 2024 ???"
-        VALUE "OriginalFilename", "noctty.exe"
-        VALUE "ProductName",        "noctty"
+        VALUE "OriginalFilename", "najm.exe"
+        VALUE "ProductName",        "Najm"
         VALUE "ProductVersion",     NOCTTY_VERSION_STRING
         END
     END

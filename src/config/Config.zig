@@ -1573,13 +1573,13 @@ title: ?[:0]const u8 = null,
 /// `noctty +new-window` will only target processes launched with the same
 /// `class` value.
 ///
-/// The default is `io.github.amanthanvi.noctty`.
+/// The default is `io.github.vette1123.najm`.
 class: ?[:0]const u8 = null,
 
 /// If `true`, noctty will prefer reusing an existing instance namespace and
 /// opening a new window inside it.
 ///
-/// If `false`, each new `noctty.exe` launch will prefer a dedicated process.
+/// If `false`, each new `najm.exe` launch will prefer a dedicated process.
 ///
 /// If `detect`, noctty assumes single-instance behavior unless the CLI
 /// invocation clearly carries custom configuration that should not be inherited
@@ -2764,7 +2764,7 @@ keybind: Keybinds = .{},
 
 /// When this is true, the default configuration file paths will be loaded.
 /// The default configuration file paths are currently only the XDG
-/// config path ($XDG_CONFIG_HOME/noctty/config.ghostty).
+/// config path ($XDG_CONFIG_HOME/najm/config.ghostty).
 ///
 /// If this is false, the default configuration paths will not be loaded.
 /// This is targeted directly at using Ghostty from the CLI in a way
@@ -3153,7 +3153,7 @@ keybind: Keybinds = .{},
 /// command-palette-entry = title:Reset Font Style, action:csi:0m
 /// command-palette-entry = title:Crash on Main Thread,description:Causes a crash on the main (UI) thread.,action:crash:main
 /// command-palette-entry = title:Focus Split: Right,description:"Focus the split to the right, if it exists.",action:goto_split:right
-/// command-palette-entry = title:"noctty",description:"Add a little noctty to your terminal.",action:"text:\xf0\x9f\x91\xbb"
+/// command-palette-entry = title:"Najm",description:"Add a little noctty to your terminal.",action:"text:\xf0\x9f\x91\xbb"
 /// ```
 ///
 /// By default, the command palette is preloaded with most actions that might
@@ -4491,7 +4491,7 @@ fn defaultConfigIsEmpty(path: []const u8) bool {
 }
 
 /// Load configurations from the default configuration files. The default
-/// configuration file is at `$XDG_CONFIG_HOME/noctty/config.ghostty`.
+/// configuration file is at `$XDG_CONFIG_HOME/najm/config.ghostty`.
 ///
 /// The legacy `config` file (without extension) is first loaded,
 /// then `config.ghostty`.
@@ -4593,7 +4593,7 @@ test "default config files: an edit to the edit-target takes effect on reload" {
         .{
             .name = "ghostty/config.ghostty alone leaves the loader's new noctty file as the target",
             .files = &.{.{ .path = "ghostty/config.ghostty", .content = "font-size = 17\n" }},
-            .target = "noctty/config.ghostty",
+            .target = "najm/config.ghostty",
         },
         .{
             .name = "winghostty is only a fallback, so ghostty/config wins",
@@ -4620,22 +4620,22 @@ test "default config files: an edit to the edit-target takes effect on reload" {
             .name = "noctty overrides ghostty/config",
             .files = &.{
                 .{ .path = "ghostty/config", .content = "font-size = 11\n" },
-                .{ .path = "noctty/config.ghostty", .content = "font-size = 13\n" },
+                .{ .path = "najm/config.ghostty", .content = "font-size = 13\n" },
             },
-            .target = "noctty/config.ghostty",
+            .target = "najm/config.ghostty",
         },
         .{
             .name = "noctty beside the unread ghostty/config.ghostty",
             .files = &.{
-                .{ .path = "noctty/config.ghostty", .content = "font-size = 13\n" },
+                .{ .path = "najm/config.ghostty", .content = "font-size = 13\n" },
                 .{ .path = "ghostty/config.ghostty", .content = "font-size = 17\n" },
             },
-            .target = "noctty/config.ghostty",
+            .target = "najm/config.ghostty",
         },
         .{
             .name = "an empty noctty file does not hide a non-empty ghostty/config",
             .files = &.{
-                .{ .path = "noctty/config.ghostty", .content = "" },
+                .{ .path = "najm/config.ghostty", .content = "" },
                 .{ .path = "ghostty/config", .content = "font-size = 11\n" },
             },
             .target = "ghostty/config",
@@ -4643,17 +4643,17 @@ test "default config files: an edit to the edit-target takes effect on reload" {
         .{
             .name = "no config at all",
             .files = &.{},
-            .target = "noctty/config.ghostty",
+            .target = "najm/config.ghostty",
         },
         .{
             .name = "a zero-byte default config gets the template",
-            .files = &.{.{ .path = "noctty/config.ghostty", .content = "" }},
-            .target = "noctty/config.ghostty",
+            .files = &.{.{ .path = "najm/config.ghostty", .content = "" }},
+            .target = "najm/config.ghostty",
         },
         .{
             .name = "a comment-only default config is preserved",
-            .files = &.{.{ .path = "noctty/config.ghostty", .content = "# user's config\n" }},
-            .target = "noctty/config.ghostty",
+            .files = &.{.{ .path = "najm/config.ghostty", .content = "# user's config\n" }},
+            .target = "najm/config.ghostty",
         },
     };
 
@@ -4697,7 +4697,7 @@ test "default config files: an edit to the edit-target takes effect on reload" {
             }
         }
 
-        // `xdg.config` joins the `noctty/config.ghostty` subdir verbatim, so
+        // `xdg.config` joins the `najm/config.ghostty` subdir verbatim, so
         // compare with one separator.
         const target_raw = try file_load.preferredDefaultFilePath(alloc);
         defer alloc.free(target_raw);

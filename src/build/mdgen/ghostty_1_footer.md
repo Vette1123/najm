@@ -4,7 +4,7 @@ _\$XDG_CONFIG_HOME/noctty/config.ghostty_
 
 : Location of the default configuration file.
 
-_\$HOME/Library/Application Support/io.github.amanthanvi.noctty/config.ghostty_
+_\$HOME/Library/Application Support/io.github.vette1123.najm/config.ghostty_
 
 : **On macOS**, location of the default configuration file. This location takes
 precedence over the XDG environment locations.
@@ -28,7 +28,7 @@ for configuration files.
 
 : Default location for configuration files.
 
-**$HOME/Library/Application Support/io.github.amanthanvi.noctty**
+**$HOME/Library/Application Support/io.github.vette1123.najm**
 
 : **MACOS ONLY** default location for configuration files. This location takes
 precedence over the XDG environment locations.

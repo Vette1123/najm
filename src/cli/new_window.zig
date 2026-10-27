@@ -126,9 +126,9 @@ pub const Options = struct {
 /// will be passed to noctty. Layout requests use their saved pane directories.
 ///
 /// On Win32, `+new-window` uses a native named-pipe IPC channel to forward the
-/// collected command-line arguments into an already-running `noctty.exe`
+/// collected command-line arguments into an already-running `najm.exe`
 /// instance. If no matching instance is available, noctty falls back to
-/// launching a new `noctty.exe` process. If `--class` is provided, that value
+/// launching a new `najm.exe` process. If `--class` is provided, that value
 /// is used as the instance namespace for both IPC lookup and process fallback.
 ///
 /// Flags:

@@ -12,7 +12,7 @@ at `$XDG_CONFIG_HOME/noctty/config.ghostty`, which defaults to `~/.config/noctty
 if the [XDG environment is not set](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
 
 **If you are using macOS, the configuration file can also be placed at
-`$HOME/Library/Application Support/io.github.amanthanvi.noctty/config.ghostty`.** This is the
+`$HOME/Library/Application Support/io.github.vette1123.najm/config.ghostty`.** This is the
 default configuration location for macOS. It will be searched before any of the
 XDG environment locations listed above.
 
@@ -98,11 +98,11 @@ logs sent to `stderr` may be stored by the system and made available for later
 retrieval.
 
 On Linux if noctty is launched by the default `systemd` user service, you can use
-`journald` to see logs: `journalctl --user --unit app-io.github.amanthanvi.noctty.service`.
+`journald` to see logs: `journalctl --user --unit app-io.github.vette1123.najm.service`.
 
 On macOS logging to the macOS unified log is available and enabled by default.
 --Use the system `log` CLI to view noctty logs: `sudo log stream --level debug
---predicate 'subsystem=="io.github.amanthanvi.noctty"'`.
+--predicate 'subsystem=="io.github.vette1123.najm"'`.
 
 noctty logging can be configured in two ways. The first is by what
 optimization level noctty is compiled with. If noctty is compiled with `Debug`

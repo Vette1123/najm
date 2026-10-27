@@ -27,7 +27,7 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
     var stderr_writer = std.fs.File.stderr().writer(&buffer);
     const stderr = &stderr_writer.interface;
     const exe_path = handoff.currentNocttyExePath(alloc) catch |err| {
-        try stderr.print("Could not resolve the sibling noctty.exe path: {}\n", .{err});
+        try stderr.print("Could not resolve the sibling najm.exe path: {}\n", .{err});
         try stderr.flush();
         return 1;
     };
@@ -48,7 +48,7 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
                 "Cannot repair noctty's terminal proxy registration because a shared Interface value already points to noctty but its saved previous value is missing; no shared Interface values were changed.\n",
             ),
             error.ProxyDllMissing => try stderr.print(
-                "Cannot register noctty as the default terminal: {s} is missing or unreadable. Reinstall noctty so the proxy DLL is beside noctty.exe.\n",
+                "Cannot register noctty as the default terminal: {s} is missing or unreadable. Reinstall noctty so the proxy DLL is beside najm.exe.\n",
                 .{handoff.proxy_filename},
             ),
             else => try stderr.print("Default-terminal registration failed: {}\n", .{err}),

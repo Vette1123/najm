@@ -239,7 +239,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
 
             error.BundledConptyInconsistent => {
                 const str =
-                    \\The bundled ConPTY (conpty.dll next to noctty.exe) could not
+                    \\The bundled ConPTY (conpty.dll next to najm.exe) could not
                     \\create a pseudo console for this terminal.
                     \\
                     \\Other terminals in this process are still running on the

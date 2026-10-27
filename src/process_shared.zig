@@ -41,14 +41,14 @@ test "GUI child Ctrl+C reset clears inherited ignore and is idempotent" {
 
 /// Give CLI output somewhere to go.
 ///
-/// noctty.exe is a Windows-subsystem binary, so a shell that launches it
-/// directly (`noctty.exe +version`) hands it no console and no standard
+/// najm.exe is a Windows-subsystem binary, so a shell that launches it
+/// directly (`najm.exe +version`) hands it no console and no standard
 /// handles: every write fails and the action reports `WriteFailed` without
 /// printing anything. Attaching to the launching process's console and binding
 /// the missing handles to it makes CLI actions behave like a console program.
 ///
-/// Handles that already work (a real console via noctty.com, or a redirection
-/// such as `noctty.exe +version > out.txt`) are left exactly as they are.
+/// Handles that already work (a real console via najm.com, or a redirection
+/// such as `najm.exe +version > out.txt`) are left exactly as they are.
 pub fn attachParentConsole() void {
     if (comptime builtin.os.tag != .windows) return;
 
@@ -264,7 +264,7 @@ fn releasePanic(msg: []const u8, _: ?usize) noreturn {
 }
 
 // The attach must never disturb a handle that already works, or redirection
-// (`noctty.exe +version > out.txt`) and the noctty.com launcher would break.
+// (`najm.exe +version > out.txt`) and the najm.com launcher would break.
 // The test runner's own stdout is a live handle, so it stands in for both.
 test "cli console attach leaves working std handles alone" {
     if (comptime builtin.os.tag != .windows) return error.SkipZigTest;

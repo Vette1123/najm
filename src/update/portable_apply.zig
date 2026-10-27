@@ -99,13 +99,13 @@ pub fn confirmationDecision(
 }
 
 /// ZIP entry policy applied to every central-directory entry before extraction.
-/// The release ZIP uses forward slashes and exactly one `noctty/` root.
+/// The release ZIP uses forward slashes and exactly one `najm/` root.
 pub fn isSafeZipEntryPath(path: []const u8) bool {
     if (path.len == 0 or path[0] == '/' or path[0] == '\\') return false;
     if (std.mem.indexOfScalar(u8, path, '\\') != null) return false;
     if (std.mem.indexOfScalar(u8, path, ':') != null) return false;
-    if (!std.mem.eql(u8, path, "noctty/") and
-        !std.mem.startsWith(u8, path, "noctty/")) return false;
+    if (!std.mem.eql(u8, path, "najm/") and
+        !std.mem.startsWith(u8, path, "najm/")) return false;
 
     var parts = std.mem.splitScalar(u8, path, '/');
     while (parts.next()) |part| {
@@ -120,7 +120,7 @@ pub fn isSafeZipEntryPath(path: []const u8) bool {
 /// unmanaged file, and one listed here but never staged makes apply fail as an
 /// incomplete payload, so the two lists have to stay equal.
 pub const managed_entries = [_][]const u8{
-    "noctty.com",
+    "najm.com",
     "ghostty-vt.dll",
     "noctty-terminal-handoff-proxy.dll",
     // Microsoft's bundled ConPTY pair. These are the only payload PEs noctty
@@ -135,7 +135,7 @@ pub const managed_entries = [_][]const u8{
     "share",
     // Replace the executable last so an interrupted transaction always leaves
     // a launchable old or new preflight entrypoint.
-    "noctty.exe",
+    "najm.exe",
 };
 
 // Test-only drift guard for the literal foreach lists in both manifest scripts.
@@ -182,7 +182,7 @@ test "portable managed entries match both PowerShell manifest script sets" {
         defer alloc.free(script);
         try expectScriptManagedEntries(script);
     }
-    try std.testing.expectEqualStrings("noctty.exe", managed_entries[managed_entries.len - 1]);
+    try std.testing.expectEqualStrings("najm.exe", managed_entries[managed_entries.len - 1]);
 }
 
 test "portable managed script list parser rejects missing extra and duplicate entries" {
@@ -191,7 +191,7 @@ test "portable managed script list parser rejects missing extra and duplicate en
     // The script order deliberately differs from replacement order, and both
     // quote styles are accepted without evaluating any PowerShell.
     const tail =
-        \\    "noctty.exe",
+        \\    "najm.exe",
         \\    'ghostty-vt.dll',
         \\    'noctty-terminal-handoff-proxy.dll',
         \\    'conpty.dll',
@@ -204,11 +204,11 @@ test "portable managed script list parser rejects missing extra and duplicate en
         \\    'share'
         \\
     ;
-    const entries = "    'noctty.com',\n" ++ tail;
+    const entries = "    'najm.com',\n" ++ tail;
     try expectScriptManagedEntries(prefix ++ entries ++ suffix);
     try std.testing.expectError(error.MissingManagedRootEntry, expectScriptManagedEntries(prefix ++ tail ++ suffix));
     try std.testing.expectError(error.UnexpectedManagedRootEntry, expectScriptManagedEntries(prefix ++ "    'extra.txt',\n" ++ entries ++ suffix));
-    try std.testing.expectError(error.DuplicateManagedRootEntry, expectScriptManagedEntries(prefix ++ "    'noctty.com',\n" ++ entries ++ suffix));
+    try std.testing.expectError(error.DuplicateManagedRootEntry, expectScriptManagedEntries(prefix ++ "    'najm.com',\n" ++ entries ++ suffix));
     try std.testing.expectError(error.ManagedRootListMissing, expectScriptManagedEntries(""));
     try std.testing.expectError(error.InvalidManagedRootList, expectScriptManagedEntries(prefix ++ "    $dynamicName\n" ++ suffix));
 }
@@ -561,7 +561,7 @@ fn verifyBackupManifest(
     if (restore_root) |root| {
         for (managed_entries) |managed_entry| {
             if (std.mem.eql(u8, managed_entry, "share") or
-                std.mem.eql(u8, managed_entry, "noctty.exe")) continue;
+                std.mem.eql(u8, managed_entry, "najm.exe")) continue;
             const key = try std.ascii.allocLowerString(alloc, managed_entry);
             defer alloc.free(key);
             if (seen.contains(key)) continue;
@@ -778,7 +778,7 @@ test "portable update preserves complete backup across interrupted retry" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.makePath("install/share");
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "old" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "old" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/resource theme.txt", .data = "old-resource" });
 
     const root = try tmp.dir.realpathAlloc(alloc, ".");
@@ -789,10 +789,10 @@ test "portable update preserves complete backup across interrupted retry" {
     defer alloc.free(backup_root);
 
     try prepareBackup(alloc, install_root, backup_root);
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "mixed" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "mixed" });
     try prepareBackup(alloc, install_root, backup_root);
 
-    const backed_up = try tmp.dir.readFileAlloc(alloc, "backup/noctty.com", 16);
+    const backed_up = try tmp.dir.readFileAlloc(alloc, "backup/najm.com", 16);
     defer alloc.free(backed_up);
     try std.testing.expectEqualStrings("old", backed_up);
 }
@@ -802,7 +802,7 @@ test "portable rollback removes new-only managed files without deleting user dat
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.makePath("install/share");
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "old" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "old" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/resource theme.txt", .data = "old-resource" });
     try tmp.dir.writeFile(.{ .sub_path = "install/user-data.txt", .data = "keep" });
 
@@ -815,13 +815,13 @@ test "portable rollback removes new-only managed files without deleting user dat
     const displaced_root = try std.fs.path.join(alloc, &.{ root, "displaced" });
     defer alloc.free(displaced_root);
     try prepareBackup(alloc, install_root, backup_root);
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "new" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "new" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/resource theme.txt", .data = "new-resource" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/new-only.ps1", .data = "new-only share" });
     try tmp.dir.writeFile(.{ .sub_path = "install/LICENSE", .data = "new-only" });
 
     try rollback(alloc, install_root, backup_root, displaced_root);
-    const restored = try tmp.dir.readFileAlloc(alloc, "install/noctty.com", 16);
+    const restored = try tmp.dir.readFileAlloc(alloc, "install/najm.com", 16);
     defer alloc.free(restored);
     try std.testing.expectEqualStrings("old", restored);
     const restored_resource = try tmp.dir.readFileAlloc(alloc, "install/share/resource theme.txt", 32);
@@ -839,7 +839,7 @@ test "portable rollback renames displaced share tree back exactly" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.makePath("install/share/shell-integration");
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "old executable" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "old executable" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/old-only.ps1", .data = "old only" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/shared.ps1", .data = "old shared" });
     try tmp.dir.writeFile(.{ .sub_path = "install/user-data.txt", .data = "keep" });
@@ -857,12 +857,12 @@ test "portable rollback renames displaced share tree back exactly" {
     try tmp.dir.makePath("displaced");
     try tmp.dir.rename("install/share", "displaced/share");
     try tmp.dir.makePath("install/share");
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "new executable" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "new executable" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/shared.ps1", .data = "new shared" });
     try tmp.dir.writeFile(.{ .sub_path = "install/share/new-only.ps1", .data = "new only" });
 
     try rollback(alloc, install_root, backup_root, displaced_root);
-    const restored_executable = try tmp.dir.readFileAlloc(alloc, "install/noctty.com", 32);
+    const restored_executable = try tmp.dir.readFileAlloc(alloc, "install/najm.com", 32);
     defer alloc.free(restored_executable);
     try std.testing.expectEqualStrings("old executable", restored_executable);
     const restored_old_only = try tmp.dir.readFileAlloc(alloc, "install/share/old-only.ps1", 32);
@@ -880,11 +880,11 @@ test "portable rollback renames displaced share tree back exactly" {
 
 test "portable update rejects unsafe ZIP entry paths" {
     const testing = std.testing;
-    try testing.expect(isSafeZipEntryPath("noctty/"));
+    try testing.expect(isSafeZipEntryPath("najm/"));
     try testing.expect(isSafeZipEntryPath("noctty/share/ghostty/themes/a"));
-    try testing.expect(!isSafeZipEntryPath("/noctty/noctty.exe"));
-    try testing.expect(!isSafeZipEntryPath("C:/noctty/noctty.exe"));
+    try testing.expect(!isSafeZipEntryPath("/noctty/najm.exe"));
+    try testing.expect(!isSafeZipEntryPath("C:/noctty/najm.exe"));
     try testing.expect(!isSafeZipEntryPath("noctty/../../outside"));
-    try testing.expect(!isSafeZipEntryPath("noctty\\noctty.exe"));
-    try testing.expect(!isSafeZipEntryPath("other/noctty.exe"));
+    try testing.expect(!isSafeZipEntryPath("noctty\\najm.exe"));
+    try testing.expect(!isSafeZipEntryPath("other/najm.exe"));
 }

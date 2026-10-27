@@ -15,8 +15,8 @@ const Allocator = std.mem.Allocator;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 const log = std.log.scoped(.update_github_releases);
 
-pub const latest_stable_api_url = "https://api.github.com/repos/amanthanvi/noctty/releases/latest";
-pub const releases_url = "https://github.com/amanthanvi/noctty/releases";
+pub const latest_stable_api_url = "https://api.github.com/repos/Vette1123/najm/releases/latest";
+pub const releases_url = "https://github.com/Vette1123/najm/releases";
 pub const windows_checksums_asset_name_legacy = "SHA256SUMS.txt";
 // Microsoft PE/COFF Machine values, mirrored by
 // scripts/windows-architecture.ps1.
@@ -40,15 +40,14 @@ const windows_asset_metadata = switch (builtin.cpu.arch) {
 
 pub const throttle_seconds: i64 = 24 * 60 * 60;
 const pinned_publisher_spki_sha256 = [_][Sha256.digest_length]u8{
-    // SHA-256(SubjectPublicKeyInfo DER) for the pre-rename
-    // "CN=winghostty Local Dev Signing" certificate (that is the actual
-    // Subject on the existing key; the project is now Noctty),
-    // valid 2026-04-30..2029-04-30. Extracted from v1.3.117 Windows setup asset.
+    // SHA-256(SubjectPublicKeyInfo DER) for Najm's self-signed
+    // "CN=Najm Code Signing" certificate (RSA 3072), valid
+    // 2026-10-27..2036-10-27. Thumbprint 26D9DB30682A45008C05E08729B7CC9016D492FB.
     .{
-        0x67, 0x1e, 0xc8, 0x22, 0xc4, 0x1f, 0x39, 0xb1,
-        0xd7, 0x9c, 0x31, 0xd2, 0x71, 0x69, 0xb3, 0x74,
-        0x86, 0x33, 0x3c, 0x00, 0x8c, 0x7a, 0x03, 0x82,
-        0x61, 0xb4, 0xfa, 0xe5, 0x38, 0x18, 0xce, 0x2a,
+        0xde, 0xa6, 0xc5, 0x5d, 0x54, 0xe8, 0xb3, 0x54,
+        0xb1, 0x7e, 0x5e, 0x4e, 0xdb, 0x72, 0xdf, 0xc7,
+        0xf9, 0xfb, 0x0a, 0xc8, 0x6c, 0xfa, 0x04, 0xc3,
+        0x1d, 0x84, 0x06, 0x73, 0xe2, 0xca, 0x73, 0xb8,
     },
 };
 
@@ -877,10 +876,10 @@ fn stageWindowsInstallWithDownloader(
     // Downgrade guard: a feed can claim any tag while serving an older but
     // legitimately signed build, so the binary's own version must be at least
     // the version the feed claimed. For the portable channel the version-bearing
-    // binary is the extracted noctty.exe.
+    // binary is the extracted najm.exe.
     const version_check_path = switch (kind) {
         .installer => try alloc.dupe(u8, artifact_path),
-        .portable => try std.fs.path.join(alloc, &.{ payload_path.?, "noctty.exe" }),
+        .portable => try std.fs.path.join(alloc, &.{ payload_path.?, "najm.exe" }),
     };
     defer alloc.free(version_check_path);
     try verifyStagedBinaryVersion(alloc, version_check_path, release.version_text);
@@ -1222,14 +1221,14 @@ pub fn takeFailedInstallerApply(
         if (std.fs.cwd().access(path, .{})) |_| {
             return try std.fmt.allocPrint(
                 alloc,
-                "The update to noctty {s} did not finish installing. Setup's log: {s}",
+                "The update to Najm {s} did not finish installing. Setup's log: {s}",
                 .{ staged_version, path },
             );
         } else |_| {}
     }
     return try std.fmt.allocPrint(
         alloc,
-        "The update to noctty {s} did not finish installing, and Setup left no log.",
+        "The update to Najm {s} did not finish installing, and Setup left no log.",
         .{staged_version},
     );
 }
@@ -1300,13 +1299,13 @@ fn portableStageLayout(
     errdefer alloc.free(stage_dir);
     const artifact_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-{s}-windows-{s}-portable.zip",
+        "najm-{s}-windows-{s}-portable.zip",
         .{ version_text, windowsInstallerArch() },
     );
     defer alloc.free(artifact_name);
     const artifact_path = try std.fs.path.join(alloc, &.{ stage_dir, artifact_name });
     errdefer alloc.free(artifact_path);
-    const payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "noctty" });
+    const payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "najm" });
     errdefer alloc.free(payload_path);
     const manifest_name = try portableManifestNameAlloc(alloc, version_text);
     defer alloc.free(manifest_name);
@@ -1548,7 +1547,7 @@ pub fn takePortableUpdateFailure(alloc: Allocator) !?[]u8 {
     }
     const message = try std.fmt.allocPrint(
         alloc,
-        "The portable update could not be applied ({s}); the current noctty build is still running. Open the release page to update manually.",
+        "The portable update could not be applied ({s}); the current Najm build is still running. Open the release page to update manually.",
         .{failure},
     );
     return message;
@@ -1979,7 +1978,7 @@ fn spawnInstalledNoctty(
     confirmation_token: ?[]const u8,
     failure_name: ?[]const u8,
 ) !std.process.Child {
-    const exe_path = try std.fs.path.join(alloc, &.{ install_root, "noctty.exe" });
+    const exe_path = try std.fs.path.join(alloc, &.{ install_root, "najm.exe" });
     defer alloc.free(exe_path);
     var env = try std.process.getEnvMap(alloc);
     defer env.deinit();
@@ -2427,15 +2426,15 @@ fn extractAndVerifyPortableZip(
     var diagnostics: std.zip.Diagnostics = .{ .allocator = alloc };
     defer diagnostics.deinit();
     try std.zip.extract(destination, &zip_reader, .{ .diagnostics = &diagnostics });
-    if (!std.mem.eql(u8, diagnostics.root_dir, "noctty")) return error.InvalidPortableArchiveRoot;
+    if (!std.mem.eql(u8, diagnostics.root_dir, "najm")) return error.InvalidPortableArchiveRoot;
     destination.close();
     destination_open = false;
 
-    const partial_payload = try std.fs.path.join(alloc, &.{ partial_root, "noctty" });
+    const partial_payload = try std.fs.path.join(alloc, &.{ partial_root, "najm" });
     defer alloc.free(partial_payload);
     try verifyPortablePayload(alloc, partial_payload, manifest_path);
     try std.fs.renameAbsolute(partial_root, extracted_root);
-    return std.fs.path.join(alloc, &.{ extracted_root, "noctty" });
+    return std.fs.path.join(alloc, &.{ extracted_root, "najm" });
 }
 
 fn validatePortableZipEntries(alloc: Allocator, zip_path: []const u8) !void {
@@ -3337,13 +3336,13 @@ fn parseWindowsInstallCandidate(
 
     const expected_installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-{s}-windows-{s}-setup.exe",
+        "najm-{s}-windows-{s}-setup.exe",
         .{ version_text, windowsInstallerArch() },
     );
     errdefer alloc.free(expected_installer_name);
     const expected_portable_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-{s}-windows-{s}-portable.zip",
+        "najm-{s}-windows-{s}-portable.zip",
         .{ version_text, windowsInstallerArch() },
     );
     errdefer alloc.free(expected_portable_name);
@@ -3457,7 +3456,7 @@ fn windowsChecksumsAssetName() []const u8 {
 fn portableManifestNameAlloc(alloc: Allocator, version_text: []const u8) ![]u8 {
     return std.fmt.allocPrint(
         alloc,
-        "noctty-{s}-windows-{s}-portable.manifest.ps1",
+        "najm-{s}-windows-{s}-portable.manifest.ps1",
         .{ version_text, windowsInstallerArch() },
     );
 }
@@ -3694,7 +3693,7 @@ test "state persists staged windows install metadata with escaped path" {
         .release_url = try alloc.dupe(u8, "https://updates.example/releases/1.3.100"),
         .staged_version = try alloc.dupe(u8, "1.3.101"),
         .staged_kind = .installer,
-        .staged_installer_path = try alloc.dupe(u8, "C:\\Users\\Aman\\updates\\noctty-1.3.101-windows-x64-setup.exe"),
+        .staged_installer_path = try alloc.dupe(u8, "C:\\Users\\Aman\\updates\\najm-1.3.101-windows-x64-setup.exe"),
         .staged_sha256 = try alloc.dupe(u8, "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
         .staged_feed_url = try alloc.dupe(u8, "https://updates.example/latest?channel=\"stable\""),
         .staged_at = 456,
@@ -3892,7 +3891,7 @@ test "record staged apply request persists timestamp" {
     var state: State = .{
         .staged_version = try alloc.dupe(u8, "1.3.101"),
         .staged_kind = .installer,
-        .staged_installer_path = try alloc.dupe(u8, "C:\\Users\\Aman\\updates\\noctty-1.3.101-windows-x64-setup.exe"),
+        .staged_installer_path = try alloc.dupe(u8, "C:\\Users\\Aman\\updates\\najm-1.3.101-windows-x64-setup.exe"),
         .staged_sha256 = try alloc.dupe(u8, "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
     };
     defer state.deinit(alloc);
@@ -4023,11 +4022,11 @@ test "a staged installer reads as running only while a process runs from it" {
     // No stage directory.
     try std.testing.expect(!stagedInstallerRunning(alloc, state_path));
 
-    const name = "noctty-1.3.200-windows-x64-setup.exe";
+    const name = "najm-1.3.200-windows-x64-setup.exe";
     try tmp.dir.makePath("updates/1.3.200/backup");
     try tmp.dir.writeFile(.{ .sub_path = "updates/1.3.200/" ++ name, .data = "setup" });
-    try tmp.dir.writeFile(.{ .sub_path = "updates/1.3.200/noctty-1.3.200-windows-x64-portable.zip", .data = "zip" });
-    try tmp.dir.writeFile(.{ .sub_path = "updates/1.3.200/backup/noctty.exe", .data = "old" });
+    try tmp.dir.writeFile(.{ .sub_path = "updates/1.3.200/najm-1.3.200-windows-x64-portable.zip", .data = "zip" });
+    try tmp.dir.writeFile(.{ .sub_path = "updates/1.3.200/backup/najm.exe", .data = "old" });
     const installer_path = try std.fs.path.join(alloc, &.{ root, "updates", "1.3.200", name });
     defer alloc.free(installer_path);
     try std.testing.expect(!stagedInstallerRunning(alloc, state_path));
@@ -4036,7 +4035,7 @@ test "a staged installer reads as running only while a process runs from it" {
     // noctty's update check while it hashes and checks the signature, refuses
     // write access as a running image does. No process runs from the file,
     // so it is not an Install, and an external upgrade's restart stays.
-    inline for (.{ name, "noctty-1.3.200-windows-x64-portable.zip", "backup\\noctty.exe" }) |other| {
+    inline for (.{ name, "najm-1.3.200-windows-x64-portable.zip", "backup\\najm.exe" }) |other| {
         const other_path = try std.fs.path.join(alloc, &.{ root, "updates", "1.3.200", other });
         defer alloc.free(other_path);
         var held = try openLockedInstaller(other_path);
@@ -4076,7 +4075,7 @@ test "a running staged Setup stays found after another feed's check drops the st
     const state_path = try std.fs.path.join(alloc, &.{ root, "update-state.json" });
     defer alloc.free(state_path);
     try tmp.dir.makePath("updates/1.3.200");
-    const setup_path = try std.fs.path.join(alloc, &.{ root, "updates", "1.3.200", "noctty-1.3.200-windows-x64-setup.exe" });
+    const setup_path = try std.fs.path.join(alloc, &.{ root, "updates", "1.3.200", "najm-1.3.200-windows-x64-setup.exe" });
     defer alloc.free(setup_path);
     // The stand-in Setup: a copy of ping.exe, started with no console window.
     const system_root = try std.process.getEnvVarOwned(alloc, "SystemRoot");
@@ -4134,14 +4133,14 @@ test "a staged installer image is an exe directly inside a version directory" {
     try std.testing.expect(isStagedImage(updates, w("c:\\l\\NOCTTY\\UPDATES\\1.3.200\\SETUP.EXE")));
     try std.testing.expect(isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\helper.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\payload\\noctty\\a.exe")));
-    try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\backup\\noctty.exe")));
+    try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\backup\\najm.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\setup.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\\\setup.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\setup.zip")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates\\1.3.200\\.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\noctty\\updates-old\\1\\setup.exe")));
     try std.testing.expect(!isStagedImage(updates, w("C:\\L\\Temp\\WinGet\\setup.exe")));
-    try std.testing.expect(!isStagedImage(updates, w("C:\\Program Files\\noctty\\noctty.exe")));
+    try std.testing.expect(!isStagedImage(updates, w("C:\\Program Files\\noctty\\najm.exe")));
 }
 
 test "a start leaves a portable apply request to the portable recovery" {
@@ -4183,7 +4182,7 @@ test "portable update rejects persisted paths outside its stage" {
     defer alloc.free(stage_dir);
     const artifact_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.200-windows-{s}-portable.zip",
+        "najm-1.3.200-windows-{s}-portable.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(artifact_name);
@@ -4192,7 +4191,7 @@ test "portable update rejects persisted paths outside its stage" {
         .staged_version = try alloc.dupe(u8, "1.3.200"),
         .staged_kind = .portable,
         .staged_portable_path = try std.fs.path.join(alloc, &.{ stage_dir, artifact_name }),
-        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "noctty" }),
+        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "najm" }),
         .staged_sha256 = try alloc.dupe(u8, "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
         .portable_backup_path = try std.fs.path.join(alloc, &.{ root, "unrelated-user-data" }),
     };
@@ -4289,7 +4288,7 @@ test "portable recovery abandons stranded swapped transaction" {
     defer alloc.free(stage_dir);
     const artifact_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.200-windows-{s}-portable.zip",
+        "najm-1.3.200-windows-{s}-portable.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(artifact_name);
@@ -4297,7 +4296,7 @@ test "portable recovery abandons stranded swapped transaction" {
         .staged_version = try alloc.dupe(u8, "1.3.200"),
         .staged_kind = .portable,
         .staged_portable_path = try std.fs.path.join(alloc, &.{ stage_dir, artifact_name }),
-        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "noctty" }),
+        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "najm" }),
         .staged_sha256 = try alloc.dupe(u8, "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
         .portable_apply_phase = .swapped,
         .portable_backup_path = try std.fs.path.join(alloc, &.{ stage_dir, "backup" }),
@@ -4368,7 +4367,7 @@ test "portable recovery preserves complete rollback" {
     const alloc = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
-    try tmp.dir.writeFile(.{ .sub_path = "noctty.com", .data = "old-build" });
+    try tmp.dir.writeFile(.{ .sub_path = "najm.com", .data = "old-build" });
     const install_root = try tmp.dir.realpathAlloc(alloc, ".");
     defer alloc.free(install_root);
     const state_path = try std.fs.path.join(alloc, &.{ install_root, "update-state.json" });
@@ -4382,7 +4381,7 @@ test "portable recovery preserves complete rollback" {
     try portable_apply.prepareBackup(alloc, install_root, backup_path);
     const artifact_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.200-windows-{s}-portable.zip",
+        "najm-1.3.200-windows-{s}-portable.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(artifact_name);
@@ -4390,7 +4389,7 @@ test "portable recovery preserves complete rollback" {
         .staged_version = try alloc.dupe(u8, "1.3.200"),
         .staged_kind = .portable,
         .staged_portable_path = try std.fs.path.join(alloc, &.{ stage_dir, artifact_name }),
-        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "noctty" }),
+        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "najm" }),
         .staged_sha256 = try alloc.dupe(u8, "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"),
         .staged_at = 456,
         .apply_requested_at = 123,
@@ -4401,7 +4400,7 @@ test "portable recovery preserves complete rollback" {
     defer state.deinit(alloc);
 
     for ([_]portable_apply.Phase{ .swapped, .rollback }) |phase| {
-        try tmp.dir.writeFile(.{ .sub_path = "noctty.com", .data = "broken-new-build" });
+        try tmp.dir.writeFile(.{ .sub_path = "najm.com", .data = "broken-new-build" });
         state.portable_apply_phase = phase;
         try saveState(state_path, &state);
 
@@ -4424,7 +4423,7 @@ test "portable recovery preserves complete rollback" {
         try std.testing.expectEqualStrings(state.portable_confirmation_token.?, loaded.portable_confirmation_token.?);
 
         try portable_apply.rollback(alloc, install_root, backup_path, displaced_path);
-        const restored = try tmp.dir.readFileAlloc(alloc, "noctty.com", 32);
+        const restored = try tmp.dir.readFileAlloc(alloc, "najm.com", 32);
         defer alloc.free(restored);
         try std.testing.expectEqualStrings("old-build", restored);
     }
@@ -4447,7 +4446,7 @@ test "confirmed portable cleanup failure cannot rearm startup gating" {
     defer alloc.free(stage_dir);
     const artifact_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.200-windows-{s}-portable.zip",
+        "najm-1.3.200-windows-{s}-portable.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(artifact_name);
@@ -4455,7 +4454,7 @@ test "confirmed portable cleanup failure cannot rearm startup gating" {
         .staged_version = try alloc.dupe(u8, "1.3.200"),
         .staged_kind = .portable,
         .staged_portable_path = try std.fs.path.join(alloc, &.{ stage_dir, artifact_name }),
-        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "noctty" }),
+        .staged_payload_path = try std.fs.path.join(alloc, &.{ stage_dir, "payload", "najm" }),
         .portable_apply_phase = .confirmed,
         .portable_backup_path = try std.fs.path.join(alloc, &.{ stage_dir, "backup" }),
     };
@@ -4492,10 +4491,10 @@ test "portable relaunch replays original argv" {
         "--config-file",
         "C:\\config files\\noctty.conf",
     };
-    const argv = try buildInstalledNocttyArgv(alloc, "D:\\portable\\noctty.exe", &original);
+    const argv = try buildInstalledNocttyArgv(alloc, "D:\\portable\\najm.exe", &original);
     defer alloc.free(argv);
     try std.testing.expectEqual(@as(usize, original.len + 1), argv.len);
-    try std.testing.expectEqualStrings("D:\\portable\\noctty.exe", argv[0]);
+    try std.testing.expectEqualStrings("D:\\portable\\najm.exe", argv[0]);
     for (original, 0..) |expected, index| {
         try std.testing.expectEqualStrings(expected, argv[index + 1]);
     }
@@ -4571,7 +4570,7 @@ test "portable concurrent launch content identity verifies the installed managed
     try tmp.dir.deleteFile("install/share/new-only.ps1");
 
     // Equal paths with different bytes are not content identity.
-    try tmp.dir.writeFile(.{ .sub_path = "install/noctty.com", .data = "tampered" });
+    try tmp.dir.writeFile(.{ .sub_path = "install/najm.com", .data = "tampered" });
     try std.testing.expectError(
         error.PortablePayloadManifestMismatch,
         verifyInstalledPortablePayloadAgainstManifest(alloc, install_root, manifest.items),
@@ -5259,10 +5258,10 @@ test "state JSON writer escapes ASCII control characters" {
 
 test "checksum parser accepts sha256 star filename lines" {
     const digest = try parseExpectedSha256(
-        \\d00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00d *noctty-1.3.100-windows-x64-setup.exe
+        \\d00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00d *najm-1.3.100-windows-x64-setup.exe
         \\00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff *other.exe
     ,
-        "noctty-1.3.100-windows-x64-setup.exe",
+        "najm-1.3.100-windows-x64-setup.exe",
     );
     try std.testing.expectEqualStrings(
         "d00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00dd00df00d",
@@ -5286,7 +5285,7 @@ test "checksum parser rejects missing installer entry" {
         error.InstallerChecksumMissing,
         parseExpectedSha256(
             "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff *other.exe",
-            "noctty-1.3.100-windows-x64-setup.exe",
+            "najm-1.3.100-windows-x64-setup.exe",
         ),
     );
 }
@@ -5295,10 +5294,10 @@ test "checksum parser rejects duplicate installer entries" {
     try std.testing.expectError(
         error.InstallerChecksumDuplicate,
         parseExpectedSha256(
-            \\00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff *noctty-1.3.100-windows-x64-setup.exe
-            \\ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100 *noctty-1.3.100-windows-x64-setup.exe
+            \\00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff *najm-1.3.100-windows-x64-setup.exe
+            \\ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100 *najm-1.3.100-windows-x64-setup.exe
         ,
-            "noctty-1.3.100-windows-x64-setup.exe",
+            "najm-1.3.100-windows-x64-setup.exe",
         ),
     );
 }
@@ -5307,16 +5306,16 @@ test "checksum parser ignores the symbols zip entry beside the installer and por
     // From v1.3.133 each architecture's checksum file, and the x64 legacy
     // SHA256SUMS.txt copy older clients read, also lists the symbols zip.
     const checksums =
-        \\1111111111111111111111111111111111111111111111111111111111111111 *noctty-1.3.133-windows-x64-portable.zip
-        \\2222222222222222222222222222222222222222222222222222222222222222 *noctty-1.3.133-windows-x64-setup.exe
-        \\3333333333333333333333333333333333333333333333333333333333333333 *noctty-1.3.133-windows-x64-symbols.zip
+        \\1111111111111111111111111111111111111111111111111111111111111111 *najm-1.3.133-windows-x64-portable.zip
+        \\2222222222222222222222222222222222222222222222222222222222222222 *najm-1.3.133-windows-x64-setup.exe
+        \\3333333333333333333333333333333333333333333333333333333333333333 *najm-1.3.133-windows-x64-symbols.zip
     ;
-    const installer = try parseExpectedSha256(checksums, "noctty-1.3.133-windows-x64-setup.exe");
+    const installer = try parseExpectedSha256(checksums, "najm-1.3.133-windows-x64-setup.exe");
     try std.testing.expectEqualStrings(
         "2222222222222222222222222222222222222222222222222222222222222222",
         &std.fmt.bytesToHex(installer, .lower),
     );
-    const portable = try parseExpectedSha256(checksums, "noctty-1.3.133-windows-x64-portable.zip");
+    const portable = try parseExpectedSha256(checksums, "najm-1.3.133-windows-x64-portable.zip");
     try std.testing.expectEqualStrings(
         "1111111111111111111111111111111111111111111111111111111111111111",
         &std.fmt.bytesToHex(portable, .lower),
@@ -5408,7 +5407,7 @@ test "update staging leaves state lock available during stalled download" {
         .version_text = try alloc.dupe(u8, "1.3.200"),
         .release_url = try alloc.dupe(u8, "https://example.invalid/releases/1.3.200"),
         .windows_install = .{
-            .installer_name = try alloc.dupe(u8, "noctty-1.3.200-windows-x64-setup.exe"),
+            .installer_name = try alloc.dupe(u8, "najm-1.3.200-windows-x64-setup.exe"),
             .installer_url = try alloc.dupe(u8, "https://example.invalid/stalled-setup.exe"),
             .checksums_url = try alloc.dupe(u8, "https://example.invalid/stalled-checksums.txt"),
         },
@@ -5488,8 +5487,8 @@ test "windows install staging rejects relative state path before download" {
         .version_text = try alloc.dupe(u8, "1.3.100"),
         .release_url = try alloc.dupe(u8, "https://example.invalid/release"),
         .windows_install = .{
-            .installer_name = try alloc.dupe(u8, "noctty-1.3.100-windows-x64-setup.exe"),
-            .installer_url = try alloc.dupe(u8, "https://example.invalid/noctty-1.3.100-windows-x64-setup.exe"),
+            .installer_name = try alloc.dupe(u8, "najm-1.3.100-windows-x64-setup.exe"),
+            .installer_url = try alloc.dupe(u8, "https://example.invalid/najm-1.3.100-windows-x64-setup.exe"),
             .checksums_url = try alloc.dupe(u8, "https://example.invalid/SHA256SUMS.txt"),
         },
     };
@@ -5515,7 +5514,7 @@ test "portable staging fails closed before download without signed manifest asse
         .windows_install = .{
             .installer_name = try alloc.dupe(u8, "setup.exe"),
             .installer_url = try alloc.dupe(u8, "https://example.invalid/setup.exe"),
-            .portable_name = try alloc.dupe(u8, "noctty-1.3.200-windows-x64-portable.zip"),
+            .portable_name = try alloc.dupe(u8, "najm-1.3.200-windows-x64-portable.zip"),
             .portable_url = try alloc.dupe(u8, "https://example.invalid/portable.zip"),
             .checksums_url = try alloc.dupe(u8, "https://example.invalid/SHA256SUMS.txt"),
         },
@@ -5562,13 +5561,13 @@ test "release parser does not invent a portable payload manifest" {
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-setup.exe",
+        "najm-1.3.100-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
     const portable_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-portable.zip",
+        "najm-1.3.100-windows-{s}-portable.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(portable_name);
@@ -5629,7 +5628,7 @@ test "release parser rejects non-HTTPS Windows asset URLs" {
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-setup.exe",
+        "najm-1.3.100-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
@@ -5683,7 +5682,7 @@ test "release parser selects windows install candidate when checksum metadata is
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-setup.exe",
+        "najm-1.3.100-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
@@ -5727,13 +5726,13 @@ test "release parser ignores the symbols zip among the release assets" {
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.133-windows-{s}-setup.exe",
+        "najm-1.3.133-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
     const symbols_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.133-windows-{s}-symbols.zip",
+        "najm-1.3.133-windows-{s}-symbols.zip",
         .{windowsInstallerArch()},
     );
     defer alloc.free(symbols_name);
@@ -5777,7 +5776,7 @@ test "release parser prefers architecture checksum metadata over legacy x64 meta
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-setup.exe",
+        "najm-1.3.100-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
@@ -5823,7 +5822,7 @@ test "release parser accepts legacy checksum metadata for x64 install candidate"
     const alloc = std.testing.allocator;
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-1.3.100-windows-{s}-setup.exe",
+        "najm-1.3.100-windows-{s}-setup.exe",
         .{windowsInstallerArch()},
     );
     defer alloc.free(installer_name);
@@ -5870,7 +5869,7 @@ test "release parser accepts long semver tags for windows install candidate" {
 
     const installer_name = try std.fmt.allocPrint(
         alloc,
-        "noctty-{s}-windows-{s}-setup.exe",
+        "najm-{s}-windows-{s}-setup.exe",
         .{ version_text, windowsInstallerArch() },
     );
     defer alloc.free(installer_name);
@@ -6082,8 +6081,8 @@ test "portable payload PEs are publisher-pinned except the bundled ConPTY pair" 
     // publisher pin. This list mirrors Get-WindowsSignedRuntimePayloads in
     // scripts/common.ps1 with the portable-ZIP "noctty/" prefix removed.
     for ([_][]const u8{
-        "noctty.exe",
-        "noctty.com",
+        "najm.exe",
+        "najm.com",
         "ghostty-vt.dll",
         "noctty-terminal-handoff-proxy.dll",
         "share/conpty.dll",

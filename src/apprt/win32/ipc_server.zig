@@ -33,7 +33,7 @@ const ipc_server_instance_access = c.PIPE_ACCESS_DUPLEX | windows.FILE_FLAG_OVER
 /// is created BEFORE the previous handle is closed, so the name is never
 /// momentarily unowned for a squatter to take.
 const ipc_server_pipe_access = ipc_server_instance_access | c.FILE_FLAG_FIRST_PIPE_INSTANCE;
-const ipc_pipe_prefix = "\\\\.\\pipe\\noctty.";
+const ipc_pipe_prefix = "\\\\.\\pipe\\najm.";
 
 const ForwardedArgIterator = struct {
     args: []const [:0]const u8,
@@ -48,9 +48,9 @@ const ForwardedArgIterator = struct {
 
 fn defaultIpcNamespace() []const u8 {
     return if (builtin.mode == .Debug)
-        "io.github.amanthanvi.noctty-debug"
+        "io.github.vette1123.najm-debug"
     else
-        "io.github.amanthanvi.noctty";
+        "io.github.vette1123.najm";
 }
 
 fn sanitizeIpcNamespace(alloc: Allocator, raw: ?[]const u8) ![]const u8 {
@@ -174,7 +174,7 @@ fn tokenIntegrityRid(token: windows.HANDLE) ?u32 {
 ///
 /// The single-instance pipe name is derived only from `--class`, so it is
 /// PREDICTABLE and lives in the machine-wide named-pipe namespace. Any local
-/// account can therefore pre-create `\\.\pipe\noctty.<class>` before we do.
+/// account can therefore pre-create `\\.\pipe\najm.<class>` before we do.
 /// The server-side owner-only DACL does not help here: it protects the pipe
 /// WE create, not the one we CONNECT to. Without this check a squatter would
 /// receive our forwarded startup arguments (including the working directory)

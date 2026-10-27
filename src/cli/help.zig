@@ -27,7 +27,7 @@ const help_prelude =
     \\
     \\Run the Windows-native noctty terminal or a specific helper action.
     \\
-    \\If no `+action` is specified, run `noctty.exe`.
+    \\If no `+action` is specified, run `najm.exe`.
     \\All configuration keys are available as command line options.
     \\To specify a configuration key, use the `--<key>=<value>` syntax
     \\where key and value are the same format you'd put into a configuration
@@ -96,7 +96,7 @@ pub fn run(alloc: Allocator) !u8 {
 
 test "help prelude is Windows-only" {
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "Windows-native noctty terminal") != null);
-    try std.testing.expect(std.mem.indexOf(u8, help_prelude, "noctty.exe") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help_prelude, "najm.exe") != null);
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "Ghostty.app") == null);
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "open -na") == null);
 }

@@ -275,7 +275,7 @@ test "conpty pins equal dist/windows/conpty-redist.json" {
 test "conpty pin lookup is exact" {
     try std.testing.expect(find("conpty.dll") != null);
     try std.testing.expect(find("OpenConsole.exe") != null);
-    try std.testing.expect(find("noctty.exe") == null);
+    try std.testing.expect(find("najm.exe") == null);
     try std.testing.expect(find("ghostty-vt.dll") == null);
     try std.testing.expect(find("share/conpty.dll") == null);
     try std.testing.expect(find("CONPTY.DLL") == null);

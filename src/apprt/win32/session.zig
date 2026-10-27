@@ -3178,7 +3178,7 @@ test "win32 session owner lock admits one live owner" {
     const root = try tmp.dir.realpathAlloc(std.testing.allocator, ".");
     defer std.testing.allocator.free(root);
     // The directory does not exist yet on a first run.
-    const state_path = try std.fs.path.join(std.testing.allocator, &.{ root, "noctty", "session-state.json" });
+    const state_path = try std.fs.path.join(std.testing.allocator, &.{ root, "Najm", "session-state.json" });
     defer std.testing.allocator.free(state_path);
 
     const first = (try SessionOwnerLock.acquire(std.testing.allocator, state_path)).?;

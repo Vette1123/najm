@@ -97,7 +97,7 @@ test "minidump init creates missing parent directories" {
     defer tmp.cleanup();
     const root = try tmp.dir.realpathAlloc(alloc, ".");
     defer alloc.free(root);
-    const path = try std.fs.path.join(alloc, &.{ root, "absent", "noctty", "crash" });
+    const path = try std.fs.path.join(alloc, &.{ root, "absent", "Najm", "crash" });
     defer alloc.free(path);
 
     try initIn(path);

@@ -50,7 +50,7 @@ pub fn describeConPtyFallback(reason: ConPtyFallback) []const u8 {
     return switch (reason) {
         error.ForcedInbox => "NOCTTY_CONPTY=inbox is set",
         error.PathUnavailable => "bundled ConPTY path could not be resolved",
-        error.NotFound => "conpty.dll is not next to noctty.exe",
+        error.NotFound => "conpty.dll is not next to najm.exe",
         error.LoadFailed => "bundled ConPTY failed to load",
         error.OpenConsoleMissing => "bundled ConPTY is missing OpenConsole.exe",
         error.OpenConsoleWrongArch => "bundled OpenConsole.exe has the wrong architecture",
@@ -1573,7 +1573,7 @@ test "Windows ConPTY fallback names a missing or unloadable bundled pair" {
     // What a source build that could not download the pair runs into.
     try testing.expectError(error.NotFound, WindowsConPty.loadBundledFrom(dir));
     try testing.expectEqualStrings(
-        "Using Windows' in-box console host because conpty.dll is not next to noctty.exe: colour queries, synchronized output, Kitty graphics and Sixel may not work.",
+        "Using Windows' in-box console host because conpty.dll is not next to najm.exe: colour queries, synchronized output, Kitty graphics and Sixel may not work.",
         conPtyFallbackBanner(error.NotFound),
     );
 

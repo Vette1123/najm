@@ -506,7 +506,7 @@ pub fn innoUninstallRegistryMatchesInstallDir(install_dir: []const u8) bool {
     // dist/windows/noctty.iss deliberately retains this AppId. Inno appends
     // `_is1` to AppId for its uninstall key and records InstallLocation there.
     const uninstall_subkey = std.unicode.utf8ToUtf16LeStringLiteral(
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\io.github.amanthanvi.winghostty_is1",
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\io.github.vette1123.najm_is1",
     );
     const install_location_name = std.unicode.utf8ToUtf16LeStringLiteral("InstallLocation");
     var registered_buf: [windows.PATH_MAX_WIDE:0]u16 = undefined;
@@ -577,7 +577,7 @@ test "Windows installer management recognizes Inno uninstaller markers" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     try std.testing.expect(isInnoUninstallerFileName("unins000.exe", ".exe"));
     try std.testing.expect(isInnoUninstallerFileName("UNINS001.DAT", ".dat"));
-    try std.testing.expect(!isInnoUninstallerFileName("noctty.exe", ".exe"));
+    try std.testing.expect(!isInnoUninstallerFileName("najm.exe", ".exe"));
     try std.testing.expect(!isInnoUninstallerFileName("unins.exe", ".exe"));
 
     var tmp = std.testing.tmpDir(.{});

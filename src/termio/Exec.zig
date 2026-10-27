@@ -94,7 +94,7 @@ fn addGhosttyBinToPath(
     const updated_path = if (builtin.os.tag == .windows)
         // Windows shells resolve bare `noctty` from PATH/PATHEXT.
         // Put the current install first so an older shim/exe earlier on
-        // PATH doesn't shadow our local `noctty.com`.
+        // PATH doesn't shadow our local `najm.com`.
         try internal_os.prependEnv(alloc, path, exe_dir)
     else
         try internal_os.appendEnv(alloc, path, exe_dir);

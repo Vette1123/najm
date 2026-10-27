@@ -125,7 +125,7 @@ pub fn raiseNotification(
     raiseNotificationAs(
         provider,
         kind,
-        std.unicode.utf8ToUtf16LeStringLiteral("noctty.command-palette"),
+        std.unicode.utf8ToUtf16LeStringLiteral("najm.command-palette"),
         message,
     );
 }
