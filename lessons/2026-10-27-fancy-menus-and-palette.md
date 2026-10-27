@@ -42,3 +42,13 @@ dark Najm opened light, classic Windows menus.
 - A new popup menu calls `fancy_menu.track`, never `TrackPopupMenu` directly.
 - Never send synthetic input through the global queue on the owner's machine. Post to one window.
 - Sizes on chrome text follow the system font and its scaling, with a floor, not a fixed px.
+
+## Addendum: the garbled Claude Code screen
+
+The owner saw Claude Code's text split sideways, with fragments left at the right edge; a resize
+fixed it. Eight reproductions failed to trigger it: slow and fast resizes, streaming during
+resizes, minimize/restore, a background tab resized, moving between monitors, font zoom, and a
+glyph-width test against ConPTY. Instead of a ninth guess, Najm can now record what a terminal
+receives (`NAJM_PTY_RECORD_DIR`) as a `resize_replay` script, and `NAJM_REPLAY_FILE` replays it
+through the terminal code with a `dump`. Rule: when a "random" screen bug won't reproduce, record
+the real stream and replay it; don't keep inventing triggers.

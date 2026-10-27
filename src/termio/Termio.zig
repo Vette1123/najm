@@ -23,6 +23,7 @@ const windows = internal_os.windows;
 const configpkg = @import("../config.zig");
 const ProcessInfo = @import("../pty.zig").ProcessInfo;
 const BenchmarkEndMarker = @import("bench_marker.zig").BenchmarkEndMarker;
+const PtyRecorder = @import("pty_record.zig").Recorder;
 
 const log = std.log.scoped(.io_exec);
 
@@ -399,6 +400,7 @@ test {
     // benchmark boundary is visible in the file list, not buried in
     // Termio. Pull its tests in explicitly.
     _ = @import("bench_marker.zig");
+    _ = @import("pty_record.zig");
 }
 
 /// Mutex state argument for queueMessage.
@@ -463,6 +465,8 @@ last_cursor_reset: ?std.time.Instant = null,
 
 /// Optional PTY/output trace for debugging render wake cadence.
 output_trace: OutputTrace = .{},
+/// Najm: `NAJM_PTY_RECORD_DIR` records this terminal as a replay script.
+pty_record: PtyRecorder = .{},
 
 /// Optional benchmark-only marker used to acknowledge transformed ConPTY
 /// output by terminal generation instead of original input bytes.
@@ -737,6 +741,7 @@ pub fn init(self: *Termio, alloc: Allocator, opts: termio.Options) !void {
         .mailbox = opts.mailbox,
         .terminal_stream = .initAlloc(alloc, handler),
         .output_trace = OutputTrace.init(alloc),
+        .pty_record = PtyRecorder.init(alloc, opts.size.grid().columns, opts.size.grid().rows),
         .benchmark_end_marker = BenchmarkEndMarker.init(alloc),
         .thread_enter_state = thread_enter_state,
     };
@@ -751,6 +756,7 @@ pub fn deinit(self: *Termio) void {
     // Clear any StreamHandler state
     self.terminal_stream.deinit();
     self.output_trace.deinit(self.alloc);
+    self.pty_record.deinit();
     self.benchmark_end_marker.deinit(self.alloc);
 
     // Clear any initial state if we have it
@@ -931,6 +937,7 @@ pub fn resize(
     size: renderer.Size,
 ) !void {
     const grid_size = size.grid();
+    self.pty_record.resize(grid_size.columns, grid_size.rows);
 
     // Update the size of our pty. A pty that refuses (a pseudo console whose
     // host is gone, a handoff session whose signal pipe closed) must not
@@ -1179,6 +1186,7 @@ pub fn focusGained(self: *Termio, td: *ThreadData, focused: bool) !void {
 /// call with pty data but it is also called by the read thread when using
 /// an exec subprocess.
 pub fn processOutput(self: *Termio, buf: []const u8) void {
+    self.pty_record.output(buf);
     const semantic_output_epoch = self.terminal_output_transport.captureEpoch();
     const trace_lock = self.output_trace.enabled();
     const lock_started = if (trace_lock) std.time.Instant.now() catch null else null;

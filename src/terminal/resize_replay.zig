@@ -16,6 +16,8 @@
 //!   |row                    top (trailing blanks ignored, missing rows are
 //!   ?                       blank); a line that is just `?` skips that row
 //!   end
+//!   dump                    print the viewport and cursor (Najm: for
+//!                           replaying a NAJM_PTY_RECORD_DIR recording)
 //!   cursor <x> <y> [xfail <why>]
 //!                           the cursor, 0-based within the active area
 //!
@@ -38,6 +40,18 @@ const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const Terminal = @import("Terminal.zig");
 const Stream = @import("stream_terminal.zig").Stream;
+
+// Najm: replays a recording (`NAJM_PTY_RECORD_DIR`) named by
+// NAJM_REPLAY_FILE, with a `dump` wherever the screen should be printed.
+// Skipped without it.
+test "resize replay: a recording named by NAJM_REPLAY_FILE" {
+    const alloc = testing.allocator;
+    const path = std.process.getEnvVarOwned(alloc, "NAJM_REPLAY_FILE") catch return error.SkipZigTest;
+    defer alloc.free(path);
+    const script = try std.fs.cwd().readFileAlloc(alloc, path, 512 * 1024 * 1024);
+    defer alloc.free(script);
+    try run(alloc, path, script, .verbose);
+}
 
 test "resize replay: conpty grow rows with the prompt at the bottom" {
     try runCase("conpty-grow-rows.vt");
@@ -223,6 +237,10 @@ fn run(alloc: Allocator, name: []const u8, script: []const u8, verbosity: Verbos
                 var buf: [512]u8 = undefined;
                 stream.?.nextSlice(try std.fmt.bufPrint(&buf, "{s}{d}{s}\r\n", .{ prefix, n, suffix }));
             }
+        } else if (std.mem.eql(u8, cmd, "dump")) {
+            const text = try t.plainString(alloc);
+            defer alloc.free(text);
+            std.debug.print("--- {s}:{d} {d}x{d} cursor {d},{d}\n{s}\n---\n", .{ name, line_no, t.cols, t.rows, t.screens.active.cursor.x, t.screens.active.cursor.y, text });
         } else if (std.mem.eql(u8, cmd, "resize")) {
             const cols = try parseInt(name, line_no, words.next());
             const rows = try parseInt(name, line_no, words.next());
