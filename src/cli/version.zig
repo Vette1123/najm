@@ -73,7 +73,7 @@ pub fn run(alloc: Allocator) !u8 {
             .{commit_hash},
         );
     };
-    try stdout.print("noctty {s}\n\n", .{build_config.version_string});
+    try stdout.print("Najm {s}\n\n", .{build_config.version_string});
     if (tty) try stdout.print("\x1b]8;;\x1b\\", .{});
 
     try stdout.print("Version\n", .{});

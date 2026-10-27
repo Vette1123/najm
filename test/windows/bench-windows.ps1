@@ -553,7 +553,7 @@ function Get-BenchTargetAdapter {
     }
     else { $null }
     if ($Name -eq 'noctty' -and [string]::IsNullOrWhiteSpace($version)) {
-        $cliPath = Join-Path (Split-Path -Parent $resolved) 'noctty.com'
+        $cliPath = Join-Path (Split-Path -Parent $resolved) 'najm.com'
         if (Test-Path -LiteralPath $cliPath -PathType Leaf) {
             $versionLine = @(& $cliPath '+version' 2>$null) | Select-Object -First 1
             if ($LASTEXITCODE -eq 0 -and $versionLine -match '^noctty\s+(.+)$') {
@@ -809,7 +809,7 @@ function Invoke-NocttyCli {
     $stdoutPath = Join-Path $layout.Logs "$Name-stdout.log"
     $stderrPath = Join-Path $layout.Logs "$Name-stderr.log"
     Remove-Item -LiteralPath $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
-    $cliPath = Join-Path (Split-Path -Parent $script:adapter.ExePath) 'noctty.com'
+    $cliPath = Join-Path (Split-Path -Parent $script:adapter.ExePath) 'najm.com'
     if (-not (Test-Path -LiteralPath $cliPath -PathType Leaf)) {
         throw "noctty CLI shim was not found: $cliPath"
     }
@@ -2413,7 +2413,7 @@ else { 'pass' }
 
 $exeHash = if ($script:adapter.Installed) { Get-BenchFileSha256 -Path $script:adapter.ExePath } else { $null }
 $evidence = [pscustomobject][ordered]@{
-    schema_version = 'io.github.amanthanvi.noctty.bench-evidence.v1'
+    schema_version = 'io.github.vette1123.najm.bench-evidence.v1'
     generated_at = [DateTime]::UtcNow.ToString('o')
     status = $topStatus
     machine = $machine

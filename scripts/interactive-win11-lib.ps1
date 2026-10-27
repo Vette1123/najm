@@ -5,8 +5,8 @@ function Test-InteractiveWin11MeasureMode {
 }
 
 function Get-InteractiveWin11ProcessAumid {
-    if (Test-InteractiveWin11MeasureMode) { return 'io.github.amanthanvi.noctty.measure' }
-    return 'io.github.amanthanvi.noctty'
+    if (Test-InteractiveWin11MeasureMode) { return 'io.github.vette1123.najm.measure' }
+    return 'io.github.vette1123.najm'
 }
 
 function Get-InteractiveWin11ToastAumid {
@@ -14,14 +14,14 @@ function Get-InteractiveWin11ToastAumid {
     # when the process/jump-list identity is isolated. Keep the release gate's
     # product notifier and product notification setting; do not substitute a
     # potentially unregistered measurement notifier or accept its fallback.
-    return 'io.github.amanthanvi.noctty'
+    return 'io.github.vette1123.najm'
 }
 
 function Get-InteractiveWin11MeasureRepoForExe {
     param([Parameter(Mandatory)] [string] $ExePath)
 
     $path = Get-InteractiveWin11NormalizedPath $ExePath
-    $match = [regex]::Match($path, '^(?<repo>.+)\\\.sandbox\\interactive-measure\\[0-9a-f]{40,64}\\prefix\\bin\\noctty\.exe$', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $match = [regex]::Match($path, '^(?<repo>.+)\\\.sandbox\\interactive-measure\\[0-9a-f]{40,64}\\prefix\\bin\\najm.exe$', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
     if (-not $match.Success) {
         throw 'Measurement mode requires the raw measurement prefix executable.'
     }
@@ -529,7 +529,7 @@ function Get-InteractiveWin11ExePath {
     )
 
     if (Test-InteractiveWin11MeasureMode) { return Get-InteractiveWin11MeasureExePath -RepoRoot $RepoRoot }
-    return Get-InteractiveWin11NormalizedPath -Path (Join-Path $RepoRoot 'zig-out\bin\noctty.exe')
+    return Get-InteractiveWin11NormalizedPath -Path (Join-Path $RepoRoot 'zig-out\bin\najm.exe')
 }
 
 function Invoke-InteractiveWin11Build {
@@ -611,7 +611,7 @@ function Assert-InteractiveWin11ExeExists {
         Assert-InteractiveWin11MeasureBuild -RepoRoot $measureRepo -ExePath $ExePath
     }
     if (-not [System.IO.File]::Exists($ExePath)) {
-        throw "Missing noctty.exe at $ExePath"
+        throw "Missing najm.exe at $ExePath"
     }
     if ($AllowInboxConPty) { return }
     # A build that could not stage the bundled ConPTY still succeeds, and
@@ -1166,14 +1166,14 @@ function Get-InteractiveWin11LaunchAction {
             # Do not duplicate that full source walk inside leaf budgets.
             return 'launch'
         }
-        if ($NoBuild) { throw "Missing measurement noctty.exe at $resolvedExePath (-NoBuild)." }
+        if ($NoBuild) { throw "Missing measurement najm.exe at $resolvedExePath (-NoBuild)." }
         return 'build'
     }
 
     if ([System.IO.File]::Exists($resolvedExePath)) {
         if (Test-InteractiveWin11InputNewerThanBinary -ExePath $resolvedExePath -BuildInputs $BuildInputs) {
             if ($NoBuild) {
-                throw "noctty.exe at $resolvedExePath is older than the requested build inputs; rerun without -NoBuild or pass -Rebuild."
+                throw "najm.exe at $resolvedExePath is older than the requested build inputs; rerun without -NoBuild or pass -Rebuild."
             }
             return 'build'
         }
@@ -1181,7 +1181,7 @@ function Get-InteractiveWin11LaunchAction {
     }
 
     if ($NoBuild) {
-        throw "Missing noctty.exe at $resolvedExePath"
+        throw "Missing najm.exe at $resolvedExePath"
     }
 
     return 'build'
