@@ -88,3 +88,6 @@ src/font/nerd_font_attributes.zig linguist-generated=true
 src/font/nerd_font_codepoint_tables.py linguist-generated=true
 src/font/res/** linguist-vendored
 src/terminal/res/** linguist-vendored
+
+# Najm: README.md is ours; upstream edits to it never conflict (scripts/najm-sync.ps1 sets merge.ours.driver).
+README.md merge=ours

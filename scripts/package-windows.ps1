@@ -45,8 +45,8 @@ $localAppData = if ($env:LOCALAPPDATA) {
     Join-Path $userHome "AppData\Local"
 }
 $zigTarget = $archInfo.ZigTarget
-$stageBase = Join-Path $outputRootPath "noctty-$Version-windows-$Architecture"
-$portableRoot = Join-Path $stageBase "noctty"
+$stageBase = Join-Path $outputRootPath "najm-$Version-windows-$Architecture"
+$portableRoot = Join-Path $stageBase "najm"
 $zipPath = Join-Path $stageBase (New-WindowsPackageArtifactName -Version $Version -Architecture $Architecture -Kind portable)
 $manifestPath = Join-Path $stageBase (New-WindowsPackageArtifactName -Version $Version -Architecture $Architecture -Kind manifest)
 $installerPath = Join-Path $stageBase (New-WindowsPackageArtifactName -Version $Version -Architecture $Architecture -Kind setup)
@@ -56,11 +56,11 @@ $checksumsPath = Join-Path $stageBase (New-WindowsPackageArtifactName -Version $
 $releaseIconPath = Join-Path $stageBase "noctty-icon.svg"
 $zigOutBin = Join-Path $repoRoot "zig-out/bin"
 $zigOutShare = Join-Path $repoRoot "zig-out/share"
-$exePath = Join-Path $zigOutBin "noctty.exe"
+$exePath = Join-Path $zigOutBin "najm.exe"
 $buildCapabilitiesPath = Join-Path $zigOutBin "noctty-build-capabilities.json"
 $runtimeFiles = @(
-    "noctty.com",
-    "noctty.exe",
+    "najm.com",
+    "najm.exe",
     "ghostty-vt.dll",
     "noctty-terminal-handoff-proxy.dll"
 )
@@ -96,12 +96,12 @@ $signingTimestampUrl = if ($env:WINDOWS_CODESIGN_TIMESTAMP_URL) {
 $signingDescription = if ($env:WINDOWS_CODESIGN_DESCRIPTION) {
     $env:WINDOWS_CODESIGN_DESCRIPTION
 } else {
-    "noctty"
+    "Najm"
 }
 $signingUrl = if ($env:WINDOWS_CODESIGN_URL) {
     $env:WINDOWS_CODESIGN_URL
 } else {
-    "https://github.com/amanthanvi/noctty"
+    "https://github.com/Vette1123/najm"
 }
 $trustSelfSignedSigningCert = if ($env:WINDOWS_CODESIGN_TRUST_SELF_SIGNED) {
     $env:WINDOWS_CODESIGN_TRUST_SELF_SIGNED
@@ -292,7 +292,7 @@ function Get-ArtifactSigningConfig {
             Endpoint = $Configuration.Endpoint
             CodeSigningAccountName = $Configuration.AccountName
             CertificateProfileName = $Configuration.CertificateProfileName
-            CorrelationId = "noctty-$Version-windows-$Architecture"
+            CorrelationId = "najm-$Version-windows-$Architecture"
             ExcludeCredentials = @(
                 "EnvironmentCredential",
                 "ManagedIdentityCredential",
@@ -501,8 +501,8 @@ function Write-PortablePayloadManifest {
         [System.StringComparer]::Ordinal
     )
     foreach ($name in @(
-        "noctty.com",
-        "noctty.exe",
+        "najm.com",
+        "najm.exe",
         "ghostty-vt.dll",
         "noctty-terminal-handoff-proxy.dll",
         "conpty.dll",
@@ -536,7 +536,7 @@ function Write-PortablePayloadManifest {
     $relativePaths.Sort([System.StringComparer]::Ordinal)
 
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add("# noctty portable payload manifest")
+    $lines.Add("# Najm portable payload manifest")
     foreach ($relativePath in $relativePaths) {
         $payloadPath = Join-Path $PayloadRoot $relativePath.Replace("/", "\")
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $payloadPath).Hash.ToLowerInvariant()
@@ -636,13 +636,13 @@ try {
         }
     }
 
-    # Portable staging's downgrade guard reads noctty.exe's fixed PE version.
+    # Portable staging's downgrade guard reads najm.exe's fixed PE version.
     # Check both the display string and numeric fields, including the zero
     # fourth component, before producing any release artifacts.
-    $stagedVersion = (Get-Item -LiteralPath (Join-Path $portableRoot "noctty.exe")).VersionInfo
+    $stagedVersion = (Get-Item -LiteralPath (Join-Path $portableRoot "najm.exe")).VersionInfo
     $numericVersion = "$($stagedVersion.FileMajorPart).$($stagedVersion.FileMinorPart).$($stagedVersion.FileBuildPart)"
     if ($stagedVersion.FileVersion -cne $Version -or $numericVersion -cne $Version -or $stagedVersion.FilePrivatePart -ne 0) {
-        throw "Staged noctty.exe version mismatch: expected '$Version' ($Version.0), got '$($stagedVersion.FileVersion)' ($numericVersion.$($stagedVersion.FilePrivatePart))."
+        throw "Staged najm.exe version mismatch: expected '$Version' ($Version.0), got '$($stagedVersion.FileVersion)' ($numericVersion.$($stagedVersion.FilePrivatePart))."
     }
 
     $conptyStaged = Install-ConPtyRedist `
@@ -680,13 +680,13 @@ try {
     $hostArchitecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
     if ($hostArchitecture -eq $Architecture) {
         Write-Host "Packaging phase: verify custom shader capability"
-        $portableCommand = Join-Path $portableRoot "noctty.com"
+        $portableCommand = Join-Path $portableRoot "najm.com"
         $versionText = & $portableCommand +version | Out-String
         if ($LASTEXITCODE -ne 0) {
-            throw "Packaged noctty.com +version failed with exit code $LASTEXITCODE."
+            throw "Packaged najm.com +version failed with exit code $LASTEXITCODE."
         }
         if ($versionText -notmatch "custom shaders: enabled") {
-            throw "Packaged noctty.com does not report custom shader support."
+            throw "Packaged najm.com does not report custom shader support."
         }
     }
     else {
@@ -730,8 +730,8 @@ try {
     # directory of their own and ship as one zip.
     Write-Host "Packaging phase: create symbols zip"
     $symbolsProduced = $false
-    if ($null -eq (Get-PeCodeViewIdentity -Path (Join-Path $portableRoot "noctty.exe"))) {
-        $symbolsSkipReason = "noctty.exe has no CodeView record, so this is a stripped build; build with -Dstrip=false."
+    if ($null -eq (Get-PeCodeViewIdentity -Path (Join-Path $portableRoot "najm.exe"))) {
+        $symbolsSkipReason = "najm.exe has no CodeView record, so this is a stripped build; build with -Dstrip=false."
         if ($RequireSymbols) {
             throw "Symbols are required, but $symbolsSkipReason"
         }

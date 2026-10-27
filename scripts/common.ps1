@@ -20,9 +20,9 @@ function Get-WindowsSignedRuntimePayloads {
     # re-signed by us and is verified against its own pinned hashes and
     # Microsoft's signature instead.
     return @(
-        'noctty/noctty.com',
-        'noctty/noctty.exe',
-        'noctty/ghostty-vt.dll',
-        'noctty/noctty-terminal-handoff-proxy.dll'
+        'najm/najm.com',
+        'najm/najm.exe',
+        'najm/ghostty-vt.dll',
+        'najm/noctty-terminal-handoff-proxy.dll'
     )
 }

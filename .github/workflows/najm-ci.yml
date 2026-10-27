@@ -1,0 +1,40 @@
+# Najm's CI: the full Zig suite on every push to main and every PR.
+# Upstream's test.yml is disabled on this repo; several of its checks assert
+# Noctty's own site, release copy and repository.
+name: Najm CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: najm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+
+      - name: Zig test suite
+        shell: pwsh
+        run: zig build test -Demit-test-exe=true -Dcustom-shaders=true --summary all
+
+      - name: Build najm.exe
+        shell: pwsh
+        run: |
+          zig build -Demit-exe=true -Dcustom-shaders=true
+          foreach ($f in "zig-out/bin/najm.exe", "zig-out/bin/najm.com") {
+            if (-not (Test-Path $f)) { throw "Build did not produce $f" }
+          }

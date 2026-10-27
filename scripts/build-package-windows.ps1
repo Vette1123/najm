@@ -27,8 +27,8 @@ $repoRoot = Get-RepoRoot
 $zigOutBin = Join-Path $repoRoot "zig-out/bin"
 $buildCapabilitiesPath = Join-Path $zigOutBin "noctty-build-capabilities.json"
 $runtimeFiles = @(
-    "noctty.com",
-    "noctty.exe",
+    "najm.com",
+    "najm.exe",
     "ghostty-vt.dll",
     "noctty-terminal-handoff-proxy.dll"
 )

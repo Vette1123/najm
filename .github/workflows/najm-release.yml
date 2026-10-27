@@ -1,0 +1,91 @@
+# Najm's own release. Upstream's release.yml stays untouched (and disabled on
+# this repo) so upstream merges never conflict here.
+#
+# Push a tag `v<semver>` (scripts/najm-release.ps1 does it), or run it by hand.
+# Builds x64, signs every PE and the installer with Najm's self-signed
+# certificate (its key is pinned in src/update/github_releases.zig), and
+# publishes the assets the in-app updater looks for.
+name: Najm release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading v, e.g. 1.0.1"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: najm-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'Vette1123/najm'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      WINDOWS_CODESIGN_PFX_BASE64: ${{ secrets.NAJM_CODESIGN_PFX_BASE64 }}
+      WINDOWS_CODESIGN_PFX_PASSWORD: ${{ secrets.NAJM_CODESIGN_PFX_PASSWORD }}
+      WINDOWS_CODESIGN_DESCRIPTION: Najm
+      WINDOWS_CODESIGN_URL: https://github.com/Vette1123/najm
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.version }}" } else { "${{ github.ref_name }}".TrimStart("v") }
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$v' is not MAJOR.MINOR.PATCH." }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Najm $v"
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.15.2
+          use-cache: false
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --version=6.7.1 --no-progress -y
+
+      - name: Build, sign and package x64
+        shell: pwsh
+        run: >
+          ./scripts/build-package-windows.ps1
+          -Version ${{ steps.version.outputs.version }}
+          -Architecture x64
+          -Optimize ReleaseFast
+          -RequireInstaller
+          -RequireSigning
+          -RequireConPty
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $dir = "dist/artifacts/najm-$v-windows-x64"
+          $assets = @(
+            "$dir/najm-$v-windows-x64-setup.exe",
+            "$dir/najm-$v-windows-x64-portable.zip",
+            "$dir/najm-$v-windows-x64-portable.manifest.ps1",
+            "$dir/SHA256SUMS-windows-x64.txt"
+          )
+          foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing release asset: $a" } }
+          $base = (Get-Content UPSTREAM_BASE -ErrorAction SilentlyContinue | Select-Object -First 1)
+          $notes = "Najm $v, based on Noctty $base.`n`nInstall: download ``najm-$v-windows-x64-setup.exe``. Checksums are in ``SHA256SUMS-windows-x64.txt``."
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "v$v" @assets --title "Najm $v" --notes $notes --target $env:GITHUB_SHA
+          } else {
+            gh release upload "v$v" @assets --clobber
+          }
