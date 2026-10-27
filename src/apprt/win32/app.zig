@@ -2861,8 +2861,10 @@ pub const App = struct {
 
     /// What a check should download and stage, or null for a notice only:
     /// `auto-update = download` on a copy that can apply what it stages.
+    /// Najm: an unset `auto-update` downloads too, since every Najm release
+    /// is signed by the pinned key; set `check` for a notice only.
     fn updateStageKind(self: *App) ?updatepkg.portable_apply.StagedKind {
-        if (self.config.@"auto-update" != .download) return null;
+        if ((self.config.@"auto-update" orelse .download) != .download) return null;
         return self.installKind().stagedKind();
     }
 
@@ -2876,7 +2878,10 @@ pub const App = struct {
         defer session.deinit();
 
         const Staged = updatepkg.portable_apply.StagedKind;
-        const cases = [_]struct { mode: configpkg.Config.AutoUpdate, kind: InstallKind, stages: ?Staged }{
+        const cases = [_]struct { mode: ?configpkg.Config.AutoUpdate, kind: InstallKind, stages: ?Staged }{
+            // Najm: unset means download.
+            .{ .mode = null, .kind = .installer, .stages = .installer },
+            .{ .mode = null, .kind = .other, .stages = null },
             .{ .mode = .download, .kind = .installer, .stages = .installer },
             .{ .mode = .download, .kind = .portable, .stages = .portable },
             .{ .mode = .download, .kind = .other, .stages = null },
