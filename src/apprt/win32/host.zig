@@ -50,6 +50,7 @@ const UINT = win32.UINT;
 const WNDPROC = win32.WNDPROC;
 const WPARAM = win32.WPARAM;
 const activeTabAfterRemoval = win32.activeTabAfterRemoval;
+const activeTabTheme = win32.activeTabTheme;
 const adjustColor = win32.adjustColor;
 const appendOwnedString = win32.appendOwnedString;
 const applyChildRect = win32.applyChildRect;
@@ -201,13 +202,12 @@ const std = @import("std");
 const surfaceLayoutRuntimeSync = win32.surfaceLayoutRuntimeSync;
 const surface_presentation = @import("surface_presentation.zig");
 const sys = @import("sys.zig");
-const tabAccent = win32.tabAccent;
-const tabAccentBorder = win32.tabAccentBorder;
 const tabBarVisibleForConfig = win32.tabBarVisibleForConfig;
 const tabButtonProc = win32.tabButtonProc;
 const tabCloseAction = win32.tabCloseAction;
 const tabContainerProc = win32.tabContainerProc;
 const tabDirectionFromWheelDelta = win32.tabDirectionFromWheelDelta;
+const tabStatusBadgeColor = win32.tabStatusBadgeColor;
 const tabStatusHeadline = win32.tabStatusHeadline;
 const tabStatusKey = win32.tabStatusKey;
 const tabStripChildVisible = win32.tabStripChildVisible;
@@ -559,13 +559,9 @@ pub const Host = struct {
     /// `win32_tab_visual.close_fade_ms` (120 ms) cubic ease-in-out.
     tab_close_hover: win32_tab_visual.CloseState = .{},
     tab_close_hover_hwnd: ?HWND = null,
-    /// Focused-tab underline slide state. Retargeted by
-    /// `layoutChromeForRect` whenever the active tab's on-screen rect
-    /// changes. Slides over `win32_tab_visual.underline_slide_ms`
-    /// (160 ms) cubic ease-in-out; snaps instantly on the first
-    /// layout (!positioned), geometry changes and under reduced-motion
-    /// (AGENTS.md:58).
-    tab_underline: win32_tab_visual.UnderlineState = .{},
+    /// Where the band last painted the active tab's join to its terminal
+    /// (`activeTabJoin`), so a layout that moves it repaints the old place.
+    tab_join: ?TabJoin = null,
     /// Which caption button the cursor is currently hovering, when
     /// this host is actively using the integrated titlebar. Drives
     /// hover-tint paint in `paintChrome` and is cleared on
@@ -703,8 +699,6 @@ pub const Host = struct {
     // Single SetTimer-driven tween scheduler; see Tween scheduler block
     // in the method section. Matches Win32's main-thread-paint model.
     tween_sched: win32_tween.Scheduler = .{},
-    /// Test-local policy; never changes the desktop accessibility settings.
-    test_tween_animations_enabled: if (builtin.is_test) ?bool else void = if (builtin.is_test) null else {},
     quick_terminal_animation: ?QuickTerminalAnimation = null,
     /// Programmatic QT rectangles are already in target-monitor pixels.
     quick_terminal_placing: bool = false,
@@ -1825,9 +1819,6 @@ pub const Host = struct {
     }
 
     pub fn effectiveTweenDuration(self: *Host, duration_ms: u16) u16 {
-        if (builtin.is_test) {
-            if (self.test_tween_animations_enabled) |enabled| return if (enabled) duration_ms else 0;
-        }
         return (win32_chrome_state.HighContrastDpiState{
             .high_contrast = isHighContrastActive(),
             .client_animations_enabled = clientAnimationsEnabled(),
@@ -1903,15 +1894,13 @@ pub const Host = struct {
                 self.quick_terminal_animation = null;
             }
         }
-        // Current host-level tweens only animate tab-strip chrome
-        // (underline slide + close-button fade), so invalidating the
-        // full host every 16 ms is avoidable overpaint.
-        self.repaintTopChrome();
-        // The Host-level InvalidateRect doesn't cascade to child
-        // button HWNDs (flag = 0 so no WS_CLIPCHILDREN bubble).
-        // Explicitly invalidate each fading tab button so its
-        // WM_DRAWITEM path re-reads `CloseState.alphaAt(now)` each
-        // frame. When both slots converge, we stop forcing repaints.
+        // Every tween repaints only what it animates: the quick terminal
+        // moves its window, a caption button fade invalidates its button,
+        // and a close-button fade its tab. A host-level InvalidateRect
+        // doesn't cascade to child button HWNDs (flag = 0 so no
+        // WS_CLIPCHILDREN bubble), so each fading tab button is invalidated
+        // here and its WM_DRAWITEM path re-reads `CloseState.alphaAt(now)`
+        // each frame. When both slots converge, we stop forcing repaints.
         if (self.tab_close_hover_hwnd) |tab_hwnd| {
             if (self.tab_close_hover.animating(now)) {
                 _ = sys.InvalidateRect(tab_hwnd, null, 0);
@@ -1946,33 +1935,66 @@ pub const Host = struct {
 
     pub const tickResizeSettleRepaint = surface_presentation.tickResizeSettleRepaint;
 
-    /// Retarget the focused-tab underline toward the pixel rect
-    /// `(left, width)` (in parent HWND coords). Snaps on the first
-    /// retarget (no slide-in from origin on window open) and under
-    /// reduced-motion / HC. Otherwise slides over
-    /// `win32_tab_visual.underline_slide_ms`; registers a timer-only tween
-    /// so the 16 ms heartbeat stays alive for the slide duration.
-    fn retargetTabUnderline(self: *Host, left: i32, width: i32) void {
-        const now = sys.GetTickCount64();
-        const tab_id = (self.activeTab() orelse return).id;
-        const animate = !self.is_live_resize.load(.acquire) and self.effectiveTweenDuration(@intCast(win32_tab_visual.underline_slide_ms)) != 0;
-        if (self.tab_underline.tab_id == tab_id and self.tab_underline.positioned and
-            self.tab_underline.target_left == @as(f32, @floatFromInt(left)) and
-            self.tab_underline.target_width == @as(f32, @floatFromInt(width)) and
-            (animate or !self.tab_underline.animating(now))) return;
-        if (!self.tab_underline.retarget(tab_id, @floatFromInt(left), @floatFromInt(width), now, animate)) {
-            self.repaintTopChrome();
-            return;
+    /// The background `tab`'s button takes when it is the active tab: its
+    /// focused terminal's (`Surface.tab_background`). Null in High
+    /// Contrast, where the active tab keeps the system highlight.
+    pub fn tabBackground(tab: *const Tab) ?u32 {
+        if (isHighContrastActive()) return null;
+        const surface = tab.focusedSurface() orelse return null;
+        return surface.tab_background;
+    }
+
+    pub const TabJoin = struct { rect: RECT, color: u32 };
+
+    /// The band's part of the active tab: the lane between its button and
+    /// the bottom of the band, the separator row included, as wide as the
+    /// button paints itself and in the tab's terminal background, so the
+    /// tab runs on into the terminal below it with no accent mark (Windows
+    /// Terminal's `terminalBackground` tab). Null without an active tab
+    /// button on screen and in High Contrast.
+    pub fn activeTabJoin(self: *Host) ?TabJoin {
+        if (!self.shouldShowTabBar() or self.active_tab >= self.tabs.items.len) return null;
+        const tab = &self.tabs.items[self.active_tab];
+        const placement = tab.button_placement;
+        if (tab.button_hwnd == null or !placement.visible or !placement.rect_known) return null;
+        const color = tabBackground(tab) orelse return null;
+        // `drawRoundedRect` keeps a one-pixel inset on each side.
+        const rect = RECT{
+            .left = placement.rect.left + 1,
+            .top = placement.rect.bottom,
+            .right = placement.rect.right - 1,
+            .bottom = self.contentBands(self.tabBarHeight(), 0, 0).overlay_top,
+        };
+        if (rect.right <= rect.left or rect.bottom <= rect.top) return null;
+        return .{ .rect = rect, .color = color };
+    }
+
+    /// Repaint the join where it was and where it is now when either moved
+    /// (another tab activated, tabs laid out anew, the active terminal or
+    /// its background changed), and the active tab's button when the
+    /// background it shows changed: focus moved to a pane with another
+    /// background keeps the button's label and place, so nothing else
+    /// repaints it. The band clips its paint to these rects.
+    pub fn syncTabJoin(self: *Host) void {
+        const join = self.activeTabJoin();
+        const previous = self.tab_join;
+        if (std.meta.eql(join, previous)) return;
+        self.tab_join = join;
+        const hwnd = self.hwnd orelse return;
+        if (previous) |old| _ = sys.InvalidateRect(hwnd, &old.rect, 0);
+        const new = join orelse return;
+        _ = sys.InvalidateRect(hwnd, &new.rect, 0);
+        if (previous == null or previous.?.color != new.color) {
+            if (self.tabs.items[self.active_tab].button_hwnd) |button| _ = sys.InvalidateRect(button, null, 0);
         }
-        // Keep the 16 ms heartbeat alive for the slide duration so
-        // `paintChrome` re-runs every frame and reads the interpolated
-        // rect. Mirrors the close-button fade pattern.
-        _ = self.addTween(
-            0.0,
-            1.0,
-            @intCast(win32_tab_visual.underline_slide_ms),
-            (win32_theme.ThemeMotion{}).easing_standard,
-        );
+    }
+
+    /// Focus `handle` in `tab`. A tab shows its focused pane's terminal
+    /// background, so its button and join follow (`syncTabJoin`).
+    pub fn focusTabPane(self: *Host, tab: *Tab, handle: SplitTreeSurface.Node.Handle) void {
+        if (tab.focused == handle) return;
+        tab.focused = handle;
+        self.syncTabJoin();
     }
 
     // ── Integrated titlebar (Win11) ─────────────────────────────────────
@@ -3435,11 +3457,9 @@ pub const Host = struct {
         }
         self.active_tab = index;
         self.notifyActiveTabUiaSelectionChanged(previous_tab_id);
-        // The underline retarget happens in `layoutTabStrip` —
-        // `active_tab` is read there and fed to `retargetTabUnderline`
-        // with precomputed coords. Invoking layout after the index
-        // change ensures the slide kicks off immediately on activation
-        // instead of waiting for the next incidental layout tick.
+        // `layoutChromeForRect` reads `active_tab` to move the active
+        // tab's join to its terminal (`syncTabJoin`), so lay out now
+        // rather than at the next incidental layout tick.
         runUiActionOrLog("tab activation layout failed", self.layout());
         if (self.tabs.items[index].focusedSurface()) |surface| {
             self.app.activateSurface(surface);
@@ -3741,20 +3761,7 @@ pub const Host = struct {
         try runOnPrivateDesktop(bellGlyphTestBody);
     }
 
-    test "CHROME57 bell caption refresh allocates an underline tween with animations enabled" {
-        if (builtin.os.tag != .windows) return error.SkipZigTest;
-        try runOnPrivateDesktop(animatedBellGlyphTestBody);
-    }
-
-    fn animatedBellGlyphTestBody() !void {
-        try bellGlyphTestBodyWithAnimations(true);
-    }
-
     fn bellGlyphTestBody() !void {
-        try bellGlyphTestBodyWithAnimations(null);
-    }
-
-    fn bellGlyphTestBodyWithAnimations(animations_enabled: ?bool) !void {
         var core_app: CoreApp = undefined;
         var app: App = undefined;
         var host: Host = undefined;
@@ -3775,7 +3782,6 @@ pub const Host = struct {
             },
         });
         defer session.deinit();
-        host.test_tween_animations_enabled = animations_enabled;
         const window = try BannerTestWindow.init(&host);
         defer window.deinit(&host);
         _ = sys.MoveWindow(window.parent, 0, 0, 1200, 300, 0);
@@ -3853,10 +3859,6 @@ pub const Host = struct {
         // is the same `clearBell`, run from `handleKeyMessage`, and is
         // measured on a hidden desktop).
         surface_a.focusChanged(true);
-        if (animations_enabled == true) {
-            try std.testing.expect(host.tween_sched.next_id > 1);
-            try std.testing.expect(host.tween_timer_active);
-        }
         try std.testing.expect(std.mem.indexOf(u8, host.tabs.items[0].cached_button_label.?, glyph) == null);
         try std.testing.expect(!std.mem.startsWith(u8, try caption_text(window.parent, &caption, &utf8), glyph));
         try std.testing.expectEqualStrings("", Host.tabItemUiaItemStatus(&host, 1, &status_buf));
@@ -8023,14 +8025,24 @@ pub const Host = struct {
         if (!is_hc) if (profile_kind) |kind| {
             colors = applyProfileChromeAccent(colors, kind, theme.is_dark, active, hovered, pressed, disabled);
         };
+        // The active tab takes its terminal's background and runs on into
+        // it through the band (`activeTabJoin`): no border, square lower
+        // corners, and its label, badge and focus ring in colors readable
+        // on that background. High Contrast keeps the system highlight.
+        const tab_background: ?u32 = if (tab_button and active and !disabled)
+            if (self.tabIndexForButton(draw.hwndItem)) |index| tabBackground(&self.tabs.items[index]) else null
+        else
+            null;
+        const tab_theme_value = if (tab_background) |background| activeTabTheme(theme, background) else theme.*;
+        const tab_theme = &tab_theme_value;
         if (tab_button and !disabled and !is_hc) {
-            colors.fg = if (active or hovered) theme.text_primary else theme.button_chrome_fg;
+            colors.fg = if (active or hovered) tab_theme.text_primary else theme.button_chrome_fg;
             if (active) {
-                colors.bg = if (theme.is_dark)
+                colors.bg = tab_background orelse if (theme.is_dark)
                     adjustColor(theme.chrome_bg, 18, 18, 22)
                 else
                     adjustColor(theme.chrome_bg, 12, 12, 12);
-                colors.border = tabAccentBorder(tabAccent(theme), theme.is_dark);
+                colors.border = colors.bg;
             } else if (hovered) {
                 colors.bg = if (theme.is_dark)
                     adjustColor(theme.chrome_bg, 10, 10, 12)
@@ -8051,7 +8063,7 @@ pub const Host = struct {
                     adjustColor(theme.chrome_border, -14, -14, -14);
             }
         }
-        if (tab_button and !disabled) colors.fg = win32_theme.windowChromeTextColor(theme, colors.fg, self.window_active, is_hc);
+        if (tab_button and !disabled) colors.fg = win32_theme.windowChromeTextColor(tab_theme, colors.fg, self.window_active, is_hc);
         const bg = colors.bg;
         const border = colors.border;
         const fg = colors.fg;
@@ -8062,6 +8074,15 @@ pub const Host = struct {
         fillSolidRect(draw.hDC, draw.rcItem, parent_bg);
         if (tab_button) {
             gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, self.scaled(4), self.tabsFlushWithTop());
+            // Square lower corners and the last row, which the rounded
+            // rectangle's inset leaves to the parent color, so the tab meets
+            // the join below it without a notch.
+            if (tab_background != null) fillSolidRect(draw.hDC, .{
+                .left = draw.rcItem.left + 1,
+                .top = @max(draw.rcItem.top, draw.rcItem.bottom - 1 - self.scaled(4)),
+                .right = draw.rcItem.right - 1,
+                .bottom = draw.rcItem.bottom,
+            }, bg);
         } else {
             drawRoundedRect(draw.hDC, draw.rcItem, bg, border, self.scaled(4));
         }
@@ -8089,7 +8110,7 @@ pub const Host = struct {
             else if (accept)
                 theme.button_accept_focus_ring
             else if (active)
-                theme.button_active_focus_ring
+                tab_theme.button_active_focus_ring
             else if (overlay)
                 theme.button_overlay_focus_ring
             else
@@ -8173,7 +8194,7 @@ pub const Host = struct {
             if (tab_button and !overlay) {
                 if (self.tabIndexForButton(draw.hwndItem)) |index| {
                     const status = self.tabs.items[index].status_indicator;
-                    self.drawTabStatusBadge(draw.hDC, &text_rect, @ptrCast(&text_buf), text_len, status, theme, fg, bg);
+                    self.drawTabStatusBadge(draw.hDC, &text_rect, @ptrCast(&text_buf), text_len, status, tab_theme, fg, bg);
                 }
             }
             _ = sys.DrawTextW(
@@ -8235,12 +8256,6 @@ pub const Host = struct {
                 );
             }
         }
-
-        // Focused-tab underline is painted on the PARENT HWND in
-        // `paintChrome` so that the single accent rect can slide
-        // between tab buttons over `win32_tab_visual.underline_slide_ms`.
-        // Painting it inside the child button would produce a hard cut
-        // on focus change.
     }
 
     /// Draw a tab's program status badge (OSC 7501) before its label, and
@@ -8281,10 +8296,7 @@ pub const Host = struct {
         // High contrast draws every badge in the text color; the shapes
         // still tell the states apart.
         const high_contrast = isHighContrastActive();
-        const color = if (high_contrast)
-            fg
-        else
-            win32_program_status.badgeColor(status, theme.is_dark, tabAccent(theme), theme.error_fg);
+        const color = if (high_contrast) fg else tabStatusBadgeColor(status, theme, bg);
         gdi.drawStatusBadge(
             hdc,
             .{ .left = left, .top = top, .right = left + size, .bottom = top + size },
@@ -8978,12 +8990,13 @@ pub const Host = struct {
         }
     }
 
-    test "CHROME57 new tab keeps the previous underline until its button exists" {
+    test "the tab strip paints no accent and the active tab takes its terminal background" {
         if (builtin.os.tag != .windows) return error.SkipZigTest;
-        try runOnPrivateDesktop(newTabUnderlineTestBody);
+        try runOnPrivateDesktop(tabStripNoAccentTestBody);
     }
 
-    fn newTabUnderlineTestBody() !void {
+    fn tabStripNoAccentTestBody() !void {
+        if (isHighContrastActive()) return error.SkipZigTest;
         var core_app: CoreApp = undefined;
         var app: App = undefined;
         var host: Host = undefined;
@@ -8998,23 +9011,280 @@ pub const Host = struct {
             .tabs = &.{ .{ .host = &host, .surface = &first, .id = 1 }, .{ .host = &host, .surface = &second, .id = 2 } },
         });
         defer session.deinit();
-        host.test_tween_animations_enabled = true;
         const window = try BannerTestWindow.init(&host);
         defer window.deinit(&host);
         host.tabs.items[0].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
-        const rect: RECT = .{ .left = 0, .top = 0, .right = 1000, .bottom = 300 };
-        var changed = false;
-        try std.testing.expect(host.layoutChromeForRect(rect, &changed));
-        try std.testing.expect(host.tab_underline.positioned);
-        host.active_tab = 1;
-        try std.testing.expect(host.layoutChromeForRect(rect, &changed));
-        try std.testing.expect(host.tab_underline.positioned);
-        try std.testing.expectEqual(@as(?u32, 1), host.tab_underline.tab_id);
         host.tabs.items[1].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
-        try std.testing.expect(host.layoutChromeForRect(rect, &changed));
-        try std.testing.expectEqual(@as(?u32, 2), host.tab_underline.tab_id);
-        try std.testing.expect(host.tab_underline.slide_started_ms != 0);
-        try std.testing.expect(host.tween_sched.next_id > 1);
+        const client: RECT = .{ .left = 0, .top = 0, .right = 1000, .bottom = 300 };
+        var changed = false;
+        host.active_tab = 0;
+        _ = host.layoutChromeForRect(client, &changed);
+        // The terminals keep the config's default `background`.
+        const terminal_bg = rgb(0x28, 0x2C, 0x34);
+        const band_bottom = host.contentBands(host.tabBarHeight(), 0, 0).overlay_top;
+        const theme = clientTitlebarTheme(&app.resolved_theme, app.shownConfig(), host.usingIntegratedTitlebar(), false);
+        const active = host.tabs.items[0].button_placement.rect;
+        const tabs_right = host.tabs.items[1].button_placement.rect.right;
+
+        // The band under the tabs: the chrome background, the separator on
+        // its last row, and the active tab's terminal background running
+        // through both under the active tab. No accent anywhere.
+        const canvas = try BannerTestCanvas.init(tabs_right, band_bottom);
+        defer canvas.deinit();
+        host.paintChromeTabBar(canvas.dc, client, host.tabBarHeight(), band_bottom, true, &app.resolved_theme);
+        _ = BannerTestCanvas.raw.GdiFlush();
+        var y: i32 = 0;
+        while (y < band_bottom) : (y += 1) {
+            var x: i32 = 0;
+            while (x < tabs_right) : (x += 1) {
+                const pixel = canvas.pixel(x, y);
+                try std.testing.expect(pixel != theme.accent);
+                if (y < active.bottom) continue;
+                const joined = x > active.left and x < active.right - 1;
+                const expected = if (joined)
+                    terminal_bg
+                else if (y == band_bottom - 1)
+                    theme.chrome_border
+                else
+                    theme.chrome_bg;
+                try std.testing.expectEqual(expected, pixel);
+            }
+        }
+
+        // The active tab's own button: its terminal's background inside and
+        // as its edge (no border), square lower corners meeting the band's
+        // part, and the band showing only at its rounded upper corners.
+        const width = active.right - active.left;
+        const height = active.bottom - active.top;
+        const tab_canvas = try BannerTestCanvas.init(width, height);
+        defer tab_canvas.deinit();
+        const draw: DRAWITEMSTRUCT = .{
+            .CtlType = c.ODT_BUTTON,
+            .CtlID = 1000,
+            .itemID = 0,
+            .itemAction = 0,
+            .itemState = 0,
+            .hwndItem = host.tabs.items[0].button_hwnd.?,
+            .hDC = tab_canvas.dc,
+            .rcItem = childRect(0, 0, width, height),
+            .itemData = 0,
+        };
+        _ = sys.SetWindowTextW(draw.hwndItem, std.unicode.utf8ToUtf16LeStringLiteral("* 1: label"));
+        host.drawButton(&draw);
+        _ = BannerTestCanvas.raw.GdiFlush();
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(@divTrunc(width, 2), 1));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, @divTrunc(height, 2)));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, height - 1));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(width - 2, height - 1));
+        try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(0, 0));
+
+        // The label over it reads at 4.5:1 under either window theme, in an
+        // active and an inactive window, on the default dark terminal and on
+        // the mid-tone and saturated ones where neither palette's label does
+        // (`activeTabTheme`). The light theme's own label colours on the
+        // default dark terminal reach 1.23:1 (active window) and about 2.2:1
+        // (inactive); the light palette's on #777777, 3.85:1 and 1.40:1.
+        // Inside the button's fill: its top row and side columns are the band's.
+        const label_rect = childRect(@divTrunc(width, 4), 2, @divTrunc(width * 3, 8), height - 4);
+        const backgrounds = [_]u32{ terminal_bg, rgb(0x77, 0x77, 0x77), rgb(0x80, 0x80, 0x80), rgb(0xFF, 0x00, 0x00), rgb(0x00, 0x78, 0xD4) };
+        for ([_]ThemeColors{ win32.darkTheme(), win32.lightTheme() }) |band_theme| {
+            app.resolved_theme = band_theme;
+            for (backgrounds) |background| {
+                first.tab_background = background;
+                for ([_]bool{ true, false }) |window_active| {
+                    host.window_active = window_active;
+                    host.drawButton(&draw);
+                    _ = BannerTestCanvas.raw.GdiFlush();
+                    try std.testing.expect(tab_canvas.inked(label_rect, background) > 0);
+                    var strongest: f64 = 1;
+                    var y_label = label_rect.top;
+                    while (y_label < label_rect.bottom) : (y_label += 1) {
+                        var x_label = label_rect.left;
+                        while (x_label < label_rect.right) : (x_label += 1) {
+                            strongest = @max(strongest, testContrast(tab_canvas.pixel(x_label, y_label), background));
+                        }
+                    }
+                    try std.testing.expect(strongest >= 4.5);
+                }
+            }
+        }
+    }
+
+    /// WCAG contrast ratio between two COLORREFs.
+    fn testContrast(a: u32, b: u32) f64 {
+        const luminance = struct {
+            fn channel(value: u32) f64 {
+                const s = @as(f64, @floatFromInt(value & 0xFF)) / 255.0;
+                return if (s <= 0.04045) s / 12.92 else std.math.pow(f64, (s + 0.055) / 1.055, 2.4);
+            }
+            fn of(color: u32) f64 {
+                return 0.2126 * channel(color) + 0.7152 * channel(color >> 8) + 0.0722 * channel(color >> 16);
+            }
+        };
+        const la = luminance.of(a);
+        const lb = luminance.of(b);
+        return (@max(la, lb) + 0.05) / (@min(la, lb) + 0.05);
+    }
+
+    test "the active tab's join follows the active tab and its terminal background" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        try runOnPrivateDesktop(activeTabJoinTestBody);
+    }
+
+    fn activeTabJoinTestBody() !void {
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var first: Surface = undefined;
+        var second: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host }},
+            .surfaces = &.{ .{ .storage = &first, .host = &host }, .{ .storage = &second, .host = &host } },
+            .tabs = &.{ .{ .host = &host, .surface = &first, .id = 1 }, .{ .host = &host, .surface = &second, .id = 2 } },
+        });
+        defer session.deinit();
+        const window = try BannerTestWindow.init(&host);
+        defer window.deinit(&host);
+        first.tab_background = rgb(0x12, 0x34, 0x56);
+        second.tab_background = rgb(0x65, 0x43, 0x21);
+        host.tabs.items[0].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
+        const client: RECT = .{ .left = 0, .top = 0, .right = 1000, .bottom = 300 };
+        var changed = false;
+
+        // A tab whose button does not exist yet has nothing to join.
+        host.active_tab = 1;
+        _ = host.layoutChromeForRect(client, &changed);
+        try std.testing.expect(host.tab_join == null);
+        host.tabs.items[1].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
+        _ = host.layoutChromeForRect(client, &changed);
+        if (isHighContrastActive()) {
+            // High Contrast keeps the system highlight and no join.
+            try std.testing.expect(host.tab_join == null);
+            return;
+        }
+        const join = host.tab_join orelse return error.TestUnexpectedResult;
+        const button = host.tabs.items[1].button_placement.rect;
+        try std.testing.expectEqual(rgb(0x65, 0x43, 0x21), join.color);
+        try std.testing.expectEqual(button.left + 1, join.rect.left);
+        try std.testing.expectEqual(button.right - 1, join.rect.right);
+        try std.testing.expectEqual(button.bottom, join.rect.top);
+        try std.testing.expectEqual(host.contentBands(host.tabBarHeight(), 0, 0).overlay_top, join.rect.bottom);
+
+        // Activating the other tab moves it there, and repaints both places:
+        // the old one goes back to the band. (A hidden window has no update
+        // region; this one is shown on the test's private desktop, and made
+        // larger than `client` so no part of either rect is clipped away.)
+        _ = sys.MoveWindow(window.parent, 0, 0, 1100, 400, 0);
+        _ = sys.ShowWindow(window.parent, c.SW_SHOWNOACTIVATE);
+        _ = sys.ValidateRect(window.parent, null);
+        const old_join = join.rect;
+        host.active_tab = 0;
+        _ = host.layoutChromeForRect(client, &changed);
+        try std.testing.expectEqual(rgb(0x12, 0x34, 0x56), host.tab_join.?.color);
+        try std.testing.expectEqual(host.tabs.items[0].button_placement.rect.left + 1, host.tab_join.?.rect.left);
+        const Region = struct {
+            extern "user32" fn GetUpdateRgn(hwnd: HWND, rgn: *anyopaque, erase: BOOL) callconv(.winapi) i32;
+            extern "gdi32" fn PtInRegion(rgn: *anyopaque, x: i32, y: i32) callconv(.winapi) BOOL;
+        };
+        const update = sys.CreateRectRgn(0, 0, 0, 0) orelse return error.SkipZigTest;
+        defer _ = sys.DeleteObject(update);
+        _ = Region.GetUpdateRgn(window.parent, update, 0);
+        for ([_]RECT{ old_join, host.tab_join.?.rect }) |place| {
+            try std.testing.expect(Region.PtInRegion(update, @divTrunc(place.left + place.right, 2), @divTrunc(place.top + place.bottom, 2)) != 0);
+        }
+
+        // A new terminal background for the active tab's terminal moves it
+        // as well, and one for a terminal in another tab does not.
+        second.setTabBackground(.{ .r = 0x01, .g = 0x02, .b = 0x03 });
+        try std.testing.expectEqual(rgb(0x12, 0x34, 0x56), host.tab_join.?.color);
+        first.setTabBackground(.{ .r = 0x0A, .g = 0x0B, .b = 0x0C });
+        try std.testing.expectEqual(rgb(0x0A, 0x0B, 0x0C), host.tab_join.?.color);
+
+        // With the tab bar hidden there is no join.
+        app.config.@"window-show-tab-bar" = .never;
+        _ = host.layoutChromeForRect(client, &changed);
+        try std.testing.expect(host.tab_join == null);
+    }
+
+    test "TABLINE a pane focused by a click repaints its tab when its terminal background differs" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        try runOnPrivateDesktop(clickFocusTabBackgroundTestBody);
+    }
+
+    fn clickFocusTabBackgroundTestBody() !void {
+        if (isHighContrastActive()) return error.SkipZigTest;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var surface_a: Surface = undefined;
+        var surface_b: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host, .register = true }},
+            .surfaces = &.{
+                .{ .storage = &surface_a, .host = &host, .register = true },
+                .{ .storage = &surface_b, .host = &host },
+            },
+            .tabs = &.{.{ .host = &host, .surface = &surface_a, .id = 1 }},
+        });
+        defer session.deinit();
+
+        // One tab, [A | B] with A focused: one title, two backgrounds.
+        const inserted = try SplitTreeSurface.init(std.testing.allocator, &surface_b);
+        defer {
+            var cleanup = inserted;
+            cleanup.deinit();
+        }
+        const tab = &host.tabs.items[0];
+        const next_tree = try tab.tree.split(std.testing.allocator, .root, .right, 0.5, &inserted);
+        tab.tree.deinit();
+        tab.tree = next_tree;
+        tab.focused = tab.findHandle(&surface_a).?;
+        surface_a.title = "pwsh";
+        surface_b.title = "pwsh";
+        surface_a.tab_background = rgb(0x12, 0x34, 0x56);
+        surface_b.tab_background = rgb(0x65, 0x43, 0x21);
+
+        // The host clips its children, as a real one does, so its own
+        // repaints never reach the button. A hidden window has no update
+        // region; this one is shown on the test's private desktop.
+        const window = try BannerTestWindow.init(&host);
+        defer window.deinit(&host);
+        const style = sys.GetWindowLongPtrW(window.parent, c.GWL_STYLE);
+        _ = sys.SetWindowLongPtrW(window.parent, c.GWL_STYLE, style | c.WS_CLIPCHILDREN);
+        _ = sys.MoveWindow(window.parent, 0, 0, 1200, 300, 0);
+        _ = sys.ShowWindow(window.parent, c.SW_SHOWNOACTIVATE);
+        defer if (host.cached_window_title) |value| std.testing.allocator.free(value);
+        try host.refreshChrome();
+        const button = tab.button_hwnd orelse return error.TestUnexpectedResult;
+        const placed = tab.button_placement.rect;
+        try std.testing.expectEqual(rgb(0x12, 0x34, 0x56), host.tab_join.?.color);
+        _ = sys.ValidateRect(button, null);
+
+        // A click focuses B: its WM_SETFOCUS runs `focusChanged`, and the
+        // moved focus refreshes the chrome. The label and the button's place
+        // stay as they were, so only the background says to repaint it.
+        surface_b.focusChanged(true);
+        try host.refreshChrome();
+        try std.testing.expectEqual(tab.findHandle(&surface_b).?, tab.focused);
+        try std.testing.expectEqual(placed, tab.button_placement.rect);
+        try std.testing.expectEqual(rgb(0x65, 0x43, 0x21), host.tab_join.?.color);
+        var update: RECT = undefined;
+        try std.testing.expect(sys.GetUpdateRect(button, &update, 0) != 0);
+
+        // Back to A, which now has B's background: the tab shows the same
+        // color, and nothing repaints it.
+        surface_a.tab_background = surface_b.tab_background;
+        _ = sys.ValidateRect(button, null);
+        surface_a.focusChanged(true);
+        try host.refreshChrome();
+        try std.testing.expectEqual(tab.findHandle(&surface_a).?, tab.focused);
+        try std.testing.expectEqual(@as(BOOL, 0), sys.GetUpdateRect(button, &update, 0));
     }
 
     test "CHROME57 native activation updates only top chrome and its children" {
@@ -9531,11 +9801,10 @@ pub const Host = struct {
         // created with, so laying them out unconditionally collapsed the tab
         // buttons and the [+] / [▾] cluster to `button_height == 1` at the top
         // of the client area, where they still painted their own background
-        // and the active tab's accent border over the terminal (#244). Decide
-        // the strip's visibility once and gate every child that belongs to it.
+        // and the active tab's border over the terminal (#244). Decide the
+        // strip's visibility once and gate every child that belongs to it.
         const tab_strip_visible = self.shouldShowTabBar();
         if (!tab_strip_visible) self.tab_wheel_steps = .{};
-        var active_tab_left: ?i32 = null;
         for (self.tabs.items, 0..) |*tab, i| {
             if (tab.button_hwnd) |button_hwnd| {
                 if (tabStripChildVisible(
@@ -9555,26 +9824,16 @@ pub const Host = struct {
                         ),
                     ) or changed.*;
                     changed.* = applyChildVisibility(button_hwnd, &tab.button_placement, true) or changed.*;
-                    if (i == self.active_tab) active_tab_left = tab_left;
                 } else {
                     changed.* = applyChildVisibility(button_hwnd, &tab.button_placement, false) or changed.*;
                 }
             }
         }
 
-        // Animate the focused-tab underline toward the active tab's
-        // on-screen rect. First retarget (!positioned) snaps
-        // so the line doesn't slide in from the left on window open;
-        // subsequent retargets slide over underline_slide_ms. Reduced-
-        // motion collapses to a snap via `retargetTabUnderline`. A hidden
-        // strip leaves `active_tab_left` null, so a tab switch with the tab
-        // bar off neither repaints the top band nor arms the 16 ms slide
-        // heartbeat for a line that is never painted.
-        if (active_tab_left) |left| {
-            self.retargetTabUnderline(left, button_width);
-        } else if (!tab_strip_visible) {
-            self.tab_underline = .{};
-        }
+        // The band paints the active tab's join to its terminal under the
+        // button just placed. A hidden strip has none, so a tab switch with
+        // the tab bar off repaints nothing in the band.
+        self.syncTabJoin();
 
         // The tab-strip Selection container is an invisible, hit-transparent
         // child that exists only so UIA has one element to hang ControlType
