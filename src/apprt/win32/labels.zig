@@ -1597,7 +1597,7 @@ test "a program's clipboard prompt names its tab and cannot be reordered by its 
 
     const write = try buildProgramClipboardPromptBody(alloc, .write, 1, null);
     defer alloc.free(write);
-    try std.testing.expectEqualStrings("Tab 1 (noctty) asked to replace your clipboard with the text below.", write);
+    try std.testing.expectEqualStrings("Tab 1 (Najm) asked to replace your clipboard with the text below.", write);
 
     const long = try buildProgramClipboardPromptBody(alloc, .read, 3, "\u{202E}abcdefghijklmnopqrstuvwxyz0123456789");
     defer alloc.free(long);
@@ -1639,7 +1639,7 @@ test "the close prompt for a tab behind the front one names it as the clipboard 
     const many = try buildBackgroundTabClosePromptBody(alloc, 2, 12, null);
     defer alloc.free(many);
     try std.testing.expectEqualStrings(
-        "Processes are still running in 2 terminals in Tab 12 (noctty). Closing that tab will terminate them, and undo is off.",
+        "Processes are still running in 2 terminals in Tab 12 (Najm). Closing that tab will terminate them, and undo is off.",
         many,
     );
 
@@ -2776,7 +2776,7 @@ test "win32 elevated host title prefixes surface and default title once" {
         .total = 1,
     }, true);
     defer std.testing.allocator.free(default);
-    try std.testing.expectEqualStrings("Administrator: noctty", default);
+    try std.testing.expectEqualStrings("Administrator: Najm", default);
 
     const idempotent = try buildHostAwareBaseTitle(std.testing.allocator, "Administrator: pwsh", .{
         .index = 1,

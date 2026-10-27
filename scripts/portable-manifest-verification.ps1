@@ -9,8 +9,8 @@ function Assert-PortableManifestMatchesPayload {
         [System.StringComparer]::Ordinal
     )
     foreach ($name in @(
-        'noctty.com',
-        'noctty.exe',
+        'najm.com',
+        'najm.exe',
         'ghostty-vt.dll',
         'noctty-terminal-handoff-proxy.dll',
         'conpty.dll',

@@ -2447,7 +2447,7 @@ pub const Host = struct {
                 if (saved_but_masked)
                     "Theme saved; a later config layer masks it"
                 else if (self.app.safe_mode)
-                    "Theme saved; restart noctty to apply it"
+                    "Theme saved; restart Najm to apply it"
                 else
                     "Theme applied",
             );
@@ -2456,7 +2456,7 @@ pub const Host = struct {
         if (self.app.safe_mode) {
             runUiActionOrLog(
                 "palette recovery theme banner failed",
-                self.setBanner(.info, "Theme saved; restart noctty to apply it."),
+                self.setBanner(.info, "Theme saved; restart Najm to apply it."),
             );
         }
         if (saved_but_masked) {

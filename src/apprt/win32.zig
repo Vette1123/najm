@@ -1685,13 +1685,13 @@ pub const UpdateNotice = struct {
             .message_text = if (staged)
                 try std.fmt.allocPrint(
                     alloc,
-                    "Update downloaded and verified: noctty {s} is ready to install. Installing closes all windows and running sessions.",
+                    "Update downloaded and verified: Najm {s} is ready to install. Installing closes all windows and running sessions.",
                     .{version_text},
                 )
             else
                 try std.fmt.allocPrint(
                     alloc,
-                    "Update available: noctty {s} is ready on GitHub Releases.",
+                    "Update available: Najm {s} is ready on GitHub Releases.",
                     .{version_text},
                 ),
             .staged = staged,
@@ -1839,21 +1839,21 @@ pub const RecoveryStartup = struct {
 };
 
 const recovery_safe_mode_banner =
-    "Safe mode: repeated incomplete startups. Built-in defaults are active; your config and saved session were not loaded. Restart noctty to retry normal startup.";
+    "Safe mode: repeated incomplete startups. Built-in defaults are active; your config and saved session were not loaded. Restart Najm to retry normal startup.";
 const recovery_safe_mode_banner_w = blk: {
     @setEvalBranchQuota(2_000);
     break :blk std.unicode.utf8ToUtf16LeStringLiteral(recovery_safe_mode_banner);
 };
 const recovery_session_set_aside_banner =
-    "Safe mode: noctty stopped repeatedly while restoring your saved session. Built-in defaults are active and your config was not loaded. The saved session was moved aside with a " ++
-    recovery_set_aside_suffix ++ " suffix in noctty's data folder, so the next start opens a fresh window. Restart noctty to retry normal startup.";
+    "Safe mode: Najm stopped repeatedly while restoring your saved session. Built-in defaults are active and your config was not loaded. The saved session was moved aside with a " ++
+    recovery_set_aside_suffix ++ " suffix in Najm's data folder, so the next start opens a fresh window. Restart Najm to retry normal startup.";
 const recovery_session_set_aside_banner_w = blk: {
     @setEvalBranchQuota(4_000);
     break :blk std.unicode.utf8ToUtf16LeStringLiteral(recovery_session_set_aside_banner);
 };
 /// Suffix for a saved session that the last launches died restoring.
 const recovery_set_aside_suffix = ".restore-failed";
-const recovery_safe_mode_caption_w = std.unicode.utf8ToUtf16LeStringLiteral("noctty safe mode");
+const recovery_safe_mode_caption_w = std.unicode.utf8ToUtf16LeStringLiteral("Najm safe mode");
 
 /// Filename infix for a startup-ledger record whose write already failed and
 /// whose diagnosis is waiting to be folded into the next startup's append.
@@ -3420,7 +3420,7 @@ fn runUpdateCheck(request: *const UpdateCheckRequest, completion: *UpdateCheckCo
                     if (request.manual) {
                         completion.manual_message = std.fmt.allocPrint(
                             alloc,
-                            "noctty {s} is downloaded, verified, and staged.",
+                            "Najm {s} is downloaded, verified, and staged.",
                             .{release.version_text},
                         ) catch null;
                     }
@@ -3441,7 +3441,7 @@ fn runUpdateCheck(request: *const UpdateCheckRequest, completion: *UpdateCheckCo
                     completion.manual_kind = .err;
                     completion.manual_message = std.fmt.allocPrint(
                         alloc,
-                        "Unable to prepare the update notice for noctty {s}.",
+                        "Unable to prepare the update notice for Najm {s}.",
                         .{release.version_text},
                     ) catch null;
                 }
@@ -3451,7 +3451,7 @@ fn runUpdateCheck(request: *const UpdateCheckRequest, completion: *UpdateCheckCo
             if (request.manual) {
                 completion.manual_message = std.fmt.allocPrint(
                     alloc,
-                    "noctty {s} is already current on the stable channel.",
+                    "Najm {s} is already current on the stable channel.",
                     .{request.current_version_string},
                 ) catch null;
             }
@@ -3611,7 +3611,7 @@ test "the update check's banner keeps a failure up and lets a result count down"
 
     var result: UpdateCheckCompletion = .{
         .alloc = std.testing.allocator,
-        .manual_message = try std.testing.allocator.dupe(u8, "noctty 1.0.0 is already current on the stable channel."),
+        .manual_message = try std.testing.allocator.dupe(u8, "Najm 1.0.0 is already current on the stable channel."),
     };
     defer result.deinit();
     app.handleUpdateCheckCompletion(&result);
@@ -4372,16 +4372,16 @@ pub fn closeScopePrompt(scope: CloseScope, count: usize, body_buf: *[256]u8) Con
                     .many = "Processes are still running in {d} terminals in the tabs to the right. Closing those tabs will terminate them.",
                 },
                 .app => .{
-                    .title = "Quit noctty?",
+                    .title = "Quit Najm?",
                     .accept = "Quit",
-                    .one = "A process is still running. Quitting noctty will terminate it.",
-                    .many = "Processes are still running in {d} terminals. Quitting noctty will terminate them.",
+                    .one = "A process is still running. Quitting Najm will terminate it.",
+                    .many = "Processes are still running in {d} terminals. Quitting Najm will terminate them.",
                 },
                 .update => .{
                     .title = "Install the update?",
                     .accept = "Install",
-                    .one = "A process is still running. Installing the update closes noctty and will terminate it.",
-                    .many = "Processes are still running in {d} terminals. Installing the update closes noctty and will terminate them.",
+                    .one = "A process is still running. Installing the update closes Najm and will terminate it.",
+                    .many = "Processes are still running in {d} terminals. Installing the update closes Najm and will terminate them.",
                 },
             };
             return .{
@@ -6511,7 +6511,7 @@ pub fn settingsDeferUiaDisconnectThunk(
 }
 pub fn settingsNotifySuccessThunk(ctx: *anyopaque, title: []const u8, body: []const u8) void {
     const app: *App = @ptrCast(@alignCast(ctx));
-    const saved_title = if (app.safe_mode) "Settings saved; restart noctty to apply them" else title;
+    const saved_title = if (app.safe_mode) "Settings saved; restart Najm to apply them" else title;
     // Always show local chrome feedback for the Save button, even
     // when system/reload notifications are disabled.
     const alloc = app.core_app.alloc;
@@ -15279,7 +15279,7 @@ test "win32 quit asks once on the window it came from" {
     try std.testing.expect(try app.performAction(.{ .surface = surface_a.core() }, .quit, {}));
     try std.testing.expectEqual(HostOverlayMode.confirm, host_a.overlay_mode);
     try std.testing.expectEqual(HostOverlayMode.none, host_b.overlay_mode);
-    try std.testing.expectEqualStrings("Quit noctty?", host_a.confirm_payload.?.title);
+    try std.testing.expectEqualStrings("Quit Najm?", host_a.confirm_payload.?.title);
     try std.testing.expect(app.running);
     // Asking again from the other window keeps the one prompt.
     try std.testing.expect(try app.performAction(.{ .surface = surface_b.core() }, .quit, {}));
@@ -16013,7 +16013,7 @@ test "win32 a program's clipboard request asks in its own words and cannot be an
     const payload = host.confirm_payload.?;
     try std.testing.expectEqualStrings("Let a program read your clipboard?", payload.title);
     try std.testing.expectEqualStrings(
-        "Tab 2 (noctty) asked to read your clipboard. Allow sends it the text below.",
+        "Tab 2 (Najm) asked to read your clipboard. Allow sends it the text below.",
         payload.body,
     );
     try std.testing.expect(payload.program_request);
@@ -16055,7 +16055,7 @@ test "win32 a program's clipboard request asks in its own words and cannot be an
     try surface_a.requestWriteConfirm(.standard, &.{.{ .mime = "text/plain", .data = "x" }});
     try std.testing.expectEqualStrings("Let a program change your clipboard?", host.confirm_payload.?.title);
     try std.testing.expectEqualStrings(
-        "Tab 1 (noctty) asked to replace your clipboard with the text below.",
+        "Tab 1 (Najm) asked to replace your clipboard with the text below.",
         host.confirm_payload.?.body,
     );
     try std.testing.expect(host.confirm_payload.?.program_request);
@@ -16087,14 +16087,14 @@ test "win32 close prompts count the terminals they would end" {
     const many = closeScopePrompt(.app, 3, &buf);
     try std.testing.expectEqualStrings("Quit", many.accept_label);
     try std.testing.expectEqualStrings(
-        "Processes are still running in 3 terminals. Quitting noctty will terminate them.",
+        "Processes are still running in 3 terminals. Quitting Najm will terminate them.",
         many.body,
     );
     const update = closeScopePrompt(.update, 2, &buf);
     try std.testing.expectEqualStrings("Install the update?", update.title);
     try std.testing.expectEqualStrings("Install", update.accept_label);
     try std.testing.expectEqualStrings(
-        "Processes are still running in 2 terminals. Installing the update closes noctty and will terminate them.",
+        "Processes are still running in 2 terminals. Installing the update closes Najm and will terminate them.",
         update.body,
     );
 }
@@ -16553,7 +16553,7 @@ test "win32 close_tab this asks first once undo is off" {
     // Tab 2 is in front, so the prompt says which tab it is about.
     try std.testing.expectEqualStrings("Close tab 1?", host.confirm_payload.?.title);
     try std.testing.expectEqualStrings(
-        "A process is still running in Tab 1 (noctty). Closing that tab will terminate it, and undo is off.",
+        "A process is still running in Tab 1 (Najm). Closing that tab will terminate it, and undo is off.",
         host.confirm_payload.?.body,
     );
     // Nothing closed, and nothing sits in undo history: the tab was not detached.
@@ -16617,7 +16617,7 @@ test "win32 a terminal that asks to close in a tab behind the front one names th
     try std.testing.expectEqual(HostOverlayMode.confirm, host.overlay_mode);
     try std.testing.expectEqualStrings("Close terminal in tab 1?", host.confirm_payload.?.title);
     try std.testing.expectEqualStrings(
-        "A process is still running in Tab 1 (noctty). Closing that terminal will terminate it.",
+        "A process is still running in Tab 1 (Najm). Closing that terminal will terminate it.",
         host.confirm_payload.?.body,
     );
     host.invokeConfirmCancel();
@@ -16629,7 +16629,7 @@ test "win32 a terminal that asks to close in a tab behind the front one names th
     surface_a.close(true);
     surface_a.core_initialized = false;
     try std.testing.expectEqualStrings(
-        "The program in Tab 1 (noctty) has exited. Read-only mode makes closing that terminal ask first.",
+        "The program in Tab 1 (Najm) has exited. Read-only mode makes closing that terminal ask first.",
         host.confirm_payload.?.body,
     );
     host.invokeConfirmCancel();
@@ -23873,7 +23873,7 @@ test "win32 agreeing to a Restart Manager close registers the session owner for 
 
     // A sign-out, shutdown or reboot (no ENDSESSION_CLOSEAPP) takes back a
     // registration a round left, at its query or at its end, so Windows'
-    // option to restart apps at sign-in does not restart noctty.
+    // option to restart apps at sign-in does not restart Najm.
     try std.testing.expectEqual(@as(LRESULT, 1), Rm.query(hwnd));
     try std.testing.expectEqual(@as(u32, 8), Fake.registers);
     const logoff: LPARAM = @bitCast(@as(usize, 0x80000000)); // ENDSESSION_LOGOFF
@@ -26011,7 +26011,7 @@ test "win32 safe mode theme selection and acceptance preserve recovery" {
     try std.testing.expect(command.ptr == app.config.command.?.direct.ptr);
     try std.testing.expectEqualStrings("/D", app.config.command.?.direct[1]);
     try std.testing.expect(app.config.theme == null);
-    try std.testing.expectEqualStrings("Theme saved; restart noctty to apply it.", host.banner_text.?);
+    try std.testing.expectEqualStrings("Theme saved; restart Najm to apply it.", host.banner_text.?);
     const saved = try tmp.dir.readFileAlloc(alloc, "config", 4096);
     defer alloc.free(saved);
     try std.testing.expect(std.mem.indexOf(u8, saved, "theme = 0x96f") != null);

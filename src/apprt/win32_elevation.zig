@@ -943,7 +943,7 @@ test "elevation title prefix handles elevated non-elevated null and prefixed tit
 
     const fallback = try allocPrefixedTitle(testing.allocator, null, true);
     defer testing.allocator.free(fallback);
-    try testing.expectEqualStrings("Administrator: noctty", fallback);
+    try testing.expectEqualStrings("Administrator: Najm", fallback);
 
     const prefixed = try allocPrefixedTitle(
         testing.allocator,
@@ -1011,7 +1011,7 @@ test "elevation IPC image comparison is case-insensitive and length-exact" {
 
     try std.testing.expect(imagePathsEqual(
         L("C:\\Program Files\\noctty\\najm.exe"),
-        L("c:\\program files\\noctty\\NOCTTY.EXE"),
+        L("c:\\program files\\noctty\\NAJM.EXE"),
     ));
     try std.testing.expect(!imagePathsEqual(
         L("C:\\Program Files\\noctty\\najm.exe"),

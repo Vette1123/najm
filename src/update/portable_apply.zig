@@ -881,10 +881,10 @@ test "portable rollback renames displaced share tree back exactly" {
 test "portable update rejects unsafe ZIP entry paths" {
     const testing = std.testing;
     try testing.expect(isSafeZipEntryPath("najm/"));
-    try testing.expect(isSafeZipEntryPath("noctty/share/ghostty/themes/a"));
-    try testing.expect(!isSafeZipEntryPath("/noctty/najm.exe"));
-    try testing.expect(!isSafeZipEntryPath("C:/noctty/najm.exe"));
-    try testing.expect(!isSafeZipEntryPath("noctty/../../outside"));
+    try testing.expect(isSafeZipEntryPath("najm/share/ghostty/themes/a"));
+    try testing.expect(!isSafeZipEntryPath("/najm/najm.exe"));
+    try testing.expect(!isSafeZipEntryPath("C:/najm/najm.exe"));
+    try testing.expect(!isSafeZipEntryPath("najm/../../outside"));
     try testing.expect(!isSafeZipEntryPath("noctty\\najm.exe"));
     try testing.expect(!isSafeZipEntryPath("other/najm.exe"));
 }

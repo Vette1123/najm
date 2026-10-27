@@ -5601,7 +5601,7 @@ test "win32 untitled OSC 9 toast is titled by its tab" {
     w.p.title = null;
     try w.osc(&w.p, "", "x");
     try w.recorder.expect(.title, "Najm");
-    try w.recorder.expect(.attribution, "Tab 2: noctty");
+    try w.recorder.expect(.attribution, "Tab 2: Najm");
 
     // The tab is known by its focused pane's title, also when another of
     // its panes sends the toast. That pane is still the one a click

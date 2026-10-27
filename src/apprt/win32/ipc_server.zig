@@ -2064,14 +2064,14 @@ test "win32 elevated IPC pipe names are integrity scoped" {
 
     const medium_utf8 = try std.unicode.utf16LeToUtf8Alloc(std.testing.allocator, medium_name[0..medium_name.len]);
     defer std.testing.allocator.free(medium_utf8);
-    try std.testing.expectEqualStrings("\\\\.\\pipe\\noctty.demo_class.medium", medium_utf8);
+    try std.testing.expectEqualStrings("\\\\.\\pipe\\najm.demo_class.medium", medium_utf8);
 
     const elevated_name = try allocIpcPipeName(std.testing.allocator, "demo class", true);
     defer std.testing.allocator.free(elevated_name);
 
     const elevated_utf8 = try std.unicode.utf16LeToUtf8Alloc(std.testing.allocator, elevated_name[0..elevated_name.len]);
     defer std.testing.allocator.free(elevated_utf8);
-    try std.testing.expectEqualStrings("\\\\.\\pipe\\noctty.demo_class.elevated", elevated_utf8);
+    try std.testing.expectEqualStrings("\\\\.\\pipe\\najm.demo_class.elevated", elevated_utf8);
 
     const adversarial_medium = try allocIpcPipeName(std.testing.allocator, "demo class.elevated", false);
     defer std.testing.allocator.free(adversarial_medium);

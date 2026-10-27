@@ -3936,7 +3936,7 @@ test "a start after an install that did not replace the build reports it once, w
     try recordStagedApplyRequested(alloc, state_path, 1_000_000);
     const no_log = (try takeFailedInstallerApply(alloc, state_path, old_build)).?;
     defer alloc.free(no_log);
-    try std.testing.expect(std.mem.indexOf(u8, no_log, "noctty 1.3.101 did not finish installing") != null);
+    try std.testing.expect(std.mem.indexOf(u8, no_log, "Najm 1.3.101 did not finish installing") != null);
     try std.testing.expect(std.mem.indexOf(u8, no_log, "left no log") != null);
 
     // Said once, and the staged installer stays so Install is offered again.
@@ -4205,7 +4205,7 @@ test "portable update rejects persisted paths outside its stage" {
 
 test "portable update ZIP preflight binds EOCD to archive end" {
     const alloc = std.testing.allocator;
-    const name = "noctty/";
+    const name = "najm/";
     const central_len = 46 + name.len;
     var archive: [central_len + 22]u8 = @splat(0);
     std.mem.writeInt(u32, archive[0..4], 0x02014b50, .little);

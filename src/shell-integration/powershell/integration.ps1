@@ -270,14 +270,14 @@ function global:__ghostty_find_command_application {
 
 function global:__ghostty_find_noctty {
     if (-not [string]::IsNullOrEmpty($env:GHOSTTY_BIN_DIR)) {
-        foreach ($name in @('najm.com', 'najm.exe', 'noctty')) {
+        foreach ($name in @('najm.com', 'najm.exe', 'najm')) {
             $candidate = Join-Path $env:GHOSTTY_BIN_DIR $name
             if (Test-Path -LiteralPath $candidate -PathType Leaf) {
                 return $candidate
             }
         }
     }
-    return __ghostty_find_command_application @('najm.com', 'najm.exe', 'noctty')
+    return __ghostty_find_command_application @('najm.com', 'najm.exe', 'najm')
 }
 
 function global:__ghostty_ssh_cache {

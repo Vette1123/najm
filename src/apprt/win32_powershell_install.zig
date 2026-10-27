@@ -1778,7 +1778,7 @@ test "integration.ps1 changes only with its revision" {
     // whether to bump in front of the author and the reviewer; it cannot judge
     // whether the change needed one.
     const pinned_revision: u32 = 1;
-    const pinned_sha256 = "328192524f590570ff521cd52043a6c016c86627fab3848951eea1317571d14b";
+    const pinned_sha256 = "93c792b12eb0f071e6bcb78b7e4b5131a549305d7d3892d55ac7978ff5d50e0b";
     const hex = std.fmt.bytesToHex(integration_script_sha256, .lower);
     try std.testing.expectEqual(@as(?u32, pinned_revision), scriptRevision(integration_script));
     try std.testing.expectEqualStrings(pinned_sha256, &hex);
