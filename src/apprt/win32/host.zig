@@ -6093,11 +6093,11 @@ pub const Host = struct {
         try std.testing.expect(bannerTestVisible(dismiss));
         var name_buf: [256]u8 = undefined;
         try std.testing.expectEqualStrings(
-            "Update available: noctty 1.3.200 is ready on GitHub Releases.",
+            "Update available: Najm 1.3.200 is ready on GitHub Releases.",
             bannerUiaName(@ptrCast(&host), 0, &name_buf),
         );
         try std.testing.expectEqualStrings(
-            "Open Release: Update available: noctty 1.3.200 is ready on GitHub Releases.",
+            "Open Release: Update available: Najm 1.3.200 is ready on GitHub Releases.",
             bannerButtonUiaName(@ptrCast(&host), @intFromEnum(BannerButton.primary), &name_buf),
         );
         try std.testing.expectEqualStrings("Dismiss update notice", bannerButtonUiaName(@ptrCast(&host), @intFromEnum(BannerButton.dismiss), &name_buf));
