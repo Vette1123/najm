@@ -33,6 +33,9 @@ jobs:
       WINDOWS_CODESIGN_PFX_PASSWORD: ${{ secrets.NAJM_CODESIGN_PFX_PASSWORD }}
       WINDOWS_CODESIGN_DESCRIPTION: Najm
       WINDOWS_CODESIGN_URL: https://github.com/Vette1123/najm
+      # Najm signs with a self-signed key, so the packager checks the signer
+      # thumbprint instead of a trusted root (and skips the timestamp server).
+      WINDOWS_CODESIGN_TRUST_SELF_SIGNED: "true"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
