@@ -9,6 +9,9 @@ const coverageContains = @import("DeferredFace_windows.zig").coverageContains;
 pub const Descriptor = @import("descriptor.zig").Descriptor;
 const Variation = @import("variation.zig").Variation;
 const dwrite = @import("discovery_windows_dwrite.zig");
+const font_index = @import("discovery_windows_cache.zig");
+const build_config = @import("../build_config.zig");
+const internal_os = @import("../os/main.zig");
 
 const log = std.log.scoped(.discovery);
 
@@ -548,13 +551,122 @@ pub const Windows = struct {
             records.deinit(alloc);
         }
 
+        // Najm: reuse what the last scan found in files that have not
+        // changed (src/font/discovery_windows_cache.zig). Off in tests, so
+        // the scan tests see every file scanned.
+        const index_path: ?[]u8 = if (comptime builtin.is_test) null else fontIndexPath(alloc);
+        defer if (index_path) |path| alloc.free(path);
+        var index: ?font_index.Index = if (index_path) |path|
+            font_index.load(alloc, path, build_config.version_string)
+        else
+            null;
+        defer if (index) |*loaded| loaded.deinit();
+        var index_arena = std.heap.ArenaAllocator.init(alloc);
+        defer index_arena.deinit();
+        var index_files: std.ArrayListUnmanaged(font_index.File) = .{};
+        var index_hits: usize = 0;
+
         for (paths.items) |path| {
             if (self.scanStopped()) return error.ScanStopped;
             if (comptime builtin.is_test) if (self.test_scan_hook) |hook| hook.call(hook.ctx, self, path);
+            const stat: ?std.fs.File.Stat = if (index_path != null) std.fs.cwd().statFile(path) catch null else null;
+            const first = records.items.len;
+            reuse: {
+                const st = stat orelse break :reuse;
+                const loaded = if (index) |*loaded| loaded else break :reuse;
+                const faces = loaded.lookup(path, st.size, st.mtime) orelse break :reuse;
+                for (faces) |face| {
+                    var record = try recordFromIndex(alloc, path, face);
+                    errdefer record.deinit(alloc);
+                    try records.append(alloc, record);
+                }
+                index_hits += 1;
+                try index_files.append(index_arena.allocator(), .{ .path = path, .size = st.size, .mtime = st.mtime, .faces = faces });
+                continue;
+            }
             try scanPath(alloc, lib, path, &records);
+            if (stat) |st| try index_files.append(index_arena.allocator(), .{
+                .path = path,
+                .size = st.size,
+                .mtime = st.mtime,
+                .faces = try indexFaces(index_arena.allocator(), records.items[first..]),
+            });
+        }
+
+        if (index_path) |path| {
+            const unchanged = index != null and index_hits == paths.items.len and
+                index.?.by_path.count() == paths.items.len;
+            if (!unchanged) font_index.save(alloc, path, build_config.version_string, index_files.items) catch |err|
+                log.warn("windows font index not saved path={s} err={}", .{ path, err });
+            log.info("windows font index reused {d} of {d} font files", .{ index_hits, paths.items.len });
         }
 
         return try records.toOwnedSlice(alloc);
+    }
+
+    fn fontIndexPath(alloc: Allocator) ?[]u8 {
+        return internal_os.xdg.cache(alloc, .{
+            .subdir = build_config.data_dir_name ++ "/font-index.json",
+        }) catch null;
+    }
+
+    /// The scan's records for one file, as the font index stores them.
+    /// Borrows the strings from `records`; they outlive the save.
+    fn indexFaces(alloc: Allocator, records: []const Record) error{OutOfMemory}![]const font_index.Face {
+        const faces = try alloc.alloc(font_index.Face, records.len);
+        for (records, faces) |record, *face| face.* = .{
+            .face_index = record.face_index,
+            .family_name = record.family_name,
+            .style_name = record.style_name,
+            .full_name = record.full_name,
+            .typographic_family = if (record.typographic_family) |name| name else null,
+            .typographic_style = if (record.typographic_style) |name| name else null,
+            .weight = record.weight,
+            .weight_min = if (record.weight_axis) |axis| axis.minimum else null,
+            .weight_max = if (record.weight_axis) |axis| axis.maximum else null,
+            .monospace = record.monospace,
+            .bold = record.bold,
+            .italic = record.italic,
+            .color = record.color,
+            .variable = record.variable,
+        };
+        return faces;
+    }
+
+    /// A Record for a face the font index remembered, owning its strings.
+    fn recordFromIndex(alloc: Allocator, path: []const u8, face: font_index.Face) error{OutOfMemory}!Record {
+        const owned_path = try alloc.dupeZ(u8, path);
+        errdefer alloc.free(owned_path);
+        const family_name = try alloc.dupeZ(u8, face.family_name);
+        errdefer alloc.free(family_name);
+        const style_name = try alloc.dupeZ(u8, face.style_name);
+        errdefer alloc.free(style_name);
+        const full_name = try alloc.dupeZ(u8, face.full_name);
+        errdefer alloc.free(full_name);
+        const typographic_family: ?[:0]const u8 = if (face.typographic_family) |name| try alloc.dupeZ(u8, name) else null;
+        errdefer if (typographic_family) |name| alloc.free(name);
+        const typographic_style: ?[:0]const u8 = if (face.typographic_style) |name| try alloc.dupeZ(u8, name) else null;
+        const weight_axis: ?WeightRange = if (face.weight_min != null and face.weight_max != null)
+            .{ .minimum = face.weight_min.?, .maximum = face.weight_max.? }
+        else
+            null;
+        return .{
+            .path = owned_path,
+            .face_index = face.face_index,
+            .family_name = family_name,
+            .style_name = style_name,
+            .full_name = full_name,
+            .typographic_family = typographic_family,
+            .typographic_style = typographic_style,
+            .weight = face.weight,
+            .weight_axis = weight_axis,
+            .monospace = face.monospace,
+            .bold = face.bold,
+            .italic = face.italic,
+            .color = face.color,
+            .variable = face.variable,
+            .coverage = null,
+        };
     }
 
     /// Collect supported font file paths from a directory. Filesystem
@@ -1602,6 +1714,7 @@ test "windows system fallback puts DirectWrite's face first end to end" {
 
 test {
     _ = dwrite;
+    _ = font_index;
 }
 
 /// Mirror of discover(): filter, then take the highest score, the first

@@ -1607,6 +1607,8 @@ font-size = $($FontSize.ToString([Globalization.CultureInfo]::InvariantCulture))
 cursor-style-blink = false
 undo-timeout = 5s
 "@ -replace "`n", "`r`n"
+# Najm: A/B a config option (e.g. "window-vsync = false") without editing this file.
+if ($env:NAJM_BENCH_EXTRA_CONFIG) { $nocttyConfig += "`r`n" + ($env:NAJM_BENCH_EXTRA_CONFIG -replace '\\n', "`r`n") + "`r`n" }
 [IO.File]::WriteAllText($script:nocttyConfigPath, $nocttyConfig, [Text.UTF8Encoding]::new($false))
 $alacrittyConfig = @"
 [window]
