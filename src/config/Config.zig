@@ -2392,8 +2392,39 @@ keybind: Keybinds = .{},
 /// color. The tab strip no longer uses an accent color: the active tab takes
 /// the terminal's background instead, as in Windows Terminal, so nothing in
 /// the window chrome follows the Windows accent. Existing configurations that
-/// set it still load without an error.
+/// set it still load without an error. To follow the Windows accent, set
+/// `window-accent = system`.
 @"accent-follow-system": bool = true,
+
+/// The accent color of the window chrome: the edge across the top of every
+/// menu and the command palette, the highlighted row, check marks, focus
+/// rings, the line around the focused split, primary buttons and the
+/// Settings window. Valid values:
+///
+///   * `default` - noctty's own blue.
+///   * `system` - follow the Windows accent color (Settings, Personalization,
+///     Colors). It changes when Windows' does.
+///   * a named color: `blue`, `cobalt`, `sky`, `teal`, `mint`, `emerald`,
+///     `green`, `sage`, `gold`, `orange`, `rust`, `red`, `rose`, `pink`,
+///     `magenta`, `purple`, `iris`, `lavender`, `slate` or `graphite`.
+///
+/// For any other color, set `window-accent-color`, which takes precedence.
+///
+/// The color is kept as chosen when it stands out from the menu and window
+/// background (3:1, the floor for focus indicators); otherwise it is lifted
+/// toward white in the dark theme, or deepened toward black in the light
+/// one, only as far as it takes. Search, rename and close prompts keep their
+/// own colors, and Windows High Contrast uses the system colors.
+///
+/// Supported in the Windows-only fork.
+@"window-accent": WindowAccent = .default,
+
+/// A custom accent color for the window chrome, as hex (`#RRGGBB` or
+/// `RRGGBB`) or a named X11 color. When set it replaces `window-accent`,
+/// with the same readability adjustment.
+///
+/// Supported in the Windows-only fork.
+@"window-accent-color": ?Color = null,
 
 /// The color space to use when interpreting terminal colors. "Terminal colors"
 /// refers to colors specified in your configuration and colors produced by
@@ -12290,6 +12321,32 @@ pub const WindowTheme = enum {
     light,
     dark,
     ghostty,
+};
+
+/// See window-accent
+pub const WindowAccent = enum {
+    default,
+    system,
+    blue,
+    cobalt,
+    sky,
+    teal,
+    mint,
+    emerald,
+    green,
+    sage,
+    gold,
+    orange,
+    rust,
+    red,
+    rose,
+    pink,
+    magenta,
+    purple,
+    iris,
+    lavender,
+    slate,
+    graphite,
 };
 
 /// See window-colorspace

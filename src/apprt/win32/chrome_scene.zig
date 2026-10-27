@@ -40,6 +40,7 @@ const host_overlay_padding = runtime.host_overlay_padding;
 const host_overlay_row_height = runtime.host_overlay_row_height;
 const isHighContrastActive = runtime.isHighContrastActive;
 const overlayAccentColor = runtime.overlayAccentColor;
+const overlayAccentFor = runtime.overlayAccentFor;
 const overlayActionLayoutForWidth = runtime.overlayActionLayoutForWidth;
 const overlayEditBorderColor = runtime.overlayEditBorderColor;
 const overlayEditFrameRect = runtime.overlayEditFrameRect;
@@ -480,7 +481,7 @@ pub const HostScene = struct {
                     .top = overlay_panel.top + 1,
                     .right = overlay_panel.right - inset,
                     .bottom = overlay_panel.top + 1 + edge,
-                }, overlayAccentColor(self.overlay_mode, theme.is_dark), edge);
+                }, overlayAccentFor(theme, self.overlay_mode), edge);
             }
             fillSolidRect(
                 hdc,
@@ -685,7 +686,8 @@ pub const HostScene = struct {
                     sys.GetFocus() == edit_hwnd
                 else
                     false;
-                drawRoundedRect(hdc, edit_frame, theme.edit_frame_bg, overlayEditBorderColor(self.overlay_mode, overlay_edit_focused, theme.is_dark), self.scaled(4));
+                const edit_border = if (overlay_edit_focused) overlayAccentFor(theme, self.overlay_mode) else overlayEditBorderColor(self.overlay_mode, false, theme.is_dark);
+                drawRoundedRect(hdc, edit_frame, theme.edit_frame_bg, edit_border, self.scaled(4));
             }
 
             _ = sys.SetTextColor(hdc, if (self.overlay_mode == .profile and self.banner_text == null)

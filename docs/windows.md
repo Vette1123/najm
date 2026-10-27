@@ -1639,6 +1639,28 @@ terminal content, after any custom shader, but not the overlay scrollbar or a
 docked search bar; High Contrast turns it off and keeps the system colors for
 the gap.
 
+The chrome's accent color is configurable. `window-accent` picks `default`
+(noctty's blue), `system` (the Windows accent, followed live when it changes)
+or one of twenty named colors (`blue`, `cobalt`, `sky`, `teal`, `mint`,
+`emerald`, `green`, `sage`, `gold`, `orange`, `rust`, `red`, `rose`, `pink`,
+`magenta`, `purple`, `iris`, `lavender`, `slate`, `graphite`), and
+`window-accent-color` takes any hex or X11 color and wins over it. Settings
+offers the same choices under Appearance, Accent color, with a live preview.
+The accent colors the edge across the top of every menu and the command
+palette, the highlighted row, check marks, focus rings, the line around the
+focused split, primary buttons and the Settings window. A color that would
+not stand out from the window and menu backgrounds (under 3:1) is lifted
+toward white in the dark theme, or deepened toward black in the light one,
+only as far as it takes; the label on a filled accent button is white or
+black, whichever reads better. Search, rename and close prompts keep their own
+colors, and High Contrast uses the system colors.
+
+```ini
+window-accent = teal
+# or any color:
+window-accent-color = #ff6f61
+```
+
 The dark caption is chosen at runtime, not by build number:
 `DWMWA_USE_IMMERSIVE_DARK_MODE` (20) is tried first and the legacy attribute
 (19) is used when DWM rejects it. Windows 11 additionally gets an integrated
@@ -2472,7 +2494,8 @@ colors (`--background`, `--foreground`, `--palette`, `--cursor-color`,
 `--background-opacity`). They are set on the new window's first terminal; a
 tab or split opened in it later starts from the instance's own configuration.
 These settings apply to every window of the instance and are not forwarded:
-`--window-theme`, `--window-titlebar-background`,
+`--window-theme`, `--window-accent`, `--window-accent-color`,
+`--window-titlebar-background`,
 `--window-titlebar-foreground`, `--split-divider-color`,
 `--window-show-tab-bar` and `--window-new-tab-position`, and neither is
 `--accent-follow-system`, which no longer has any effect. A second `noctty` and

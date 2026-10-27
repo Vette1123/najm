@@ -55,6 +55,14 @@ role names rather than copying literal colors into components.
 | Accent            | `#0078D4`  | `#749CE0` | Focus, active selection, primary action |
 | Error             | `#C42B1C`  | `#FF8484` | Errors and destructive outcomes         |
 
+The accent is the one role a user may change (`window-accent`,
+`window-accent-color`, Settings > Appearance > Accent color). Every accent
+role derives from that one color in `withAccent` (`src/apprt/win32.zig`):
+the accent itself is held to 3:1 against the chrome and elevated surfaces,
+accent-tinted labels to 4.5:1, and text on a filled accent is white or black.
+Components read the role, never the preset. Semantic overlay colors (search,
+rename, confirm) do not follow it.
+
 ### Accessibility targets
 
 These are the canonical accessibility targets for application chrome:

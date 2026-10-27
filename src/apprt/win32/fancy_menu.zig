@@ -623,6 +623,24 @@ pub fn drawKeycaps(hdc: HDC, caps: Keycaps, shortcut: []const u8, right: i32, ro
     }
 }
 
+/// The line height of `font`, as `GetTextExtentPoint32W` reports it.
+pub fn textHeight(hdc: HDC, font: ?*anyopaque) i32 {
+    const old = if (font) |f| sys.SelectObject(hdc, f) else null;
+    defer if (old) |o| {
+        _ = sys.SelectObject(hdc, o);
+    };
+    const sample = std.unicode.utf8ToUtf16LeStringLiteral("Ag");
+    var size: SIZE = .{};
+    _ = GetTextExtentPoint32W(hdc, sample.ptr, sample.len, &size);
+    return size.cy;
+}
+
+/// A keycap tall enough for text `line_height` high: 22 px at 96 dpi, and
+/// taller when Windows "Text size" makes the font taller.
+pub fn capHeight(line_height: i32, dpi: u32) i32 {
+    return @max(scale(22, dpi), line_height + scale(4, dpi));
+}
+
 fn textWidthIn(hdc: HDC, font: ?*anyopaque, text: []const u16) i32 {
     if (text.len == 0) return 0;
     const old = if (font) |f| sys.SelectObject(hdc, f) else null;

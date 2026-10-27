@@ -95,6 +95,10 @@ pub const ThemeColors = struct {
 
     // Whether this is a dark theme (for DWM)
     is_dark: bool,
+
+    /// The accent came from `window-accent` or `window-accent-color`, so the
+    /// command palette's edge takes it instead of its own blue.
+    accent_custom: bool = false,
 };
 
 pub const SettingsSystemColors = struct {
@@ -761,6 +765,17 @@ test "CHROME57 High Contrast hover uses readable system highlight colours" {
 // Use buttonColorsFromTheme() and ThemeColors focus ring fields instead.
 
 // ── Overlay accent ──────────────────────────────────────────────────────
+
+/// The edge colour of an overlay in `theme`. The pickers (palette, profiles,
+/// tab overview) take a chosen `window-accent`; search, rename and confirm
+/// keep their own colours, because those say what the overlay does.
+pub fn overlayAccentFor(theme: *const ThemeColors, mode: HostOverlayMode) u32 {
+    if (theme.accent_custom) switch (mode) {
+        .command_palette, .profile, .tab_overview => return theme.accent,
+        else => {},
+    };
+    return overlayAccentColor(mode, theme.is_dark);
+}
 
 pub fn overlayAccentColor(mode: HostOverlayMode, is_dark: bool) u32 {
     if (!is_dark) {

@@ -137,15 +137,27 @@ pub fn paletteListWidthIsReadable(rect: RECT, minimum_width: i32) bool {
     return rect.right - rect.left >= @max(1, minimum_width);
 }
 
+const PaletteRowState = struct {
+    destructive: bool = false,
+    selected: bool = false,
+    enabled: bool = true,
+    high_contrast: bool = false,
+};
+
+/// High Contrast's selected row is the system highlight, so its text is the
+/// highlight text whatever the command; a disabled command is dimmed even
+/// when it is destructive.
 fn paletteRowTitleColor(
-    destructive: bool,
-    selected: bool,
+    row: PaletteRowState,
     normal_color: u32,
     selected_color: u32,
     destructive_color: u32,
+    disabled_color: u32,
 ) u32 {
-    if (destructive) return destructive_color;
-    if (selected) return selected_color;
+    if (row.selected and row.high_contrast) return selected_color;
+    if (!row.enabled) return disabled_color;
+    if (row.destructive) return destructive_color;
+    if (row.selected) return selected_color;
     return normal_color;
 }
 
@@ -558,8 +570,22 @@ test "win32 palette list and columns stay inside narrow client bounds" {
         .{ .left = 20, .top = 0, .right = 180, .bottom = 36 },
         160,
     ));
-    try std.testing.expectEqual(@as(u32, 0x33), paletteRowTitleColor(true, true, 0x11, 0x22, 0x33));
-    try std.testing.expectEqual(@as(u32, 0x33), paletteRowTitleColor(true, false, 0x11, 0x22, 0x33));
+    try std.testing.expectEqual(@as(u32, 0x33), paletteRowTitleColor(.{ .destructive = true, .selected = true }, 0x11, 0x22, 0x33, 0x44));
+    try std.testing.expectEqual(@as(u32, 0x33), paletteRowTitleColor(.{ .destructive = true }, 0x11, 0x22, 0x33, 0x44));
+    try std.testing.expectEqual(@as(u32, 0x22), paletteRowTitleColor(.{ .selected = true }, 0x11, 0x22, 0x33, 0x44));
+    try std.testing.expectEqual(@as(u32, 0x11), paletteRowTitleColor(.{}, 0x11, 0x22, 0x33, 0x44));
+    // A disabled command reads as disabled, destructive or not.
+    try std.testing.expectEqual(@as(u32, 0x44), paletteRowTitleColor(.{ .enabled = false }, 0x11, 0x22, 0x33, 0x44));
+    try std.testing.expectEqual(@as(u32, 0x44), paletteRowTitleColor(.{ .enabled = false, .destructive = true, .selected = true }, 0x11, 0x22, 0x33, 0x44));
+    // High Contrast's selected row is the system highlight: its text is the
+    // highlight text, even for a destructive command.
+    try std.testing.expectEqual(@as(u32, 0x22), paletteRowTitleColor(.{ .destructive = true, .selected = true, .high_contrast = true }, 0x11, 0x22, 0x33, 0x44));
+}
+
+test "palette keycaps grow with the chrome font" {
+    try std.testing.expectEqual(@as(i32, 22), fancy_menu.capHeight(18, 96));
+    try std.testing.expectEqual(@as(i32, 30), fancy_menu.capHeight(26, 96));
+    try std.testing.expectEqual(@as(i32, 44), fancy_menu.capHeight(36, 192));
 }
 
 test "win32 rich palette completion cycles duplicate display text by stable id" {
@@ -1754,6 +1780,13 @@ pub const HostControls = struct {
                 } else {
                     const pill: RECT = .{ .left = row_rect.left + self.scaled(6), .top = row_rect.top + self.scaled(2), .right = row_rect.right - self.scaled(6), .bottom = row_rect.bottom - self.scaled(2) };
                     fancy_menu.fillRound(hdc, pill, fancy_menu.highlightColor(card_bg, theme.accent, theme.is_dark), self.scaled(6));
+                    // The selection indicator, as in a WinUI list: a short
+                    // accent pill at the start of the row, so the selection
+                    // is not only a tint.
+                    const mark_h = self.scaled(16);
+                    const mark_w = @max(3, self.scaled(3));
+                    const mark_top = @divTrunc(pill.top + pill.bottom - mark_h, 2);
+                    fancy_menu.fillRound(hdc, .{ .left = pill.left + self.scaled(2), .top = mark_top, .right = pill.left + self.scaled(2) + mark_w, .bottom = mark_top + mark_h }, theme.accent, mark_w);
                 }
             }
             if (i >= self.palette_list_ranked.len) break;
@@ -1761,11 +1794,11 @@ pub const HostControls = struct {
             const item = descriptor.item;
 
             const title_color = paletteRowTitleColor(
-                item.destructive,
-                is_selected,
+                .{ .destructive = item.destructive, .selected = is_selected, .enabled = item.enabled, .high_contrast = high_contrast },
                 theme.text_primary,
                 if (high_contrast) theme.button_active_fg else theme.text_primary,
                 theme.error_fg,
+                theme.text_disabled,
             );
             const secondary_color = if (is_selected and high_contrast) theme.button_active_fg else theme.text_secondary;
             const columns = paletteRowColumns(
@@ -1798,11 +1831,11 @@ pub const HostControls = struct {
                 const caps: fancy_menu.Keycaps = .{
                     .base = if (is_selected) fancy_menu.highlightColor(card_bg, theme.accent, theme.is_dark) else card_bg,
                     .text = theme.text_primary,
-                    .fg = secondary_color,
+                    .fg = if (item.enabled) secondary_color else theme.text_disabled,
                     .is_dark = theme.is_dark,
                     .dpi = self.current_dpi,
                     .font = self.chrome_font,
-                    .height = self.scaled(22),
+                    .height = fancy_menu.capHeight(fancy_menu.textHeight(hdc, self.chrome_font), self.current_dpi),
                 };
                 // Keycaps when they fit the column, the plain text when not.
                 if (high_contrast or fancy_menu.keycapsWidth(hdc, caps, hint_text) > columns.shortcut.right - columns.shortcut.left) {

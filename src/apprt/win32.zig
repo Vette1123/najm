@@ -163,6 +163,7 @@ pub const chrome_scene_runtime = .{
     .host_overlay_row_height = host_overlay_row_height,
     .isHighContrastActive = isHighContrastActive,
     .overlayAccentColor = overlayAccentColor,
+    .overlayAccentFor = overlayAccentFor,
     .overlayActionLayoutForWidth = overlayActionLayoutForWidth,
     .overlayEditBorderColor = overlayEditBorderColor,
     .overlayEditFrameRect = overlayEditFrameRect,
@@ -705,6 +706,7 @@ pub const lightTheme = win32_theme.lightTheme;
 pub const adjustColor = win32_theme.adjustColor;
 pub const buttonColorsFromTheme = win32_theme.buttonColorsFromTheme;
 const overlayAccentColor = win32_theme.overlayAccentColor;
+const overlayAccentFor = win32_theme.overlayAccentFor;
 const overlayEditBorderColor = win32_theme.overlayEditBorderColor;
 const profileChromeAccent = win32_theme.profileChromeAccent;
 pub const applyProfileChromeAccent = win32_theme.applyProfileChromeAccent;
@@ -5570,7 +5572,175 @@ pub fn resolveTheme(config: *const configpkg.Config) ThemeColors {
         .auto => if (isSystemDarkMode()) darkTheme() else lightTheme(),
         .ghostty => darkTheme(),
     };
-    return withSplitDividerColor(theme, config.@"split-divider-color");
+    const accent = configuredAccent(config.@"window-accent", config.@"window-accent-color", resolveSystemAccentColor());
+    return withSplitDividerColor(withAccent(theme, accent), config.@"split-divider-color");
+}
+
+/// Read the Windows accent colour from `HKCU\Software\Microsoft\Windows\DWM`
+/// `AccentColor`, a DWORD in 0xAABBGGRR order. Returns a COLORREF, or null
+/// when it cannot be read.
+fn resolveSystemAccentColor() ?u32 {
+    const subkey = std.unicode.utf8ToUtf16LeStringLiteral("Software\\Microsoft\\Windows\\DWM");
+    const value_name = std.unicode.utf8ToUtf16LeStringLiteral("AccentColor");
+    var hkey: sys.HKEY = undefined;
+    if (sys.RegOpenKeyExW(@ptrFromInt(c.HKEY_CURRENT_USER), subkey, 0, c.KEY_READ, &hkey) != c.ERROR_SUCCESS) return null;
+    defer _ = sys.RegCloseKey(hkey);
+
+    var data: u32 = 0;
+    var data_size: DWORD = @sizeOf(u32);
+    var reg_type: DWORD = 0;
+    if (sys.RegQueryValueExW(hkey, value_name, null, &reg_type, @ptrCast(&data), &data_size) != c.ERROR_SUCCESS) return null;
+    if (reg_type != c.REG_DWORD or data_size != @sizeOf(u32)) return null;
+    return data & 0x00FFFFFF;
+}
+
+/// The named `window-accent` colours, from the Windows accent swatches.
+pub fn windowAccentPreset(accent: configpkg.Config.WindowAccent) ?u32 {
+    return switch (accent) {
+        .default, .system => null,
+        .blue => rgb(0x00, 0x78, 0xD4),
+        .cobalt => rgb(0x00, 0x63, 0xB1),
+        .sky => rgb(0x00, 0x99, 0xBC),
+        .teal => rgb(0x00, 0xB7, 0xC3),
+        .mint => rgb(0x00, 0xB2, 0x94),
+        .emerald => rgb(0x00, 0xCC, 0x6A),
+        .green => rgb(0x10, 0x89, 0x3E),
+        .sage => rgb(0x64, 0x7C, 0x64),
+        .gold => rgb(0xFF, 0xB9, 0x00),
+        .orange => rgb(0xF7, 0x63, 0x0C),
+        .rust => rgb(0xCA, 0x50, 0x10),
+        .red => rgb(0xD1, 0x34, 0x38),
+        .rose => rgb(0xE7, 0x48, 0x56),
+        .pink => rgb(0xE3, 0x00, 0x8C),
+        .magenta => rgb(0xC2, 0x39, 0xB3),
+        .purple => rgb(0x87, 0x64, 0xB8),
+        .iris => rgb(0x6B, 0x69, 0xD6),
+        .lavender => rgb(0x8E, 0x8C, 0xD8),
+        .slate => rgb(0x68, 0x76, 0x8A),
+        .graphite => rgb(0x7A, 0x75, 0x74),
+    };
+}
+
+/// The accent the config asks for, before any readability adjustment, or
+/// null for the theme's own. `window-accent-color` wins over `window-accent`;
+/// `system` with no readable Windows accent (or a zero one) keeps the theme's.
+fn configuredAccent(accent: configpkg.Config.WindowAccent, color: ?configpkg.Config.Color, system_accent: ?u32) ?u32 {
+    if (color) |value| return rgb(value.r, value.g, value.b);
+    if (accent == .system) {
+        const value = system_accent orelse return null;
+        return if (value == 0) null else value;
+    }
+    return windowAccentPreset(accent);
+}
+
+/// DESIGN.md's floor for essential non-text indicators, and for body text.
+const accent_min_contrast: f64 = 3.0;
+const accent_text_min_contrast: f64 = 4.5;
+
+/// `color`, moved toward white on a dark theme or black on a light one only
+/// as far as it takes to reach `min` against every surface in `surfaces`.
+fn readableAgainst(color: u32, surfaces: []const u32, is_dark: bool, min: f64) u32 {
+    const toward = if (is_dark) rgb(0xFF, 0xFF, 0xFF) else rgb(0x00, 0x00, 0x00);
+    var step: u32 = 0;
+    while (step <= 20) : (step += 1) {
+        const candidate = blendColorRGB(color, toward, @as(f32, @floatFromInt(step)) / 20.0);
+        for (surfaces) |surface| {
+            if (rgbFromColorRef(candidate).contrast(rgbFromColorRef(surface)) < min) break;
+        } else return candidate;
+    }
+    return toward;
+}
+
+/// White or black, whichever reads better on a filled `background`. One of
+/// the two always reaches 4.58:1, whatever the fill.
+fn textOnAccent(background: u32) u32 {
+    const white = rgb(0xFF, 0xFF, 0xFF);
+    const ink = rgb(0x00, 0x00, 0x00);
+    const bg = rgbFromColorRef(background);
+    return if (bg.contrast(rgbFromColorRef(white)) >= bg.contrast(rgbFromColorRef(ink))) white else ink;
+}
+
+/// Every accent role of `theme` from one chosen colour: menus and the palette
+/// (`accent`), focus rings, the focused split, active and primary buttons and
+/// the overlay labels. Null keeps the theme as it is.
+fn withAccent(theme: ThemeColors, chosen: ?u32) ThemeColors {
+    const raw = chosen orelse return theme;
+    var result = theme;
+    const accent = readableAgainst(raw, &.{ theme.overlay_bg, theme.chrome_bg }, theme.is_dark, accent_min_contrast);
+    const hover = if (theme.is_dark)
+        blendColorRGB(accent, rgb(0xFF, 0xFF, 0xFF), 0.14)
+    else
+        blendColorRGB(accent, rgb(0x00, 0x00, 0x00), 0.16);
+    result.accent = accent;
+    result.accent_hover = hover;
+    result.pane_divider_focused = accent;
+    result.overlay_label_fg = readableAgainst(accent, &.{theme.overlay_bg}, theme.is_dark, accent_text_min_contrast);
+
+    result.button_active_bg = blendColorRGB(theme.button_bg, accent, if (theme.is_dark) 0.30 else 0.18);
+    result.button_active_border = accent;
+    const active_fg = if (theme.is_dark) theme.button_active_fg else theme.text_primary;
+    result.button_active_fg = readableAgainst(active_fg, &.{result.button_active_bg}, theme.is_dark, accent_text_min_contrast);
+    result.button_accept_bg = accent;
+    result.button_accept_border = hover;
+    result.button_accept_fg = textOnAccent(accent);
+
+    result.button_focus_ring = accent;
+    result.button_overlay_focus_ring = accent;
+    result.button_active_focus_ring = hover;
+    result.button_accept_focus_ring = hover;
+    result.accent_custom = true;
+    return result;
+}
+
+test "window-accent recolours every accent role and stays readable" {
+    // Unset keeps the theme exactly.
+    try std.testing.expectEqualDeep(darkTheme(), withAccent(darkTheme(), configuredAccent(.default, null, rgb(1, 2, 3))));
+    try std.testing.expectEqualDeep(lightTheme(), withAccent(lightTheme(), configuredAccent(.default, null, null)));
+
+    // A colour that already stands out is kept as chosen.
+    const teal = withAccent(darkTheme(), configuredAccent(.teal, null, null));
+    try std.testing.expectEqual(windowAccentPreset(.teal).?, teal.accent);
+    try std.testing.expectEqual(teal.accent, teal.pane_divider_focused);
+    try std.testing.expectEqual(teal.accent, teal.button_focus_ring);
+    try std.testing.expect(teal.accent_custom);
+
+    // The custom colour wins over the preset; `system` follows Windows and
+    // falls back to the theme when Windows has none.
+    try std.testing.expectEqual(rgb(0x12, 0x34, 0x56), configuredAccent(.pink, .{ .r = 0x12, .g = 0x34, .b = 0x56 }, null).?);
+    try std.testing.expectEqual(rgb(9, 8, 7), configuredAccent(.system, null, rgb(9, 8, 7)).?);
+    try std.testing.expect(configuredAccent(.system, null, null) == null);
+    try std.testing.expect(configuredAccent(.system, null, 0) == null);
+
+    // Every preset, and the worst cases (white on light, black on dark),
+    // clears the floors in both themes.
+    var colours: [std.meta.fields(configpkg.Config.WindowAccent).len + 2]u32 = undefined;
+    var count: usize = 0;
+    for (std.enums.values(configpkg.Config.WindowAccent)) |preset| {
+        if (windowAccentPreset(preset)) |value| {
+            colours[count] = value;
+            count += 1;
+        }
+    }
+    colours[count] = rgb(0xFF, 0xFF, 0xFF);
+    colours[count + 1] = rgb(0x00, 0x00, 0x00);
+    count += 2;
+    for ([_]ThemeColors{ darkTheme(), lightTheme() }) |base| {
+        for (colours[0..count]) |raw| {
+            const themed = withAccent(base, raw);
+            const accent = rgbFromColorRef(themed.accent);
+            try std.testing.expect(accent.contrast(rgbFromColorRef(base.overlay_bg)) >= accent_min_contrast);
+            try std.testing.expect(accent.contrast(rgbFromColorRef(base.chrome_bg)) >= accent_min_contrast);
+            try std.testing.expect(rgbFromColorRef(themed.overlay_label_fg).contrast(rgbFromColorRef(base.overlay_bg)) >= accent_text_min_contrast);
+            try std.testing.expect(rgbFromColorRef(themed.button_accept_fg).contrast(accent) >= accent_text_min_contrast);
+            try std.testing.expect(rgbFromColorRef(themed.button_active_fg).contrast(rgbFromColorRef(themed.button_active_bg)) >= accent_text_min_contrast);
+        }
+    }
+
+    // Pickers follow it; search keeps its own colour.
+    try std.testing.expectEqual(teal.accent, overlayAccentFor(&teal, .command_palette));
+    try std.testing.expectEqual(overlayAccentColor(.search, true), overlayAccentFor(&teal, .search));
+    const plain = darkTheme();
+    try std.testing.expectEqual(overlayAccentColor(.command_palette, true), overlayAccentFor(&plain, .command_palette));
 }
 
 /// `split-divider-color` recolors the gap between split panes; unset, the

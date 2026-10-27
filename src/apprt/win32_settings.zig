@@ -608,6 +608,7 @@ const field_adapters = .{
     .combo_link_url = comboAdapter(.link_url),
     .combo_link_previews = comboAdapter(.link_previews),
     .combo_window_theme = comboAdapter(.window_theme),
+    .combo_window_accent = comboAdapter(.window_accent),
     .combo_shell_integ = comboAdapter(.shell_integration),
     .combo_cursor_style = comboAdapter(.cursor_style),
     .chk_bg_blur = FieldAdapter{ .display = SettingsWindow.displayBgBlurInCheckbox, .changed = SettingsWindow.syncBgBlurFromCheckbox },
@@ -672,7 +673,7 @@ pub const editable_keys = .{
     Config.Key.@"shell-integration",      Config.Key.@"cursor-style",      Config.Key.@"background-blur",
     Config.Key.@"window-padding-balance", Config.Key.@"auto-update",       Config.Key.@"auto-update-channel",
     Config.Key.@"font-family",            Config.Key.theme,                Config.Key.command,
-    Config.Key.@"default-profile",
+    Config.Key.@"default-profile",        Config.Key.@"window-accent",
 };
 
 /// Scalar EDIT controls whose raw text can temporarily be invalid and
@@ -7754,12 +7755,12 @@ test "settings open and a first visit create each window once in its final form"
                 Work.print(&tree);
             }
             // The frame, its 18 children (one is the viewport, one the search
-            // field), and in the viewport the help text and Appearance's 10
-            // fields and 9 labels. The other sections' 31 rows are made when
+            // field), and in the viewport the help text and Appearance's 11
+            // fields and 10 labels. The other sections' 31 rows are made when
             // they are first shown. The status line also carries the close
             // prompt's question, and one "Discard changes" serves the bar and
             // the prompt.
-            try std.testing.expectEqual(@as(usize, 39), tree.len);
+            try std.testing.expectEqual(@as(usize, 41), tree.len);
             for (tree.slice()) |hwnd| {
                 const counts = Work.of(hwnd);
                 try std.testing.expectEqual(@as(u16, 1), counts.created);
@@ -7823,7 +7824,7 @@ test "settings open and a first visit create each window once in its final form"
             try std.testing.expectEqual(@as(usize, 0), Work.created().len);
             // Every section shown: the whole form, and still one font build.
             for (std.enums.values(Section)) |section| settings.setActiveSection(section);
-            try std.testing.expectEqual(@as(usize, 72), Work.Tree.of(fixture.hwnd()).len);
+            try std.testing.expectEqual(@as(usize, 74), Work.Tree.of(fixture.hwnd()).len);
             try std.testing.expectEqual(@as(u32, 1), settings.font_builds);
             try std.testing.expectEqual(@as(u32, 0), settings.theme_applications);
         }
@@ -7891,7 +7892,7 @@ test "settings sections shown in any order leave the window as one made whole at
             // Every window in the same z-order, with the same styles, place,
             // client area, check, dropdown heights, text and font, and every
             // field and text with its UIA provider.
-            try std.testing.expectEqual(@as(usize, 72), states[0].len);
+            try std.testing.expectEqual(@as(usize, 74), states[0].len);
             try State.expectSame(&states[0], &states[1]);
             try std.testing.expectEqual(providers[0], providers[1]);
             for (providers[1]) |provided| try std.testing.expect(provided);
@@ -12219,7 +12220,7 @@ test "settings display-only text row needs no persistence adapter" {
             try std.testing.expectEqual(@as(LONG_PTR, 499), sys.GetWindowLongPtrW(control, -12));
             try std.testing.expect(sys.GetWindowLongPtrW(control, GWL_STYLE) & WS_TABSTOP == 0);
             try std.testing.expect(sys.IsWindowEnabled(fixture.settings.btn_save.?) == 0);
-            try std.testing.expectEqual(@as(usize, 25), editable_keys.len);
+            try std.testing.expectEqual(@as(usize, 26), editable_keys.len);
         }
     }.body);
 }
@@ -13693,7 +13694,7 @@ test "settings UIA checkbox and combo actions update the draft and discard resto
                 }
             }
             try std.testing.expectEqual(@as(usize, 5), checks);
-            try std.testing.expectEqual(@as(usize, 13), combos);
+            try std.testing.expectEqual(@as(usize, 14), combos);
             const retired = settings.control_uia_providers[settings.controlIndex(settings.fields.chk_trim_trail.?).?].?;
             retired.detach();
             try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, retired.toggle_iface.vtbl.Toggle(&retired.toggle_iface));

@@ -63,6 +63,7 @@ pub const SettingField = enum {
     link_url,
     link_previews,
     window_theme,
+    window_accent,
     shell_integration,
     cursor_style,
     background_blur,
@@ -238,8 +239,8 @@ pub const descriptors = [_]Descriptor{
     .{ .key = .@"scrollback-limit", .native = .{ .binding = "edit_scrollback", .id = 401, .order = 0, .form_label = "Scrollback limit (bytes; 0 = off; new terminals only)", .accessible_name = "Scrollback limit" }, .field = .scrollback_limit, .label = "Scrollback limit", .help = "Bytes retained for each terminal. Zero disables scrollback.", .unit = "bytes", .section = .terminal, .kind = .integer, .apply = .new_terminals, .validation = .unsigned_integer, .keywords = "settings preferences configuration scrollback-limit history lines buffer" },
     .{ .key = .@"font-size", .native = .{ .binding = "edit_font_size", .id = 402, .order = 1, .form_label = "Font size (pt)", .accessible_name = "Font size" }, .field = .font_size, .label = "Font size", .help = "Text size in points. Saved changes respect a terminal that was zoomed manually.", .unit = "pt", .section = .appearance, .kind = .number, .apply = .live, .validation = .{ .finite_range = .{ .min = 6, .max = 72 } }, .keywords = "settings preferences configuration font-size text zoom" },
     .{ .key = .@"background-opacity", .native = .{ .binding = "edit_bg_opacity", .id = 408, .order = 3, .form_label = "Background opacity (0.0 .. 1.0)", .accessible_name = "Background opacity" }, .field = .background_opacity, .label = "Background opacity", .help = "Window opacity. Draft previews have a visibility floor; Save keeps the exact value.", .section = .appearance, .kind = .number, .apply = .live, .validation = .{ .finite_range = .{ .min = 0, .max = 1 } }, .keywords = "settings preferences configuration background-opacity transparency transparent", .preview = .opacity },
-    .{ .key = .@"window-padding-x", .native = .{ .binding = "edit_pad_x", .id = 415, .order = 6, .form_label = "Window padding X (left/right or single value)", .accessible_name = "Window padding X" }, .field = .window_padding_x, .label = "Window padding X", .help = "Left and right terminal padding. Enter one value or a comma-separated pair.", .unit = "pt", .section = .appearance, .kind = .padding, .apply = .new_terminals, .validation = .{ .padding_max = 200 }, .keywords = "settings preferences configuration window-padding-x margin" },
-    .{ .key = .@"window-padding-y", .native = .{ .binding = "edit_pad_y", .id = 416, .order = 7, .form_label = "Window padding Y (top/bottom or single value)", .accessible_name = "Window padding Y" }, .field = .window_padding_y, .label = "Window padding Y", .help = "Top and bottom terminal padding. Enter one value or a comma-separated pair.", .unit = "pt", .section = .appearance, .kind = .padding, .apply = .new_terminals, .validation = .{ .padding_max = 200 }, .keywords = "settings preferences configuration window-padding-y margin" },
+    .{ .key = .@"window-padding-x", .native = .{ .binding = "edit_pad_x", .id = 415, .order = 7, .form_label = "Window padding X (left/right or single value)", .accessible_name = "Window padding X" }, .field = .window_padding_x, .label = "Window padding X", .help = "Left and right terminal padding. Enter one value or a comma-separated pair.", .unit = "pt", .section = .appearance, .kind = .padding, .apply = .new_terminals, .validation = .{ .padding_max = 200 }, .keywords = "settings preferences configuration window-padding-x margin" },
+    .{ .key = .@"window-padding-y", .native = .{ .binding = "edit_pad_y", .id = 416, .order = 8, .form_label = "Window padding Y (top/bottom or single value)", .accessible_name = "Window padding Y" }, .field = .window_padding_y, .label = "Window padding Y", .help = "Top and bottom terminal padding. Enter one value or a comma-separated pair.", .unit = "pt", .section = .appearance, .kind = .padding, .apply = .new_terminals, .validation = .{ .padding_max = 200 }, .keywords = "settings preferences configuration window-padding-y margin" },
     .{ .key = .@"clipboard-trim-trailing-spaces", .native = .{ .binding = "chk_trim_trail", .id = 407, .order = 3, .caption = "Trim trailing spaces on copy", .accessible_name = "Clipboard trimming" }, .field = .trim_trailing_spaces, .label = "Trim trailing spaces on copy", .help = "Remove trailing whitespace when copying terminal text.", .section = .terminal, .kind = .boolean, .apply = .live, .keywords = "settings preferences configuration clipboard-trim-trailing-spaces whitespace copy" },
     .{ .key = .@"desktop-notifications", .native = .{ .binding = "chk_desktop_notifications", .id = 417, .order = 4, .form_label = "Notifications", .caption = "Allow terminal desktop notifications", .accessible_name = "Terminal notifications" }, .field = .desktop_notifications, .label = "Terminal desktop notifications", .help = "Allow terminal programs to request desktop notifications.", .section = .privacy, .kind = .boolean, .apply = .live, .keywords = "settings preferences configuration desktop-notifications alerts" },
     .{ .key = .@"app-notifications", .projections = &.{
@@ -253,10 +254,11 @@ pub const descriptors = [_]Descriptor{
     .{ .key = .@"link-url", .native = .{ .binding = "combo_link_url", .id = 424, .order = 2, .form_label = "Clickable URL opening", .accessible_name = "Clickable URL opening" }, .field = .link_url, .label = "Clickable URL opening", .help = "Enable opening URLs detected in terminal output.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration link-url url hyperlink" },
     .{ .key = .@"link-previews", .native = .{ .binding = "combo_link_previews", .id = 425, .order = 3, .form_label = "Link preview popups", .accessible_name = "Link preview popups" }, .support = .unsupported_on_windows, .field = .link_previews, .label = "Link preview popups", .help = "Choose which links request preview popups.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration link-previews url hyperlink tooltip" },
     .{ .key = .@"window-theme", .native = .{ .binding = "combo_window_theme", .id = 405, .order = 4, .form_label = "Window theme", .accessible_name = "Window theme" }, .field = .window_theme, .label = "Window theme", .help = "Choose the appearance of window chrome independently of the terminal theme.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration window-theme dark light mode", .preview = .theme },
+    .{ .key = .@"window-accent", .native = .{ .binding = "combo_window_accent", .id = 428, .order = 5, .form_label = "Accent color", .accessible_name = "Accent color" }, .field = .window_accent, .label = "Accent color", .help = "The color of menus, the command palette, focus rings and the focused split. Windows follows your Windows accent. A window-accent-color in the config file overrides it.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration window-accent window-accent-color accent color colour highlight personalize customize", .preview = .theme },
     .{ .key = .@"shell-integration", .native = .{ .binding = "combo_shell_integ", .id = 406, .order = 2, .form_label = "Shell integration", .accessible_name = "Shell integration" }, .field = .shell_integration, .label = "Shell integration", .help = "Enable prompt and command tracking for the selected shell. Automatic includes PowerShell and cmd.", .section = .shell, .kind = .choice, .apply = .new_terminals, .keywords = "settings preferences configuration shell-integration powershell bash prompt" },
-    .{ .key = .@"cursor-style", .native = .{ .binding = "combo_cursor_style", .id = 409, .order = 5, .form_label = "Cursor style", .accessible_name = "Cursor style" }, .field = .cursor_style, .label = "Cursor style", .help = "Default cursor shape. A terminal program can choose its own cursor shape.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration cursor-style caret block bar underline" },
-    .{ .key = .@"background-blur", .native = .{ .binding = "chk_bg_blur", .id = 410, .order = 9, .caption = "Background blur", .accessible_name = "Background blur" }, .field = .background_blur, .label = "Background blur", .help = "Request background blur behind the terminal.", .section = .appearance, .kind = .blur, .apply = .live, .support = .unsupported_on_windows, .keywords = "settings preferences configuration background-blur" },
-    .{ .key = .@"window-padding-balance", .native = .{ .binding = "combo_pad_balance", .id = 411, .order = 8, .form_label = "Window padding balance", .accessible_name = "Window padding balance" }, .field = .padding_balance, .label = "Window padding balance", .help = "Distribute remaining cell space across the terminal padding.", .section = .appearance, .kind = .choice, .apply = .new_terminals, .keywords = "settings preferences configuration window-padding-balance margin" },
+    .{ .key = .@"cursor-style", .native = .{ .binding = "combo_cursor_style", .id = 409, .order = 6, .form_label = "Cursor style", .accessible_name = "Cursor style" }, .field = .cursor_style, .label = "Cursor style", .help = "Default cursor shape. A terminal program can choose its own cursor shape.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration cursor-style caret block bar underline" },
+    .{ .key = .@"background-blur", .native = .{ .binding = "chk_bg_blur", .id = 410, .order = 10, .caption = "Background blur", .accessible_name = "Background blur" }, .field = .background_blur, .label = "Background blur", .help = "Request background blur behind the terminal.", .section = .appearance, .kind = .blur, .apply = .live, .support = .unsupported_on_windows, .keywords = "settings preferences configuration background-blur" },
+    .{ .key = .@"window-padding-balance", .native = .{ .binding = "combo_pad_balance", .id = 411, .order = 9, .form_label = "Window padding balance", .accessible_name = "Window padding balance" }, .field = .padding_balance, .label = "Window padding balance", .help = "Distribute remaining cell space across the terminal padding.", .section = .appearance, .kind = .choice, .apply = .new_terminals, .keywords = "settings preferences configuration window-padding-balance margin" },
     .{ .key = .@"auto-update", .native = .{ .binding = "combo_auto_update", .id = 420, .order = 0, .form_label = "Auto-update mode", .accessible_name = "Auto-update mode" }, .field = .auto_update, .label = "Auto-update mode", .help = "Choose whether noctty checks for updates and prompts to install them.", .section = .updates, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration auto-update upgrade" },
     .{ .key = .@"auto-update-channel", .native = .{ .binding = "combo_auto_update_channel", .id = 421, .order = 1, .form_label = "Auto-update channel", .accessible_name = "Auto-update channel" }, .field = .auto_update_channel, .label = "Auto-update channel", .help = "Choose stable releases or tip builds for update checks.", .section = .updates, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration auto-update-channel stable tip release" },
     .{ .key = .@"font-family", .native = .{ .binding = "edit_font_family", .id = 412, .order = 0, .form_label = "Font family fallbacks (comma-separated)", .accessible_name = "Font family fallbacks" }, .label = "Font family", .help = "Comma-separated font fallback families. Leave blank to use the default font.", .placeholder = "Default font", .section = .appearance, .kind = .font_families, .apply = .live, .validation = .font_families, .keywords = "settings preferences configuration font-family", .default_display = .inherited },
@@ -469,6 +471,30 @@ pub fn Combo(comptime field: SettingField) type {
             .{ .value = .dark, .label = "Dark" },
             .{ .value = .ghostty, .label = "Dark, custom title bar colors" },
         },
+        .window_accent => &.{
+            .{ .value = .default, .label = "Default (noctty blue)" },
+            .{ .value = .system, .label = "Match Windows accent" },
+            .{ .value = .blue, .label = "Blue" },
+            .{ .value = .cobalt, .label = "Cobalt" },
+            .{ .value = .sky, .label = "Sky" },
+            .{ .value = .teal, .label = "Teal" },
+            .{ .value = .mint, .label = "Mint" },
+            .{ .value = .emerald, .label = "Emerald" },
+            .{ .value = .green, .label = "Green" },
+            .{ .value = .sage, .label = "Sage" },
+            .{ .value = .gold, .label = "Gold" },
+            .{ .value = .orange, .label = "Orange" },
+            .{ .value = .rust, .label = "Rust" },
+            .{ .value = .red, .label = "Red" },
+            .{ .value = .rose, .label = "Rose" },
+            .{ .value = .pink, .label = "Pink" },
+            .{ .value = .magenta, .label = "Magenta" },
+            .{ .value = .purple, .label = "Purple" },
+            .{ .value = .iris, .label = "Iris" },
+            .{ .value = .lavender, .label = "Lavender" },
+            .{ .value = .slate, .label = "Slate" },
+            .{ .value = .graphite, .label = "Graphite" },
+        },
         // detect includes PowerShell and cmd on Windows.
         .shell_integration => &.{
             .{ .value = .none, .label = "Off" },
@@ -662,6 +688,7 @@ pub const round_trip_config =
     \\link-url = false
     \\link-previews = osc8
     \\window-theme = dark
+    \\window-accent = teal
     \\shell-integration = none
     \\cursor-style = bar
     \\background-blur = true
