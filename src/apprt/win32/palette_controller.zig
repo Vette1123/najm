@@ -22,6 +22,11 @@ const WPARAM = runtime.WPARAM;
 const appendOwnedString = runtime.appendOwnedString;
 const c = runtime.c;
 const drawRectBorder = runtime.drawRectBorder;
+const fancy_menu = @import("fancy_menu.zig");
+const gdi = @import("gdi.zig");
+const sys_rgn = struct {
+    extern "gdi32" fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) callconv(.winapi) ?*anyopaque;
+};
 const fillSolidRect = runtime.fillSolidRect;
 const host_overlay_height = runtime.host_overlay_height;
 const lParamBits = runtime.lParamBits;
@@ -1673,6 +1678,19 @@ pub const HostControls = struct {
     /// BeginPaint/EndPaint over the list child HWND. Each row shows
     /// title | action | keybind hint. The selected row (Enter target)
     /// gets the accent highlight.
+    /// Rounds the list window's own corners, so the terminal shows past
+    /// them. Only when the size or radius changed: setting a region
+    /// repaints what it uncovers.
+    fn syncPaletteListShape(self: *Host, hwnd: HWND, rect: RECT, radius: i32) void {
+        // The list window is made anew for each opening: a new one has no shape.
+        const shape: [4]isize = .{ @bitCast(@intFromPtr(hwnd)), rect.right, rect.bottom, radius };
+        if (std.mem.eql(isize, &shape, &self.palette_list_shape)) return;
+        self.palette_list_shape = shape;
+        const region = if (radius > 0) sys_rgn.CreateRoundRectRgn(0, 0, rect.right + 1, rect.bottom + 1, radius, radius) else null;
+        // The window owns the region from here on.
+        _ = sys.SetWindowRgn(hwnd, region, 0);
+    }
+
     pub fn paintPaletteList(self: *Host) void {
         const hwnd = self.palette_list_hwnd orelse return;
         var ps: PAINTSTRUCT = undefined;
@@ -1683,8 +1701,19 @@ pub const HostControls = struct {
         if (sys.GetClientRect(hwnd, &rect) == 0) return;
 
         const theme = &self.app.resolved_theme;
+        // The list is a card like the menus (`fancy_menu`): rounded, with
+        // the accent edge across its top. Outside High Contrast only.
+        const high_contrast = win32.isHighContrastActive();
+        const radius = if (high_contrast) 0 else self.scaled(8);
+        syncPaletteListShape(self, hwnd, rect, radius);
         fillSolidRect(hdc, rect, theme.overlay_bg);
-        defer drawRectBorder(hdc, rect, theme.overlay_border, @max(1, self.scaled(1)));
+        defer if (high_contrast)
+            drawRectBorder(hdc, rect, theme.overlay_border, @max(1, self.scaled(1)))
+        else {
+            gdi.drawRoundedOutline(hdc, rect, theme.overlay_border, radius);
+            const edge = @max(2, self.scaled(2));
+            fancy_menu.fillRound(hdc, .{ .left = rect.left + radius, .top = rect.top, .right = rect.right - radius, .bottom = rect.top + edge }, theme.accent, edge);
+        };
 
         if (self.palette_list_ranked_count == 0) return;
 
@@ -1713,7 +1742,12 @@ pub const HostControls = struct {
             };
             const is_selected = i == self.palette_list_selected;
             if (is_selected) {
-                fillSolidRect(hdc, row_rect, theme.button_active_bg);
+                if (high_contrast) {
+                    fillSolidRect(hdc, row_rect, theme.button_active_bg);
+                } else {
+                    const pill: RECT = .{ .left = row_rect.left + self.scaled(6), .top = row_rect.top + self.scaled(2), .right = row_rect.right - self.scaled(6), .bottom = row_rect.bottom - self.scaled(2) };
+                    fancy_menu.fillRound(hdc, pill, fancy_menu.highlightColor(theme.overlay_bg, theme.accent, theme.is_dark), self.scaled(6));
+                }
             }
             if (i >= self.palette_list_ranked.len) break;
             const descriptor = catalog.descriptorFor(self.palette_list_ranked[i]) orelse continue;
@@ -1723,10 +1757,10 @@ pub const HostControls = struct {
                 item.destructive,
                 is_selected,
                 theme.text_primary,
-                theme.button_active_fg,
+                if (high_contrast) theme.button_active_fg else theme.text_primary,
                 theme.error_fg,
             );
-            const secondary_color = if (is_selected) theme.button_active_fg else theme.text_secondary;
+            const secondary_color = if (is_selected and high_contrast) theme.button_active_fg else theme.text_secondary;
             const columns = paletteRowColumns(
                 row_rect,
                 padding,
@@ -1754,12 +1788,21 @@ pub const HostControls = struct {
             var hint_buf: [96]u8 = undefined;
             const hint = self.paletteShortcutLabel(descriptor, &hint_buf);
             if (hint) |hint_text| if (columns.shortcut.right > columns.shortcut.left) {
-                drawPaletteRowText(
-                    hdc,
-                    hint_text,
-                    columns.shortcut,
-                    secondary_color,
-                );
+                const caps: fancy_menu.Keycaps = .{
+                    .base = if (is_selected) fancy_menu.highlightColor(theme.overlay_bg, theme.accent, theme.is_dark) else theme.overlay_bg,
+                    .text = theme.text_primary,
+                    .fg = secondary_color,
+                    .is_dark = theme.is_dark,
+                    .dpi = self.current_dpi,
+                    .font = self.chrome_font,
+                    .height = self.scaled(22),
+                };
+                // Keycaps when they fit the column, the plain text when not.
+                if (high_contrast or fancy_menu.keycapsWidth(hdc, caps, hint_text) > columns.shortcut.right - columns.shortcut.left) {
+                    drawPaletteRowText(hdc, hint_text, columns.shortcut, secondary_color);
+                } else {
+                    fancy_menu.drawKeycaps(hdc, caps, hint_text, columns.shortcut.right, columns.shortcut);
+                }
             };
         }
     }

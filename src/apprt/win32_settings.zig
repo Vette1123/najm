@@ -25,6 +25,7 @@ const win32_types = @import("win32_types.zig");
 const win32_theme = @import("win32_theme.zig");
 const palette_catalog = @import("win32_palette_catalog.zig");
 const win32_uia = @import("win32_uia/mod.zig");
+const fancy_menu = @import("win32/fancy_menu.zig");
 const focus_cue = @import("win32/focus_cue.zig");
 const win32_input = @import("win32/input.zig");
 const settings_transaction = @import("win32_settings_transaction.zig");
@@ -153,6 +154,8 @@ const MF_GRAYED: UINT = 0x0001;
 const TPM_RIGHTBUTTON: UINT = 0x0002;
 const TPM_RETURNCMD: UINT = 0x0100;
 const WM_MENUCHAR: UINT = 0x0120;
+const WM_MEASUREITEM: UINT = 0x002C;
+const WM_DRAWITEM_MENU: UINT = 0x002B;
 /// `WM_MENUCHAR` reply: close the active menu without a beep.
 const MNC_CLOSE: u32 = 1;
 const WM_LBUTTONDOWN: UINT = 0x0201;
@@ -3367,8 +3370,19 @@ pub const SettingsWindow = struct {
         };
         const picked: usize = if (self.context_menu_pick) |pick|
             pick(menu)
-        else
-            @intCast(@max(0, sys.TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, at.x, at.y, 0, hwnd, null)));
+        else picked: {
+            const label = text.buffered();
+            const tab = std.mem.indexOfScalar(u8, label, '\t');
+            const items = [_]fancy_menu.Item{.{
+                .id = row_menu_reset,
+                .label = if (tab) |t| label[0..t] else label,
+                .shortcut = if (tab) |t| label[t + 1 ..] else null,
+                .icon = .reset,
+                .enabled = available,
+            }};
+            const origin: fancy_menu.Origin = if (keyboard) .keyboard else .pointer;
+            break :picked @intCast(@max(0, fancy_menu.track(std.heap.page_allocator, hwnd, &items, at.x, at.y, fancy_menu.styleFromSettings(&self.theme_adapter.colors, self.dpi), origin)));
+        };
         if (picked == row_menu_reset) self.resetRow(index);
         return true;
     }
@@ -15840,7 +15854,17 @@ fn wndProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.wina
             }
             return 0;
         },
+        // A row menu draws itself (`fancy_menu`); anything else falls through.
+        WM_MEASUREITEM => {
+            if (fancy_menu.measureItem(lParam)) |result| return result;
+            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+        },
+        WM_DRAWITEM_MENU => {
+            if (fancy_menu.drawItem(lParam)) |result| return result;
+            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+        },
         WM_MENUCHAR => {
+            if (fancy_menu.menuChar(wParam, lParam)) |result| return result;
             // An Alt chord typed into a settings control reaches the
             // control's DefWindowProc as WM_SYSCHAR, becomes SC_KEYMENU, and
             // the menu loop for it runs on this window: no menu bar, no

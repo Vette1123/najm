@@ -68,6 +68,7 @@ const builtin = @import("builtin");
 const buttonColorsFromTheme = win32.buttonColorsFromTheme;
 const buttonLabelRightInset = win32.buttonLabelRightInset;
 const c = @import("consts.zig");
+const fancy_menu = @import("fancy_menu.zig");
 const captionButtonBoundsThunk = win32.captionButtonBoundsThunk;
 const captionButtonInvokeThunk = win32.captionButtonInvokeThunk;
 const captionButtonZoomedThunk = win32.captionButtonZoomedThunk;
@@ -688,6 +689,8 @@ pub const Host = struct {
     /// Currently-selected row (absolute index into ranked). Enter runs
     /// this entry; click overrides both selection and invocation.
     palette_list_selected: usize = 0,
+    /// The list's rounded shape as last set: window, width, height, radius.
+    palette_list_shape: [4]isize = .{ 0, 0, 0, -1 },
     /// Original app config while a palette theme row is being previewed.
     /// Owned by this host until committed or reverted.
     palette_theme_preview_original: ?configpkg.Config = null,
@@ -7344,10 +7347,13 @@ pub const Host = struct {
         self.refreshScrollbarTimerState();
     }
 
-    pub fn showContextMenu(self: *Host, screen_x: i32, screen_y: i32) void {
+    /// The look every popup menu of this window shares (`fancy_menu`).
+    pub fn menuStyle(self: *const Host) fancy_menu.Style {
+        return fancy_menu.styleFromTheme(&self.app.resolved_theme, self.current_dpi, isHighContrastActive());
+    }
+
+    pub fn showContextMenu(self: *Host, screen_x: i32, screen_y: i32, origin: fancy_menu.Origin) void {
         const hwnd = self.hwnd orelse return;
-        const menu = sys.CreatePopupMenu() orelse return;
-        defer _ = sys.DestroyMenu(menu);
 
         // Check if active surface has a selection
         const has_selection = if (self.activeSurface()) |s| blk: {
@@ -7355,28 +7361,28 @@ pub const Host = struct {
             break :blk s.core_surface.hasSelection();
         } else false;
 
-        _ = sys.AppendMenuW(menu, if (has_selection) c.MF_STRING else c.MF_GRAYED, c.CTX_COPY, std.unicode.utf8ToUtf16LeStringLiteral("Copy\tCtrl+Shift+C"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_PASTE, std.unicode.utf8ToUtf16LeStringLiteral("Paste\tCtrl+Shift+V"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_SELECT_ALL, std.unicode.utf8ToUtf16LeStringLiteral("Select All"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_FIND, std.unicode.utf8ToUtf16LeStringLiteral("Find...\tCtrl+Shift+F"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_COMMAND_PALETTE, std.unicode.utf8ToUtf16LeStringLiteral("Command Palette\tCtrl+Shift+P"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_NEW_TAB, std.unicode.utf8ToUtf16LeStringLiteral("New Tab"));
-
-        // Split submenu with all four directions
-        const split_menu = sys.CreatePopupMenu() orelse return;
-        _ = sys.AppendMenuW(split_menu, c.MF_STRING, c.CTX_SPLIT_RIGHT, std.unicode.utf8ToUtf16LeStringLiteral("Split Right"));
-        _ = sys.AppendMenuW(split_menu, c.MF_STRING, c.CTX_SPLIT_DOWN, std.unicode.utf8ToUtf16LeStringLiteral("Split Down"));
-        _ = sys.AppendMenuW(split_menu, c.MF_STRING, c.CTX_SPLIT_LEFT, std.unicode.utf8ToUtf16LeStringLiteral("Split Left"));
-        _ = sys.AppendMenuW(split_menu, c.MF_STRING, c.CTX_SPLIT_UP, std.unicode.utf8ToUtf16LeStringLiteral("Split Up"));
-        _ = sys.AppendMenuW(menu, c.MF_POPUP, @intFromPtr(split_menu), std.unicode.utf8ToUtf16LeStringLiteral("Split"));
-
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_NEW_WINDOW, std.unicode.utf8ToUtf16LeStringLiteral("New Window"));
+        const split_items = [_]fancy_menu.Item{
+            .{ .id = c.CTX_SPLIT_RIGHT, .label = "Split Right", .icon = .right },
+            .{ .id = c.CTX_SPLIT_DOWN, .label = "Split Down", .icon = .down },
+            .{ .id = c.CTX_SPLIT_LEFT, .label = "Split Left", .icon = .left },
+            .{ .id = c.CTX_SPLIT_UP, .label = "Split Up", .icon = .up },
+        };
+        const items = [_]fancy_menu.Item{
+            .{ .id = c.CTX_COPY, .label = "Copy", .shortcut = "Ctrl+Shift+C", .icon = .copy, .enabled = has_selection },
+            .{ .id = c.CTX_PASTE, .label = "Paste", .shortcut = "Ctrl+Shift+V", .icon = .paste },
+            .{ .id = c.CTX_SELECT_ALL, .label = "Select All", .icon = .select_all },
+            .sep(),
+            .{ .id = c.CTX_FIND, .label = "Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
+            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Command Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
+            .sep(),
+            .{ .id = c.CTX_NEW_TAB, .label = "New Tab", .icon = .add },
+            .{ .label = "Split", .icon = .split, .submenu = &split_items },
+            .{ .id = c.CTX_NEW_WINDOW, .label = "New Window", .icon = .window },
+        };
 
         // Menu must be owned by top-level host HWND to avoid dismiss bugs
         _ = sys.SetForegroundWindow(hwnd);
-        const cmd = sys.TrackPopupMenu(menu, c.TPM_RETURNCMD | c.TPM_RIGHTBUTTON | c.TPM_LEFTALIGN | c.TPM_TOPALIGN, screen_x, screen_y, 0, hwnd, null);
+        const cmd = fancy_menu.track(self.app.core_app.alloc, hwnd, &items, screen_x, screen_y, self.menuStyle(), origin);
         _ = sys.PostMessageW(hwnd, c.WM_NULL, 0, 0);
 
         // Dispatch command (cmd is 0 on cancel)
@@ -7446,26 +7452,26 @@ pub const Host = struct {
         }
         // The menu answers the question a title tooltip was there for.
         self.hideTabTooltip();
-        const menu = sys.CreatePopupMenu() orelse return true;
-        defer _ = sys.DestroyMenu(menu);
-
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_TAB_RENAME, std.unicode.utf8ToUtf16LeStringLiteral("Rename Tab"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_TAB_MOVE_LEFT, std.unicode.utf8ToUtf16LeStringLiteral("Move Tab Left"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_TAB_MOVE_RIGHT, std.unicode.utf8ToUtf16LeStringLiteral("Move Tab Right"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-
         // The only tab closes too: its window goes with it (`tabCloseAction`).
-        const close_flag: UINT = if (tabCloseAction(self.tabs.items.len) != .none) c.MF_STRING else c.MF_GRAYED;
-        _ = sys.AppendMenuW(menu, close_flag, c.CTX_TAB_CLOSE, std.unicode.utf8ToUtf16LeStringLiteral("Close Tab"));
-        _ = sys.AppendMenuW(menu, if (self.tabs.items.len > 1) c.MF_STRING else c.MF_GRAYED, c.CTX_TAB_CLOSE_OTHERS, std.unicode.utf8ToUtf16LeStringLiteral("Close Other Tabs"));
+        const items = [_]fancy_menu.Item{
+            .{ .id = c.CTX_TAB_RENAME, .label = "Rename Tab", .icon = .rename },
+            .sep(),
+            .{ .id = c.CTX_TAB_MOVE_LEFT, .label = "Move Tab Left", .icon = .left },
+            .{ .id = c.CTX_TAB_MOVE_RIGHT, .label = "Move Tab Right", .icon = .right },
+            .sep(),
+            .{ .id = c.CTX_TAB_CLOSE, .label = "Close Tab", .icon = .close, .enabled = tabCloseAction(self.tabs.items.len) != .none },
+            .{ .id = c.CTX_TAB_CLOSE_OTHERS, .label = "Close Other Tabs", .icon = .close_others, .destructive = true, .enabled = self.tabs.items.len > 1 },
+        };
 
         // Position below the tab button
         var rect: RECT = undefined;
         if (sys.GetWindowRect(button_hwnd, &rect) == 0) return true;
 
         _ = sys.SetForegroundWindow(hwnd);
-        const cmd = sys.TrackPopupMenu(menu, c.TPM_RETURNCMD | c.TPM_RIGHTBUTTON | c.TPM_LEFTALIGN | c.TPM_TOPALIGN, rect.left, rect.bottom, 0, hwnd, null);
+        const cmd = fancy_menu.track(app.core_app.alloc, hwnd, &items, rect.left, rect.bottom, self.menuStyle(), switch (origin) {
+            .pointer => .pointer,
+            .keyboard => .keyboard,
+        });
         _ = sys.PostMessageW(hwnd, c.WM_NULL, 0, 0);
 
         // A modal menu pumps window messages. A close can free the Host,
@@ -7628,35 +7634,50 @@ pub const Host = struct {
         var rect: RECT = undefined;
         if (sys.GetWindowRect(button, &rect) == 0) return;
 
-        const menu = sys.CreatePopupMenu() orelse return;
-        defer _ = sys.DestroyMenu(menu);
+        var items: std.ArrayList(fancy_menu.Item) = .empty;
+        defer items.deinit(alloc);
+        var owned_labels: std.ArrayList([]u8) = .empty;
+        defer {
+            for (owned_labels.items) |label| alloc.free(label);
+            owned_labels.deinit(alloc);
+        }
 
-        // Profile list — each profile gets a numbered shortcut hint
+        // Profile list: each profile gets a numbered shortcut, its keycaps.
         const selected_idx = self.selectedProfileIndex();
         if (self.shownProfiles()) |profiles| {
             for (profiles, 0..) |*profile, i| {
                 const label_utf8 = buildDropdownProfileLabel(alloc, profile, i) catch continue;
-                defer alloc.free(label_utf8);
-                const label_w = std.unicode.utf8ToUtf16LeAllocZ(alloc, label_utf8) catch continue;
-                defer alloc.free(label_w);
-                const is_selected = selected_idx != null and selected_idx.? == i;
-                const flags: UINT = if (is_selected) c.MF_STRING | c.MF_CHECKED else c.MF_STRING;
-                _ = sys.AppendMenuW(menu, flags, c.CTX_PROFILE_BASE + i, label_w.ptr);
+                owned_labels.append(alloc, label_utf8) catch {
+                    alloc.free(label_utf8);
+                    continue;
+                };
+                const tab = std.mem.indexOfScalar(u8, label_utf8, '\t');
+                items.append(alloc, .{
+                    .id = c.CTX_PROFILE_BASE + i,
+                    .label = if (tab) |t| label_utf8[0..t] else label_utf8,
+                    .shortcut = if (tab) |t| label_utf8[t + 1 ..] else null,
+                    .icon = .shell,
+                    .checked = selected_idx != null and selected_idx.? == i,
+                }) catch continue;
             }
-            if (profiles.len > 0) _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
+            if (profiles.len > 0) items.append(alloc, .sep()) catch {};
         }
 
         // Utility items
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_NEW_TAB, std.unicode.utf8ToUtf16LeStringLiteral("Open a new tab"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_NEW_WINDOW, std.unicode.utf8ToUtf16LeStringLiteral("New Window"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_COMMAND_PALETTE, std.unicode.utf8ToUtf16LeStringLiteral("Command Palette\tCtrl+Shift+P"));
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_FIND, std.unicode.utf8ToUtf16LeStringLiteral("Find...\tCtrl+Shift+F"));
-        _ = sys.AppendMenuW(menu, c.MF_SEPARATOR, 0, null);
-        _ = sys.AppendMenuW(menu, c.MF_STRING, c.CTX_INSPECTOR, std.unicode.utf8ToUtf16LeStringLiteral("Toggle Inspector"));
+        const utility = [_]fancy_menu.Item{
+            .{ .id = c.CTX_NEW_TAB, .label = "Open a new tab", .icon = .add },
+            .{ .id = c.CTX_NEW_WINDOW, .label = "New Window", .icon = .window },
+            .sep(),
+            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Command Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
+            .{ .id = c.CTX_FIND, .label = "Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
+            .sep(),
+            .{ .id = c.CTX_INSPECTOR, .label = "Toggle Inspector", .icon = .inspector },
+        };
+        items.appendSlice(alloc, &utility) catch return;
 
         _ = sys.SetForegroundWindow(hwnd);
-        const cmd = sys.TrackPopupMenu(menu, c.TPM_RETURNCMD | c.TPM_RIGHTBUTTON | c.TPM_LEFTALIGN | c.TPM_TOPALIGN, rect.left, rect.bottom, 0, hwnd, null);
+        const origin: fancy_menu.Origin = if (self.focus_input_mode == .pointer) .pointer else .keyboard;
+        const cmd = fancy_menu.track(alloc, hwnd, items.items, rect.left, rect.bottom, self.menuStyle(), origin);
         _ = sys.PostMessageW(hwnd, c.WM_NULL, 0, 0);
 
         // Guard: host may have been destroyed during the modal menu loop

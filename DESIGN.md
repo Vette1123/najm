@@ -89,7 +89,23 @@ Focus is never represented by hover styling.
 - Drag previews appear only during drag and name the resulting operation.
 - Split dividers maximize hit target without increasing painted thickness.
 
+### Menus
+
+- Every popup menu goes through `src/apprt/win32/fancy_menu.zig`: a real
+  Win32 menu underneath (keyboard, submenus, dismissal, screen readers) with
+  rows drawn by Najm.
+- The card: elevated surface, rounded corners and theme border from DWM, a
+  2 px accent edge across the top. Rows are 32 px with a Fluent icon column,
+  a rounded accent-wash highlight, and shortcuts as keycaps.
+- Sizes follow the system menu font, so Windows "Text size" grows them; the
+  text never drops below 14 px.
+- A pointer opening uses the system menu animation; a keyboard opening shows
+  at once. High Contrast gets the plain system menu.
+
 ### Universal palette
+
+- The result list is the same card as the menus: rounded, accent top edge,
+  the shared highlight, and keycaps where the shortcut fits its column.
 
 - Single search field and blended result list, with discoverable scoped
   filters.

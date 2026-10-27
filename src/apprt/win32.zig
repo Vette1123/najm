@@ -69,6 +69,7 @@ const win32_paste_protection = @import("win32_paste_protection.zig");
 const win32_scrollbar_geometry = @import("win32_scrollbar_geometry.zig");
 const win32_nc_layout = @import("win32_nc_layout.zig");
 const win32_tab_visual = @import("win32_tab_visual.zig");
+const fancy_menu = @import("win32/fancy_menu.zig");
 const focus_cue = @import("win32/focus_cue.zig");
 const win32_types = @import("win32_types.zig");
 const win32_layouts = @import("win32_layouts.zig");
@@ -685,6 +686,7 @@ test {
     _ = @import("win32/input.zig");
     _ = @import("win32/chrome_layout.zig");
     _ = @import("win32/gdi.zig");
+    _ = @import("win32/fancy_menu.zig");
     _ = @import("win32/focus_region.zig");
     _ = @import("win32/focus_cue.zig");
     _ = @import("win32/first_frame.zig");
@@ -11885,7 +11887,12 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             }
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
+        c.WM_MEASUREITEM => {
+            if (fancy_menu.measureItem(lParam)) |result| return result;
+            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+        },
         c.WM_DRAWITEM => {
+            if (fancy_menu.drawItem(lParam)) |result| return result;
             if (host) |v| {
                 const draw: *const DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
                 if (v.drawConfirmPromptText(draw)) return 1;
@@ -12330,6 +12337,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             // this window's own TrackPopupMenu menus) the default reply
             // stays. The terminal surface consumes its own WM_SYSCHAR
             // (#250) except for Alt+Space, whose menu is a real popup.
+            if (fancy_menu.menuChar(wParam, lParam)) |result| return result;
             const menu_flags: u32 = @intCast((wParam >> 16) & 0xFFFF);
             if (win32_input.menuCharClosesPhantomMenu(menu_flags)) {
                 return @as(LRESULT, c.MNC_CLOSE) << 16;
@@ -13135,7 +13143,7 @@ pub fn windowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callcon
                                     .y = @divTrunc(rect.bottom, 2),
                                 };
                                 _ = sys.ClientToScreen(hwnd, &pt);
-                                h.showContextMenu(pt.x, pt.y);
+                                h.showContextMenu(pt.x, pt.y, .keyboard);
                             }
                         }
                         return 0;
@@ -13254,7 +13262,7 @@ pub fn windowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callcon
                         .y = signedHighWord(lParamBits(lParam)),
                     };
                     _ = sys.ClientToScreen(hwnd, &pt);
-                    h.showContextMenu(pt.x, pt.y);
+                    h.showContextMenu(pt.x, pt.y, .pointer);
                 }
                 return 0;
             }
