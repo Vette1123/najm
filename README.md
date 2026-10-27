@@ -1,270 +1,182 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="images/noctty-flag.svg" />
-    <img src="images/noctty-flag-light.svg" alt="Noctty" width="320" />
-  </picture>
+  <img src="assets/brand/najm-banner.svg" alt="Najm (نجم), a fast GPU-accelerated terminal for Windows" width="880" />
+</p>
+
+<h1 align="center">Najm: a fast, GPU-accelerated terminal for Windows</h1>
+
+<p align="center">
+  <a href="https://github.com/Vette1123/najm/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Vette1123/najm?style=flat-square&label=release&color=F5B83D"></a>
+  <a href="https://github.com/Vette1123/najm/actions/workflows/najm-ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Vette1123/najm/najm-ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0E1533?style=flat-square">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-1E2A5A?style=flat-square"></a>
 </p>
 
 <p align="center">
-  <strong>A native Windows terminal built on Ghostty's terminal core.</strong>
-  <br />
-  Tabs, splits, and session restore · Win32 and OpenGL · No telemetry
-</p>
-
-<p align="center">
-  <a href="https://github.com/amanthanvi/noctty/releases/latest">Download</a>
+  <b><a href="https://github.com/Vette1123/najm/releases/latest">Download</a></b>
   ·
-  <a href="https://noctty.com">Website</a>
+  <a href="#features">Features</a>
   ·
-  <a href="docs/getting-started.md">Getting started</a>
+  <a href="#arabic-and-right-to-left-text">Arabic</a>
   ·
-  <a href="docs/windows.md">Windows guide</a>
+  <a href="#configure">Configure</a>
   ·
-  <a href="docs/status.md">Status</a>
-  ·
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
-
-<p align="center">
-  <sub>Formerly <strong>winghostty</strong>. Renamed in August 2026 after a <a href="https://github.com/amanthanvi/noctty/issues/119">trademark request from the Ghostty team</a>.</sub>
-</p>
-
-<p align="center">
-  <img src="images/noctty-screenshot.png" alt="Noctty with two tabs and a vertical split, Dracula theme" width="820" />
+  <a href="SYNCING.md">How Najm tracks Noctty</a>
 </p>
 
 ---
 
-Noctty is a Windows terminal that pairs the terminal core from
-[Ghostty](https://github.com/ghostty-org/ghostty) with a native Win32 app
-written for this fork.
+**Najm** (Arabic for *star*, نجم) is a native Windows terminal emulator built on
+[Ghostty](https://github.com/ghostty-org/ghostty)'s terminal core. It draws on the GPU, opens
+in tabs and splits, restores your session, and handles Arabic properly. It runs PowerShell,
+Command Prompt, Git Bash and WSL with no setup.
 
-- **Native Windows UI:** tabs, splits, and context menus, per-monitor DPI
-  scaling, and IME input.
-- **Your shells, found for you:** a shell picker for PowerShell, cmd, Git Bash,
-  and WSL distributions.
-- **Session restore:** windows, tabs, splits, and working directories come
-  back the next time you launch. Running programs are not restored.
-- **Command palette:** find and run actions from the keyboard.
-- **Know which tab needs you:** tools and coding agents that report their
-  status ([OSC 7501](docs/windows.md#program-status-osc-7501)) mark their tab
-  as working, blocked on you, done, or failed, and a notification tells you
-  when a background tab needs you.
-- **Ghostty config and themes:** most Ghostty options and themes work as they
-  are.
-- **Private by default:** no telemetry, and crash dumps never leave your PC.
+Najm is a fork of [Noctty](https://github.com/amanthanvi/noctty), which brought Ghostty to
+Windows. We follow Noctty closely and ship our own fixes on top, without waiting for them to be
+merged.
 
-Noctty is young and has one maintainer. It installs alongside your current
-terminal and does not replace it, so you can try both side by side. It runs on Windows
-only; macOS and Linux are not planned. See [docs/status.md](docs/status.md) for
-what works and what is still experimental, and the
-[capability matrix](docs/windows-capability-matrix.md) for a feature-by-feature
-comparison with upstream Ghostty.
+## Why Najm
+
+- It is fast. Ghostty's VT core draws through OpenGL, capped to your refresh rate so it does not
+  burn battery. Where OpenGL is missing, such as Remote Desktop or a VM without 3D acceleration,
+  a Direct3D 11 renderer (beta) takes over.
+- It is a native Win32 app, with real tabs, splits, context menus, per-monitor DPI, IME input,
+  jump lists and toasts.
+- Arabic reads right to left with joined letters, and one config line gives it a monospace
+  font. [See below](#arabic-and-right-to-left-text).
+- One line in your config makes `Ctrl+V` paste the way Windows Terminal does: text, the paths of
+  files copied in Explorer, and images, so tools like Claude Code and opencode can attach
+  screenshots.
+- It sends no telemetry. Its only network call is the update check against this repo's
+  releases, and you can turn that off.
+
+## Features
+
+| | |
+|---|---|
+| **Tabs and splits** | `Ctrl+Shift+T` for a new tab, `Ctrl+Shift+\` and `Ctrl+Shift+E` to split, `Alt+Arrow` to move between panes |
+| **Session restore** | Windows, tabs, splits and working directories come back after a restart |
+| **Command palette** | `Ctrl+Shift+P` reaches every action by name |
+| **Shell picker** | Finds PowerShell 7, Windows PowerShell, cmd, Git Bash and every WSL distro |
+| **Explorer menu** | "Open Najm here" on any folder, or the empty space inside one |
+| **Themes** | Hundreds built in: `najm +list-themes` |
+| **Graphics** | Kitty graphics protocol and inline images |
+| **Keyboard** | Kitty keyboard protocol, with left/right modifiers and key release events |
+| **Shell integration** | Prompt marks, jump to the previous or next command, and a toast when a command finishes |
+| **Clipboard** | Bracketed paste, OSC 52, copied files paste as paths, and an empty paste for image-aware apps |
+| **Updates** | Built-in, signed and checksum-verified, from this repository's releases |
 
 ## Install
 
-**Requirements:** Windows 10 version 1809 (build 17763) or later, or
-Windows 11, on x64 or ARM64. The default renderer needs a GPU driver that
-supports OpenGL 4.3 or later.
+**Requirements:** Windows 10 version 1809 or later, or Windows 11, on x64. The default renderer
+needs a GPU driver with OpenGL 4.3. Najm switches to its Direct3D 11 renderer when OpenGL is
+not available.
 
-- Where OpenGL 4.3 cannot start (common over Remote Desktop and in VMs
-  without 3D acceleration), Noctty switches on its own to its Direct3D 11
-  renderer (beta): hardware Direct3D 11, then Microsoft's WARP software
-  renderer, with a banner saying so. It draws text without OpenGL; custom
-  shaders, background images, and Kitty images need OpenGL. Set
-  `renderer = d3d11` (or `renderer = d3d11-warp` for WARP alone) to start
-  with it. Remote Desktop has not been measured
-  ([details](docs/windows.md#starting-without-opengl)).
-- On Windows on Arm PCs, install the free **OpenCL, OpenGL, and Vulkan
-  Compatibility Pack** from the Microsoft Store
-  ([why](docs/windows.md#windows-on-arm-without-a-vendor-opengl-driver-needs-the-compatibility-pack)),
-  or use the Direct3D 11 renderer (beta). The ARM64 build includes it.
+1. Download `najm-<version>-windows-x64-setup.exe` from the
+   **[latest release](https://github.com/Vette1123/najm/releases/latest)**.
+2. Run it. Najm signs its builds with its own certificate, which Windows does not know yet, so
+   SmartScreen shows "Windows protected your PC" the first time. Click **More info**, then
+   **Run anyway**.
+3. Open **Najm** from the Start menu.
 
-The latest release is
-[noctty 1.3.135](https://github.com/amanthanvi/noctty/releases/tag/v1.3.135),
-published 2026-10-24.
+Prefer no installer? The same release has a portable ZIP: unzip it anywhere and run `najm.exe`.
 
-### With WinGet
+<details>
+<summary>Check the download first</summary>
+
+Hash the file and compare the result with its line in `SHA256SUMS-windows-x64.txt` from the same
+release:
 
 ```powershell
-winget install --id AmanThanvi.noctty -e
+Get-FileHash .\najm-1.0.0-windows-x64-setup.exe -Algorithm SHA256
 ```
 
-### With Scoop
+The installer and every program file in it are signed by `CN=Najm Code Signing` (thumbprint
+`26D9DB30682A45008C05E08729B7CC9016D492FB`). The in-app updater refuses anything signed by
+another key.
+
+</details>
+
+## Configure
+
+Najm reads `%LOCALAPPDATA%\najm\config.ghostty`. It uses the same syntax as Ghostty, so most
+Ghostty options and themes work as they are. Open it with:
 
 ```powershell
-scoop bucket add noctty https://github.com/amanthanvi/scoop-noctty
-scoop install noctty/noctty
+notepad "$env:LOCALAPPDATA\najm\config.ghostty"
 ```
 
-### With Chocolatey
-
-```powershell
-choco install noctty
-```
-
-chocolatey.org reviews each version before listing it, so it can trail the
-other channels after a release.
-
-### Direct download
-
-The installer adds a Start menu entry, an "Open noctty here" item to
-Explorer's right-click menu, and an uninstaller. The portable ZIP runs from
-any folder without installing.
-
-| Your PC                        | Installer                                                                                                                                          | Portable                                                                                                                                                 |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **x64** (Intel and AMD)        | [`noctty-1.3.135-windows-x64-setup.exe`](https://github.com/amanthanvi/noctty/releases/download/v1.3.135/noctty-1.3.135-windows-x64-setup.exe)     | [`noctty-1.3.135-windows-x64-portable.zip`](https://github.com/amanthanvi/noctty/releases/download/v1.3.135/noctty-1.3.135-windows-x64-portable.zip)     |
-| **ARM64** (Windows on Arm PCs) | [`noctty-1.3.135-windows-arm64-setup.exe`](https://github.com/amanthanvi/noctty/releases/download/v1.3.135/noctty-1.3.135-windows-arm64-setup.exe) | [`noctty-1.3.135-windows-arm64-portable.zip`](https://github.com/amanthanvi/noctty/releases/download/v1.3.135/noctty-1.3.135-windows-arm64-portable.zip) |
-
-> [!NOTE]
-> Releases are signed with a self-signed certificate, so Windows SmartScreen
-> shows "Windows protected your PC" when you first run one. Check the download
-> first, then click **More info**, then **Run anyway**. Hash the file and
-> compare the result with its line in `SHA256SUMS-windows-x64.txt` or
-> `SHA256SUMS-windows-arm64.txt` from the same release:
->
-> ```powershell
-> Get-FileHash .\noctty-1.3.135-windows-x64-setup.exe -Algorithm SHA256
-> ```
->
-> A matching checksum shows the file arrived intact, not who published it.
-> [docs/verify-release.md](docs/verify-release.md) covers the stronger
-> provenance and signature checks.
-
-Each release also includes signed manifests of the portable ZIP contents
-(`noctty-1.3.135-windows-x64-portable.manifest.ps1` and
-`noctty-1.3.135-windows-arm64-portable.manifest.ps1`) and `SHA256SUMS.txt`, an
-alias of the x64 checksum file kept for older auto-update clients. Newer
-releases also publish a symbols zip per architecture,
-`noctty-<version>-windows-<arch>-symbols.zip`, for reading crash dumps;
-[docs/windows.md](docs/windows.md#crash-reports-and-diagnostics) says which
-releases have it.
-
-Scoop puts `noctty` on your `PATH`. WinGet and Chocolatey run the installer, and
-neither the installer nor the portable ZIP adds it.
-To run the `noctty` commands in this README, add the install folder to `PATH`
-or run `.\noctty.com` from that folder.
-
-For portable mode and uninstalling, see
-[docs/getting-started.md](docs/getting-started.md). Switching terminals? There
-are guides for moving from
-[Windows Terminal](docs/migrate-from-windows-terminal.md) and from
-[Git Bash/mintty](docs/migrate-from-git-bash.md).
-
-## Getting started
-
-On first launch, Noctty writes a config template to
-`%LOCALAPPDATA%\noctty\config.ghostty`. Every default is built into the app,
-so the template sets no options: add only what you want to change. You can
-also press <kbd>Ctrl</kbd>+<kbd>,</kbd> to open the Settings window.
+A good start:
 
 ```ini
 font-family = JetBrains Mono
-font-size = 12
-theme = Dracula
+font-size   = 12
+theme       = Dracula
+command     = pwsh
+
+# Ctrl+V pastes text, copied files and images, as in Windows Terminal
+keybind = performable:ctrl+v=paste_from_clipboard
 ```
 
-Save the file, then press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd> to
-reload. Run `noctty +list-themes` to browse the bundled themes.
+Press `Ctrl+Shift+,` to reload. `najm +show-config --default --docs` lists every option.
 
-A few keys to start with:
+## Arabic and right-to-left text
 
-| Action             | Keys                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------- |
-| Copy / paste       | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> |
-| New tab            | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>                                                 |
-| Split right        | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>\\</kbd>                                                |
-| Split down         | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>                                                 |
-| Move between panes | <kbd>Alt</kbd>+arrow keys                                                                     |
-| Command palette    | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>                                                 |
-| Search             | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>                                                 |
-| Settings           | <kbd>Ctrl</kbd>+<kbd>,</kbd>                                                                  |
-| Reload config      | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>,</kbd>                                                 |
+Najm lays out right-to-left text and shapes Arabic letters so they join. The default terminal
+fonts have no Arabic, though, so Windows draws it in Segoe UI, a proportional font that sits
+unevenly in the cell grid. Map the Arabic blocks to a monospace font that has them:
 
-The full list, and how to rebind keys, is in
-[docs/getting-started.md](docs/getting-started.md#keybindings). To drive
-Noctty from scripts and the command line, see
-[docs/automation.md](docs/automation.md).
+```ini
+font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF
+```
 
-## Privacy and updates
+The copy of Cascadia Code that ships with Windows has no Arabic. Install the current release from
+[microsoft/cascadia-code](https://github.com/microsoft/cascadia-code/releases), which has.
+`najm +show-face --string="مرحبا"` shows which font each letter comes from.
 
-- **No telemetry.** On its own, Noctty goes online only to check for updates,
-  from GitHub Releases unless you set another update feed.
-- **Updates** are checked when Noctty starts and about every six hours while a
-  window stays open, but no request is made if a check succeeded in the last
-  24 hours. Nothing is installed until you start the update yourself. Set
-  `auto-update = off` to stop checking, or `auto-update = download` to have
-  Noctty download and verify the update ahead of time.
-- **Crash dumps** stay on your PC in `%LOCALAPPDATA%\noctty\crash` and are
-  never uploaded.
+## Keyboard shortcuts
 
-The [privacy policy](PRIVACY.md) describes what Noctty stores on your PC, the
-connections it makes, and how to remove your data. More detail on updates is
-in [docs/windows.md](docs/windows.md#updates).
+| Action | Keys |
+|---|---|
+| Copy / paste | `Ctrl+Shift+C` / `Ctrl+Shift+V` (or `Ctrl+V` with the line above) |
+| New tab / close tab | `Ctrl+Shift+T` / `Ctrl+Shift+W` |
+| Split right / down | `Ctrl+Shift+\` / `Ctrl+Shift+E` |
+| Move between panes | `Alt+Arrow` |
+| Go to tab 1 to 8 / last tab | `Alt+1` to `Alt+8` / `Alt+9` |
+| Command palette | `Ctrl+Shift+P` |
+| Find | `Ctrl+Shift+F` |
+| Font size | `Ctrl+=` / `Ctrl+-` |
+| Reload config | `Ctrl+Shift+,` |
 
-## Troubleshooting
-
-- **Won't start?** If a broken config or saved session blocks launch, run
-  `noctty --safe-mode`. It starts once with built-in defaults and no session
-  restore, so you can fix the config. It still needs OpenGL 4.3; without it,
-  see [Starting without OpenGL](docs/windows.md#starting-without-opengl).
-- **Crashed?** `noctty +crash-report` lists the local crash dumps. For a bug
-  report, `noctty +diagnostic-bundle` writes a support bundle that leaves out
-  terminal content, commands, and config values by default. Crash dumps can
-  hold sensitive memory, so review anything before you share it.
-
-See [docs/windows.md](docs/windows.md#crash-reports-and-diagnostics) for more.
+`najm +list-keybinds` prints the full set.
 
 ## Build from source
 
-You need:
-
-- Zig 0.15.2 or a later 0.15.x release
-- Visual Studio 2022 with the MSVC toolchain on `PATH`
-- Git for Windows
+You need Zig 0.15.2, Visual Studio 2022 (or Build Tools) with the MSVC toolchain, and Git for
+Windows.
 
 ```powershell
-git clone https://github.com/amanthanvi/noctty.git
-cd noctty
-zig build -Demit-exe=true
+scripts\dev-windows.cmd zig build -Demit-exe=true -Doptimize=ReleaseFast
 ```
 
-The app is built to `zig-out\bin\noctty.exe`, beside Microsoft's pinned ConPTY
-pair, which the first build downloads. Building has no Windows version
-requirement of its own, but running the result needs Windows 10 1809 or later.
-[HACKING.md](HACKING.md) covers the dev shell, offline builds and tests, and
-[PACKAGING.md](PACKAGING.md) covers building the installer and portable ZIP.
+The binary lands in `zig-out\bin\najm.exe`. Run the tests with
+`zig build test -Demit-test-exe=true --summary all`.
 
-## Relationship to Ghostty
+## How Najm relates to Noctty and Ghostty
 
-Noctty is a fork of Ghostty. It takes in upstream changes in planned merge
-windows, normally after each Ghostty release; see the
-[upstream merge policy](docs/upstream-merge-policy.md), and
-[docs/status.md](docs/status.md#upstream) for the Ghostty version it is
-currently based on. It shares
-Ghostty's terminal core, fonts, renderer, input handling, config, shell
-integration, and `libghostty-vt`. The Win32 app, the updater, and the Windows
-packaging were written for this fork, and the macOS and GTK apps have been
-removed. When Windows conventions and upstream behavior disagree, Noctty
-follows Windows.
+```
+Ghostty (terminal core, macOS and Linux)
+  └── Noctty (Ghostty's core in a native Windows app)
+        └── Najm (Noctty plus our fixes, our name, our releases)
+```
 
-Noctty is an independent project and is not affiliated with Ghostty.
+Najm merges Noctty regularly with `scripts/najm-sync.ps1` and keeps its own changes small: the
+name, the icon, the update feed, and fixes we ship before they land upstream. Fixes that help
+everyone go back to Noctty as pull requests too. [SYNCING.md](SYNCING.md) has the details.
 
-## Contributing
-
-Bug reports and focused pull requests are welcome. Please read
-[CONTRIBUTING.md](CONTRIBUTING.md) and [AI_POLICY.md](AI_POLICY.md) first.
-
-- **Questions and ideas:** [Discussions](https://github.com/amanthanvi/noctty/discussions)
-- **Bugs you can reproduce:** [Issues](https://github.com/amanthanvi/noctty/issues)
-
-Pull requests are reviewed automatically by Greptile.
-
-[![Greptile: The War on Bugs](https://www.greptile.com/badge.svg)](https://www.greptile.com/?utm_source=oss_badge&utm_medium=readme&utm_campaign=greptile_for_open_source)
+Najm is not affiliated with the Ghostty or Noctty projects.
 
 ## License
 
-MIT, the same as Ghostty. Copyright © 2024 Mitchell Hashimoto, Ghostty
-contributors. Changes made in this fork are released under the same license.
-See [LICENSE](LICENSE).
+MIT, as Ghostty and Noctty are. Copyright © 2024 Mitchell Hashimoto, Ghostty contributors;
+Noctty's Windows work © Aman Thanvi and contributors; Najm's changes © Mohamed Gado. See
+[LICENSE](LICENSE).
