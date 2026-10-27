@@ -90,7 +90,7 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v8
       with:
         name: app-bundle
         path: zig-out
