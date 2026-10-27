@@ -1749,6 +1749,8 @@ pub const UpdateCheckCompletion = struct {
     /// "staged") is `.info` and counts down.
     manual_kind: HostBannerKind = .info,
     staged: bool = false,
+    /// Najm: a manual check staged the update, so the UI thread installs it.
+    install_now: bool = false,
     /// The check discarded state that belonged to a previously configured
     /// feed, so a notice raised from that feed must not stay actionable.
     clear_stale_notice: bool = false,
@@ -3417,10 +3419,11 @@ fn runUpdateCheck(request: *const UpdateCheckRequest, completion: *UpdateCheckCo
                     };
                     staged.deinit(alloc);
                     completion.staged = true;
+                    completion.install_now = request.manual;
                     if (request.manual) {
                         completion.manual_message = std.fmt.allocPrint(
                             alloc,
-                            "Najm {s} is downloaded, verified, and staged.",
+                            "Najm {s} is downloaded and verified. Installing.",
                             .{release.version_text},
                         ) catch null;
                     }

@@ -2862,9 +2862,11 @@ pub const App = struct {
     /// What a check should download and stage, or null for a notice only:
     /// `auto-update = download` on a copy that can apply what it stages.
     /// Najm: an unset `auto-update` downloads too, since every Najm release
-    /// is signed by the pinned key; set `check` for a notice only.
-    fn updateStageKind(self: *App) ?updatepkg.portable_apply.StagedKind {
-        if ((self.config.@"auto-update" orelse .download) != .download) return null;
+    /// is signed by the pinned key; set `check` for a notice only. A manual
+    /// "Check for Updates" is the user asking for the update, so it always
+    /// downloads when this copy can apply it.
+    fn updateStageKind(self: *App, manual: bool) ?updatepkg.portable_apply.StagedKind {
+        if (!manual and (self.config.@"auto-update" orelse .download) != .download) return null;
         return self.installKind().stagedKind();
     }
 
@@ -2878,7 +2880,7 @@ pub const App = struct {
         defer session.deinit();
 
         const Staged = updatepkg.portable_apply.StagedKind;
-        const cases = [_]struct { mode: ?configpkg.Config.AutoUpdate, kind: InstallKind, stages: ?Staged }{
+        const cases = [_]struct { mode: ?configpkg.Config.AutoUpdate, kind: InstallKind, stages: ?Staged, manual: bool = false }{
             // Najm: unset means download.
             .{ .mode = null, .kind = .installer, .stages = .installer },
             .{ .mode = null, .kind = .other, .stages = null },
@@ -2887,11 +2889,15 @@ pub const App = struct {
             .{ .mode = .download, .kind = .other, .stages = null },
             .{ .mode = .check, .kind = .installer, .stages = null },
             .{ .mode = .off, .kind = .portable, .stages = null },
+            // A manual check downloads whatever the setting says.
+            .{ .mode = .check, .kind = .installer, .stages = .installer, .manual = true },
+            .{ .mode = .off, .kind = .portable, .stages = .portable, .manual = true },
+            .{ .mode = .check, .kind = .other, .stages = null, .manual = true },
         };
         for (cases) |case| {
             app.config.@"auto-update" = case.mode;
             app.install_kind = case.kind;
-            try std.testing.expectEqual(case.stages, app.updateStageKind());
+            try std.testing.expectEqual(case.stages, app.updateStageKind(case.manual));
         }
     }
 
@@ -2957,7 +2963,7 @@ pub const App = struct {
         defer self.core_app.alloc.free(release_feed_url);
         // Only a copy that can apply a staged update gets one downloaded.
         // The notice for any other falls back to "Open Release".
-        const stage_kind = self.updateStageKind();
+        const stage_kind = self.updateStageKind(opts.manual);
 
         // The detached worker must not borrow the core allocator's lifetime.
         // Page allocator storage and a retained channel remain valid after UI exit.
@@ -3174,6 +3180,14 @@ pub const App = struct {
         if (completion.manual_message) |message| {
             self.showUpdateInfo(completion.manual_kind, message) catch |err| {
                 log.warn("failed to show updater status message err={}", .{err});
+            };
+        }
+        // Najm: a manual check that staged the update installs it, through
+        // the same path as the notice's Install (it still asks before
+        // closing sessions).
+        if (completion.install_now and completion.release != null) {
+            self.openUpdateNotice() catch |err| {
+                log.warn("failed to install the staged update err={}", .{err});
             };
         }
     }
