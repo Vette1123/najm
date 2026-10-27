@@ -104,8 +104,12 @@ Focus is never represented by hover styling.
 
 ### Universal palette
 
-- The result list is the same card as the menus: rounded, accent top edge,
-  the shared highlight, and keycaps where the shortcut fits its column.
+- Input and results are one card: the overlay panel carries the accent edge
+  across its top, and the result list hangs from it flush with its sides,
+  on the same surface, with a hairline under the input and rounded bottom
+  corners. The shared highlight and keycaps come from the menus.
+- Every overlay mode keeps the accent as a top edge; there is no coloured
+  left bar.
 
 - Single search field and blended result list, with discoverable scoped
   filters.

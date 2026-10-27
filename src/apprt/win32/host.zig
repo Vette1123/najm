@@ -10095,25 +10095,14 @@ pub const Host = struct {
 
             if (self.overlay_mode == .command_palette) {
                 if (self.palette_list_hwnd) |list_hwnd| {
-                    // Anchor the list directly under the EDIT, left-
-                    // aligned with it and right-aligned with the buttons
-                    // so it reads as part of the same visual card.
-                    const label_reservation = overlayLabelReservation(
-                        width,
-                        padding,
-                        label_w,
-                        action_layout.cancel_width,
-                        0,
-                        self.current_dpi,
-                    );
-                    const list_x = padding + label_reservation + self.scaled(8);
-                    // Keep results below the complete overlay/feedback band.
-                    // The old row-height + 12 anchor started at 36 px while
-                    // feedback was still painting there and terminal content
-                    // began at 58 px, producing the visible overlap reported
-                    // in the palette theme screenshot.
-                    const list_y = overlay_y + self.scaled(host_overlay_height);
-                    const list_width_bounds = paletteListRect(width, list_x, padding, list_y, 0);
+                    // Najm: the list hangs from the overlay panel as one
+                    // card, flush with its sides (`paintChromeOverlay`).
+                    const card_inset = self.scaled(8);
+                    const list_x = card_inset;
+                    // Its top meets the panel's bottom edge, below the
+                    // feedback line the panel still paints.
+                    const list_y = overlay_y + self.scaled(host_overlay_height) - self.scaled(6) - 1;
+                    const list_width_bounds = paletteListRect(width, list_x, card_inset, list_y, 0);
                     const has_list_width = paletteListWidthIsReadable(list_width_bounds, self.scaled(160));
                     const row_capacity = if (has_list_width)
                         paletteVisibleRowCapacity(
@@ -10146,7 +10135,7 @@ pub const Host = struct {
                     changed.* = applyChromeChildRect(
                         list_hwnd,
                         &self.palette_list_placement,
-                        paletteListRect(width, list_x, padding, list_y, list_height),
+                        paletteListRect(width, list_x, card_inset, list_y, list_height),
                     ) or changed.*;
                     const show_list = self.palette_list_visible_rows > 0 and has_list_width;
                     if (!show_list) self.palette_wheel_steps = .{};

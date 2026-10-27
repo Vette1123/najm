@@ -22,6 +22,9 @@ dark Najm opened light, classic Windows menus.
   window's DPI, with 14 px as the floor (`metricsFor`, tested at 225%).
 - **`@max` on a comptime-known value narrowed to `u4`** and overflowed in a default field
   initialiser. Annotate the result type.
+- **The first one-card palette drew its accent edge where the input frame already sat**, so the
+  edge showed in fragments. The panel's top was level with the input row; it now starts above
+  it.
 - **Long key names** ("backslash") overflowed the palette's shortcut column and fell back to
   plain text. They now map to the printed symbol.
 

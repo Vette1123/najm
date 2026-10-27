@@ -59,6 +59,7 @@ const searchBarSeparatorX = runtime.searchBarSeparatorX;
 const searchBarToolbarVisual = runtime.searchBarToolbarVisual;
 const std = runtime.std;
 const sys = runtime.sys;
+const fancy_menu = @import("fancy_menu.zig");
 const textOutWz = runtime.textOutWz;
 const themeSurface = runtime.themeSurface;
 const titlebarButtonVisual = runtime.titlebarButtonVisual;
@@ -416,6 +417,12 @@ pub const HostScene = struct {
         } // end tab bar painting
     }
 
+    fn paletteListAttached(self: *Host) bool {
+        if (self.overlay_mode != .command_palette or isHighContrastActive()) return false;
+        const list = self.palette_list_hwnd orelse return false;
+        return sys.IsWindowVisible(list) != 0;
+    }
+
     pub fn paintChromeOverlay(
         self: *Host,
         hdc: HDC,
@@ -434,9 +441,11 @@ pub const HostScene = struct {
                 .bottom = bands.inspector_top,
             };
             fillSolidRect(hdc, overlay_rect, theme.overlay_bg);
+            // The panel starts above the input row, so its accent edge
+            // runs clear of the input's frame.
             const overlay_panel = RECT{
                 .left = self.scaled(8),
-                .top = overlay_rect.top + self.scaled(4),
+                .top = overlay_rect.top + self.scaled(1) - 1,
                 .right = client_rect.right - self.scaled(8),
                 .bottom = overlay_rect.bottom - self.scaled(6),
             };
@@ -448,12 +457,30 @@ pub const HostScene = struct {
                     themeSurface(theme, .overlay_panel_border),
                     self.scaled(7),
                 );
-                fillSolidRect(hdc, .{
-                    .left = overlay_panel.left + self.scaled(6),
-                    .top = overlay_panel.top + self.scaled(6),
-                    .right = overlay_panel.left + self.scaled(9),
-                    .bottom = overlay_panel.bottom - self.scaled(6),
-                }, overlayAccentColor(self.overlay_mode, theme.is_dark));
+                // The palette's results hang from this panel as one card
+                // (`paintPaletteList`): square the corners they join.
+                if (paletteListAttached(self)) {
+                    const radius = self.scaled(7);
+                    fillSolidRect(hdc, .{
+                        .left = overlay_panel.left + 2,
+                        .top = overlay_panel.bottom - radius,
+                        .right = overlay_panel.right - 2,
+                        .bottom = overlay_panel.bottom,
+                    }, themeSurface(theme, .overlay_panel_bg));
+                    const border = themeSurface(theme, .overlay_panel_border);
+                    fillSolidRect(hdc, .{ .left = overlay_panel.left + 1, .top = overlay_panel.bottom - radius, .right = overlay_panel.left + 2, .bottom = overlay_panel.bottom }, border);
+                    fillSolidRect(hdc, .{ .left = overlay_panel.right - 2, .top = overlay_panel.bottom - radius, .right = overlay_panel.right - 1, .bottom = overlay_panel.bottom }, border);
+                }
+                // The accent edge across the top, as on menus and the
+                // palette (`fancy_menu`), in the mode's own colour.
+                const edge = @max(2, self.scaled(2));
+                const inset = self.scaled(7);
+                fancy_menu.fillRound(hdc, .{
+                    .left = overlay_panel.left + inset,
+                    .top = overlay_panel.top + 1,
+                    .right = overlay_panel.right - inset,
+                    .bottom = overlay_panel.top + 1 + edge,
+                }, overlayAccentColor(self.overlay_mode, theme.is_dark), edge);
             }
             fillSolidRect(
                 hdc,

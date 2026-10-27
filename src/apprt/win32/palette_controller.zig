@@ -1686,7 +1686,8 @@ pub const HostControls = struct {
         const shape: [4]isize = .{ @bitCast(@intFromPtr(hwnd)), rect.right, rect.bottom, radius };
         if (std.mem.eql(isize, &shape, &self.palette_list_shape)) return;
         self.palette_list_shape = shape;
-        const region = if (radius > 0) sys_rgn.CreateRoundRectRgn(0, 0, rect.right + 1, rect.bottom + 1, radius, radius) else null;
+        // Rounded at the bottom only: the top corners lie above the window.
+        const region = if (radius > 0) sys_rgn.CreateRoundRectRgn(0, -radius, rect.right + 1, rect.bottom + 1, radius, radius) else null;
         // The window owns the region from here on.
         _ = sys.SetWindowRgn(hwnd, region, 0);
     }
@@ -1704,15 +1705,21 @@ pub const HostControls = struct {
         // The list is a card like the menus (`fancy_menu`): rounded, with
         // the accent edge across its top. Outside High Contrast only.
         const high_contrast = win32.isHighContrastActive();
-        const radius = if (high_contrast) 0 else self.scaled(8);
+        // It is the lower half of the overlay panel's card: the panel's
+        // surface and border, sides running on from it, a hairline under
+        // the input, and rounded corners at the bottom only.
+        const radius = if (high_contrast) 0 else self.scaled(7);
+        const card_bg = if (high_contrast) theme.overlay_bg else win32.themeSurface(theme, .overlay_panel_bg);
+        const card_border = if (high_contrast) theme.overlay_border else win32.themeSurface(theme, .overlay_panel_border);
         syncPaletteListShape(self, hwnd, rect, radius);
-        fillSolidRect(hdc, rect, theme.overlay_bg);
+        fillSolidRect(hdc, rect, card_bg);
         defer if (high_contrast)
-            drawRectBorder(hdc, rect, theme.overlay_border, @max(1, self.scaled(1)))
+            drawRectBorder(hdc, rect, card_border, @max(1, self.scaled(1)))
         else {
-            gdi.drawRoundedOutline(hdc, rect, theme.overlay_border, radius);
-            const edge = @max(2, self.scaled(2));
-            fancy_menu.fillRound(hdc, .{ .left = rect.left + radius, .top = rect.top, .right = rect.right - radius, .bottom = rect.top + edge }, theme.accent, edge);
+            // Its top edge sits above the window, so only the sides and
+            // the rounded bottom show.
+            gdi.drawRoundedOutline(hdc, .{ .left = rect.left, .top = rect.top - radius, .right = rect.right, .bottom = rect.bottom }, card_border, radius);
+            fillSolidRect(hdc, .{ .left = rect.left + self.scaled(12), .top = rect.top, .right = rect.right - self.scaled(12), .bottom = rect.top + 1 }, card_border);
         };
 
         if (self.palette_list_ranked_count == 0) return;
@@ -1746,7 +1753,7 @@ pub const HostControls = struct {
                     fillSolidRect(hdc, row_rect, theme.button_active_bg);
                 } else {
                     const pill: RECT = .{ .left = row_rect.left + self.scaled(6), .top = row_rect.top + self.scaled(2), .right = row_rect.right - self.scaled(6), .bottom = row_rect.bottom - self.scaled(2) };
-                    fancy_menu.fillRound(hdc, pill, fancy_menu.highlightColor(theme.overlay_bg, theme.accent, theme.is_dark), self.scaled(6));
+                    fancy_menu.fillRound(hdc, pill, fancy_menu.highlightColor(card_bg, theme.accent, theme.is_dark), self.scaled(6));
                 }
             }
             if (i >= self.palette_list_ranked.len) break;
@@ -1789,7 +1796,7 @@ pub const HostControls = struct {
             const hint = self.paletteShortcutLabel(descriptor, &hint_buf);
             if (hint) |hint_text| if (columns.shortcut.right > columns.shortcut.left) {
                 const caps: fancy_menu.Keycaps = .{
-                    .base = if (is_selected) fancy_menu.highlightColor(theme.overlay_bg, theme.accent, theme.is_dark) else theme.overlay_bg,
+                    .base = if (is_selected) fancy_menu.highlightColor(card_bg, theme.accent, theme.is_dark) else card_bg,
                     .text = theme.text_primary,
                     .fg = secondary_color,
                     .is_dark = theme.is_dark,
