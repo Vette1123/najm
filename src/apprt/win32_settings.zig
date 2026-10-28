@@ -27,6 +27,8 @@ const palette_catalog = @import("win32_palette_catalog.zig");
 const win32_uia = @import("win32_uia/mod.zig");
 const fancy_menu = @import("win32/fancy_menu.zig");
 const gdi = @import("win32/gdi.zig");
+const win32_icons = @import("win32_icons.zig");
+const themepkg = @import("../config/theme.zig");
 const focus_cue = @import("win32/focus_cue.zig");
 const win32_input = @import("win32/input.zig");
 const settings_transaction = @import("win32_settings_transaction.zig");
@@ -103,6 +105,12 @@ const WM_NCCALCSIZE: UINT = 0x0083;
 const WM_NCHITTEST: UINT = 0x0084;
 const WM_NCPAINT: UINT = 0x0085;
 const HTCLIENT: LRESULT = 1;
+/// The theme field's dropdown chevron (`themeChevronWidth`), as a hit-test code.
+const HTBORDER: LRESULT = 18;
+const WM_NCLBUTTONDOWN: UINT = 0x00A1;
+const WM_NCLBUTTONDBLCLK: UINT = 0x00A3;
+const VK_F4: usize = 0x73;
+const VK_DOWN_KEY: usize = 0x28;
 const WM_GETOBJECT: UINT = 0x003D;
 const WM_COMMAND: UINT = 0x0111;
 const WM_SIZE: UINT = 0x0005;
@@ -267,6 +275,7 @@ const EDIT_FONT_SIZE: usize = nativeFieldId("edit_font_size");
 const EDIT_BG_OPACITY: usize = nativeFieldId("edit_bg_opacity");
 const EDIT_PAD_X: usize = nativeFieldId("edit_pad_x");
 const EDIT_PAD_Y: usize = nativeFieldId("edit_pad_y");
+const EDIT_THEME: usize = nativeFieldId("edit_theme");
 const ES_NUMBER: u32 = 0x2000;
 const ES_AUTOHSCROLL: u32 = 0x80;
 const EN_CHANGE: u16 = 0x0300;
@@ -5100,6 +5109,84 @@ pub const SettingsWindow = struct {
             .invalid => .{ .color = colors.error_text, .width = self.fieldStroke() },
         };
         strokeRect(hdc, outer, stroke.color, stroke.width);
+        if (self.fields.edit_theme == edit) {
+            // The dropdown chevron, in the strip `WM_NCCALCSIZE` keeps for it.
+            const chevron = self.themeChevronRect(outer);
+            const glyph = self.px(10);
+            const x = chevron.left + @divTrunc(chevron.right - chevron.left - glyph, 2);
+            const y = chevron.top + @divTrunc(chevron.bottom - chevron.top - glyph, 2);
+            win32_icons.drawIcon(
+                .arrow_down,
+                hdc,
+                .{ .left = x, .top = y, .right = x + glyph, .bottom = y + glyph },
+                if (enabled) colors.secondary_text else colors.disabled_text,
+                colors.high_contrast,
+            );
+        }
+    }
+
+    /// The strip at the theme field's right that holds its dropdown chevron.
+    fn themeChevronWidth(self: *const SettingsWindow) i32 {
+        return self.px(28);
+    }
+
+    /// The chevron strip of a theme field whose window rect, from its own
+    /// top left, is `outer`.
+    fn themeChevronRect(self: *const SettingsWindow, outer: RECT) RECT {
+        const stroke = self.fieldStroke();
+        return .{
+            .left = @max(outer.left, outer.right - stroke - self.themeChevronWidth()),
+            .top = outer.top + stroke,
+            .right = outer.right - stroke,
+            .bottom = outer.bottom - stroke,
+        };
+    }
+
+    /// Whether the screen point `at` is on the theme field's chevron.
+    fn onThemeChevron(self: *const SettingsWindow, edit: HWND, at: POINT) bool {
+        var window: RECT = undefined;
+        if (GetWindowRect(edit, &window) == 0) return false;
+        const local: POINT = .{ .x = at.x - window.left, .y = at.y - window.top };
+        const chevron = self.themeChevronRect(.{ .left = 0, .top = 0, .right = window.right - window.left, .bottom = window.bottom - window.top });
+        return local.x >= chevron.left and local.x < chevron.right and local.y >= chevron.top and local.y < chevron.bottom;
+    }
+
+    /// The Terminal theme dropdown: the installed themes in a menu under the
+    /// field (`themeMenuItems`). A pick goes into the field as typing would,
+    /// and is staged straight away; like a typed theme, it applies on Save.
+    fn showThemeMenu(self: *SettingsWindow, origin: fancy_menu.Origin) void {
+        const edit = self.fields.edit_theme orelse return;
+        const owner = self.hwnd orelse return;
+        if (sys.IsWindowEnabled(edit) == 0) return;
+        var arena_state = std.heap.ArenaAllocator.init(self.handle.alloc);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+        const installed = themepkg.list(arena, arena) catch |err| {
+            std.log.warn("settings: theme enumeration failed err={}", .{err});
+            return;
+        };
+        const names = arena.alloc([]const u8, installed.len) catch return;
+        for (installed, names) |entry, *name| name.* = entry.name;
+
+        var text_buf: [edit_text_max_utf8]u8 = undefined;
+        const current = std.mem.trim(u8, readEditUtf8(edit, &text_buf) orelse "", " \t");
+        const items = themeMenuItems(arena, names, current) catch return;
+        var rect: RECT = undefined;
+        if (GetWindowRect(edit, &rect) == 0) return;
+        const picked: usize = @intCast(@max(0, fancy_menu.track(
+            self.handle.alloc,
+            owner,
+            items,
+            rect.left,
+            rect.bottom,
+            fancy_menu.styleFromSettings(&self.theme_adapter.colors, self.dpi),
+            origin,
+        )));
+        const name = themeMenuPick(names, picked) orelse return;
+        _ = SetFocus(edit);
+        setEditText(edit, name, &self.suppress_edit_events);
+        self.markOwnedTextChanged(.theme, edit);
+        self.syncThemeFromEdit();
     }
 
     /// Repaint the frames of the field that stops being invalid and of the
@@ -15392,9 +15479,23 @@ fn settingsEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callc
             rect.right -= insets.x;
             rect.top += insets.y;
             rect.bottom -= insets.y;
+            // The theme field keeps a strip at its right for the dropdown chevron.
+            if (isThemeField(hwnd)) rect.right = @max(rect.left, rect.right - settings.themeChevronWidth());
             return 0;
         },
-        WM_NCHITTEST => if (owner != null) return HTCLIENT,
+        WM_NCHITTEST => if (owner) |settings| {
+            if (isThemeField(hwnd) and settings.onThemeChevron(hwnd, .{ .x = lparamX(lParam), .y = lparamY(lParam) })) return HTBORDER;
+            return HTCLIENT;
+        },
+        WM_NCLBUTTONDOWN, WM_NCLBUTTONDBLCLK => if (owner) |settings| if (wParam == HTBORDER and isThemeField(hwnd)) {
+            settings.showThemeMenu(.pointer);
+            return 0;
+        },
+        // Alt+Down and F4 open the theme dropdown, as they open a combo box's.
+        WM_KEYDOWN, WM_SYSKEYDOWN => if (owner) |settings| if (isThemeField(hwnd) and themeMenuKey(msg == WM_SYSKEYDOWN, wParam)) {
+            settings.showThemeMenu(.keyboard);
+            return 0;
+        },
         WM_NCPAINT => if (owner) |settings| {
             settings.paintFieldFrame(hwnd, null);
             return 0;
@@ -15456,6 +15557,150 @@ fn fieldFrameInsets(width: i32, height: i32, line_height: i32, stroke: i32) Fiel
         .x = @min(stroke, @divTrunc(w, 2)),
         .y = @min(@max(stroke, centred), @divTrunc(h, 2)),
     };
+}
+
+/// The Terminal theme menu (`SettingsWindow.showThemeMenu`): id 1 is the
+/// default theme, `2 + i` the i-th installed theme, and 0 a dismissal.
+const theme_menu_default_id: usize = 1;
+
+/// Up to this many installed themes show as one list; more are grouped by
+/// their first letter into submenus, so the menu fits on a screen.
+const theme_menu_flat_max: usize = 24;
+
+/// The submenu a theme goes in: its first letter, upper case, or `#` for a
+/// digit or a symbol.
+fn themeMenuGroup(name: []const u8) u8 {
+    if (name.len == 0 or !std.ascii.isAlphabetic(name[0])) return '#';
+    return std.ascii.toUpper(name[0]);
+}
+
+/// `name` as a menu label: each `&` doubled, so the menu shows it instead of
+/// taking it as a mnemonic.
+fn themeMenuLabel(arena: std.mem.Allocator, name: []const u8) ![]const u8 {
+    const ampersands = std.mem.count(u8, name, "&");
+    if (ampersands == 0) return name;
+    const label = try arena.alloc(u8, name.len + ampersands);
+    var at: usize = 0;
+    for (name) |ch| {
+        label[at] = ch;
+        at += 1;
+        if (ch == '&') {
+            label[at] = '&';
+            at += 1;
+        }
+    }
+    return label;
+}
+
+/// The Terminal theme menu for the installed theme `names` (sorted): the
+/// default first, then every theme, flat or by letter. `current` is checked,
+/// and so is the letter it is under.
+fn themeMenuItems(arena: std.mem.Allocator, names: []const []const u8, current: []const u8) ![]fancy_menu.Item {
+    var items: std.ArrayList(fancy_menu.Item) = .empty;
+    try items.append(arena, .{ .id = theme_menu_default_id, .label = "&Default theme", .checked = current.len == 0 });
+    if (names.len == 0) return items.toOwnedSlice(arena);
+    try items.append(arena, fancy_menu.Item.sep());
+    if (names.len <= theme_menu_flat_max) {
+        for (names, 0..) |name, i| try items.append(arena, .{
+            .id = theme_menu_default_id + 1 + i,
+            .label = try themeMenuLabel(arena, name),
+            .checked = std.mem.eql(u8, name, current),
+        });
+        return items.toOwnedSlice(arena);
+    }
+    const groups = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (groups) |group| {
+        var children: std.ArrayList(fancy_menu.Item) = .empty;
+        var holds_current = false;
+        for (names, 0..) |name, i| {
+            if (themeMenuGroup(name) != group) continue;
+            const checked = std.mem.eql(u8, name, current);
+            holds_current = holds_current or checked;
+            try children.append(arena, .{
+                .id = theme_menu_default_id + 1 + i,
+                .label = try themeMenuLabel(arena, name),
+                .checked = checked,
+            });
+        }
+        if (children.items.len == 0) continue;
+        // The letter is the submenu's mnemonic: typing it opens the submenu.
+        const label = if (group == '#') "&# 0-9 and symbols" else try std.fmt.allocPrint(arena, "&{c}", .{group});
+        try items.append(arena, .{ .label = label, .checked = holds_current, .submenu = try children.toOwnedSlice(arena) });
+    }
+    return items.toOwnedSlice(arena);
+}
+
+/// The theme a `themeMenuItems` pick names: "" for the default, null for a
+/// dismissal or an id it never gave out.
+fn themeMenuPick(names: []const []const u8, picked: usize) ?[]const u8 {
+    if (picked == theme_menu_default_id) return "";
+    if (picked <= theme_menu_default_id) return null;
+    const index = picked - theme_menu_default_id - 1;
+    if (index >= names.len) return null;
+    return names[index];
+}
+
+test "win32 settings theme menu lists every theme once, grouped by letter past a screenful, and maps picks back" {
+    const alloc = std.testing.allocator;
+    var arena_state = std.heap.ArenaAllocator.init(alloc);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    // A few themes: one flat list, the current one checked, `&` doubled.
+    const few = [_][]const u8{ "Black & White", "Dracula", "nord" };
+    const flat = try themeMenuItems(arena, &few, "Dracula");
+    try std.testing.expectEqual(@as(usize, 2 + few.len), flat.len);
+    try std.testing.expect(!flat[0].checked);
+    try std.testing.expect(flat[1].separator);
+    try std.testing.expectEqualStrings("Black && White", flat[2].label);
+    try std.testing.expect(flat[3].checked);
+    for (flat[2..], 0..) |item, i| try std.testing.expectEqualStrings(few[i], themeMenuPick(&few, item.id).?);
+    try std.testing.expectEqualStrings("", themeMenuPick(&few, flat[0].id).?);
+    try std.testing.expect(themeMenuPick(&few, 0) == null);
+    try std.testing.expect(themeMenuPick(&few, 99) == null);
+    try std.testing.expect((try themeMenuItems(arena, &few, ""))[0].checked);
+
+    // Many themes: submenus by first letter, symbols first, each theme once.
+    var many: [40][]const u8 = undefined;
+    for (&many, 0..) |*name, i| name.* = try std.fmt.allocPrint(arena, "{c}theme{d}", .{ "3abcz"[i % 5], i });
+    const grouped = try themeMenuItems(arena, &many, many[7]);
+    try std.testing.expectEqualStrings("&# 0-9 and symbols", grouped[2].label);
+    try std.testing.expectEqualStrings("&A", grouped[3].label);
+    try std.testing.expectEqualStrings("&Z", grouped[grouped.len - 1].label);
+    var seen = [_]bool{false} ** many.len;
+    for (grouped[2..]) |group| {
+        const children = group.submenu.?;
+        var holds_current = false;
+        for (children) |child| {
+            const name = themeMenuPick(&many, child.id).?;
+            const index = child.id - theme_menu_default_id - 1;
+            try std.testing.expect(!seen[index]);
+            seen[index] = true;
+            try std.testing.expectEqual(themeMenuGroup(name), themeMenuGroup(children[0].label));
+            holds_current = holds_current or child.checked;
+        }
+        try std.testing.expectEqual(holds_current, group.checked);
+    }
+    for (seen) |s| try std.testing.expect(s);
+}
+
+/// Whether `edit` is the Terminal theme field, which has a dropdown.
+fn isThemeField(edit: HWND) bool {
+    return GetDlgCtrlID(edit) == EDIT_THEME;
+}
+
+/// The keys that open a dropdown: Alt+Down (a system key) and F4.
+fn themeMenuKey(system_key: bool, vk: WPARAM) bool {
+    if (system_key) return vk == VK_DOWN_KEY;
+    return vk == VK_F4;
+}
+
+test "win32 settings theme dropdown opens on Alt+Down and F4 only" {
+    try std.testing.expect(themeMenuKey(true, VK_DOWN_KEY));
+    try std.testing.expect(themeMenuKey(false, VK_F4));
+    try std.testing.expect(!themeMenuKey(false, VK_DOWN_KEY));
+    try std.testing.expect(!themeMenuKey(true, VK_F4));
+    try std.testing.expect(!themeMenuKey(false, VK_RETURN));
 }
 
 const FieldFrameState = enum { rest, focused, invalid };
