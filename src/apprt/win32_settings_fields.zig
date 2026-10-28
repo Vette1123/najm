@@ -293,6 +293,8 @@ pub const FormField = struct {
 };
 
 pub const form_fields = rows: {
+    // The identity check below is quadratic in the rows, with a string compare each.
+    @setEvalBranchQuota(100_000);
     var count: usize = 0;
     for (descriptors) |spec| count += if (spec.native != null) 1 else spec.projections.len;
     var result: [count]FormField = undefined;
