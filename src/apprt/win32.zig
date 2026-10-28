@@ -5576,50 +5576,8 @@ pub fn resolveTheme(config: *const configpkg.Config) ThemeColors {
     return withSplitDividerColor(withAccent(theme, accent), config.@"split-divider-color");
 }
 
-/// Read the Windows accent colour from `HKCU\Software\Microsoft\Windows\DWM`
-/// `AccentColor`, a DWORD in 0xAABBGGRR order. Returns a COLORREF, or null
-/// when it cannot be read.
-fn resolveSystemAccentColor() ?u32 {
-    const subkey = std.unicode.utf8ToUtf16LeStringLiteral("Software\\Microsoft\\Windows\\DWM");
-    const value_name = std.unicode.utf8ToUtf16LeStringLiteral("AccentColor");
-    var hkey: sys.HKEY = undefined;
-    if (sys.RegOpenKeyExW(@ptrFromInt(c.HKEY_CURRENT_USER), subkey, 0, c.KEY_READ, &hkey) != c.ERROR_SUCCESS) return null;
-    defer _ = sys.RegCloseKey(hkey);
-
-    var data: u32 = 0;
-    var data_size: DWORD = @sizeOf(u32);
-    var reg_type: DWORD = 0;
-    if (sys.RegQueryValueExW(hkey, value_name, null, &reg_type, @ptrCast(&data), &data_size) != c.ERROR_SUCCESS) return null;
-    if (reg_type != c.REG_DWORD or data_size != @sizeOf(u32)) return null;
-    return data & 0x00FFFFFF;
-}
-
-/// The named `window-accent` colours, from the Windows accent swatches.
-pub fn windowAccentPreset(accent: configpkg.Config.WindowAccent) ?u32 {
-    return switch (accent) {
-        .default, .system => null,
-        .blue => rgb(0x00, 0x78, 0xD4),
-        .cobalt => rgb(0x00, 0x63, 0xB1),
-        .sky => rgb(0x00, 0x99, 0xBC),
-        .teal => rgb(0x00, 0xB7, 0xC3),
-        .mint => rgb(0x00, 0xB2, 0x94),
-        .emerald => rgb(0x00, 0xCC, 0x6A),
-        .green => rgb(0x10, 0x89, 0x3E),
-        .sage => rgb(0x64, 0x7C, 0x64),
-        .gold => rgb(0xFF, 0xB9, 0x00),
-        .orange => rgb(0xF7, 0x63, 0x0C),
-        .rust => rgb(0xCA, 0x50, 0x10),
-        .red => rgb(0xD1, 0x34, 0x38),
-        .rose => rgb(0xE7, 0x48, 0x56),
-        .pink => rgb(0xE3, 0x00, 0x8C),
-        .magenta => rgb(0xC2, 0x39, 0xB3),
-        .purple => rgb(0x87, 0x64, 0xB8),
-        .iris => rgb(0x6B, 0x69, 0xD6),
-        .lavender => rgb(0x8E, 0x8C, 0xD8),
-        .slate => rgb(0x68, 0x76, 0x8A),
-        .graphite => rgb(0x7A, 0x75, 0x74),
-    };
-}
+const resolveSystemAccentColor = win32_theme.systemAccentColor;
+pub const windowAccentPreset = win32_theme.windowAccentPreset;
 
 /// The accent the config asks for, before any readability adjustment, or
 /// null for the theme's own. `window-accent-color` wins over `window-accent`;

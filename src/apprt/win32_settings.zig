@@ -26,6 +26,7 @@ const win32_theme = @import("win32_theme.zig");
 const palette_catalog = @import("win32_palette_catalog.zig");
 const win32_uia = @import("win32_uia/mod.zig");
 const fancy_menu = @import("win32/fancy_menu.zig");
+const gdi = @import("win32/gdi.zig");
 const focus_cue = @import("win32/focus_cue.zig");
 const win32_input = @import("win32/input.zig");
 const settings_transaction = @import("win32_settings_transaction.zig");
@@ -296,6 +297,35 @@ const CB_RESETCONTENT: UINT = 0x014B;
 const CB_SETITEMHEIGHT: UINT = 0x0153;
 const CB_GETITEMHEIGHT: UINT = 0x0154;
 const CBS_DROPDOWNLIST: u32 = 0x3;
+const CBS_OWNERDRAWFIXED: u32 = 0x10;
+const ODT_COMBOBOX: UINT = 3;
+const ODS_COMBOBOXEDIT: UINT = 0x1000;
+const ODS_SELECTED: UINT = 0x0001;
+const ODS_DISABLED: UINT = 0x0004;
+const DT_LEFT: u32 = 0x0000;
+const CB_GETLBTEXT: UINT = 0x0148;
+// Visual-style parts of the Combobox class, and the state both parts share
+// (CBRO_* and CBXSR_* have the same values).
+const CP_READONLY: i32 = 5;
+const CP_DROPDOWNBUTTONRIGHT: i32 = 6;
+extern "uxtheme" fn OpenThemeData(hwnd: ?HWND, classes: [*:0]const u16) callconv(.winapi) ?*anyopaque;
+extern "uxtheme" fn CloseThemeData(theme: *anyopaque) callconv(.winapi) i32;
+extern "uxtheme" fn DrawThemeParentBackground(hwnd: HWND, hdc: HDC, rect: ?*const RECT) callconv(.winapi) i32;
+extern "uxtheme" fn DrawThemeBackground(theme: *anyopaque, hdc: HDC, part: i32, state: i32, rect: *const RECT, clip: ?*const RECT) callconv(.winapi) i32;
+
+fn accentFieldState(disabled: bool, dropped: bool, hot: bool) i32 {
+    if (disabled) return 4;
+    if (dropped) return 3;
+    if (hot) return 2;
+    return 1;
+}
+
+test "settings accent field takes the stock dropdown states" {
+    try std.testing.expectEqual(@as(i32, 4), accentFieldState(true, true, true));
+    try std.testing.expectEqual(@as(i32, 3), accentFieldState(false, true, true));
+    try std.testing.expectEqual(@as(i32, 2), accentFieldState(false, false, true));
+    try std.testing.expectEqual(@as(i32, 1), accentFieldState(false, false, false));
+}
 const CBS_HASSTRINGS: u32 = 0x200;
 const OBJID_CLIENT: u32 = @bitCast(@as(i32, -4));
 const CHILDID_SELF: u32 = 0;
@@ -1807,7 +1837,6 @@ const combo_text_max = 513;
 
 /// A combo's selected row and its text, which must fit `buf` with its zero.
 fn comboSelectionText(combo: HWND, buf: []u16) ?struct { index: usize, text: []const u16 } {
-    const CB_GETLBTEXT: UINT = 0x0148;
     const CB_GETLBTEXTLEN: UINT = 0x0149;
     const index = sys.SendMessageW(combo, CB_GETCURSEL, 0, 0);
     if (index < 0) return null;
@@ -2066,6 +2095,8 @@ pub const SettingsWindow = struct {
     /// navigation key arrives. The native EDIT / COMBOBOX / BUTTON
     /// children already behave this way through the dialog manager.
     focus_input_mode: focus_cue.InputMode = .pointer,
+    /// The pointer is over the Accent color field (`paintAccentField`).
+    accent_field_hot: bool = false,
     section_uia_group: ?*win32_uia.SettingsSectionGroupProvider = null,
     section_uia_providers: [section_count]?*win32_uia.SettingsSectionProvider = [_]?*win32_uia.SettingsSectionProvider{null} ** section_count,
     btn_save: ?HWND = null,
@@ -3221,6 +3252,89 @@ pub const SettingsWindow = struct {
     fn markerColor(self: *const SettingsWindow) COLORREF {
         const colors = self.theme_adapter.colors;
         return if (colors.high_contrast) colors.text else colors.accent;
+    }
+
+    /// Paint one item of the Accent color dropdown's list. Returns false for
+    /// any other control. The closed field is painted by `paintAccentField`;
+    /// this only covers it where there is no visual style (High Contrast).
+    fn drawAccentItem(self: *const SettingsWindow, lParam: LPARAM) bool {
+        const dis: *const sys.DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
+        if (dis.CtlType != ODT_COMBOBOX) return false;
+        const combo = self.fields.combo_window_accent orelse return false;
+        if (dis.hwndItem != combo) return false;
+        // The combo redraws its closed field this way, outside WM_PAINT, when
+        // its selection or focus changes: send that to `paintAccentField`.
+        if (dis.itemState & ODS_COMBOBOXEDIT != 0) {
+            if (OpenThemeData(combo, std.unicode.utf8ToUtf16LeStringLiteral("Combobox"))) |theme| {
+                _ = CloseThemeData(theme);
+                _ = InvalidateRect(combo, null, 0);
+                return true;
+            }
+        }
+        const colors = self.theme_adapter.colors;
+        const selected = dis.itemState & ODS_COMBOBOXEDIT == 0 and dis.itemState & ODS_SELECTED != 0;
+        const disabled = dis.itemState & ODS_DISABLED != 0;
+        fillSolid(dis.hDC, dis.rcItem, if (selected) colors.selection_bg else colors.edit_bg);
+        if (dis.itemID == std.math.maxInt(UINT)) return true;
+        const text_color = if (disabled) colors.disabled_text else if (selected) colors.selection_text else colors.text;
+        self.paintAccentChoice(dis.hDC, combo, dis.rcItem, dis.itemID, text_color);
+        return true;
+    }
+
+    /// A round swatch of choice `index`'s colour, then its name, in `row`.
+    fn paintAccentChoice(self: *const SettingsWindow, hdc: HDC, combo: HWND, row: RECT, index: usize, text_color: COLORREF) void {
+        const accent = field_model.Combo(.window_accent).fromIndex(@intCast(index)) orelse return;
+        const swatch = win32_theme.windowAccentSwatch(accent, self.theme_adapter.colors.is_dark, win32_theme.systemAccentColor());
+        const layout = accentItemLayout(row, self.px(8), self.px(14));
+        gdi.drawRoundedRect(hdc, layout.swatch, swatch, gdi.blendColorRGB(swatch, text_color, 0.3), layout.swatch.right - layout.swatch.left);
+
+        var buf: [64]u16 = undefined;
+        const n = SendMessageW(combo, CB_GETLBTEXT, index, @bitCast(@intFromPtr(&buf)));
+        if (n <= 0 or n >= buf.len) return;
+        buf[@intCast(n)] = 0;
+        _ = SetBkMode(hdc, TRANSPARENT);
+        _ = SetTextColor(hdc, text_color);
+        var text_rect = layout.text;
+        _ = sys.DrawTextW(hdc, buf[0..@intCast(n) :0].ptr, @intCast(n), &text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    }
+
+    /// The closed Accent color field, drawn with the same visual-style parts
+    /// as the stock dropdowns beside it (an owner-drawn dropdown would get the
+    /// classic look), with the swatch and name on top. False when there is no
+    /// visual style, so the stock paint (and `drawAccentItem`) runs instead.
+    fn paintAccentField(self: *const SettingsWindow, combo: HWND) bool {
+        const theme = OpenThemeData(combo, std.unicode.utf8ToUtf16LeStringLiteral("Combobox")) orelse return false;
+        defer _ = CloseThemeData(theme);
+        var ps: PAINTSTRUCT = undefined;
+        const hdc = BeginPaint(combo, &ps);
+        defer _ = EndPaint(combo, &ps);
+        var rect: RECT = undefined;
+        if (GetClientRect(combo, &rect) == 0) return true;
+        var info: SettingsComboPopup.Info = .{};
+        _ = SettingsComboPopup.GetComboBoxInfo(combo, &info);
+
+        const colors = self.theme_adapter.colors;
+        const disabled = sys.IsWindowEnabled(combo) == 0;
+        const dropped = SendMessageW(combo, CB_GETDROPPEDSTATE, 0, 0) != 0;
+        const state = accentFieldState(disabled, dropped, self.accent_field_hot);
+        // The themed field has rounded corners: what shows through them is the
+        // viewport behind, painted first.
+        _ = DrawThemeParentBackground(combo, hdc, &rect);
+        _ = DrawThemeBackground(theme, hdc, CP_READONLY, state, &rect, null);
+        if (info.button.right > info.button.left) _ = DrawThemeBackground(theme, hdc, CP_DROPDOWNBUTTONRIGHT, state, &info.button, null);
+
+        const font = SendMessageW(combo, WM_GETFONT, 0, 0);
+        const old_font = if (font != 0) sys.SelectObject(hdc, @ptrFromInt(@as(usize, @bitCast(font)))) else null;
+        defer if (old_font) |f| {
+            _ = sys.SelectObject(hdc, f);
+        };
+        const content: RECT = .{ .left = rect.left, .top = rect.top, .right = if (info.button.right > info.button.left) info.button.left else rect.right, .bottom = rect.bottom };
+        const index = SendMessageW(combo, CB_GETCURSEL, 0, 0);
+        if (index >= 0) self.paintAccentChoice(hdc, combo, content, @intCast(index), if (disabled) colors.disabled_text else colors.text);
+        if (focus_cue.showRing(GetFocus() == combo, disabled, self.focus_input_mode, colors.high_contrast)) {
+            strokeRect(hdc, rect, colors.focus_ring, @max(1, self.px(2)));
+        }
+        return true;
     }
 
     /// The row `hwnd` belongs to: its control, its label or its Reset button.
@@ -6324,7 +6438,8 @@ pub const SettingsWindow = struct {
                 if (comptime item.control_index < field_model.form_fields.len) {
                     const row = comptime field_model.form_fields[item.control_index];
                     @field(self.fields, spec.binding) = switch (comptime row.kind()) {
-                        .choice => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &field_model.Combo(row.field.?).labels, style),
+                        // The accent list shows each colour beside its name (`drawAccentItem`).
+                        .choice => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &field_model.Combo(row.field.?).labels, style | if (row.field.? == .window_accent) CBS_OWNERDRAWFIXED else 0),
                         // Its items come from the app's profiles when it is shown.
                         .profile => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &.{}, style),
                         .boolean, .blur => makeCheckbox(form, hinstance, spec.id, std.unicode.utf8ToUtf16LeStringLiteral(spec.caption.?), style),
@@ -13171,7 +13286,6 @@ test "settings dropdowns list the text of their labels in order" {
                 .{ .combo = settings.fields.combo_auto_update_channel, .labels = &auto_update_channel_labels },
             };
             const CB_GETCOUNT: UINT = 0x0146;
-            const CB_GETLBTEXT: UINT = 0x0148;
             for (cases) |case| {
                 const combo = case.combo.?;
                 try std.testing.expectEqual(@as(LRESULT, @intCast(case.labels.len)), sys.SendMessageW(combo, CB_GETCOUNT, 0, 0));
@@ -15216,6 +15330,24 @@ fn settingsComboProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
         _ = sys.SetWindowLongPtrW(hwnd, GWLP_WNDPROC, previous);
         _ = sys.SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
     }
+    // The owner-drawn Accent color dropdown paints its own closed field.
+    if (sys.GetWindowLongPtrW(hwnd, GWL_STYLE) & CBS_OWNERDRAWFIXED != 0) {
+        if (sys.GetParent(hwnd)) |parent| if (recoverOwner(parent)) |owner| switch (msg) {
+            WM_PAINT => if (owner.paintAccentField(hwnd)) return 0,
+            WM_MOUSEMOVE => if (!owner.accent_field_hot) {
+                owner.accent_field_hot = true;
+                var tracking: TRACKMOUSEEVENT = .{ .cbSize = @sizeOf(TRACKMOUSEEVENT), .dwFlags = TME_LEAVE, .hwndTrack = hwnd, .dwHoverTime = 0 };
+                _ = TrackMouseEvent(&tracking);
+                _ = InvalidateRect(hwnd, null, 0);
+            },
+            WM_MOUSELEAVE => {
+                owner.accent_field_hot = false;
+                _ = InvalidateRect(hwnd, null, 0);
+            },
+            WM_SETFOCUS, WM_KILLFOCUS => _ = InvalidateRect(hwnd, null, 0),
+            else => {},
+        };
+    }
     return sys.CallWindowProcW(proc, hwnd, msg, wParam, lParam);
 }
 
@@ -16129,6 +16261,7 @@ fn viewportProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(
         // field shows its own Cut/Copy/Paste menu and sends nothing here. What
         // is no row's (the scroll bar) keeps DefWindowProc's menu.
         WM_CONTEXTMENU => if (wParam != 0 and owner.showRowMenu(@ptrFromInt(wParam), lParam)) return 0,
+        WM_DRAWITEM_MENU => if (owner.drawAccentItem(lParam)) return 1,
         WM_COMMAND,
         WM_CTLCOLORMSGBOX,
         WM_CTLCOLOREDIT,
@@ -16178,6 +16311,27 @@ fn settingsControlDisconnect(ctx: *anyopaque) win32_uia.HRESULT {
 fn settingsControlRelease(ctx: *anyopaque) void {
     const provider: *win32_uia.SettingsControlProvider = @ptrCast(@alignCast(ctx));
     _ = win32_uia.SettingsControlProvider.Release(&provider.base);
+}
+
+/// Where an Accent color item puts its swatch (a `size` circle, `pad` in from
+/// the left and centred on the row) and its name (after the swatch).
+fn accentItemLayout(row: RECT, pad: i32, size: i32) struct { swatch: RECT, text: RECT } {
+    const diameter = @max(4, @min(size, row.bottom - row.top - 2));
+    const top = row.top + @divTrunc(row.bottom - row.top - diameter, 2);
+    const swatch: RECT = .{ .left = row.left + pad, .top = top, .right = row.left + pad + diameter, .bottom = top + diameter };
+    return .{ .swatch = swatch, .text = .{ .left = swatch.right + pad, .top = row.top, .right = row.right - @divTrunc(pad, 2), .bottom = row.bottom } };
+}
+
+test "settings accent item puts a centred swatch before the name" {
+    const layout = accentItemLayout(.{ .left = 0, .top = 10, .right = 200, .bottom = 34 }, 8, 14);
+    try std.testing.expectEqual(@as(i32, 8), layout.swatch.left);
+    try std.testing.expectEqual(@as(i32, 14), layout.swatch.right - layout.swatch.left);
+    try std.testing.expectEqual(@as(i32, 15), layout.swatch.top);
+    try std.testing.expectEqual(@as(i32, 30), layout.text.left);
+    // A short row shrinks the swatch instead of clipping it.
+    const short = accentItemLayout(.{ .left = 0, .top = 0, .right = 100, .bottom = 10 }, 8, 14);
+    try std.testing.expectEqual(@as(i32, 8), short.swatch.bottom - short.swatch.top);
+    try std.testing.expect(short.swatch.top >= 0 and short.swatch.bottom <= 10);
 }
 
 /// The viewport's own pixels inside `clip`: the pane colour, and the marker of

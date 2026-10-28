@@ -1,6 +1,9 @@
 const std = @import("std");
 const win32_types = @import("win32_types.zig");
 const ProfileKind = @import("../config/windows_shell_types.zig").ProfileKind;
+const WindowAccent = @import("../config/Config.zig").WindowAccent;
+const sys = @import("win32/sys.zig");
+const c = @import("win32/consts.zig");
 
 /// Pack r/g/b bytes into a Win32 COLORREF (0x00BBGGRR).
 pub fn rgb(r: u8, g: u8, b: u8) u32 {
@@ -763,6 +766,79 @@ test "CHROME57 High Contrast hover uses readable system highlight colours" {
 
 // Legacy buttonColors() and buttonFocusRingColor() removed.
 // Use buttonColorsFromTheme() and ThemeColors focus ring fields instead.
+
+// ── Window accent ───────────────────────────────────────────────────────
+
+/// Read the Windows accent colour from `HKCU\Software\Microsoft\Windows\DWM`
+/// `AccentColor`, a DWORD in 0xAABBGGRR order. Returns a COLORREF, or null
+/// when it cannot be read.
+pub fn systemAccentColor() ?u32 {
+    const subkey = std.unicode.utf8ToUtf16LeStringLiteral("Software\\Microsoft\\Windows\\DWM");
+    const value_name = std.unicode.utf8ToUtf16LeStringLiteral("AccentColor");
+    var hkey: sys.HKEY = undefined;
+    if (sys.RegOpenKeyExW(@ptrFromInt(c.HKEY_CURRENT_USER), subkey, 0, c.KEY_READ, &hkey) != c.ERROR_SUCCESS) return null;
+    defer _ = sys.RegCloseKey(hkey);
+
+    var data: u32 = 0;
+    var data_size: u32 = @sizeOf(u32);
+    var reg_type: u32 = 0;
+    if (sys.RegQueryValueExW(hkey, value_name, null, &reg_type, @ptrCast(&data), &data_size) != c.ERROR_SUCCESS) return null;
+    if (reg_type != c.REG_DWORD or data_size != @sizeOf(u32)) return null;
+    return data & 0x00FFFFFF;
+}
+
+/// The named `window-accent` colours, from the Windows accent swatches.
+pub fn windowAccentPreset(accent: WindowAccent) ?u32 {
+    return switch (accent) {
+        .default, .system => null,
+        .blue => rgb(0x00, 0x78, 0xD4),
+        .cobalt => rgb(0x00, 0x63, 0xB1),
+        .sky => rgb(0x00, 0x99, 0xBC),
+        .teal => rgb(0x00, 0xB7, 0xC3),
+        .mint => rgb(0x00, 0xB2, 0x94),
+        .emerald => rgb(0x00, 0xCC, 0x6A),
+        .green => rgb(0x10, 0x89, 0x3E),
+        .sage => rgb(0x64, 0x7C, 0x64),
+        .gold => rgb(0xFF, 0xB9, 0x00),
+        .orange => rgb(0xF7, 0x63, 0x0C),
+        .rust => rgb(0xCA, 0x50, 0x10),
+        .red => rgb(0xD1, 0x34, 0x38),
+        .rose => rgb(0xE7, 0x48, 0x56),
+        .pink => rgb(0xE3, 0x00, 0x8C),
+        .magenta => rgb(0xC2, 0x39, 0xB3),
+        .purple => rgb(0x87, 0x64, 0xB8),
+        .iris => rgb(0x6B, 0x69, 0xD6),
+        .lavender => rgb(0x8E, 0x8C, 0xD8),
+        .slate => rgb(0x68, 0x76, 0x8A),
+        .graphite => rgb(0x7A, 0x75, 0x74),
+    };
+}
+
+/// The colour a picker shows for `accent`: the preset, the Windows accent
+/// (`system`), or the theme's own seed (`default`, and `system` when Windows
+/// has none).
+pub fn windowAccentSwatch(accent: WindowAccent, is_dark: bool, system: ?u32) u32 {
+    if (windowAccentPreset(accent)) |value| return value;
+    const seed = if (is_dark) darkTheme().accent else lightTheme().accent;
+    if (accent == .system) {
+        const value = system orelse return seed;
+        return if (value == 0) seed else value;
+    }
+    return seed;
+}
+
+test "accent swatches show what each choice paints" {
+    try std.testing.expectEqual(rgb(0x00, 0xB7, 0xC3), windowAccentSwatch(.teal, true, null));
+    try std.testing.expectEqual(darkTheme().accent, windowAccentSwatch(.default, true, rgb(1, 2, 3)));
+    try std.testing.expectEqual(lightTheme().accent, windowAccentSwatch(.default, false, null));
+    try std.testing.expectEqual(rgb(1, 2, 3), windowAccentSwatch(.system, true, rgb(1, 2, 3)));
+    try std.testing.expectEqual(darkTheme().accent, windowAccentSwatch(.system, true, null));
+    try std.testing.expectEqual(lightTheme().accent, windowAccentSwatch(.system, false, 0));
+    for (std.enums.values(WindowAccent)) |accent| switch (accent) {
+        .default, .system => try std.testing.expect(windowAccentPreset(accent) == null),
+        else => try std.testing.expect(windowAccentPreset(accent) != null),
+    };
+}
 
 // ── Overlay accent ──────────────────────────────────────────────────────
 

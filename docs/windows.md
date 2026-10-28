@@ -1645,7 +1645,8 @@ or one of twenty named colors (`blue`, `cobalt`, `sky`, `teal`, `mint`,
 `emerald`, `green`, `sage`, `gold`, `orange`, `rust`, `red`, `rose`, `pink`,
 `magenta`, `purple`, `iris`, `lavender`, `slate`, `graphite`), and
 `window-accent-color` takes any hex or X11 color and wins over it. Settings
-offers the same choices under Appearance, Accent color, with a live preview.
+offers the same choices under Appearance, Accent color, each with a swatch
+of its color, and previews the choice live.
 The accent colors the edge across the top of every menu and the command
 palette, the highlighted row, check marks, focus rings, the line around the
 focused split, primary buttons and the Settings window. A color that would
