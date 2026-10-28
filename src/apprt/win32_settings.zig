@@ -11927,7 +11927,8 @@ test "settings a word past the sixteenth still has to match, and changing it run
             const settings = &fixture.settings;
             const fonts = "font " ** 16;
             typeSearch(settings, fonts ++ "font");
-            try std.testing.expectEqual(@as(usize, 2), settings.search_total);
+            // Font family, Font size, and Text color (found as "font color").
+            try std.testing.expectEqual(@as(usize, 3), settings.search_total);
             // A seventeenth word no row has.
             typeSearch(settings, fonts ++ "zzzz");
             try std.testing.expectEqual(@as(usize, 0), settings.search_total);
