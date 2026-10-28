@@ -15506,7 +15506,7 @@ fn settingsEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callc
             if (isThemeField(hwnd) and settings.onThemeChevron(hwnd, .{ .x = lparamX(lParam), .y = lparamY(lParam) })) return HTBORDER;
             return HTCLIENT;
         },
-        WM_NCLBUTTONDOWN, WM_NCLBUTTONDBLCLK => if (owner) |settings| if (wParam == HTBORDER and isThemeField(hwnd)) {
+        WM_NCLBUTTONDOWN, WM_NCLBUTTONDBLCLK => if (owner) |settings| if (wParam == @as(WPARAM, @intCast(HTBORDER)) and isThemeField(hwnd)) {
             settings.showThemeMenu(.pointer);
             return 0;
         },
@@ -15627,7 +15627,7 @@ fn themeMenuItems(arena: std.mem.Allocator, names: []const []const u8, current: 
         });
         return items.toOwnedSlice(arena);
     }
-    const groups = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const groups: []const u8 = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     for (groups) |group| {
         var children: std.ArrayList(fancy_menu.Item) = .empty;
         var holds_current = false;
@@ -15705,7 +15705,7 @@ test "win32 settings theme menu lists every theme once, grouped by letter past a
 
 /// Whether `edit` is the Terminal theme field, which has a dropdown.
 fn isThemeField(edit: HWND) bool {
-    return GetDlgCtrlID(edit) == EDIT_THEME;
+    return GetDlgCtrlID(edit) == @as(c_int, @intCast(EDIT_THEME));
 }
 
 /// The keys that open a dropdown: Alt+Down (a system key) and F4.
