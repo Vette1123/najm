@@ -330,6 +330,8 @@
         "src/pty_transport_probe.zig",
         "src/terminal/search/Thread.zig",
         "scripts/windows-harness-history.ps1",
+        "scripts/zig-test-stacks.ps1",
+        "src/terminal/PageList.zig",
         "src/apprt/win32/test_support.zig",
         "src/apprt/win32/registry.zig"
       ]

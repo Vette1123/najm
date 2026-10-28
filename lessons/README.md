@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-10-28 | [The suite looked hung](2026-10-28-suite-looked-hung.md) | A test that burns a core is working: sample its stack before calling it hung |
 | 2026-10-28 | [Accent colours and palette polish](2026-10-28-accent-colors-and-palette-polish.md) | One `withAccent` derives every accent role with a contrast floor; text on a fill is pure white or pure black |
 | 2026-10-27 | [Menus and palette redesign](2026-10-27-fancy-menus-and-palette.md) | Synthetic keys go to one window by message, never the global queue; chrome text follows the system font |
 | 2026-10-27 | [Update installs from the palette](2026-10-27-update-installs-from-the-palette.md) | Read `update-state.json` first: a dead Update click was a dismissal with nothing staged |

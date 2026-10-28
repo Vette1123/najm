@@ -5237,7 +5237,25 @@ pub fn totalPages(self: *const PageList) usize {
 /// Grow the number of rows available in the page list by n.
 /// This is only used for testing so it isn't optimized in any way.
 fn growRows(self: *PageList, n: usize) Allocator.Error!void {
-    for (0..n) |_| _ = try self.grow();
+    // Each `grow` checks the whole last page and the whole list, so a bulk
+    // grow checked row by row is quadratic in the page: 150,000 rows took
+    // two minutes and made the suite look hung. Check once at the end.
+    self.pauseIntegrityChecks(true);
+    errdefer self.pauseIntegrityChecks(false);
+    for (0..n) |_| {
+        const last = self.pages.last.?;
+        last.data.pauseIntegrityChecks(true);
+        const grown = self.grow();
+        // A prune may have recycled the page, which resets its count.
+        if (comptime build_options.slow_runtime_safety) {
+            if (last.data.pause_integrity_checks > 0) last.data.pause_integrity_checks -= 1;
+        }
+        _ = try grown;
+    }
+    self.pauseIntegrityChecks(false);
+    self.assertIntegrity();
+    var node = self.pages.first;
+    while (node) |page| : (node = page.next) page.data.assertIntegrity();
 }
 
 /// Clear all dirty bits on all pages. This is not efficient since it

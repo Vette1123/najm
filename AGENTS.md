@@ -10,7 +10,9 @@ reading step under [Self-Correction Log](#self-correction-log).
   `OpenConsole.exe` beside the exe; staging traps: the 2026-10-10 bundled
   ConPTY entry in `docs/agents/log/conpty.md`)
 - **Test (Zig):** `zig build test -Demit-test-exe=true --summary all`
-  (full suite, ~4.5k tests, about a minute). This is the only invocation that
+  (full suite, ~5.9k tests; the run took 5 minutes on 2026-10-28, and a run
+  that stops printing is sampled with `scripts/zig-test-stacks.ps1` before it
+  is called hung). This is the only invocation that
   is trustworthy on its own, and `--summary all` is part of it: the count is
   the evidence.
   - Bare `zig build test` errors in this fork.
@@ -344,8 +346,9 @@ that govern each symbol you change, or that none does.
   `std.Progress.lockStdErr`, the search-thread tests in
   `src/terminal/search/Thread.zig`), the shared Win32 test fixtures
   (`win32/test_support.zig`, `TestSession`), PSReadLine history isolation
-  (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), and a
-  test count or result that contradicts the code.
+  (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a suite
+  that seems hung (`scripts/zig-test-stacks.ps1`, the `PageList` test helper
+  `growRows`), and a test count or result that contradicts the code.
 - [tooling.md](docs/agents/log/tooling.md): declaring `extern` functions or
   structs, casting Win32 handles and `LPARAM`/`LRESULT` (`@intCast`,
   `@bitCast`, `@ptrFromInt`), passing `[:0]u16` to text APIs, renaming or moving
