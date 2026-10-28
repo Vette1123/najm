@@ -1709,8 +1709,10 @@ after it (Settings, a new window) are not minimized either.
 The universal palette puts actions, live tabs, panes, Windows profiles,
 named layouts, and native settings in one fuzzy-ranked, keyboard-driven
 list. Type a prefix to filter one category: `>` actions, `@` tabs, `/`
-panes, `~` profiles, `:` settings, `%` themes, `!` recent commands, `^`
-layouts, or `?` for help. The native Settings window stages edits until Save
+panes, `~` profiles, `:` settings, `%` themes, `#` accent colors, `!` recent
+commands, `^` layouts, or `?` for help. Selecting an accent color or a theme
+shows it in the open windows at once; Enter saves it and Escape puts back
+what was there. The native Settings window stages edits until Save
 (or Discard changes, which first asks how many fields would be lost) and
 patches your config without rewriting unrelated text. While you edit, Window
 theme and Background opacity preview in the open windows; the other fields,

@@ -24,6 +24,9 @@ const c = runtime.c;
 const drawRectBorder = runtime.drawRectBorder;
 const fancy_menu = @import("fancy_menu.zig");
 const gdi = @import("gdi.zig");
+const WindowAccent = @import("../../config/Config.zig").WindowAccent;
+const AccentCombo = @import("../win32_settings_fields.zig").Combo(.window_accent);
+const win32_theme = @import("../win32_theme.zig");
 const sys_rgn = struct {
     extern "gdi32" fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) callconv(.winapi) ?*anyopaque;
 };
@@ -135,6 +138,24 @@ pub fn paletteListRect(
 
 pub fn paletteListWidthIsReadable(rect: RECT, minimum_width: i32) bool {
     return rect.right - rect.left >= @max(1, minimum_width);
+}
+
+/// A `size` circle ending at `right`, centred on `row`; smaller when the row
+/// is too short for it.
+fn paletteSwatchRect(row: RECT, right: i32, size: i32) RECT {
+    const diameter = @max(4, @min(size, row.bottom - row.top - 4));
+    const top = row.top + @divTrunc(row.bottom - row.top - diameter, 2);
+    return .{ .left = right - diameter, .top = top, .right = right, .bottom = top + diameter };
+}
+
+test "palette accent swatch sits centred at the end of the row" {
+    const box = paletteSwatchRect(.{ .left = 0, .top = 36, .right = 400, .bottom = 72 }, 388, 14);
+    try std.testing.expectEqual(@as(i32, 374), box.left);
+    try std.testing.expectEqual(@as(i32, 388), box.right);
+    try std.testing.expectEqual(@as(i32, 47), box.top);
+    try std.testing.expectEqual(@as(i32, 14), box.bottom - box.top);
+    const short = paletteSwatchRect(.{ .left = 0, .top = 0, .right = 100, .bottom = 12 }, 90, 14);
+    try std.testing.expectEqual(@as(i32, 8), short.bottom - short.top);
 }
 
 const PaletteRowState = struct {
@@ -1004,6 +1025,8 @@ pub const HostControls = struct {
             _ = self.appendPaletteDescriptor(win32_settings.paletteDescriptor(field));
         }
 
+        // Accents before themes: themes take whatever room is left.
+        self.appendAccentsToPalette(catalog);
         self.appendInstalledThemesToPalette(catalog);
         // Layouts come last of the dynamic providers so a large layouts
         // directory can never displace installed-theme rows near capacity.
@@ -1352,6 +1375,17 @@ pub const HostControls = struct {
                     return;
                 };
             },
+            .accent => |name| {
+                const accent = std.meta.stringToEnum(WindowAccent, name) orelse {
+                    self.abortPaletteAction("Accent color is no longer available; reopen the palette.");
+                    return;
+                };
+                self.commitPaletteAccent(accent) catch |err| {
+                    log.warn("palette accent preflight failed accent={s} err={}", .{ name, err });
+                    self.abortPaletteAction("Accent color could not be prepared; no setting was changed.");
+                    return;
+                };
+            },
             .help => |target| switch (target) {
                 .settings => {
                     self.hideOverlay();
@@ -1377,6 +1411,28 @@ pub const HostControls = struct {
             },
             .recent_command => |payload| return self.invokePaletteAction(payload, false),
         }
+    }
+
+    /// Every `window-accent` choice, named as the Settings dropdown names it.
+    /// A `window-accent-color` in the config wins over all of them, so then
+    /// they are listed disabled, with that reason.
+    pub fn appendAccentsToPalette(self: *Host, catalog: *PaletteCatalog) void {
+        const config = if (self.palette_theme_preview_original) |*original| original else &self.app.config;
+        const overridden = config.@"window-accent-color" != null;
+        const accents = comptime std.enums.values(WindowAccent);
+        var entries: [accents.len]win32_palette.catalog.AccentEntry = undefined;
+        inline for (accents, 0..) |accent, index| {
+            entries[index] = .{
+                .name = @tagName(accent),
+                .title = comptime "Accent: " ++ AccentCombo.labels[AccentCombo.toIndex(accent)],
+                .subtitle = if (config.@"window-accent" == accent and !overridden) "Current accent color" else "Accent color",
+                .enabled = !overridden,
+                .disabled_reason = if (overridden) "window-accent-color in the config file overrides it" else null,
+            };
+        }
+        catalog.appendAccents(&entries) catch |err| {
+            log.warn("palette accent batch rejected err={}", .{err});
+        };
     }
 
     pub fn appendInstalledThemesToPalette(self: *Host, catalog: *PaletteCatalog) void {
@@ -1469,6 +1525,19 @@ pub const HostControls = struct {
         self.palette_layout_names = null;
         for (names) |name| self.app.core_app.alloc.free(name);
         self.app.core_app.alloc.free(names);
+    }
+
+    pub fn selectedPaletteAccent(self: *Host) ?WindowAccent {
+        if (self.overlay_mode != .command_palette) return null;
+        if (self.palette_list_ranked_count == 0) return null;
+        const row = @min(self.palette_list_selected, self.palette_list_ranked_count - 1);
+        const catalog = if (self.palette_catalog) |*value| value else return null;
+        const descriptor = catalog.descriptorFor(self.palette_list_ranked[row]) orelse return null;
+        if (!descriptor.item.enabled) return null;
+        return switch (descriptor.payload) {
+            .accent => |name| std.meta.stringToEnum(WindowAccent, name),
+            else => null,
+        };
     }
 
     pub fn selectedPaletteThemeName(self: *Host) ?[]const u8 {
@@ -1764,6 +1833,8 @@ pub const HostControls = struct {
             self.palette_list_scroll + self.palette_list_visible_rows,
             self.palette_list_ranked_count,
         );
+        // Read once per paint: the Match Windows row's swatch.
+        const system_accent = win32_theme.systemAccentColor();
         var i = self.palette_list_scroll;
         while (i < visible_end) : (i += 1) {
             const y_top: i32 = @intCast((i - self.palette_list_scroll) * @as(usize, @intCast(row_h)));
@@ -1819,6 +1890,16 @@ pub const HostControls = struct {
                     columns.subtitle,
                     secondary_color,
                 );
+            }
+
+            // An accent row shows its colour where a shortcut would be.
+            switch (descriptor.payload) {
+                .accent => |name| if (std.meta.stringToEnum(WindowAccent, name)) |accent| {
+                    const swatch = win32_theme.windowAccentSwatch(accent, theme.is_dark, system_accent);
+                    const box = paletteSwatchRect(row_rect, columns.shortcut.right, self.scaled(14));
+                    gdi.drawRoundedRect(hdc, box, swatch, gdi.blendColorRGB(swatch, theme.text_primary, 0.3), box.right - box.left);
+                },
+                else => {},
             }
 
             // Keybind hint: look up the primary trigger for this action

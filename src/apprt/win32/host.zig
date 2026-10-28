@@ -2202,6 +2202,7 @@ pub const Host = struct {
     pub const invokePaletteRow = palette_controller.HostControls.invokePaletteRow;
 
     pub const appendInstalledThemesToPalette = palette_controller.HostControls.appendInstalledThemesToPalette;
+    pub const appendAccentsToPalette = palette_controller.HostControls.appendAccentsToPalette;
 
     pub const appendSavedLayoutsToPalette = palette_controller.HostControls.appendSavedLayoutsToPalette;
 
@@ -2210,6 +2211,7 @@ pub const Host = struct {
     pub const clearPaletteLayoutNames = palette_controller.HostControls.clearPaletteLayoutNames;
 
     const selectedPaletteThemeName = palette_controller.HostControls.selectedPaletteThemeName;
+    const selectedPaletteAccent = palette_controller.HostControls.selectedPaletteAccent;
 
     fn setConfigTheme(config: *configpkg.Config, name: []const u8) !void {
         const arena = config._arena.?.allocator();
@@ -2322,6 +2324,17 @@ pub const Host = struct {
             return;
         }
 
+        if (self.selectedPaletteAccent()) |accent| {
+            self.previewPaletteAccent(accent) catch |err| {
+                log.warn("palette accent preview failed accent={s} err={}", .{ @tagName(accent), err });
+                self.revertPaletteThemePreview();
+                runUiActionOrLog(
+                    "palette accent preview banner failed",
+                    self.setBanner(.err, "Accent preview failed; selection was not applied."),
+                );
+            };
+            return;
+        }
         const name = self.selectedPaletteThemeName() orelse {
             self.revertPaletteThemePreview();
             return;
@@ -2344,8 +2357,28 @@ pub const Host = struct {
             if (std.mem.eql(u8, current.light, name) and std.mem.eql(u8, current.dark, name)) return;
         }
 
-        var preview = try self.loadPaletteThemeConfig(name);
+        self.installPalettePreview(try self.loadPaletteThemeConfig(name));
+    }
+
+    /// Show the chrome in accent `accent` while its palette row is selected:
+    /// the config as it was before any preview, with only the accent changed.
+    /// The current accent shows the config as it was.
+    pub fn previewPaletteAccent(self: *Host, accent: configpkg.Config.WindowAccent) !void {
+        if (self.app.safe_mode) return;
+        const base = if (self.palette_theme_preview_original) |*original| original else &self.app.config;
+        if (base.@"window-accent" == accent) {
+            self.revertPaletteThemePreview();
+            return;
+        }
+        var preview = try base.clone(self.app.core_app.alloc);
         errdefer preview.deinit();
+        preview.@"window-accent" = accent;
+        self.installPalettePreview(preview);
+    }
+
+    /// Make `preview` the running config, keeping the config from before the
+    /// first preview to revert or commit against. Takes ownership.
+    fn installPalettePreview(self: *Host, preview: configpkg.Config) void {
         if (self.palette_theme_preview_original == null) {
             const original = self.swapRuntimeConfigFromPalette(preview);
             self.palette_theme_preview_original = original;
@@ -2381,12 +2414,90 @@ pub const Host = struct {
         }
     }
 
+    /// What a palette pick saves, and how its outcome is worded.
+    pub const PalettePick = union(enum) {
+        theme: []const u8,
+        accent: configpkg.Config.WindowAccent,
+
+        pub const Words = struct {
+            applied: []const u8,
+            masked: []const u8,
+            restart: []const u8,
+            masked_banner: []const u8,
+            restart_banner: []const u8,
+
+            /// The screen-reader notice for a save that `masked` or that
+            /// waits for a restart (`safe_mode`).
+            pub fn notice(self: Words, masked: bool, safe_mode: bool) []const u8 {
+                if (masked) return self.masked;
+                if (safe_mode) return self.restart;
+                return self.applied;
+            }
+        };
+
+        fn apply(self: PalettePick, config: *configpkg.Config) !void {
+            switch (self) {
+                .theme => |name| try setConfigTheme(config, name),
+                .accent => |accent| config.@"window-accent" = accent,
+            }
+        }
+
+        fn value(self: PalettePick) []const u8 {
+            return switch (self) {
+                .theme => |name| name,
+                .accent => |accent| @tagName(accent),
+            };
+        }
+
+        pub fn words(self: PalettePick) Words {
+            return switch (self) {
+                .theme => .{
+                    .applied = "Theme applied",
+                    .masked = "Theme saved; a later config layer masks it",
+                    .restart = "Theme saved; restart Najm to apply it",
+                    .masked_banner = "Theme saved, but a later config layer masks it.",
+                    .restart_banner = "Theme saved; restart Najm to apply it.",
+                },
+                .accent => .{
+                    .applied = "Accent color applied",
+                    .masked = "Accent color saved; a later config layer masks it",
+                    .restart = "Accent color saved; restart Najm to apply it",
+                    .masked_banner = "Accent color saved, but a later config layer masks it.",
+                    .restart_banner = "Accent color saved; restart Najm to apply it.",
+                },
+            };
+        }
+
+        pub fn failureMessage(self: PalettePick, err: win32_settings.SaveError) []const u8 {
+            return switch (self) {
+                .theme => paletteThemeSaveFailureMessage(err),
+                .accent => switch (err) {
+                    error.DiskChanged => "The config file changed. Reload the configuration, then pick again; reverted preview.",
+                    error.FileUnopenable => "A config file cannot be opened, so the accent color was not saved; reverted preview.",
+                    error.UnsupportedEncoding, error.BinaryConfig => "The config file is not UTF-8 text, so the accent color was not saved; reverted preview.",
+                    else => "Accent color save failed; reverted preview.",
+                },
+            };
+        }
+    };
+
     pub fn commitPaletteTheme(self: *Host, name: []const u8) !void {
         // The save/reload path can synchronously rebuild the palette catalog.
         // Keep logging and post-save messaging independent of its borrowed
         // theme-name storage.
         const theme_name = try self.app.core_app.alloc.dupe(u8, name);
         defer self.app.core_app.alloc.free(theme_name);
+        try self.commitPalettePick(.{ .theme = theme_name });
+    }
+
+    pub fn commitPaletteAccent(self: *Host, accent: configpkg.Config.WindowAccent) !void {
+        try self.commitPalettePick(.{ .accent = accent });
+    }
+
+    /// Save a palette pick (a theme or an accent) as Settings saves, and
+    /// reload. A failed save puts the config from before the preview back.
+    fn commitPalettePick(self: *Host, pick: PalettePick) !void {
+        const words = pick.words();
 
         // Clone the reversible baseline first. Do not detach the live preview
         // owner until every fallible preflight allocation has succeeded;
@@ -2400,7 +2511,7 @@ pub const Host = struct {
 
         var pending = try original.clone(self.app.core_app.alloc);
         defer pending.deinit();
-        try setConfigTheme(&pending, theme_name);
+        try pick.apply(&pending);
 
         // settingsSaveAndReload may replace/deinit the live app config. Keep
         // the generation borrowed by the visible palette alive first.
@@ -2429,7 +2540,7 @@ pub const Host = struct {
         switch (save_outcome) {
             .completed, .completed_masked => {},
             .failed => |err| {
-                log.warn("palette theme save failed theme={s} err={}", .{ theme_name, err });
+                log.warn("palette {s} save failed value={s} err={}", .{ @tagName(pick), pick.value(), err });
                 // Roll back without another allocation: `original` is already
                 // an owned deep clone of the pre-preview baseline. Transfer it
                 // into the runtime config and suppress the local deferred deinit.
@@ -2437,7 +2548,7 @@ pub const Host = struct {
                     self.replaceRuntimeConfigFromPalette(original);
                     original_owned = false;
                 }
-                self.abortPaletteAction(paletteThemeSaveFailureMessage(err));
+                self.abortPaletteAction(pick.failureMessage(err));
                 return;
             },
         }
@@ -2447,26 +2558,21 @@ pub const Host = struct {
             win32_uia.events.raiseNotification(
                 &provider.base,
                 .action_completed,
-                if (saved_but_masked)
-                    "Theme saved; a later config layer masks it"
-                else if (self.app.safe_mode)
-                    "Theme saved; restart Najm to apply it"
-                else
-                    "Theme applied",
+                words.notice(saved_but_masked, self.app.safe_mode),
             );
         }
         self.hideOverlay();
         if (self.app.safe_mode) {
             runUiActionOrLog(
-                "palette recovery theme banner failed",
-                self.setBanner(.info, "Theme saved; restart Najm to apply it."),
+                "palette recovery pick banner failed",
+                self.setBanner(.info, words.restart_banner),
             );
         }
         if (saved_but_masked) {
-            log.warn("palette theme saved but masked by a later config layer theme={s}", .{theme_name});
+            log.warn("palette {s} saved but masked by a later config layer value={s}", .{ @tagName(pick), pick.value() });
             runUiActionOrLog(
-                "palette masked theme banner failed",
-                self.setBanner(.err, "Theme saved, but a later config layer masks it."),
+                "palette masked pick banner failed",
+                self.setBanner(.err, words.masked_banner),
             );
         }
         self.layout() catch |err| {

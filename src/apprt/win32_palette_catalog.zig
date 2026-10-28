@@ -64,6 +64,17 @@ pub const Payload = union(Kind) {
     /// This is action MRU, never arbitrary shell command history.
     recent_command: ActionPayload,
     layout: []const u8,
+    /// A `window-accent` value by its tag name.
+    accent: []const u8,
+};
+
+pub const AccentEntry = struct {
+    /// The `window-accent` tag name; identity and invocation use it.
+    name: []const u8,
+    title: []const u8,
+    subtitle: []const u8 = "Accent color",
+    enabled: bool = true,
+    disabled_reason: ?[]const u8 = null,
 };
 
 pub const Descriptor = struct {
@@ -215,6 +226,35 @@ pub const Catalog = struct {
             self.count += 1;
         }
         return selected.len;
+    }
+
+    /// Append the accent colours. Strings are borrowed until reset. Like
+    /// `appendThemesBounded`, a validation or capacity error leaves the
+    /// catalog unchanged.
+    pub fn appendAccents(self: *Catalog, accents: []const AccentEntry) Error!void {
+        if (accents.len > self.item_storage.len - self.count) return error.StorageTooSmall;
+        for (accents, 0..) |accent, index| {
+            const id = stableStringId(.accent, accent.name);
+            if (self.containsId(id)) return error.DuplicateStableId;
+            if (!accent.enabled and (accent.disabled_reason == null or accent.disabled_reason.?.len == 0)) {
+                return error.DisabledReasonMissing;
+            }
+            for (accents[0..index]) |previous| {
+                if (stableStringId(.accent, previous.name).eql(id)) return error.DuplicateStableId;
+            }
+        }
+        for (accents) |accent| {
+            self.item_storage[self.count] = .{
+                .id = stableStringId(.accent, accent.name),
+                .title = accent.title,
+                .subtitle = accent.subtitle,
+                .keywords = "accent color colour highlight appearance window-accent personalize",
+                .enabled = accent.enabled,
+                .disabled_reason = accent.disabled_reason,
+            };
+            self.payload_storage[self.count] = .{ .accent = accent.name };
+            self.count += 1;
+        }
     }
 
     /// Append the built-in reviewed help surface. Titles and targets have
@@ -480,6 +520,31 @@ test "descriptor validation and stale ranked results fail closed" {
         .payload = .{ .pane = 2 },
     });
     try std.testing.expectEqual(@as(?Payload, null), catalog.payloadFor(stale));
+}
+
+test "accent colours are found by name, by 'accent' and by their prefix" {
+    const accents = [_]AccentEntry{
+        .{ .name = "teal", .title = "Accent: Teal" },
+        .{ .name = "gold", .title = "Accent: Gold", .subtitle = "Current accent color" },
+    };
+    var item_storage: [8]Item = undefined;
+    var payload_storage: [8]Payload = undefined;
+    var catalog = try Catalog.init(&item_storage, &payload_storage);
+    try catalog.appendAccents(&accents);
+    var ranked_storage: [8]Ranked = undefined;
+    try std.testing.expectEqualStrings("teal", catalog.payloadFor(catalog.rank("#teal", .{}, &ranked_storage)[0]).?.accent);
+    try std.testing.expectEqual(@as(usize, 2), catalog.rank("accent", .{}, &ranked_storage).len);
+    try std.testing.expectEqual(@as(usize, 2), catalog.rank("colour", .{}, &ranked_storage).len);
+
+    // Transactional: a bad batch leaves nothing behind.
+    var other_items: [8]Item = undefined;
+    var other_payloads: [8]Payload = undefined;
+    var fresh = try Catalog.init(&other_items, &other_payloads);
+    const duplicate = [_]AccentEntry{ .{ .name = "red", .title = "Accent: Red" }, .{ .name = "red", .title = "Accent: Red" } };
+    try std.testing.expectError(error.DuplicateStableId, fresh.appendAccents(&duplicate));
+    try std.testing.expectEqual(@as(usize, 0), fresh.items().len);
+    const unexplained = [_]AccentEntry{.{ .name = "red", .title = "Accent: Red", .enabled = false }};
+    try std.testing.expectError(error.DisabledReasonMissing, fresh.appendAccents(&unexplained));
 }
 
 test "installed theme snapshot and reviewed help produce typed payloads" {

@@ -2222,6 +2222,7 @@ pub fn paletteCompletionText(descriptor: win32_palette.catalog.Descriptor) []con
         .profile => |key| key,
         .theme => |name| name,
         .layout => |name| name,
+        .accent => descriptor.item.title,
         // A setting's payload is its internal tag; the title is what the row
         // says and what the query has to match.
         .tab, .pane, .help, .setting => descriptor.item.title,

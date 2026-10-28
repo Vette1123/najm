@@ -16,6 +16,7 @@ pub const Kind = enum(u8) {
     help,
     recent_command,
     layout,
+    accent,
 };
 
 pub const StableId = struct {
@@ -70,6 +71,7 @@ pub const prefixes = [_]Prefix{
     .{ .value = '?', .kind = .help, .label = "Help" },
     .{ .value = '!', .kind = .recent_command, .label = "Recent commands" },
     .{ .value = '^', .kind = .layout, .label = "Layouts" },
+    .{ .value = '#', .kind = .accent, .label = "Accent colors" },
 };
 
 pub fn prefixFor(kind: Kind) u8 {

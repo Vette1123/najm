@@ -26157,6 +26157,61 @@ test "win32 safe mode theme selection and acceptance preserve recovery" {
     try std.testing.expect(std.mem.indexOf(u8, saved, "command = pwsh.exe") != null);
 }
 
+test "win32 palette accent previews live, reverts on the current one, and saves" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const alloc = std.testing.allocator;
+    var core: CoreApp = undefined;
+    var app: App = undefined;
+    var host: Host = undefined;
+    var session: TestSession = .{};
+    try session.init(.{ .core_app = &core, .app = &app, .hosts = &.{.{ .storage = &host }} });
+    defer session.deinit();
+    app.config.@"window-theme" = .dark;
+
+    // A preview runs the chrome in the accent and keeps the config it left.
+    try host.previewPaletteAccent(.teal);
+    try std.testing.expect(host.palette_theme_preview_original != null);
+    try std.testing.expectEqual(configpkg.Config.WindowAccent.teal, app.config.@"window-accent");
+    if (!isHighContrastActive()) try std.testing.expectEqual(rgb(0x00, 0xB7, 0xC3), app.resolved_theme.accent);
+    // Another row replaces the preview; the original stays the first one.
+    try host.previewPaletteAccent(.gold);
+    try std.testing.expectEqual(configpkg.Config.WindowAccent.default, host.palette_theme_preview_original.?.@"window-accent");
+    // The current accent's row shows the config as it was.
+    try host.previewPaletteAccent(.default);
+    try std.testing.expect(host.palette_theme_preview_original == null);
+    try std.testing.expectEqual(configpkg.Config.WindowAccent.default, app.config.@"window-accent");
+    if (!isHighContrastActive()) try std.testing.expectEqual(darkTheme().accent, app.resolved_theme.accent);
+
+    // Saving goes through the Settings save path; recovery mode saves the
+    // file without touching the running config, which keeps this offline.
+    app.safe_mode = true;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 13\n" });
+    const target = try tmp.dir.realpathAlloc(alloc, "config");
+    defer alloc.free(target);
+    app.startup_cwd = target;
+    defer app.startup_cwd = null;
+    app.cli_config_override_path = target;
+    defer app.cli_config_override_path = null;
+    try host.commitPaletteAccent(.teal);
+    try std.testing.expectEqualStrings("Accent color saved; restart Najm to apply it.", host.banner_text.?);
+    const saved = try tmp.dir.readFileAlloc(alloc, "config", 4096);
+    defer alloc.free(saved);
+    try std.testing.expect(std.mem.indexOf(u8, saved, "window-accent = teal") != null);
+    try std.testing.expect(std.mem.indexOf(u8, saved, "font-size = 13") != null);
+}
+
+test "win32 palette pick wording names what was picked" {
+    const theme = Host.PalettePick.words(.{ .theme = "x" });
+    const accent = Host.PalettePick.words(.{ .accent = .teal });
+    try std.testing.expectEqualStrings("Theme applied", theme.notice(false, false));
+    try std.testing.expectEqualStrings("Accent color applied", accent.notice(false, false));
+    try std.testing.expectEqualStrings(accent.masked, accent.notice(true, true));
+    try std.testing.expectEqualStrings(accent.restart, accent.notice(false, true));
+    try std.testing.expect(std.mem.indexOf(u8, Host.PalettePick.failureMessage(.{ .accent = .teal }, error.DiskChanged), "Reload") != null);
+}
+
 test "win32 desiredTabIndex cycles and clamps" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
