@@ -2426,6 +2426,19 @@ keybind: Keybinds = .{},
 /// Supported in the Windows-only fork.
 @"window-accent-color": ?Color = null,
 
+/// The terminal's text color, over the theme's and `foreground`'s:
+///
+///   * `theme` - keep the theme's text color (or `foreground`). Default.
+///   * a plain color: `white`, `soft-white`, `silver`, `gray`, `black`,
+///     `ink`, `green` (phosphor), `amber`, `yellow`, `orange`, `pink`,
+///     `lavender`, `blue`, `cyan` or `mint`.
+///
+/// Only the default text color changes: colors a program sets, and the
+/// 256-color palette, stay as they are.
+///
+/// Supported in the Windows-only fork.
+@"text-color": TextColor = .theme,
+
 /// The color space to use when interpreting terminal colors. "Terminal colors"
 /// refers to colors specified in your configuration and colors produced by
 /// direct-color SGR sequences.
@@ -5210,6 +5223,9 @@ pub fn finalize(self: *Config) !void {
     }
 
     const alloc = self._arena.?.allocator();
+
+    // After the theme, which may set `foreground`: a chosen text color wins.
+    if (self.@"text-color".color()) |text| self.foreground = text;
 
     // Used for a variety of defaults. See the function docs as well the
     // specific variable use sites for more details.
@@ -12349,6 +12365,48 @@ pub const WindowAccent = enum {
     graphite,
 };
 
+/// See text-color
+pub const TextColor = enum {
+    theme,
+    white,
+    @"soft-white",
+    silver,
+    gray,
+    black,
+    ink,
+    green,
+    amber,
+    yellow,
+    orange,
+    pink,
+    lavender,
+    blue,
+    cyan,
+    mint,
+
+    /// The color it puts over `foreground`; null keeps the theme's.
+    pub fn color(self: TextColor) ?Color {
+        return switch (self) {
+            .theme => null,
+            .white => .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
+            .@"soft-white" => .{ .r = 0xE6, .g = 0xE6, .b = 0xE6 },
+            .silver => .{ .r = 0xC0, .g = 0xC0, .b = 0xC0 },
+            .gray => .{ .r = 0x9D, .g = 0xA5, .b = 0xB4 },
+            .black => .{ .r = 0x00, .g = 0x00, .b = 0x00 },
+            .ink => .{ .r = 0x24, .g = 0x29, .b = 0x2F },
+            .green => .{ .r = 0x33, .g = 0xFF, .b = 0x66 },
+            .amber => .{ .r = 0xFF, .g = 0xB0, .b = 0x00 },
+            .yellow => .{ .r = 0xF2, .g = 0xE3, .b = 0x7A },
+            .orange => .{ .r = 0xFF, .g = 0x9E, .b = 0x57 },
+            .pink => .{ .r = 0xFF, .g = 0x8A, .b = 0xC9 },
+            .lavender => .{ .r = 0xC3, .g = 0xA6, .b = 0xFF },
+            .blue => .{ .r = 0x6C, .g = 0xB6, .b = 0xFF },
+            .cyan => .{ .r = 0x4F, .g = 0xD6, .b = 0xE8 },
+            .mint => .{ .r = 0x7E, .g = 0xE7, .b = 0xB8 },
+        };
+    }
+};
+
 /// See window-colorspace
 pub const WindowColorspace = enum {
     srgb,
@@ -14456,4 +14514,18 @@ test "Windows safe mode swaps only the automatic command for cmd.exe" {
     explicit.command = .{ .shell = "pwsh.exe" };
     try explicit.useWindowsRecoveryCommand();
     try testing.expectEqualStrings("pwsh.exe", explicit.command.?.shell);
+}
+
+test "text-color puts its plain color over the theme's foreground, and theme keeps it" {
+    var cfg = try Config.default(std.testing.allocator);
+    defer cfg.deinit();
+    const theme_fg = cfg.foreground;
+    try cfg.finalize();
+    try std.testing.expectEqual(theme_fg, cfg.foreground);
+    cfg.@"text-color" = .amber;
+    try cfg.finalize();
+    try std.testing.expectEqual(Color{ .r = 0xFF, .g = 0xB0, .b = 0x00 }, cfg.foreground);
+    for (std.enums.values(TextColor)) |choice| {
+        try std.testing.expectEqual(choice == .theme, choice.color() == null);
+    }
 }

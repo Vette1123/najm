@@ -648,6 +648,7 @@ const field_adapters = .{
     .combo_link_previews = comboAdapter(.link_previews),
     .combo_window_theme = comboAdapter(.window_theme),
     .combo_window_accent = comboAdapter(.window_accent),
+    .combo_text_color = comboAdapter(.text_color),
     .combo_shell_integ = comboAdapter(.shell_integration),
     .combo_cursor_style = comboAdapter(.cursor_style),
     .chk_bg_blur = FieldAdapter{ .display = SettingsWindow.displayBgBlurInCheckbox, .changed = SettingsWindow.syncBgBlurFromCheckbox },
@@ -712,7 +713,7 @@ pub const editable_keys = .{
     Config.Key.@"shell-integration",      Config.Key.@"cursor-style",      Config.Key.@"background-blur",
     Config.Key.@"window-padding-balance", Config.Key.@"auto-update",       Config.Key.@"auto-update-channel",
     Config.Key.@"font-family",            Config.Key.theme,                Config.Key.command,
-    Config.Key.@"default-profile",        Config.Key.@"window-accent",
+    Config.Key.@"default-profile",        Config.Key.@"window-accent", Config.Key.@"text-color",
 };
 
 /// Scalar EDIT controls whose raw text can temporarily be invalid and
@@ -2104,8 +2105,8 @@ pub const SettingsWindow = struct {
     /// navigation key arrives. The native EDIT / COMBOBOX / BUTTON
     /// children already behave this way through the dialog manager.
     focus_input_mode: focus_cue.InputMode = .pointer,
-    /// The pointer is over the Accent color field (`paintAccentField`).
-    accent_field_hot: bool = false,
+    /// The swatch dropdown the pointer is over (`paintAccentField`).
+    swatch_field_hot: ?HWND = null,
     section_uia_group: ?*win32_uia.SettingsSectionGroupProvider = null,
     section_uia_providers: [section_count]?*win32_uia.SettingsSectionProvider = [_]?*win32_uia.SettingsSectionProvider{null} ** section_count,
     btn_save: ?HWND = null,
@@ -3269,8 +3270,8 @@ pub const SettingsWindow = struct {
     fn drawAccentItem(self: *const SettingsWindow, lParam: LPARAM) bool {
         const dis: *const sys.DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
         if (dis.CtlType != ODT_COMBOBOX) return false;
-        const combo = self.fields.combo_window_accent orelse return false;
-        if (dis.hwndItem != combo) return false;
+        const combo = dis.hwndItem;
+        if (!self.isSwatchCombo(combo)) return false;
         // The combo redraws its closed field this way, outside WM_PAINT, when
         // its selection or focus changes: send that to `paintAccentField`.
         if (dis.itemState & ODS_COMBOBOXEDIT != 0) {
@@ -3290,10 +3291,28 @@ pub const SettingsWindow = struct {
         return true;
     }
 
+    /// The dropdowns whose items show a colour swatch: Accent color and Text color.
+    fn isSwatchCombo(self: *const SettingsWindow, combo: HWND) bool {
+        return self.fields.combo_window_accent == combo or self.fields.combo_text_color == combo;
+    }
+
+    /// The swatch colour of `combo`'s choice `index`, or null for none.
+    fn choiceSwatch(self: *const SettingsWindow, combo: HWND, index: usize) ?u32 {
+        const colors = self.theme_adapter.colors;
+        if (self.fields.combo_text_color == combo) {
+            const text = field_model.Combo(.text_color).fromIndex(@intCast(index)) orelse return null;
+            // Theme: the theme's own text colour, which Settings does not know;
+            // its text colour stands in.
+            const color = text.color() orelse return colors.text;
+            return win32_theme.rgb(color.r, color.g, color.b);
+        }
+        const accent = field_model.Combo(.window_accent).fromIndex(@intCast(index)) orelse return null;
+        return win32_theme.windowAccentSwatch(accent, colors.is_dark, win32_theme.systemAccentColor());
+    }
+
     /// A round swatch of choice `index`'s colour, then its name, in `row`.
     fn paintAccentChoice(self: *const SettingsWindow, hdc: HDC, combo: HWND, row: RECT, index: usize, text_color: COLORREF) void {
-        const accent = field_model.Combo(.window_accent).fromIndex(@intCast(index)) orelse return;
-        const swatch = win32_theme.windowAccentSwatch(accent, self.theme_adapter.colors.is_dark, win32_theme.systemAccentColor());
+        const swatch = self.choiceSwatch(combo, index) orelse return;
         const layout = accentItemLayout(row, self.px(8), self.px(14));
         gdi.drawRoundedRect(hdc, layout.swatch, swatch, gdi.blendColorRGB(swatch, text_color, 0.3), layout.swatch.right - layout.swatch.left);
 
@@ -3325,7 +3344,7 @@ pub const SettingsWindow = struct {
         const colors = self.theme_adapter.colors;
         const disabled = sys.IsWindowEnabled(combo) == 0;
         const dropped = SendMessageW(combo, CB_GETDROPPEDSTATE, 0, 0) != 0;
-        const state = accentFieldState(disabled, dropped, self.accent_field_hot);
+        const state = accentFieldState(disabled, dropped, self.swatch_field_hot == combo);
         // The themed field has rounded corners: what shows through them is the
         // viewport behind, painted first.
         _ = DrawThemeParentBackground(combo, hdc, &rect);
@@ -6525,8 +6544,8 @@ pub const SettingsWindow = struct {
                 if (comptime item.control_index < field_model.form_fields.len) {
                     const row = comptime field_model.form_fields[item.control_index];
                     @field(self.fields, spec.binding) = switch (comptime row.kind()) {
-                        // The accent list shows each colour beside its name (`drawAccentItem`).
-                        .choice => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &field_model.Combo(row.field.?).labels, style | if (row.field.? == .window_accent) CBS_OWNERDRAWFIXED else 0),
+                        // The accent and text colour lists show each colour beside its name (`drawAccentItem`).
+                        .choice => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &field_model.Combo(row.field.?).labels, style | if (row.field.? == .window_accent or row.field.? == .text_color) CBS_OWNERDRAWFIXED else 0),
                         // Its items come from the app's profiles when it is shown.
                         .profile => makeCombo(form, hinstance, spec.id, settings_combo_popup_height, &.{}, style),
                         .boolean, .blur => makeCheckbox(form, hinstance, spec.id, std.unicode.utf8ToUtf16LeStringLiteral(spec.caption.?), style),
@@ -7957,12 +7976,12 @@ test "settings open and a first visit create each window once in its final form"
                 Work.print(&tree);
             }
             // The frame, its 18 children (one is the viewport, one the search
-            // field), and in the viewport the help text and Appearance's 11
-            // fields and 10 labels. The other sections' 31 rows are made when
+            // field), and in the viewport the help text and Appearance's 12
+            // fields and 11 labels. The other sections' 31 rows are made when
             // they are first shown. The status line also carries the close
             // prompt's question, and one "Discard changes" serves the bar and
             // the prompt.
-            try std.testing.expectEqual(@as(usize, 41), tree.len);
+            try std.testing.expectEqual(@as(usize, 43), tree.len);
             for (tree.slice()) |hwnd| {
                 const counts = Work.of(hwnd);
                 try std.testing.expectEqual(@as(u16, 1), counts.created);
@@ -8026,7 +8045,7 @@ test "settings open and a first visit create each window once in its final form"
             try std.testing.expectEqual(@as(usize, 0), Work.created().len);
             // Every section shown: the whole form, and still one font build.
             for (std.enums.values(Section)) |section| settings.setActiveSection(section);
-            try std.testing.expectEqual(@as(usize, 74), Work.Tree.of(fixture.hwnd()).len);
+            try std.testing.expectEqual(@as(usize, 76), Work.Tree.of(fixture.hwnd()).len);
             try std.testing.expectEqual(@as(u32, 1), settings.font_builds);
             try std.testing.expectEqual(@as(u32, 0), settings.theme_applications);
         }
@@ -8094,7 +8113,7 @@ test "settings sections shown in any order leave the window as one made whole at
             // Every window in the same z-order, with the same styles, place,
             // client area, check, dropdown heights, text and font, and every
             // field and text with its UIA provider.
-            try std.testing.expectEqual(@as(usize, 74), states[0].len);
+            try std.testing.expectEqual(@as(usize, 76), states[0].len);
             try State.expectSame(&states[0], &states[1]);
             try std.testing.expectEqual(providers[0], providers[1]);
             for (providers[1]) |provided| try std.testing.expect(provided);
@@ -12422,7 +12441,7 @@ test "settings display-only text row needs no persistence adapter" {
             try std.testing.expectEqual(@as(LONG_PTR, 499), sys.GetWindowLongPtrW(control, -12));
             try std.testing.expect(sys.GetWindowLongPtrW(control, GWL_STYLE) & WS_TABSTOP == 0);
             try std.testing.expect(sys.IsWindowEnabled(fixture.settings.btn_save.?) == 0);
-            try std.testing.expectEqual(@as(usize, 26), editable_keys.len);
+            try std.testing.expectEqual(@as(usize, 27), editable_keys.len);
         }
     }.body);
 }
@@ -13895,7 +13914,7 @@ test "settings UIA checkbox and combo actions update the draft and discard resto
                 }
             }
             try std.testing.expectEqual(@as(usize, 5), checks);
-            try std.testing.expectEqual(@as(usize, 14), combos);
+            try std.testing.expectEqual(@as(usize, 15), combos);
             const retired = settings.control_uia_providers[settings.controlIndex(settings.fields.chk_trim_trail.?).?].?;
             retired.detach();
             try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, retired.toggle_iface.vtbl.Toggle(&retired.toggle_iface));
@@ -15421,14 +15440,14 @@ fn settingsComboProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
     if (sys.GetWindowLongPtrW(hwnd, GWL_STYLE) & CBS_OWNERDRAWFIXED != 0) {
         if (sys.GetParent(hwnd)) |parent| if (recoverOwner(parent)) |owner| switch (msg) {
             WM_PAINT => if (owner.paintAccentField(hwnd)) return 0,
-            WM_MOUSEMOVE => if (!owner.accent_field_hot) {
-                owner.accent_field_hot = true;
+            WM_MOUSEMOVE => if (owner.swatch_field_hot != hwnd) {
+                owner.swatch_field_hot = hwnd;
                 var tracking: TRACKMOUSEEVENT = .{ .cbSize = @sizeOf(TRACKMOUSEEVENT), .dwFlags = TME_LEAVE, .hwndTrack = hwnd, .dwHoverTime = 0 };
                 _ = TrackMouseEvent(&tracking);
                 _ = InvalidateRect(hwnd, null, 0);
             },
             WM_MOUSELEAVE => {
-                owner.accent_field_hot = false;
+                if (owner.swatch_field_hot == hwnd) owner.swatch_field_hot = null;
                 _ = InvalidateRect(hwnd, null, 0);
             },
             WM_SETFOCUS, WM_KILLFOCUS => _ = InvalidateRect(hwnd, null, 0),

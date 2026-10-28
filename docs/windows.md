@@ -1662,6 +1662,26 @@ window-accent = teal
 window-accent-color = #ff6f61
 ```
 
+The terminal's text color can be a plain color over the theme's:
+`text-color` is `theme` (the default, the theme's own or `foreground`) or one
+of `white`, `soft-white`, `silver`, `gray`, `black`, `ink`, `green`
+(phosphor), `amber`, `yellow`, `orange`, `pink`, `lavender`, `blue`, `cyan`
+and `mint`. Only the default text color changes; colors a program sets stay.
+Settings offers it under Appearance, Text color, each with a swatch.
+
+```ini
+text-color = white
+```
+
+Settings' Terminal theme field has a dropdown: its chevron, Alt+Down or F4
+lists Default theme and every installed theme, grouped by first letter when
+there are more than 24, with the current one checked. A typed name, absolute
+path or `light:...,dark:...` pair still works.
+
+The tab row has a command palette button (a magnifier) and a Settings button
+(a gear) to the right of `+` and the dropdown chevron. They join the tab
+strip's Tab order and have tooltips and UI Automation names.
+
 The dark caption is chosen at runtime, not by build number:
 `DWMWA_USE_IMMERSIVE_DARK_MODE` (20) is tried first and the legacy attribute
 (19) is used when DWM rejects it. Windows 11 additionally gets an integrated
