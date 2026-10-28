@@ -8052,7 +8052,7 @@ pub const App = struct {
         return internal_os.path.isNetworkOrDevicePath(path);
     }
 
-    fn openConfig(self: *App) !void {
+    pub fn openConfig(self: *App) !void {
         // Route to the in-app settings window. Users who prefer a text
         // editor can still reach `config.ghostty` via the Advanced
         // section's "Open in default editor" button.

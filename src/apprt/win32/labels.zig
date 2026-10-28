@@ -318,14 +318,17 @@ pub fn tabContextMenuRestoresStripFocus(from_keyboard: bool, overlay_open: bool)
     return from_keyboard and !overlay_open;
 }
 
-/// What the tab strip's two action buttons are called to UIA and in their
-/// hover tooltips, so the two always agree.
-pub const TabStripAction = enum { new_tab, more_tabs };
+/// What the tab strip's action buttons are called to UIA and in their hover
+/// tooltips, so the two always agree. The order is their Tab order, left to
+/// right, and the UIA tag is the ordinal.
+pub const TabStripAction = enum { new_tab, more_tabs, command_palette, settings };
 
 pub fn tabStripActionName(action: TabStripAction) []const u8 {
     return switch (action) {
         .new_tab => "New tab",
         .more_tabs => "More tabs",
+        .command_palette => "Command palette",
+        .settings => "Settings",
     };
 }
 
@@ -4358,6 +4361,8 @@ test "win32 tab strip action names are the UIA names the tooltips show" {
 
     try std.testing.expectEqualStrings("New tab", tabStripActionName(.new_tab));
     try std.testing.expectEqualStrings("More tabs", tabStripActionName(.more_tabs));
+    try std.testing.expectEqualStrings("Command palette", tabStripActionName(.command_palette));
+    try std.testing.expectEqualStrings("Settings", tabStripActionName(.settings));
 }
 
 test "win32 moveTabAmountToEdge computes direct host reorder delta" {

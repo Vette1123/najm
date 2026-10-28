@@ -998,6 +998,8 @@ const titlebar_glyph_restore = std.unicode.utf8ToUtf16LeStringLiteral("\u{E923}"
 const titlebar_glyph_close = std.unicode.utf8ToUtf16LeStringLiteral("\u{E8BB}");
 const titlebar_glyph_new_tab = std.unicode.utf8ToUtf16LeStringLiteral("\u{E710}");
 const titlebar_glyph_dropdown = std.unicode.utf8ToUtf16LeStringLiteral("\u{E70D}");
+const titlebar_glyph_command_palette = std.unicode.utf8ToUtf16LeStringLiteral("\u{E721}");
+const titlebar_glyph_settings = std.unicode.utf8ToUtf16LeStringLiteral("\u{E713}");
 
 pub const GlobalHotkeySpec = win32_input.GlobalHotkeySpec;
 pub const RegisteredGlobalHotkey = win32_input.RegisteredGlobalHotkey;
@@ -3965,6 +3967,8 @@ pub const TitlebarButtonRole = enum {
     close,
     new_tab,
     dropdown,
+    command_palette,
+    settings,
 };
 
 pub const TitlebarGlyphKind = enum {
@@ -3974,6 +3978,8 @@ pub const TitlebarGlyphKind = enum {
     close,
     new_tab,
     dropdown,
+    command_palette,
+    settings,
 };
 
 const TitlebarButtonVisual = struct {
@@ -3989,6 +3995,8 @@ fn titlebarGlyphCodepoint(kind: TitlebarGlyphKind) u16 {
         .close => 0xE8BB,
         .new_tab => 0xE710,
         .dropdown => 0xE70D,
+        .command_palette => 0xE721,
+        .settings => 0xE713,
     };
 }
 
@@ -4000,6 +4008,8 @@ fn titlebarGlyphText(kind: TitlebarGlyphKind) [*:0]const u16 {
         .close => titlebar_glyph_close,
         .new_tab => titlebar_glyph_new_tab,
         .dropdown => titlebar_glyph_dropdown,
+        .command_palette => titlebar_glyph_command_palette,
+        .settings => titlebar_glyph_settings,
     };
 }
 
@@ -4011,6 +4021,8 @@ fn titlebarFallbackIcon(kind: TitlebarGlyphKind) win32_icons.Kind {
         .close => .close,
         .new_tab => .plus,
         .dropdown => .arrow_down,
+        .command_palette => .search,
+        .settings => .settings,
     };
 }
 
@@ -4311,20 +4323,20 @@ pub fn titlebarButtonVisual(
     }
 
     const idle_glyph = win32_theme.windowChromeTextColor(theme, switch (role) {
-        .new_tab, .dropdown => theme.button_chrome_fg,
+        .new_tab, .dropdown, .command_palette, .settings => theme.button_chrome_fg,
         else => theme.text_primary,
     }, window_active, high_contrast);
     if (!active) return .{ .bg = null, .glyph = idle_glyph };
 
     const target_bg = switch (role) {
         .close => rgb(0xC4, 0x2B, 0x1C),
-        .minimize, .maximize, .new_tab, .dropdown => titlebarSubtleFill(parent_bg, theme.is_dark, pressed),
+        .minimize, .maximize, .new_tab, .dropdown, .command_palette, .settings => titlebarSubtleFill(parent_bg, theme.is_dark, pressed),
         .none => parent_bg,
     };
     const target_glyph = switch (role) {
         .close => if (pressed) blendColorRGB(target_bg, rgb(0xFF, 0xFF, 0xFF), 0.70) else rgb(0xFF, 0xFF, 0xFF),
         .minimize, .maximize => theme.text_primary,
-        .new_tab, .dropdown => theme.text_primary,
+        .new_tab, .dropdown, .command_palette, .settings => theme.text_primary,
         .none => idle_glyph,
     };
 
@@ -12427,6 +12439,16 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                         v.showOverflowMenu();
                         return 0;
                     },
+                    1916 => {
+                        if (v.activeSurface()) |surface| {
+                            runUiActionOrLog("titlebar command palette failed", surface.toggleCommandPalette());
+                        }
+                        return 0;
+                    },
+                    1917 => {
+                        v.app.openConfig() catch |err| logUiActionError("titlebar settings failed", err);
+                        return 0;
+                    },
                     else => {},
                 }
                 for (v.tabs.items, 0..) |*tab, i| {
@@ -20438,6 +20460,8 @@ test "win32 layoutChromeForRect hides tab-strip chrome when the tab bar is off" 
     host.tab_container_hwnd = try createTestChromeChild(hwnd, prompt_label_class);
     host.new_tab_hwnd = try createTestChromeChild(hwnd, prompt_button_class);
     host.overflow_hwnd = try createTestChromeChild(hwnd, prompt_button_class);
+    host.palette_button_hwnd = try createTestChromeChild(hwnd, prompt_button_class);
+    host.settings_button_hwnd = try createTestChromeChild(hwnd, prompt_button_class);
 
     const rect: RECT = .{ .left = 0, .top = 0, .right = 800, .bottom = 600 };
     var changed = false;
@@ -20454,6 +20478,8 @@ test "win32 layoutChromeForRect hides tab-strip chrome when the tab bar is off" 
         host.tab_container_hwnd.?,
         host.new_tab_hwnd.?,
         host.overflow_hwnd.?,
+        host.palette_button_hwnd.?,
+        host.settings_button_hwnd.?,
     };
     for (strip) |child| try std.testing.expectEqual(@as(i32, 0), sys.IsWindowVisible(child));
     // A hidden button is not a focus-cycle target either.
@@ -20476,6 +20502,17 @@ test "win32 layoutChromeForRect hides tab-strip chrome when the tab bar is off" 
     var button_rect: RECT = undefined;
     try std.testing.expect(sys.GetWindowRect(strip[0], &button_rect) != 0);
     try std.testing.expect(button_rect.bottom - button_rect.top > 1);
+    // Left to right: the last tab, [+], [v], then the palette and Settings
+    // buttons, none overlapping, all inside the window.
+    var previous_right: i32 = button_rect.right;
+    for (strip[2..]) |child| {
+        var child_rect: RECT = undefined;
+        try std.testing.expect(sys.GetWindowRect(child, &child_rect) != 0);
+        try std.testing.expect(child_rect.left >= previous_right);
+        try std.testing.expect(child_rect.right - child_rect.left > 0);
+        previous_right = child_rect.right;
+    }
+    try std.testing.expect(previous_right <= host_rect.left + 800);
 }
 
 pub const createTestChromeChild = test_support.createTestChromeChild;
@@ -26456,6 +26493,8 @@ test "win32 titlebar glyph mapping uses Win11 glyph codepoints" {
     try std.testing.expectEqual(@as(u16, 0xE8BB), titlebarGlyphCodepoint(.close));
     try std.testing.expectEqual(@as(u16, 0xE710), titlebarGlyphCodepoint(.new_tab));
     try std.testing.expectEqual(@as(u16, 0xE70D), titlebarGlyphCodepoint(.dropdown));
+    try std.testing.expectEqual(@as(u16, 0xE721), titlebarGlyphCodepoint(.command_palette));
+    try std.testing.expectEqual(@as(u16, 0xE713), titlebarGlyphCodepoint(.settings));
 }
 
 /// A face no machine has. GDI still creates a font for it, from a substitute.

@@ -314,6 +314,16 @@ const host_tab_new_button_label = std.unicode.utf8ToUtf16LeStringLiteral("+");
 
 const host_tab_dropdown_button_label = std.unicode.utf8ToUtf16LeStringLiteral("\u{25BE}"); // dropdown chevron
 
+const host_tab_palette_button_label = std.unicode.utf8ToUtf16LeStringLiteral("Command palette");
+
+const host_tab_settings_button_label = std.unicode.utf8ToUtf16LeStringLiteral("Settings");
+
+/// The gap between two tab-strip action buttons, and the wider one between
+/// the tab actions [+][v] and the app actions (palette, Settings).
+const tab_strip_action_gap: i32 = 4;
+
+const tab_strip_action_group_gap: i32 = 12;
+
 const titlebar_hover_fade_ms: u16 = 150;
 
 /// An even status key cannot collide with a program status's odd hash.
@@ -530,6 +540,13 @@ pub const Host = struct {
     new_tab_hwnd: ?HWND = null,
     new_tab_uia_provider: ?*win32_uia.ChromeControlProvider = null,
     new_tab_placement: ChildPlacement = .{},
+    /// The command palette and Settings buttons at the right of the tab row.
+    palette_button_hwnd: ?HWND = null,
+    palette_button_uia_provider: ?*win32_uia.ChromeControlProvider = null,
+    palette_button_placement: ChildPlacement = .{},
+    settings_button_hwnd: ?HWND = null,
+    settings_button_uia_provider: ?*win32_uia.ChromeControlProvider = null,
+    settings_button_placement: ChildPlacement = .{},
     overlay_label_placement: ChildPlacement = .{},
     /// Where the confirm title's text sits inside its child window.
     /// Written by `layout`, read by the owner-draw handler.
@@ -2699,6 +2716,8 @@ pub const Host = struct {
         detachChromeControlProvider(self.app, &self.tab_container_uia_provider);
         detachChromeControlProvider(self.app, &self.new_tab_uia_provider);
         detachChromeControlProvider(self.app, &self.overflow_uia_provider);
+        detachChromeControlProvider(self.app, &self.palette_button_uia_provider);
+        detachChromeControlProvider(self.app, &self.settings_button_uia_provider);
         detachChromeControlProvider(self.app, &self.banner_uia_provider);
         for (&self.banner_button_uia_providers) |*provider| detachChromeControlProvider(self.app, provider);
 
@@ -2754,6 +2773,8 @@ pub const Host = struct {
         self.chrome_button_prev_proc = null;
         destroySubclassedWindowWithPrev(&self.new_tab_hwnd, chrome_prev);
         destroySubclassedWindowWithPrev(&self.overflow_hwnd, chrome_prev);
+        destroySubclassedWindowWithPrev(&self.palette_button_hwnd, chrome_prev);
+        destroySubclassedWindowWithPrev(&self.settings_button_hwnd, chrome_prev);
         for (&self.banner_buttons) |*button| destroySubclassedWindowWithPrev(button, chrome_prev);
         destroySubclassedWindow(&self.banner_hwnd, &self.banner_prev_proc);
         destroySubclassedWindow(&self.tab_container_hwnd, &self.tab_container_prev_proc);
@@ -3029,11 +3050,10 @@ pub const Host = struct {
     }
 
     /// The name an icon-only chrome button's hover tooltip spells out: the
-    /// search bar's six buttons and the tab strip's [+] and [v]. It is the
+    /// search bar's six buttons and the tab strip's action buttons. It is the
     /// button's UIA name, from the same tables, so the two always agree.
     pub fn chromeButtonTooltipName(self: *const Host, button: HWND) ?[]const u8 {
-        if (self.new_tab_hwnd == button) return labels.tabStripActionName(.new_tab);
-        if (self.overflow_hwnd == button) return labels.tabStripActionName(.more_tabs);
+        if (self.tabStripActionOf(button)) |action| return labels.tabStripActionName(action);
         const role = self.searchBarButtonRole(button) orelse return null;
         return labels.searchBarButtonName(role);
     }
@@ -3741,7 +3761,7 @@ pub const Host = struct {
         try std.testing.expectEqual(first_left, host.tabs.items[0].button_placement.rect.left);
     }
 
-    test "Tab and Shift+Tab walk the tab strip's visible tabs, [+] and [v]; the menu key's release is swallowed" {
+    test "Tab and Shift+Tab walk the tab strip's visible tabs and action buttons; the menu key's release is swallowed" {
         if (builtin.os.tag != .windows) return error.SkipZigTest;
         try runOnPrivateDesktop(tabStripKeyboardTestBody);
     }
@@ -3787,17 +3807,22 @@ pub const Host = struct {
         // The stops the walk has to visit, read from live visibility.
         var stops: [8]HWND = undefined;
         var count: usize = 0;
-        for (0..host.tabs.items.len + 2) |stop| {
+        for (0..host.tabs.items.len + std.enums.values(labels.TabStripAction).len) |stop| {
             if (host.tabStripStopHwnd(stop)) |stop_hwnd| {
                 stops[count] = stop_hwnd;
                 count += 1;
             }
         }
-        // All three tabs are on screen, in order, and [+] / [v] follow.
-        try std.testing.expect(count >= 3);
+        // All three tabs are on screen, in order, and [+], [v], the palette
+        // and Settings buttons follow.
+        try std.testing.expectEqual(@as(usize, 7), count);
         for (host.tabs.items, 0..) |tab, i| {
             try std.testing.expectEqual(tab.button_hwnd.?, stops[i]);
         }
+        try std.testing.expectEqual(host.new_tab_hwnd.?, stops[3]);
+        try std.testing.expectEqual(host.overflow_hwnd.?, stops[4]);
+        try std.testing.expectEqual(host.palette_button_hwnd.?, stops[5]);
+        try std.testing.expectEqual(host.settings_button_hwnd.?, stops[6]);
 
         // Forward: each Tab lands on the next stop and wraps at the end.
         const keyboard = win32_input.TestingKeyboard.pinNone();
@@ -3852,6 +3877,8 @@ pub const Host = struct {
         // [+] and [v] name themselves for the tooltip as UIA does; a tab does not.
         try std.testing.expectEqualStrings("New tab", host.chromeButtonTooltipName(host.new_tab_hwnd.?).?);
         try std.testing.expectEqualStrings("More tabs", host.chromeButtonTooltipName(host.overflow_hwnd.?).?);
+        try std.testing.expectEqualStrings("Command palette", host.chromeButtonTooltipName(host.palette_button_hwnd.?).?);
+        try std.testing.expectEqualStrings("Settings", host.chromeButtonTooltipName(host.settings_button_hwnd.?).?);
         try std.testing.expect(host.chromeButtonTooltipName(host.tabs.items[0].button_hwnd.?) == null);
 
         // The menu key opens the menu on its key-down; its release must not
@@ -5010,6 +5037,9 @@ pub const Host = struct {
     }
 
     fn titlebarActionButtonRole(self: *Host, child: HWND) TitlebarButtonRole {
+        // The palette and Settings buttons are icon-only in every chrome style.
+        if (self.palette_button_hwnd != null and child == self.palette_button_hwnd.?) return .command_palette;
+        if (self.settings_button_hwnd != null and child == self.settings_button_hwnd.?) return .settings;
         if (!self.usingIntegratedTitlebar()) return .none;
         if (self.new_tab_hwnd != null and child == self.new_tab_hwnd.?) return .new_tab;
         if (self.overflow_hwnd != null and child == self.overflow_hwnd.?) return .dropdown;
@@ -5032,6 +5062,12 @@ pub const Host = struct {
             },
             .dropdown => {
                 if (self.overflow_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+            },
+            .command_palette => {
+                if (self.palette_button_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+            },
+            .settings => {
+                if (self.settings_button_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
             },
             .none => {},
         }
@@ -5964,6 +6000,8 @@ pub const Host = struct {
             host.tab_container_prev_proc = null;
             host.new_tab_hwnd = null;
             host.overflow_hwnd = null;
+            host.palette_button_hwnd = null;
+            host.settings_button_hwnd = null;
             host.chrome_button_prev_proc = null;
         }
     };
@@ -6870,7 +6908,7 @@ pub const Host = struct {
     }
 
     fn hostActionUiaName(_: *anyopaque, tag: usize, _: []u8) []const u8 {
-        return labels.tabStripActionName(if (tag == 0) .new_tab else .more_tabs);
+        return labels.tabStripActionName(std.enums.fromInt(labels.TabStripAction, tag) orelse .new_tab);
     }
 
     pub fn bannerUiaName(ctx: *anyopaque, _: usize, buf: []u8) []const u8 {
@@ -7029,53 +7067,10 @@ pub const Host = struct {
             });
         }
 
-        if (self.new_tab_hwnd == null) {
-            self.new_tab_hwnd = sys.CreateWindowExW(
-                0,
-                prompt_button_class,
-                host_tab_new_button_label,
-                c.WS_CHILD | c.WS_VISIBLE | c.WS_TABSTOP | c.BS_OWNERDRAW,
-                0,
-                0,
-                host_tab_small_button_width,
-                host_tab_height - 8,
-                hwnd,
-                @ptrFromInt(1904),
-                self.app.hinstance,
-                null,
-            ) orelse return lastError();
-            self.subclassButton(self.new_tab_hwnd.?, &hostButtonProc, &self.chrome_button_prev_proc);
-            self.new_tab_uia_provider = self.createChromeUiaProvider(self.new_tab_hwnd.?, .{
-                .ctx = @ptrCast(self),
-                .role = .button,
-                .tag = 0,
-                .name = &hostActionUiaName,
-            });
-        }
-
-        if (self.overflow_hwnd == null) {
-            self.overflow_hwnd = sys.CreateWindowExW(
-                0,
-                prompt_button_class,
-                host_tab_dropdown_button_label,
-                c.WS_CHILD | c.WS_VISIBLE | c.WS_TABSTOP | c.BS_OWNERDRAW,
-                0,
-                0,
-                host_tab_overflow_button_width,
-                host_tab_height - 8,
-                hwnd,
-                @ptrFromInt(1911),
-                self.app.hinstance,
-                null,
-            ) orelse return lastError();
-            self.subclassButton(self.overflow_hwnd.?, &hostButtonProc, &self.chrome_button_prev_proc);
-            self.overflow_uia_provider = self.createChromeUiaProvider(self.overflow_hwnd.?, .{
-                .ctx = @ptrCast(self),
-                .role = .button,
-                .tag = 1,
-                .name = &hostActionUiaName,
-            });
-        }
+        try self.createTabStripActionButton(hwnd, .new_tab, host_tab_new_button_label, host_tab_small_button_width, 1904, &self.new_tab_hwnd, &self.new_tab_uia_provider);
+        try self.createTabStripActionButton(hwnd, .more_tabs, host_tab_dropdown_button_label, host_tab_overflow_button_width, 1911, &self.overflow_hwnd, &self.overflow_uia_provider);
+        try self.createTabStripActionButton(hwnd, .command_palette, host_tab_palette_button_label, host_tab_small_button_width, 1916, &self.palette_button_hwnd, &self.palette_button_uia_provider);
+        try self.createTabStripActionButton(hwnd, .settings, host_tab_settings_button_label, host_tab_small_button_width, 1917, &self.settings_button_hwnd, &self.settings_button_uia_provider);
 
         if (self.banner_hwnd == null) {
             // Painted by `paintBanner` from `hostBannerProc`; shown, placed
@@ -7625,12 +7620,66 @@ pub const Host = struct {
         return true;
     }
 
-    /// The stops of the tab strip in Tab order: each tab, then [+], then [v].
+    /// Create one of the tab strip's action buttons into `slot`, and its UIA
+    /// provider (tagged with the action's ordinal) into `provider`.
+    fn createTabStripActionButton(
+        self: *Host,
+        parent: HWND,
+        action: labels.TabStripAction,
+        label: [*:0]const u16,
+        width: i32,
+        id: usize,
+        slot: *?HWND,
+        provider: *?*win32_uia.ChromeControlProvider,
+    ) !void {
+        if (slot.* != null) return;
+        const button = sys.CreateWindowExW(
+            0,
+            prompt_button_class,
+            label,
+            c.WS_CHILD | c.WS_VISIBLE | c.WS_TABSTOP | c.BS_OWNERDRAW,
+            0,
+            0,
+            width,
+            host_tab_height - 8,
+            parent,
+            @ptrFromInt(id),
+            self.app.hinstance,
+            null,
+        ) orelse return lastError();
+        slot.* = button;
+        self.subclassButton(button, &hostButtonProc, &self.chrome_button_prev_proc);
+        provider.* = self.createChromeUiaProvider(button, .{
+            .ctx = @ptrCast(self),
+            .role = .button,
+            .tag = @intFromEnum(action),
+            .name = &hostActionUiaName,
+        });
+    }
+
+    /// The tab strip's action buttons, by `labels.TabStripAction`.
+    fn tabStripActionHwnd(self: *const Host, action: labels.TabStripAction) ?HWND {
+        return switch (action) {
+            .new_tab => self.new_tab_hwnd,
+            .more_tabs => self.overflow_hwnd,
+            .command_palette => self.palette_button_hwnd,
+            .settings => self.settings_button_hwnd,
+        };
+    }
+
+    fn tabStripActionOf(self: *const Host, button: HWND) ?labels.TabStripAction {
+        for (std.enums.values(labels.TabStripAction)) |action| {
+            if (self.tabStripActionHwnd(action) == button) return action;
+        }
+        return null;
+    }
+
+    /// The stops of the tab strip in Tab order: each tab, then each action
+    /// button ([+], [v], command palette, Settings).
     fn tabStripStopHwnd(self: *const Host, stop: usize) ?HWND {
         if (stop < self.tabs.items.len) return focusableHwnd(self.tabs.items[stop].button_hwnd);
-        if (stop == self.tabs.items.len) return focusableHwnd(self.new_tab_hwnd);
-        if (stop == self.tabs.items.len + 1) return focusableHwnd(self.overflow_hwnd);
-        return null;
+        const action = std.enums.fromInt(labels.TabStripAction, stop - self.tabs.items.len) orelse return null;
+        return focusableHwnd(self.tabStripActionHwnd(action));
     }
 
     fn tabStripStopAvailable(self: *const Host, stop: usize) bool {
@@ -7641,23 +7690,22 @@ pub const Host = struct {
         for (self.tabs.items, 0..) |tab, i| {
             if (tab.button_hwnd == button) return i;
         }
-        if (self.new_tab_hwnd == button) return self.tabs.items.len;
-        if (self.overflow_hwnd == button) return self.tabs.items.len + 1;
-        return null;
+        const action = self.tabStripActionOf(button) orelse return null;
+        return self.tabs.items.len + @intFromEnum(action);
     }
 
     fn isTabStripActionButton(self: *const Host, button: HWND) bool {
-        return self.new_tab_hwnd == button or self.overflow_hwnd == button;
+        return self.tabStripActionOf(button) != null;
     }
 
     /// Move keyboard focus one stop along the tab strip (each visible tab,
-    /// then [+] and [v], wrapping), from `from`. Focus only moves: Enter and
+    /// then each action button, wrapping), from `from`. Focus only moves: Enter and
     /// the arrow keys still activate. Each landing HWND raises its own UIA
     /// focus event from `WM_SETFOCUS`.
     pub fn stepTabStripFocus(self: *Host, from: HWND, reverse: bool) bool {
         const current = self.tabStripStopOf(from) orelse return false;
         const next = labels.nextFocusStop(
-            self.tabs.items.len + 2,
+            self.tabs.items.len + std.enums.values(labels.TabStripAction).len,
             current,
             reverse,
             @as(*const Host, self),
@@ -7901,8 +7949,7 @@ pub const Host = struct {
             }
         }
         if (self.tabIndexForButton(child) != null) return .tab_strip;
-        if (self.new_tab_hwnd) |hwnd| if (hwnd == child) return .tab_strip;
-        if (self.overflow_hwnd) |hwnd| if (hwnd == child) return .tab_strip;
+        if (self.tabStripActionOf(child) != null) return .tab_strip;
         if (self.bannerButtonOf(child) != null) return .banner;
         if (self.searchControlSurface(child) != null) return .search;
         return null;
@@ -8005,6 +8052,8 @@ pub const Host = struct {
     pub fn chromeUiaProviderForHwnd(self: *Host, child: HWND) ?*win32_uia.ChromeControlProvider {
         if (self.new_tab_hwnd == child) return self.new_tab_uia_provider;
         if (self.overflow_hwnd == child) return self.overflow_uia_provider;
+        if (self.palette_button_hwnd == child) return self.palette_button_uia_provider;
+        if (self.settings_button_hwnd == child) return self.settings_button_uia_provider;
         if (self.bannerButtonOf(child)) |button| return self.banner_button_uia_providers[@intFromEnum(button)];
         const surface = self.searchControlSurface(child) orelse return null;
         const role = surface.searchBarButtonRole(child) orelse return null;
@@ -8083,6 +8132,8 @@ pub const Host = struct {
         const glyph: TitlebarGlyphKind = switch (role) {
             .new_tab => .new_tab,
             .dropdown => .dropdown,
+            .command_palette => .command_palette,
+            .settings => .settings,
             else => return,
         };
         self.drawTitlebarGlyph(draw.hDC, draw.rcItem, glyph, visual.glyph, false);
@@ -8697,12 +8748,15 @@ pub const Host = struct {
     }
 
     pub fn rightButtonsWidth(self: *const Host) i32 {
+        // The gaps `layoutChromeForRect` puts between the four buttons, plus
+        // 8px of margin.
+        const gaps = self.scaled(tab_strip_action_gap * 2 + tab_strip_action_group_gap + 8);
         if (self.usingIntegratedTitlebar()) {
-            return self.scaled(host_titlebar_action_button_size) * 2 + self.scaled(12);
+            return self.scaled(host_titlebar_action_button_size) * 4 + gaps;
         }
-        return self.scaled(host_tab_small_button_width) + // new tab (+)
-            self.scaled(host_tab_overflow_button_width) + // dropdown chevron (▾)
-            self.scaled(12); // gap + margins
+        return self.scaled(host_tab_small_button_width) * 3 + // [+], palette, Settings
+            self.scaled(host_tab_overflow_button_width) + // dropdown chevron
+            gaps;
     }
 
     /// Pixels reserved for the 3 caption buttons (min / max / close)
@@ -9559,7 +9613,10 @@ pub const Host = struct {
         const background: u32 = 0x000000;
         for (std.enums.values(TitlebarGlyphKind)) |kind| {
             fillSolidRect(canvas.dc, rect, background);
-            host.drawTitlebarGlyph(canvas.dc, rect, kind, 0xFFFFFF, kind != .new_tab and kind != .dropdown);
+            host.drawTitlebarGlyph(canvas.dc, rect, kind, 0xFFFFFF, switch (kind) {
+                .minimize, .maximize, .restore, .close => true,
+                else => false,
+            });
             _ = BannerTestCanvas.raw.GdiFlush();
             try std.testing.expect(canvas.inked(rect, background) > 0);
         }
@@ -9598,6 +9655,8 @@ pub const Host = struct {
         }
         if (self.new_tab_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
         if (self.overflow_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+        if (self.palette_button_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+        if (self.settings_button_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
     }
 
     pub const repaintTopChrome = chrome_scene.HostScene.repaintTopChrome;
@@ -9624,6 +9683,8 @@ pub const Host = struct {
         const controls = [_]?HWND{
             self.new_tab_hwnd,
             self.overflow_hwnd,
+            self.palette_button_hwnd,
+            self.settings_button_hwnd,
             self.overlay_label_hwnd,
             self.overlay_edit_hwnd,
             self.overlay_hint_hwnd,
@@ -9646,6 +9707,8 @@ pub const Host = struct {
         const controls = [_]?HWND{
             self.new_tab_hwnd,
             self.overflow_hwnd,
+            self.palette_button_hwnd,
+            self.settings_button_hwnd,
             self.overlay_label_hwnd,
             self.overlay_edit_hwnd,
             self.overlay_hint_hwnd,
@@ -9988,9 +10051,10 @@ pub const Host = struct {
             }
         }
 
-        // Right-side cluster: [+][▾] — new tab and dropdown chevron.
-        // Shift left by the caption-buttons reservation (0 on Win10)
-        // so the chevron doesn't land under the close button.
+        // Right-side cluster, right to left: Settings and the command palette,
+        // a wider gap, then the dropdown chevron and new tab [+][v]. Shift
+        // left by the caption-buttons reservation (0 on Win10) so the
+        // cluster doesn't land under the close button.
         const titlebar_actions = self.usingIntegratedTitlebar();
         const action_size = self.scaled(host_titlebar_action_button_size);
         const action_y = @max(0, @divTrunc(self.tabBarHeight() - action_size, 2));
@@ -10001,42 +10065,31 @@ pub const Host = struct {
         // current even while hidden, so `showOverflowMenu`, which anchors its
         // popup to `GetWindowRect(overflow_hwnd)`, never reads a rect from an
         // older window size.
-        if (self.overflow_hwnd) |button_hwnd| {
-            const overflow_width = if (titlebar_actions) action_size else self.scaled(host_tab_overflow_button_width);
-            button_x -= overflow_width;
+        const ActionSlot = struct { hwnd: ?HWND, placement: *ChildPlacement, compact_width: i32, gap_before: i32 };
+        const slots = [_]ActionSlot{
+            .{ .hwnd = self.settings_button_hwnd, .placement = &self.settings_button_placement, .compact_width = host_tab_small_button_width, .gap_before = 0 },
+            .{ .hwnd = self.palette_button_hwnd, .placement = &self.palette_button_placement, .compact_width = host_tab_small_button_width, .gap_before = tab_strip_action_gap },
+            .{ .hwnd = self.overflow_hwnd, .placement = &self.overflow_placement, .compact_width = host_tab_overflow_button_width, .gap_before = tab_strip_action_group_gap },
+            .{ .hwnd = self.new_tab_hwnd, .placement = &self.new_tab_placement, .compact_width = host_tab_small_button_width, .gap_before = tab_strip_action_gap },
+        };
+        for (slots) |slot| {
+            button_x -= self.scaled(slot.gap_before);
+            const button_hwnd = slot.hwnd orelse continue;
+            const slot_width = if (titlebar_actions) action_size else self.scaled(slot.compact_width);
+            button_x -= slot_width;
             changed.* = applyChromeChildRect(
                 button_hwnd,
-                &self.overflow_placement,
+                slot.placement,
                 childRect(
                     button_x,
                     if (titlebar_actions) action_y else compact_action.top,
-                    overflow_width,
+                    slot_width,
                     if (titlebar_actions) action_size else compact_action.height,
                 ),
             ) or changed.*;
             changed.* = applyChildVisibility(
                 button_hwnd,
-                &self.overflow_placement,
-                tabStripChildVisible(tab_strip_visible, true),
-            ) or changed.*;
-        }
-        button_x -= self.scaled(4);
-        if (self.new_tab_hwnd) |button_hwnd| {
-            const new_tab_width = if (titlebar_actions) action_size else self.scaled(host_tab_small_button_width);
-            button_x -= new_tab_width;
-            changed.* = applyChromeChildRect(
-                button_hwnd,
-                &self.new_tab_placement,
-                childRect(
-                    button_x,
-                    if (titlebar_actions) action_y else compact_action.top,
-                    new_tab_width,
-                    if (titlebar_actions) action_size else compact_action.height,
-                ),
-            ) or changed.*;
-            changed.* = applyChildVisibility(
-                button_hwnd,
-                &self.new_tab_placement,
+                slot.placement,
                 tabStripChildVisible(tab_strip_visible, true),
             ) or changed.*;
         }
@@ -11087,13 +11140,15 @@ test "win32 a clicked search button's tooltip stays down until the button is lef
     try expectEqual(.present, send(&tooltip, find, c.WM_MOUSEHOVER, 0));
 }
 
-test "win32 the [+] and [v] tooltips and UIA names are one table, and the hover tooltip routes cover them" {
+test "win32 the tab strip action buttons' tooltips and UIA names are one table, and the hover tooltip routes cover them" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     var buf: [32]u8 = undefined;
     const ctx: *anyopaque = @ptrFromInt(0x10);
     try std.testing.expectEqualStrings(labels.tabStripActionName(.new_tab), Host.hostActionUiaName(ctx, 0, &buf));
     try std.testing.expectEqualStrings(labels.tabStripActionName(.more_tabs), Host.hostActionUiaName(ctx, 1, &buf));
+    try std.testing.expectEqualStrings(labels.tabStripActionName(.command_palette), Host.hostActionUiaName(ctx, 2, &buf));
+    try std.testing.expectEqualStrings(labels.tabStripActionName(.settings), Host.hostActionUiaName(ctx, 3, &buf));
 
     // The same hover, click and leave rules govern [+] and [v]: a dwell
     // presents, a click keeps it down, leaving ends the dismissal.
