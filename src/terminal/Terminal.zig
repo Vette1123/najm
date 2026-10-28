@@ -5038,6 +5038,32 @@ test "Terminal: print grapheme ò (o with nonspacing mark) should be narrow" {
     }
 }
 
+test "Terminal: Indic clusters take the columns the bundled ConPTY gives them" {
+    // Measured on 2026-10-28 with the bundled conpty.dll in graphemes mode
+    // (flags 0), reading the console's cursor after each sample. The grid has
+    // to agree, or ConPTY's cursor and ours drift apart on every line.
+    const samples = [_]struct { text: []const u8, cols: usize }{
+        .{ .text = "কি", .cols = 2 },
+        .{ .text = "ক্য", .cols = 2 },
+        .{ .text = "আপনি", .cols = 4 },
+        .{ .text = "ব্যাংক", .cols = 3 },
+        .{ .text = "क्षत्रिय", .cols = 5 },
+        .{ .text = "👩‍💻", .cols = 2 },
+        .{ .text = "日本", .cols = 4 },
+    };
+    for (samples) |sample| {
+        var t = try init(testing.allocator, .{ .rows = 2, .cols = 20 });
+        defer t.deinit(testing.allocator);
+        t.modes.set(.grapheme_cluster, true);
+        var it = (try std.unicode.Utf8View.init(sample.text)).iterator();
+        while (it.nextCodepoint()) |cp| try t.print(cp);
+        testing.expectEqual(sample.cols, @as(usize, t.screens.active.cursor.x)) catch |err| {
+            std.debug.print("sample {s}\n", .{sample.text});
+            return err;
+        };
+    }
+}
+
 test "Terminal: print Devanagari grapheme should be wide" {
     var t = try init(testing.allocator, .{ .rows = 5, .cols = 5 });
     defer t.deinit(testing.allocator);
