@@ -478,6 +478,10 @@ pub const window_state_test_runtime = if (builtin.is_test) .{
     .win32_quick_terminal = win32_quick_terminal,
     .win32_terminal_handoff = win32_terminal_handoff,
 } else .{};
+pub const host_test_runtime = if (builtin.is_test) .{
+    .WindowStartTestApp = WindowStartTestApp,
+    .runOnHiddenDesktop = runOnHiddenDesktop,
+} else .{};
 pub const surface_presentation_runtime = .{
     .App = App,
     .Host = Host,

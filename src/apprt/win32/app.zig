@@ -7192,8 +7192,11 @@ pub const App = struct {
         };
         if (shell_prepared) |*prepared| self.applyShellEffects(prepared.effects(), .{});
         self.auditShellNativeMapping("tab-reorder");
+        found.host.tab_buttons_dirty = true;
         const surface = found.host.tabs.items[desired].focusedSurface() orelse return false;
         self.activateSurface(surface);
+        // An already-focused pane can skip host synchronization during activation.
+        runUiActionOrLog("tab reorder layout failed", found.host.layout());
         return true;
     }
 
