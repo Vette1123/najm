@@ -148,6 +148,31 @@ fn paletteSwatchRect(row: RECT, right: i32, size: i32) RECT {
     return .{ .left = right - diameter, .top = top, .right = right, .bottom = top + diameter };
 }
 
+/// `subtitle` ended `gap` short of a swatch at `swatch_left`: in a narrow
+/// palette the shortcut column is gone and the subtitle runs to the row's
+/// end, under the swatch.
+fn paletteSubtitleBeforeSwatch(subtitle: RECT, swatch_left: i32, gap: i32) RECT {
+    var rect = subtitle;
+    rect.right = @max(rect.left, @min(rect.right, swatch_left - gap));
+    return rect;
+}
+
+test "a palette subtitle stops short of the accent swatch" {
+    const row: RECT = .{ .left = 0, .top = 0, .right = 360, .bottom = 36 };
+    // Narrow: no shortcut column, so the subtitle reaches the row's end.
+    const narrow = paletteRowColumns(row, 12, 200, 80, 140);
+    try std.testing.expectEqual(narrow.shortcut.right, narrow.subtitle.right);
+    const box = paletteSwatchRect(row, narrow.shortcut.right, 14);
+    try std.testing.expectEqual(box.left - 8, paletteSubtitleBeforeSwatch(narrow.subtitle, box.left, 8).right);
+    // Wide: the shortcut column already keeps it clear; nothing changes.
+    const wide_row: RECT = .{ .left = 0, .top = 0, .right = 640, .bottom = 36 };
+    const wide = paletteRowColumns(wide_row, 12, 200, 80, 140);
+    const wide_box = paletteSwatchRect(wide_row, wide.shortcut.right, 14);
+    try std.testing.expectEqual(wide.subtitle.right, paletteSubtitleBeforeSwatch(wide.subtitle, wide_box.left, 8).right);
+    // Never inverted.
+    try std.testing.expectEqual(@as(i32, 50), paletteSubtitleBeforeSwatch(.{ .left = 50, .top = 0, .right = 60, .bottom = 1 }, 40, 8).right);
+}
+
 test "palette accent swatch sits centred at the end of the row" {
     const box = paletteSwatchRect(.{ .left = 0, .top = 36, .right = 400, .bottom = 72 }, 388, 14);
     try std.testing.expectEqual(@as(i32, 374), box.left);
@@ -1883,23 +1908,27 @@ pub const HostControls = struct {
             if (columns.title.right > columns.title.left) {
                 drawPaletteRowText(hdc, item.title, columns.title, title_color);
             }
-            if (columns.subtitle.right > columns.subtitle.left) {
+            // An accent row shows its colour where a shortcut would be.
+            const accent_swatch: ?WindowAccent = switch (descriptor.payload) {
+                .accent => |name| std.meta.stringToEnum(WindowAccent, name),
+                else => null,
+            };
+            const swatch_box = paletteSwatchRect(row_rect, columns.shortcut.right, self.scaled(14));
+            const subtitle_rect = if (accent_swatch != null)
+                paletteSubtitleBeforeSwatch(columns.subtitle, swatch_box.left, self.scaled(8))
+            else
+                columns.subtitle;
+            if (subtitle_rect.right > subtitle_rect.left) {
                 drawPaletteRowText(
                     hdc,
                     if (item.enabled) item.subtitle else item.disabled_reason orelse "Unavailable",
-                    columns.subtitle,
+                    subtitle_rect,
                     secondary_color,
                 );
             }
-
-            // An accent row shows its colour where a shortcut would be.
-            switch (descriptor.payload) {
-                .accent => |name| if (std.meta.stringToEnum(WindowAccent, name)) |accent| {
-                    const swatch = win32_theme.windowAccentSwatch(accent, theme.is_dark, system_accent);
-                    const box = paletteSwatchRect(row_rect, columns.shortcut.right, self.scaled(14));
-                    gdi.drawRoundedRect(hdc, box, swatch, gdi.blendColorRGB(swatch, theme.text_primary, 0.3), box.right - box.left);
-                },
-                else => {},
+            if (accent_swatch) |accent| {
+                const swatch = win32_theme.windowAccentSwatch(accent, theme.is_dark, system_accent);
+                gdi.drawRoundedRect(hdc, swatch_box, swatch, gdi.blendColorRGB(swatch, theme.text_primary, 0.3), swatch_box.right - swatch_box.left);
             }
 
             // Keybind hint: look up the primary trigger for this action
