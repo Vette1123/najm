@@ -26210,6 +26210,12 @@ test "win32 palette accent previews live, reverts on the current one, and saves"
     try std.testing.expect(host.palette_theme_preview_original != null);
     try std.testing.expectEqual(configpkg.Config.WindowAccent.teal, app.config.@"window-accent");
     if (!isHighContrastActive()) try std.testing.expectEqual(rgb(0x00, 0xB7, 0xC3), app.resolved_theme.accent);
+    // The same row again (typing reselects it every key) applies nothing.
+    const rebuilds = app.theme_rebuilds;
+    const revision = app.config_revision;
+    try host.previewPaletteAccent(.teal);
+    try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+    try std.testing.expectEqual(revision, app.config_revision);
     // Another row replaces the preview; the original stays the first one.
     try host.previewPaletteAccent(.gold);
     try std.testing.expectEqual(configpkg.Config.WindowAccent.default, host.palette_theme_preview_original.?.@"window-accent");
