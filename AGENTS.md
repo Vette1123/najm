@@ -171,7 +171,8 @@ that govern each symbol you change, or that none does.
   versus the bundled `conpty.dll`/`OpenConsole.exe`
   (`scripts/stage-conpty-redist.ps1`), what ConPTY's buffer holds after a
   resize, minimize, clear or undo and the column reflow that has to match it
-  (`Screen.resize`, the replay tests in `src/terminal/resize_replay.zig`, the
+  (`Screen.resize`, the replay tests in `src/terminal/resize_replay.zig` and
+  the pty recorder that writes them, `src/termio/pty_record.zig`, the
   sync harness `test/windows/interactive-win11-conpty-sync.ps1`), the
   Ctrl+C-ignore attribute hosted shells inherit
   (`process_shared.enableGuiChildCtrlC` in `src/main_ghostty.zig`).
