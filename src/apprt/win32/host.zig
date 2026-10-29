@@ -7489,11 +7489,17 @@ pub const Host = struct {
 
         // Menu must be owned by top-level host HWND to avoid dismiss bugs
         _ = sys.SetForegroundWindow(hwnd);
-        const cmd = fancy_menu.track(self.app.core_app.alloc, hwnd, &items, screen_x, screen_y, self.menuStyle(), origin);
+        const app = self.app;
+        const host_id = self.id;
+        const cmd = fancy_menu.track(app.core_app.alloc, hwnd, &items, screen_x, screen_y, self.menuStyle(), origin);
         _ = sys.PostMessageW(hwnd, c.WM_NULL, 0, 0);
 
+        // The menu loop dispatches messages: a shell that exits while it is
+        // open can close this window, as in `showTabContextMenu`.
+        const live = app.registry.findHostById(host_id) orelse return;
+        if (live.hwnd == null) return;
         // Dispatch command (cmd is 0 on cancel)
-        self.handleContextMenuCommand(cmd);
+        live.handleContextMenuCommand(cmd);
     }
 
     fn handleContextMenuCommand(self: *Host, cmd: BOOL) void {
