@@ -439,7 +439,7 @@ const Session = struct {
         const content = layout.label_left + label_width + (10_000 - layout.label_right);
         // The system adds a check-mark width of its own to every row.
         const system_extra = sys.GetSystemMetricsForDpi(SM_CXMENUCHECK, dpi) - 1;
-        const width = @max(scale(220, dpi), content) - system_extra;
+        const width = rowWidth(content, dpi) - system_extra;
         return .{ .width = @intCast(@max(1, width)), .height = @intCast(self.metrics.row + edge) };
     }
 
@@ -657,6 +657,23 @@ pub fn textHeight(hdc: HDC, font: ?*anyopaque) i32 {
 /// taller when Windows "Text size" makes the font taller.
 pub fn capHeight(line_height: i32, dpi: u32) i32 {
     return @max(scale(22, dpi), line_height + scale(4, dpi));
+}
+
+/// A menu's width for a row whose content needs `content` pixels: never
+/// narrower than a comfortable menu, and never wider than one that still
+/// fits a laptop screen at 200%. A profile label is the user's own text and
+/// has no limit; past the cap it ends in an ellipsis before its keycaps
+/// (`DT_END_ELLIPSIS` at `label_right`) instead of pushing them off-screen.
+fn rowWidth(content: i32, dpi: u32) i32 {
+    return std.math.clamp(content, scale(220, dpi), scale(560, dpi));
+}
+
+test "a menu row is as wide as its content, within a floor and a cap" {
+    try std.testing.expectEqual(@as(i32, 220), rowWidth(90, 96));
+    try std.testing.expectEqual(@as(i32, 300), rowWidth(300, 96));
+    // "Developer PowerShell for VS 2022 Enterprise (Preview) - x64" and keycaps.
+    try std.testing.expectEqual(@as(i32, 560), rowWidth(910, 96));
+    try std.testing.expectEqual(@as(i32, 1120), rowWidth(2000, 192));
 }
 
 fn textWidthIn(hdc: HDC, font: ?*anyopaque, text: []const u16) i32 {
