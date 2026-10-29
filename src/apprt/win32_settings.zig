@@ -5164,8 +5164,8 @@ pub const SettingsWindow = struct {
         if (self.fields.edit_theme == edit) {
             // The dropdown chevron, in the strip `WM_NCCALCSIZE` keeps for it.
             const chevron = self.themeChevronRect(outer);
-            const paint = themeChevronPaint(colors, enabled, self.theme_chevron_hot);
-            if (paint.fill) |fill| fillSolid(hdc, chevron, fill);
+            const chevron_paint = themeChevronPaint(colors, enabled, self.theme_chevron_hot);
+            if (chevron_paint.fill) |fill| fillSolid(hdc, chevron, fill);
             const glyph = self.px(10);
             const x = chevron.left + @divTrunc(chevron.right - chevron.left - glyph, 2);
             const y = chevron.top + @divTrunc(chevron.bottom - chevron.top - glyph, 2);
@@ -5173,7 +5173,7 @@ pub const SettingsWindow = struct {
                 .arrow_down,
                 hdc,
                 .{ .left = x, .top = y, .right = x + glyph, .bottom = y + glyph },
-                paint.glyph,
+                chevron_paint.glyph,
                 colors.high_contrast,
             );
         }
