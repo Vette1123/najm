@@ -120,6 +120,9 @@ const WM_VSCROLL: UINT = 0x0115;
 const WM_MOUSEWHEEL: UINT = 0x020A;
 const WM_MOUSEMOVE: UINT = 0x0200;
 const WM_MOUSELEAVE: UINT = 0x02A3;
+const WM_NCMOUSEMOVE: UINT = 0x00A0;
+const WM_NCMOUSELEAVE: UINT = 0x02A2;
+const TME_NONCLIENT: u32 = 0x00000010;
 const WM_KEYDOWN: UINT = 0x0100;
 const WM_KEYUP: UINT = 0x0101;
 const WM_SYSKEYDOWN: UINT = 0x0104;
@@ -321,6 +324,31 @@ extern "uxtheme" fn OpenThemeData(hwnd: ?HWND, classes: [*:0]const u16) callconv
 extern "uxtheme" fn CloseThemeData(theme: *anyopaque) callconv(.winapi) i32;
 extern "uxtheme" fn DrawThemeParentBackground(hwnd: HWND, hdc: HDC, rect: ?*const RECT) callconv(.winapi) i32;
 extern "uxtheme" fn DrawThemeBackground(theme: *anyopaque, hdc: HDC, part: i32, state: i32, rect: *const RECT, clip: ?*const RECT) callconv(.winapi) i32;
+
+/// The theme field's chevron strip: a hover fill (the sidebar's hover
+/// colour) and a brighter glyph under the pointer, so it reads as a button.
+/// High Contrast keeps the system's plain field.
+fn themeChevronPaint(colors: win32_theme.SettingsColors, enabled: bool, hot: bool) struct { fill: ?COLORREF, glyph: COLORREF } {
+    if (!enabled) return .{ .fill = null, .glyph = colors.disabled_text };
+    if (hot and !colors.high_contrast) return .{ .fill = colors.button_bg, .glyph = colors.text };
+    return .{ .fill = null, .glyph = colors.secondary_text };
+}
+
+test "settings theme chevron lights under the pointer, not in High Contrast" {
+    const system: win32_theme.SettingsSystemColors = .{ .window = 1, .window_text = 2, .button_face = 3, .button_text = 4, .gray_text = 5, .highlight = 6, .highlight_text = 7 };
+    var colors = win32_theme.settingsColors(win32_theme.darkTheme(), system, false);
+    const rest = themeChevronPaint(colors, true, false);
+    try std.testing.expect(rest.fill == null);
+    try std.testing.expectEqual(colors.secondary_text, rest.glyph);
+    const hot = themeChevronPaint(colors, true, true);
+    try std.testing.expectEqual(@as(?COLORREF, colors.button_bg), hot.fill);
+    // Visible: the hover fill is not the field's own background.
+    try std.testing.expect(colors.button_bg != colors.edit_bg);
+    try std.testing.expectEqual(colors.text, hot.glyph);
+    try std.testing.expectEqual(colors.disabled_text, themeChevronPaint(colors, false, true).glyph);
+    colors.high_contrast = true;
+    try std.testing.expect(themeChevronPaint(colors, true, true).fill == null);
+}
 
 fn accentFieldState(disabled: bool, dropped: bool, hot: bool) i32 {
     if (disabled) return 4;
@@ -2107,6 +2135,8 @@ pub const SettingsWindow = struct {
     focus_input_mode: focus_cue.InputMode = .pointer,
     /// The swatch dropdown the pointer is over (`paintAccentField`).
     swatch_field_hot: ?HWND = null,
+    /// The pointer is over the Terminal theme field's dropdown chevron.
+    theme_chevron_hot: bool = false,
     section_uia_group: ?*win32_uia.SettingsSectionGroupProvider = null,
     section_uia_providers: [section_count]?*win32_uia.SettingsSectionProvider = [_]?*win32_uia.SettingsSectionProvider{null} ** section_count,
     btn_save: ?HWND = null,
@@ -5134,6 +5164,8 @@ pub const SettingsWindow = struct {
         if (self.fields.edit_theme == edit) {
             // The dropdown chevron, in the strip `WM_NCCALCSIZE` keeps for it.
             const chevron = self.themeChevronRect(outer);
+            const paint = themeChevronPaint(colors, enabled, self.theme_chevron_hot);
+            if (paint.fill) |fill| fillSolid(hdc, chevron, fill);
             const glyph = self.px(10);
             const x = chevron.left + @divTrunc(chevron.right - chevron.left - glyph, 2);
             const y = chevron.top + @divTrunc(chevron.bottom - chevron.top - glyph, 2);
@@ -5141,7 +5173,7 @@ pub const SettingsWindow = struct {
                 .arrow_down,
                 hdc,
                 .{ .left = x, .top = y, .right = x + glyph, .bottom = y + glyph },
-                if (enabled) colors.secondary_text else colors.disabled_text,
+                paint.glyph,
                 colors.high_contrast,
             );
         }
@@ -15509,6 +15541,23 @@ fn settingsEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callc
         WM_NCHITTEST => if (owner) |settings| {
             if (isThemeField(hwnd) and settings.onThemeChevron(hwnd, .{ .x = lparamX(lParam), .y = lparamY(lParam) })) return HTBORDER;
             return HTCLIENT;
+        },
+        // The chevron lights under the pointer; leaving it for the text, or
+        // the field, ends the hover (`WM_NCMOUSELEAVE`).
+        WM_NCMOUSEMOVE => if (owner) |settings| if (isThemeField(hwnd)) {
+            const hot = wParam == @as(WPARAM, @intCast(HTBORDER));
+            if (hot != settings.theme_chevron_hot) {
+                settings.theme_chevron_hot = hot;
+                if (hot) {
+                    var tracking: TRACKMOUSEEVENT = .{ .cbSize = @sizeOf(TRACKMOUSEEVENT), .dwFlags = TME_LEAVE | TME_NONCLIENT, .hwndTrack = hwnd, .dwHoverTime = 0 };
+                    _ = TrackMouseEvent(&tracking);
+                }
+                settings.paintFieldFrame(hwnd, null);
+            }
+        },
+        WM_NCMOUSELEAVE => if (owner) |settings| if (isThemeField(hwnd) and settings.theme_chevron_hot) {
+            settings.theme_chevron_hot = false;
+            settings.paintFieldFrame(hwnd, null);
         },
         WM_NCLBUTTONDOWN, WM_NCLBUTTONDBLCLK => if (owner) |settings| if (wParam == @as(WPARAM, @intCast(HTBORDER)) and isThemeField(hwnd)) {
             settings.showThemeMenu(.pointer);
