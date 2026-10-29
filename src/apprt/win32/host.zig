@@ -711,6 +711,9 @@ pub const Host = struct {
     /// Original app config while a palette theme row is being previewed.
     /// Owned by this host until committed or reverted.
     palette_theme_preview_original: ?configpkg.Config = null,
+    /// The live preview differs from `palette_theme_preview_original` in
+    /// `window-accent` only. Read only while that original is set.
+    palette_preview_accent_only: bool = false,
     /// A swapped-out config kept alive only while current catalog strings
     /// borrow it. Cleared immediately after the catalog resets or hides.
     palette_catalog_retained_config: ?configpkg.Config = null,
@@ -2283,15 +2286,25 @@ pub const Host = struct {
     }
 
     pub fn swapRuntimeConfigFromPalette(self: *Host, new_config: configpkg.Config) configpkg.Config {
+        return self.swapRuntimeConfigFromPaletteScoped(new_config, .full);
+    }
+
+    /// What a palette config swap changes. `accent`: the two configs differ
+    /// in `window-accent` only, which only the Win32 chrome reads, so the
+    /// terminal cores keep their derived config and the chrome fonts (DPI
+    /// and font family, never colour) are kept.
+    pub const PaletteSwap = enum { full, accent };
+
+    fn swapRuntimeConfigFromPaletteScoped(self: *Host, new_config: configpkg.Config, scope: PaletteSwap) configpkg.Config {
         const old = self.app.config;
         self.app.config = new_config;
         // A Settings preview stays shown over the palette's theme.
         self.app.restoreSettingsPreview();
         self.app.config_revision +%= 1;
         if (self.app.config_revision == 0) self.app.config_revision = 1;
-        self.app.reconfigureTheme();
+        self.app.reconfigureThemeWith(.{ .fonts = scope == .full });
         for (self.app.registry.windows.items) |surface| {
-            surface.core().updateConfig(&self.app.config) catch |err| {
+            if (scope == .full) surface.core().updateConfig(&self.app.config) catch |err| {
                 log.warn("palette theme core apply failed err={}", .{err});
             };
             surface.applyRuntimeConfig(&self.app.config) catch |err| {
@@ -2320,8 +2333,8 @@ pub const Host = struct {
         }
     }
 
-    fn replaceRuntimeConfigFromPalette(self: *Host, new_config: configpkg.Config) void {
-        const old = self.swapRuntimeConfigFromPalette(new_config);
+    fn replaceRuntimeConfigFromPalette(self: *Host, new_config: configpkg.Config, scope: PaletteSwap) void {
+        const old = self.swapRuntimeConfigFromPaletteScoped(new_config, scope);
         self.preserveOrDeinitPaletteCatalogConfig(old);
     }
 
@@ -2374,7 +2387,7 @@ pub const Host = struct {
             if (std.mem.eql(u8, current.light, name) and std.mem.eql(u8, current.dark, name)) return;
         }
 
-        self.installPalettePreview(try self.loadPaletteThemeConfig(name));
+        self.installPalettePreview(try self.loadPaletteThemeConfig(name), false);
     }
 
     /// Show the chrome in accent `accent` while its palette row is selected:
@@ -2396,27 +2409,34 @@ pub const Host = struct {
         var preview = try base.clone(self.app.core_app.alloc);
         errdefer preview.deinit();
         preview.@"window-accent" = accent;
-        self.installPalettePreview(preview);
+        self.installPalettePreview(preview, true);
     }
 
     /// Make `preview` the running config, keeping the config from before the
     /// first preview to revert or commit against. Takes ownership.
-    fn installPalettePreview(self: *Host, preview: configpkg.Config) void {
+    /// `accent_only`: `preview` is the original with only its accent changed.
+    fn installPalettePreview(self: *Host, preview: configpkg.Config, accent_only: bool) void {
+        // Light only when the config being left also differs from the
+        // original in its accent alone: accent row to accent row.
+        const live_accent_only = self.palette_theme_preview_original == null or self.palette_preview_accent_only;
+        const scope: PaletteSwap = if (accent_only and live_accent_only) .accent else .full;
         if (self.palette_theme_preview_original == null) {
-            const original = self.swapRuntimeConfigFromPalette(preview);
+            const original = self.swapRuntimeConfigFromPaletteScoped(preview, scope);
             self.palette_theme_preview_original = original;
             if (self.palette_catalog_config_source == .live) {
                 self.palette_catalog_config_source = .preview_original;
             }
         } else {
-            self.replaceRuntimeConfigFromPalette(preview);
+            self.replaceRuntimeConfigFromPalette(preview, scope);
         }
+        self.palette_preview_accent_only = accent_only;
     }
 
     pub fn revertPaletteThemePreview(self: *Host) void {
         const original = self.palette_theme_preview_original orelse return;
         self.palette_theme_preview_original = null;
-        const old = self.swapRuntimeConfigFromPalette(original);
+        const scope: PaletteSwap = if (self.palette_preview_accent_only) .accent else .full;
+        const old = self.swapRuntimeConfigFromPaletteScoped(original, scope);
         switch (self.palette_catalog_config_source) {
             .live => {
                 std.debug.assert(self.palette_catalog_retained_config == null);

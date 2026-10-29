@@ -5723,6 +5723,18 @@ pub const App = struct {
     }
 
     pub fn reconfigureTheme(self: *App) void {
+        self.reconfigureThemeWith(.{});
+    }
+
+    /// What a theme change rebuilds beyond colours.
+    pub const ThemeChange = struct {
+        /// The chrome fonts follow DPI, `window-title-font-family` and the
+        /// system UI font, never a colour: a change of accent alone keeps
+        /// them (each rebuild probes the icon faces glyph by glyph).
+        fonts: bool = true,
+    };
+
+    pub fn reconfigureThemeWith(self: *App, change: ThemeChange) void {
         const previous_integrated_titlebar = self.use_integrated_titlebar;
         self.use_integrated_titlebar = shouldUseIntegratedTitlebar(
             self.os_build,
@@ -5741,7 +5753,7 @@ pub const App = struct {
         self.resolved_theme = resolveTheme(shown);
         for (self.registry.hosts.items) |host| {
             host.rebuildThemeBrushes();
-            host.recreateChromeFont();
+            if (change.fonts) host.recreateChromeFont();
             // High Contrast turns the split dim off and back on.
             host.syncSplitDim();
             if (frame_mode_changed) {
