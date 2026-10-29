@@ -3307,7 +3307,10 @@ pub const SettingsWindow = struct {
             return win32_theme.rgb(color.r, color.g, color.b);
         }
         const accent = field_model.Combo(.window_accent).fromIndex(@intCast(index)) orelse return null;
-        return win32_theme.windowAccentSwatch(accent, colors.is_dark, win32_theme.systemAccentColor());
+        // The registry read is for Match Windows only; every other row is a
+        // preset, painted on every hover in the open list.
+        const system: ?u32 = if (accent == .system) win32_theme.systemAccentColor() else null;
+        return win32_theme.windowAccentSwatch(accent, colors.is_dark, system);
     }
 
     /// A round swatch of choice `index`'s colour, then its name, in `row`.

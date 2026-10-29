@@ -2387,6 +2387,12 @@ pub const Host = struct {
             self.revertPaletteThemePreview();
             return;
         }
+        // Already shown: a theme preview keeps the original accent, so a
+        // live config in `accent` is this preview. Typing in the palette
+        // reselects the same row on every key; re-applying it rebuilds every
+        // window's fonts and redraws every pane.
+        if (self.palette_theme_preview_original != null and
+            self.app.config.@"window-accent" == accent) return;
         var preview = try base.clone(self.app.core_app.alloc);
         errdefer preview.deinit();
         preview.@"window-accent" = accent;
