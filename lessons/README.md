@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-10-29 | [Polish pass: recorder, palette accent, context menu](2026-10-29-polish-pass-recorder-palette.md) | A recorder of terminal input records under the lock that changes the terminal |
 | 2026-10-28 | [Tab-row buttons, theme dropdown, text color](2026-10-28-tab-row-buttons-theme-dropdown-text-color.md) | No local builds: CI on the branch is the compiler, so every scripted edit asserts its match |
 | 2026-10-28 | [Accent swatches and palette picker](2026-10-28-accent-swatches-and-palette-picker.md) | An owner-drawn stock control paints its own themed frame and handles redraws outside WM_PAINT |
 | 2026-10-28 | [The suite looked hung](2026-10-28-suite-looked-hung.md) | A test that burns a core is working: sample its stack before calling it hung |
