@@ -2588,7 +2588,7 @@ pub const Host = struct {
                 // an owned deep clone of the pre-preview baseline. Transfer it
                 // into the runtime config and suppress the local deferred deinit.
                 if (!self.app.safe_mode) {
-                    self.replaceRuntimeConfigFromPalette(original);
+                    self.replaceRuntimeConfigFromPalette(original, .full);
                     original_owned = false;
                 }
                 self.abortPaletteAction(pick.failureMessage(err));
