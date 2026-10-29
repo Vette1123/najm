@@ -6701,9 +6701,10 @@ pub const SettingsWindow = struct {
         const defaults: ?*const Config.Keybinds = if (self.defaults) |*config| &config.keybind else null;
         const alloc = self.handle.alloc;
         const list = &self.keybind_list;
-        // The selection is a row of the old model: it follows its binding.
-        const was_selected: ?[]u8 = if (list.selected) |id| (if (id < self.keybind_model.rows.len) alloc.dupe(u8, self.keybind_model.rows[id].entry) catch null else null) else null;
-        defer if (was_selected) |entry| alloc.free(entry);
+        // The selection is a row of the old model: it follows its binding,
+        // which keeps its id (`keybind_model.Row.id`). Not its text, which
+        // two bindings may share.
+        const was_selected: ?u64 = if (list.selected) |id| (if (id < self.keybind_model.rows.len) self.keybind_model.rows[id].id else null) else null;
         list.selected = null;
         list.forgetOpenText(alloc);
         self.keybind_generation +%= 1;
@@ -6719,8 +6720,8 @@ pub const SettingsWindow = struct {
         if (!self.keybind_model.built()) return;
         self.keybind_found = alloc.alloc(bool, self.keybind_model.rows.len) catch &.{};
         @memset(self.keybind_found, false);
-        if (was_selected) |entry| for (self.keybind_model.rows, 0..) |row, id| {
-            if (std.mem.eql(u8, row.entry, entry)) list.selected = @intCast(id);
+        if (was_selected) |selected| for (self.keybind_model.rows, 0..) |row, id| {
+            if (row.id == selected) list.selected = @intCast(id);
         };
     }
 
@@ -17184,6 +17185,20 @@ const ReferenceList = struct {
         self.metrics = null;
     }
 
+    /// The row id shown at `position`, when there is one and the model has it:
+    /// UIA asks by position, and a stale position (the rows changed under a
+    /// client) or an id past the model (a model rebuilt before the rows were
+    /// shown again) answers nothing rather than reading past either.
+    fn shownId(self: *const ReferenceList, position: usize) ?u16 {
+        if (position >= self.shown_count or !self.modelBuilt()) return null;
+        const id = self.shown[position];
+        const rows: usize = switch (self.kind) {
+            .reference => settings_reference.key_count,
+            .keybindings => self.ownerConst().keybind_model.rows.len,
+        };
+        return if (id < rows) id else null;
+    }
+
     /// Whether the list's model is built.
     fn modelBuilt(self: *const ReferenceList) bool {
         const settings = self.ownerConst();
@@ -18012,8 +18027,7 @@ fn referenceUiaSelectedIndex(ctx: *anyopaque) ?usize {
 /// its action.
 fn referenceUiaRowName(ctx: *anyopaque, index: usize, buf: []u8) []const u8 {
     const list = referenceOwner(ctx);
-    if (index >= list.shown_count or !list.modelBuilt()) return "";
-    const id = list.shown[index];
+    const id = list.shownId(index) orelse return "";
     var writer: std.Io.Writer = .fixed(buf);
     var value_buf: [512]u8 = undefined;
     var value: std.Io.Writer = .fixed(&value_buf);
@@ -18034,8 +18048,7 @@ fn referenceUiaRowName(ctx: *anyopaque, index: usize, buf: []u8) []const u8 {
 /// Keybindings what the action does and where the binding comes from.
 fn referenceUiaRowHelp(ctx: *anyopaque, index: usize, buf: []u8) []const u8 {
     const list = referenceOwner(ctx);
-    if (index >= list.shown_count or !list.modelBuilt()) return "";
-    const id = list.shown[index];
+    const id = list.shownId(index) orelse return "";
     var writer: std.Io.Writer = .fixed(buf);
     var location_buf: [1024]u8 = undefined;
     var location: std.Io.Writer = .fixed(&location_buf);
@@ -18051,10 +18064,10 @@ fn referenceUiaRowHelp(ctx: *anyopaque, index: usize, buf: []u8) []const u8 {
 /// place.
 fn referenceUiaRowId(ctx: *anyopaque, index: usize) u64 {
     const list = referenceOwner(ctx);
-    if (index >= list.shown_count) return 0;
+    const id = list.shownId(index) orelse return 0;
     return switch (list.kind) {
-        .reference => @as(u64, list.shown[index]) + 1,
-        .keybindings => list.ownerConst().keybind_model.rows[list.shown[index]].id,
+        .reference => @as(u64, id) + 1,
+        .keybindings => list.ownerConst().keybind_model.rows[id].id,
     };
 }
 
@@ -18842,7 +18855,7 @@ test "settings a reload finds the Keybindings page's bindings again, keeps the s
     }.body);
 }
 
-test "settings a key binding row UIA holds on to never names another binding after a reload" {
+test "settings a key binding row UIA holds on to follows its binding across a reload, and is gone with it" {
     try dialog_test.onHiddenDesktop(struct {
         const com = @import("win32_uia/com.zig");
         const constants = @import("win32_uia/constants.zig");
@@ -18880,15 +18893,14 @@ test "settings a key binding row UIA holds on to never names another binding aft
             return buf[0..try std.unicode.utf16LeToUtf8(buf, bstr[0..com.SysStringLen(bstr)])];
         }
 
-        /// The held row still names `name` and SetFocus selects `entry`, or
-        /// it says it is gone: never another binding.
-        fn stillOrGone(settings: *SettingsWindow, row: Held, name: []const u8, entry: []const u8) !void {
+        /// The held row still names `name`, and SetFocus selects `entry`,
+        /// wherever the reload put its binding.
+        fn follows(settings: *SettingsWindow, row: Held, name: []const u8, entry: []const u8) !void {
             var buf: [512]u8 = undefined;
-            if (try nameOf(row, &buf)) |now| try std.testing.expectEqualStrings(name, now);
-            const hr = row.fragment.vtbl.SetFocus(row.fragment);
-            if (hr == com.S_OK) {
-                try std.testing.expectEqualStrings(entry, settings.keybind_model.rows[settings.keybind_list.selected.?].entry);
-            } else try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, hr);
+            const now = (try nameOf(row, &buf)) orelse return error.TestUnexpectedResult;
+            try std.testing.expectEqualStrings(name, now);
+            try std.testing.expectEqual(com.S_OK, row.fragment.vtbl.SetFocus(row.fragment));
+            try std.testing.expectEqualStrings(entry, settings.keybind_model.rows[settings.keybind_list.selected.?].entry);
         }
 
         /// Hold the row at `position`: its name and binding, owned.
@@ -18936,23 +18948,186 @@ test "settings a key binding row UIA holds on to never names another binding aft
             defer added.deinit();
             try added.keybind.parseCLI(added._arena.?.allocator(), "ctrl+alt+shift+f12=new_tab");
             settings.externalConfigChanged(&added, 100);
-            // The first row is its binding still, at its place.
+            // The first row is its binding still, at its place; the moved one
+            // is its binding a row further down.
             var buf: [512]u8 = undefined;
             try std.testing.expectEqualStrings(first.name, (try nameOf(first.row, &buf)).?);
-            try stillOrGone(settings, moved.row, moved.name, moved.entry);
+            try follows(settings, moved.row, moved.name, moved.entry);
+            try std.testing.expectEqual(@as(?usize, last_root + 1), list.selectedPosition());
 
-            // A deletion: the added binding goes, and the default table's last
-            // one moves back up.
-            const again = try hold(settings, last_root + 1);
-            defer again.row.release();
-            defer alloc.free(again.name);
-            defer alloc.free(again.entry);
-            try std.testing.expectEqualStrings(moved.entry, again.entry);
+            // The added binding, held, and then a deletion: it goes, and its
+            // row with it; the default table's last binding moves back up, and
+            // the row held for it follows it again.
+            var added_position: ?usize = null;
+            for (list.shown[0..list.shown_count], 0..) |id, position| {
+                if (std.mem.eql(u8, settings.keybind_model.rows[id].trigger, "ctrl+alt+shift+f12")) added_position = position;
+            }
+            const removed = try hold(settings, added_position.?);
+            defer removed.row.release();
+            defer alloc.free(removed.name);
+            defer alloc.free(removed.entry);
             var defaults = try Config.default(alloc);
             defer defaults.deinit();
             settings.externalConfigChanged(&defaults, 101);
             try std.testing.expectEqualStrings(first.name, (try nameOf(first.row, &buf)).?);
-            try stillOrGone(settings, again.row, again.name, again.entry);
+            try follows(settings, moved.row, moved.name, moved.entry);
+            try std.testing.expectEqual(@as(?usize, last_root), list.selectedPosition());
+            try std.testing.expectEqual(@as(?[]const u8, null), try nameOf(removed.row, &buf));
+            try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, removed.row.fragment.vtbl.SetFocus(removed.row.fragment));
+        }
+    }.body);
+}
+
+test "settings a key binding reloaded with a zero of the other sign keeps its row, its selection and its UIA element" {
+    try dialog_test.onHiddenDesktop(struct {
+        const com = @import("win32_uia/com.zig");
+        const constants = @import("win32_uia/constants.zig");
+
+        /// A config with this binding alone.
+        fn only(alloc: std.mem.Allocator, binding: []const u8) !Config {
+            var config = try Config.default(alloc);
+            errdefer config.deinit();
+            try config.keybind.parseCLI(config._arena.?.allocator(), "clear");
+            try config.keybind.parseCLI(config._arena.?.allocator(), binding);
+            return config;
+        }
+
+        fn body() !void {
+            const alloc = std.testing.allocator;
+            const fixture = try dialog_test.Fixture.startWith(true);
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const list = &settings.keybind_list;
+            settings.setActiveSection(.keybindings);
+            _ = SetFocus(list.hwnd.?);
+
+            for ([_][2][]const u8{
+                .{ "ctrl+f12=scroll_page_fractional:0", "ctrl+f12=scroll_page_fractional:-0" },
+                .{ "ctrl+f12=scroll_page_fractional:-0", "ctrl+f12=scroll_page_fractional:0" },
+                .{ "ctrl+f12=scroll_page_fractional:nan", "ctrl+f12=scroll_page_fractional:nan" },
+            }, 0..) |lines, round| {
+                errdefer std.debug.print("settings reload {s} then {s}\n", .{ lines[0], lines[1] });
+                var before = try only(alloc, lines[0]);
+                defer before.deinit();
+                settings.externalConfigChanged(&before, @intCast(200 + 2 * round));
+                try std.testing.expectEqual(@as(usize, 1), list.shown_count);
+                const id = settings.keybind_model.rows[list.shown[0]].id;
+                // Selected and held, as a screen reader holds the focused row.
+                list.selectPosition(0);
+                var focus: ?*com.IRawElementProviderFragment = null;
+                try std.testing.expectEqual(com.S_OK, list.provider.?.fragment_root.vtbl.GetFocus(&list.provider.?.fragment_root, &focus));
+                const held = focus.?;
+                defer _ = held.vtbl.Release(held);
+
+                var after = try only(alloc, lines[1]);
+                defer after.deinit();
+                settings.externalConfigChanged(&after, @intCast(201 + 2 * round));
+                // The same binding: the same id, still selected, and the held
+                // row still names it and takes the focus.
+                try std.testing.expectEqual(id, settings.keybind_model.rows[list.shown[0]].id);
+                try std.testing.expectEqual(@as(?usize, 0), list.selectedPosition());
+                var simple_ptr: ?*anyopaque = null;
+                try std.testing.expectEqual(com.S_OK, held.vtbl.QueryInterface(held, &com.IID_IRawElementProviderSimple, &simple_ptr));
+                const simple: *com.IRawElementProviderSimple = @ptrCast(@alignCast(simple_ptr.?));
+                defer _ = simple.vtbl.Release(simple);
+                var value = com.VARIANT.empty();
+                try std.testing.expectEqual(com.S_OK, simple.vtbl.GetPropertyValue(simple, constants.UIA_NamePropertyId, &value));
+                _ = com.VariantClear(&value);
+                try std.testing.expectEqual(com.S_OK, held.vtbl.SetFocus(held));
+            }
+        }
+    }.body);
+}
+
+test "settings two key bindings written the same way are two rows to UIA, and a held one is gone when a reload swaps them" {
+    try dialog_test.onHiddenDesktop(struct {
+        const com = @import("win32_uia/com.zig");
+        const constants = @import("win32_uia/constants.zig");
+
+        /// The row at `position`, selected and held as a screen reader holds
+        /// the focused row.
+        fn hold(list: *ReferenceList, position: usize) !*com.IRawElementProviderFragment {
+            list.selectPosition(position);
+            var focus: ?*com.IRawElementProviderFragment = null;
+            try std.testing.expectEqual(com.S_OK, list.provider.?.fragment_root.vtbl.GetFocus(&list.provider.?.fragment_root, &focus));
+            return focus.?;
+        }
+
+        /// The row's UIA runtime id.
+        fn runtimeId(row: *com.IRawElementProviderFragment) ![3]i32 {
+            var array: ?*com.SAFEARRAY = null;
+            try std.testing.expectEqual(com.S_OK, row.vtbl.GetRuntimeId(row, &array));
+            defer _ = com.SafeArrayDestroy(array.?);
+            var id: [3]i32 = undefined;
+            for (&id, 0..) |*part, i| {
+                var index: i32 = @intCast(i);
+                try std.testing.expectEqual(com.S_OK, com.SafeArrayGetElement(array.?, &index, part));
+            }
+            return id;
+        }
+
+        /// A config with these bindings alone.
+        fn only(alloc: std.mem.Allocator, bindings: []const []const u8) !Config {
+            var config = try Config.default(alloc);
+            errdefer config.deinit();
+            try config.keybind.parseCLI(config._arena.?.allocator(), "clear");
+            for (bindings) |binding| try config.keybind.parseCLI(config._arena.?.allocator(), binding);
+            return config;
+        }
+
+        fn body() !void {
+            const alloc = std.testing.allocator;
+            const fixture = try dialog_test.Fixture.startWith(true);
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const list = &settings.keybind_list;
+            settings.setActiveSection(.keybindings);
+            _ = SetFocus(list.hwnd.?);
+
+            // `caps_lock+ctrl+f12` is written as `ctrl+f12` (the lock
+            // modifier is not printed): two bindings, two rows of one text.
+            var both = try only(alloc, &.{ "ctrl+f12=new_tab", "caps_lock+ctrl+f12=new_tab" });
+            defer both.deinit();
+            settings.externalConfigChanged(&both, 100);
+            try std.testing.expectEqual(@as(usize, 2), list.shown_count);
+            for (list.shown[0..2]) |id| try std.testing.expectEqualStrings("keybind = ctrl+f12=new_tab", settings.keybind_model.rows[id].entry);
+            try std.testing.expect(settings.keybind_model.rows[list.shown[0]].id != settings.keybind_model.rows[list.shown[1]].id);
+            const first = try hold(list, 0);
+            defer _ = first.vtbl.Release(first);
+            const second = try hold(list, 1);
+            defer _ = second.vtbl.Release(second);
+            try std.testing.expect(!std.mem.eql(i32, &(try runtimeId(first)), &(try runtimeId(second))));
+
+            // Hold the plain one's row; a reload puts the locked one in its
+            // place. The held row is gone: it neither names the new binding
+            // nor selects it.
+            var plain = try only(alloc, &.{"ctrl+f12=new_tab"});
+            defer plain.deinit();
+            settings.externalConfigChanged(&plain, 101);
+            const held = try hold(list, 0);
+            defer _ = held.vtbl.Release(held);
+            var locked = try only(alloc, &.{"caps_lock+ctrl+f12=new_tab"});
+            defer locked.deinit();
+            settings.externalConfigChanged(&locked, 102);
+            try std.testing.expectEqual(@as(usize, 1), list.shown_count);
+            try std.testing.expectEqualStrings("keybind = ctrl+f12=new_tab", settings.keybind_model.rows[list.shown[0]].entry);
+            // The selected binding is gone too: the selection does not move
+            // to the one written like it.
+            try std.testing.expectEqual(@as(?u16, null), list.selected);
+            var simple_ptr: ?*anyopaque = null;
+            try std.testing.expectEqual(com.S_OK, held.vtbl.QueryInterface(held, &com.IID_IRawElementProviderSimple, &simple_ptr));
+            const simple: *com.IRawElementProviderSimple = @ptrCast(@alignCast(simple_ptr.?));
+            defer _ = simple.vtbl.Release(simple);
+            var value = com.VARIANT.empty();
+            try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, simple.vtbl.GetPropertyValue(simple, constants.UIA_NamePropertyId, &value));
+            try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, held.vtbl.SetFocus(held));
+            var array: ?*com.SAFEARRAY = null;
+            try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, held.vtbl.GetRuntimeId(held, &array));
+            // And the same the other way round.
+            const held_locked = try hold(list, 0);
+            defer _ = held_locked.vtbl.Release(held_locked);
+            settings.externalConfigChanged(&plain, 103);
+            try std.testing.expectEqual(com.UIA_E_ELEMENTNOTAVAILABLE, held_locked.vtbl.SetFocus(held_locked));
         }
     }.body);
 }
@@ -19029,13 +19204,20 @@ test "settings a key binding row the page's viewport hides is offscreen to UIA, 
         }
 
         /// Every row's bounds as the viewport and the list show it, at the
-        /// page's scroll now. Counts the rows hidden whole and cut.
-        fn check(settings: *SettingsWindow, whole: *usize, cut: *usize) !void {
+        /// page's scroll now, every edge of them. Counts the rows hidden whole
+        /// and cut, below the viewport and above it.
+        const Counts = struct { whole: usize = 0, cut: usize = 0, whole_above: usize = 0, cut_above: usize = 0 };
+
+        fn check(settings: *SettingsWindow, counts: *Counts) !void {
             const list = &settings.keybind_list;
             const viewport = screenClient(settings.viewport.?);
             const client = screenClient(list.hwnd.?);
             const metrics = list.ensureMetrics().?;
             const selected = list.selectedPosition();
+            // Across, the list's text and the viewport's: the same for every row.
+            const left = @max(client.left, viewport.left);
+            const right = @min(client.left + metrics.width, viewport.right);
+            try std.testing.expect(right > left);
             for (0..list.shown_count) |position| {
                 errdefer std.debug.print("settings key binding row {d} of {d}\n", .{ position, list.shown_count });
                 const row_top = client.top + ReferenceList.rowTop(metrics, selected, position) - list.scroll_y;
@@ -19046,17 +19228,27 @@ test "settings a key binding row the page's viewport hides is offscreen to UIA, 
                 if (bottom <= top) {
                     try std.testing.expectEqual(@as(?win32_uia.UiaRect, null), bounds);
                     if (row_top >= viewport.bottom and row_top < client.bottom) {
-                        if (whole.* == 0) try std.testing.expect(try offscreen(list, position));
-                        whole.* += 1;
+                        if (counts.whole == 0) try std.testing.expect(try offscreen(list, position));
+                        counts.whole += 1;
+                    }
+                    if (row_bottom <= viewport.top and row_bottom > client.top) {
+                        if (counts.whole_above == 0) try std.testing.expect(try offscreen(list, position));
+                        counts.whole_above += 1;
                     }
                     continue;
                 }
                 const shown = bounds orelse return error.TestUnexpectedResult;
                 try std.testing.expectEqual(@as(f64, @floatFromInt(top)), shown.top);
                 try std.testing.expectEqual(@as(f64, @floatFromInt(bottom - top)), shown.height);
+                try std.testing.expectEqual(@as(f64, @floatFromInt(left)), shown.left);
+                try std.testing.expectEqual(@as(f64, @floatFromInt(right - left)), shown.width);
                 if (row_bottom > viewport.bottom) {
-                    if (cut.* == 0) try std.testing.expect(!try offscreen(list, position));
-                    cut.* += 1;
+                    if (counts.cut == 0) try std.testing.expect(!try offscreen(list, position));
+                    counts.cut += 1;
+                }
+                if (row_top < viewport.top) {
+                    if (counts.cut_above == 0) try std.testing.expect(!try offscreen(list, position));
+                    counts.cut_above += 1;
                 }
             }
         }
@@ -19076,16 +19268,66 @@ test "settings a key binding row the page's viewport hides is offscreen to UIA, 
             try std.testing.expect(sys.GetFocus() != list.hwnd.?);
             try std.testing.expect(screenClient(list.hwnd.?).bottom > screenClient(settings.viewport.?).bottom);
 
-            var whole: usize = 0;
-            var cut: usize = 0;
-            try check(settings, &whole, &cut);
+            var counts: Counts = .{};
+            try check(settings, &counts);
             // Half a row more of page scroll: a row the viewport's edge did
             // not cut before (an edge on a row boundary) is cut now.
             const half_row = @divTrunc(list.ensureMetrics().?.row, 2);
             settings.setContentScroll(@min(settings.content_scroll_max, half_row));
-            try check(settings, &whole, &cut);
-            try std.testing.expect(whole > 0);
-            try std.testing.expect(cut > 0);
+            try check(settings, &counts);
+            try std.testing.expect(counts.whole > 0);
+            try std.testing.expect(counts.cut > 0);
+
+            // The page scrolled as far as it goes: the list joins the page's
+            // extent only when it does not fit, so the page scrolls just far
+            // enough for its bottom, and it stays below the viewport's top and
+            // right of its left edge. Every row checked there too.
+            settings.setContentScroll(settings.content_scroll_max);
+            const viewport = screenClient(settings.viewport.?);
+            var client = screenClient(list.hwnd.?);
+            try std.testing.expect(client.top >= viewport.top and client.left >= viewport.left);
+            try check(settings, &counts);
+            try std.testing.expectEqual(@as(usize, 0), counts.whole_above + counts.cut_above);
+
+            // So the viewport's top and left edges are checked with the list
+            // moved past them (no new size, so no layout): a row and a half
+            // above the top, and part of its width left of the left edge.
+            const metrics = list.ensureMetrics().?;
+            var origin: POINT = .{ .x = client.left, .y = client.top };
+            _ = sys.ScreenToClient(settings.viewport.?, &origin);
+            _ = SetWindowPos(list.hwnd.?, null, -@divTrunc(metrics.width, 4), -metrics.row - @divTrunc(metrics.row, 2), 0, 0, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE);
+            client = screenClient(list.hwnd.?);
+            try std.testing.expect(client.top < viewport.top and client.left < viewport.left);
+            try check(settings, &counts);
+            try std.testing.expect(counts.whole_above > 0);
+            try std.testing.expect(counts.cut_above > 0);
+            _ = SetWindowPos(list.hwnd.?, null, origin.x, origin.y, 0, 0, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE);
+        }
+    }.body);
+}
+
+test "settings the lists' UIA callbacks answer nothing for a row the model does not have" {
+    try dialog_test.onHiddenDesktop(struct {
+        fn body() !void {
+            const fixture = try dialog_test.Fixture.start();
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const list = &settings.keybind_list;
+            settings.setActiveSection(.keybindings);
+            var buf: [SettingsWindow.help_text_bytes]u8 = undefined;
+            // A shown row whose id is past the model (rows shown before the
+            // model was built again with fewer), and a position past the rows.
+            try std.testing.expect(list.shown_count > 1);
+            const rows = settings.keybind_model.rows.len;
+            list.shown[0] = @intCast(rows + 3);
+            try std.testing.expectEqual(@as(u64, 0), referenceUiaRowId(list, 0));
+            try std.testing.expectEqualStrings("", referenceUiaRowName(list, 0, &buf));
+            try std.testing.expectEqualStrings("", referenceUiaRowHelp(list, 0, &buf));
+            try std.testing.expectEqual(@as(u64, 0), referenceUiaRowId(list, list.shown_count));
+            // The next row is still answered.
+            try std.testing.expect(referenceUiaRowId(list, 1) != 0);
+            try std.testing.expect(referenceUiaRowName(list, 1, &buf).len != 0);
+            list.shown[0] = 0;
         }
     }.body);
 }

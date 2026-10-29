@@ -31,13 +31,16 @@ pub const Row = struct {
     /// What the search finds the row by, in lower case: the keys, the
     /// actions and the documentation.
     search: []const u8,
-    /// Whether the defaults lack this binding, keys, flags and actions alike:
-    /// the config file made it (`@modified` finds it).
+    /// Whether the defaults lack this binding (`identity`): the config file
+    /// made it (`@modified` finds it).
     differs: bool = false,
-    /// The binding's identity, from its `keybind` lines (table, flags, keys
-    /// and actions; no two bindings in effect share them), never 0. Not its
-    /// place: a rebuild that sorts another binding in before it moves the
-    /// row, and what UIA holds of the row must not then name that other one.
+    /// What the binding is, which its text does not always tell.
+    identity: Identity = .{},
+    /// The row's id, never 0, and no other row's (`Model.build`): a rebuild
+    /// gives a row its last id only when it is the same binding (`identity`),
+    /// and a new one otherwise. Not its place: a rebuild that sorts another
+    /// binding in before it moves the row, and what UIA holds of the row must
+    /// not then name that other one.
     id: u64 = 0,
 
     /// By action, then by keys, so an action's bindings are together.
@@ -50,15 +53,133 @@ pub const Row = struct {
     }
 };
 
+/// A binding as the config's binding set tells bindings apart: its table, its
+/// flags, its keys, each with its whole modifier value (`Trigger.foldedEqual`),
+/// and its actions in order (`Action.equal`, floats aside: `actionEql`). Its
+/// text does not do: it prints only Super, Ctrl, Alt and Shift
+/// (`Trigger.format`), so `caps_lock+ctrl+f12` and `ctrl+f12`, two bindings,
+/// are written the same. Copied into the model's arena, so a rebuild can
+/// compare its bindings with the last one's.
+pub const Identity = struct {
+    table: []const u8 = "",
+    flags: Binding.Flags = .{},
+    keys: []const Binding.Trigger = &.{},
+    actions: []const Binding.Action = &.{},
+
+    fn copy(alloc: std.mem.Allocator, table: ?[]const u8, flags: Binding.Flags, keys: []const Binding.Trigger, actions: []const Binding.Action) !Identity {
+        const cloned = try alloc.alloc(Binding.Action, actions.len);
+        for (actions, cloned) |action, *into| into.* = try action.clone(alloc);
+        return .{
+            .table = try alloc.dupe(u8, table orelse ""),
+            .flags = flags,
+            .keys = try alloc.dupe(Binding.Trigger, keys),
+            .actions = cloned,
+        };
+    }
+
+    pub fn eql(a: Identity, b: Identity) bool {
+        if (!std.mem.eql(u8, a.table, b.table)) return false;
+        if (!std.meta.eql(a.flags, b.flags)) return false;
+        if (a.keys.len != b.keys.len or a.actions.len != b.actions.len) return false;
+        for (a.keys, b.keys) |x, y| if (!x.foldedEqual(y)) return false;
+        for (a.actions, b.actions) |x, y| if (!actionEql(x, y)) return false;
+        return true;
+    }
+
+    /// Equal identities hash alike. Only for finding candidates: `eql`
+    /// decides.
+    fn hash(self: Identity) u64 {
+        var hasher = std.hash.Wyhash.init(0);
+        hasher.update(self.table);
+        for (self.keys) |key| std.hash.autoHash(&hasher, key.hash());
+        for (self.actions) |action| std.hash.autoHash(&hasher, actionHash(action));
+        return hasher.final();
+    }
+};
+
+/// Whether two actions are one for `Identity`: `Action.equal`, except for a
+/// float parameter (`scroll_page_fractional:-0`), which it compares with `==`.
+/// Under `==`, `-0` is `0` while `Action.hash` hashes their bits apart, so the
+/// lookup would not find an equal binding; and NaN is not even itself, so a
+/// binding with a NaN parameter would never be the same binding again. Here
+/// `-0` is `0`, every NaN is every other, and `actionHash` agrees.
+fn actionEql(a: Binding.Action, b: Binding.Action) bool {
+    if (std.meta.activeTag(a) != std.meta.activeTag(b)) return false;
+    return switch (a) {
+        inline else => |value, tag| switch (@TypeOf(value)) {
+            f32, f64 => value == @field(b, @tagName(tag)) or
+                (std.math.isNan(value) and std.math.isNan(@field(b, @tagName(tag)))),
+            else => a.equal(b),
+        },
+    };
+}
+
+/// `Action.hash`, with a float parameter hashed by a value equal ones share
+/// (`actionEql`): `-0` as `0`, and every NaN alike. Floats are only ever the
+/// whole parameter: `Action.hash` hashes anything else with `autoHash`, which
+/// takes no floats.
+fn actionHash(action: Binding.Action) u64 {
+    return switch (action) {
+        inline else => |value, tag| switch (@TypeOf(value)) {
+            f32, f64 => hash: {
+                const Float = @TypeOf(value);
+                const same: Float = if (std.math.isNan(value)) std.math.nan(Float) else if (value == 0) 0 else value;
+                var hasher = std.hash.Wyhash.init(0);
+                std.hash.autoHash(&hasher, tag);
+                std.hash.autoHash(&hasher, @as(std.meta.Int(.unsigned, @bitSizeOf(Float)), @bitCast(same)));
+                break :hash hasher.final();
+            },
+            else => action.hash(),
+        },
+    };
+}
+
+/// Find a row whose binding equals another: the hash finds the candidates,
+/// `Identity.eql` decides.
+const Lookup = struct {
+    rows: []const Row,
+    first: std.AutoHashMapUnmanaged(u64, u32) = .empty,
+    /// The next row with the same hash.
+    next: []?u32 = &.{},
+
+    fn init(gpa: std.mem.Allocator, rows: []const Row) !Lookup {
+        var self: Lookup = .{ .rows = rows };
+        errdefer self.deinit(gpa);
+        self.next = try gpa.alloc(?u32, rows.len);
+        for (rows, 0..) |row, index| {
+            const entry = try self.first.getOrPut(gpa, row.identity.hash());
+            self.next[index] = if (entry.found_existing) entry.value_ptr.* else null;
+            entry.value_ptr.* = @intCast(index);
+        }
+        return self;
+    }
+
+    fn deinit(self: *Lookup, gpa: std.mem.Allocator) void {
+        self.first.deinit(gpa);
+        gpa.free(self.next);
+    }
+
+    fn find(self: *const Lookup, identity: Identity) ?*const Row {
+        var at = self.first.get(identity.hash());
+        while (at) |index| : (at = self.next[index]) {
+            if (self.rows[index].identity.eql(identity)) return &self.rows[index];
+        }
+        return null;
+    }
+};
+
 pub const Model = struct {
     arena: ?std.heap.ArenaAllocator = null,
     rows: []const Row = &.{},
     /// Whether the rows were compared with the defaults (`Row.differs`).
     compared: bool = false,
+    /// The id the next new binding gets. It outlives the rows, so no id is
+    /// ever given to a second binding.
+    next_id: u64 = 1,
 
     pub fn deinit(self: *Model) void {
         if (self.arena) |*arena| arena.deinit();
-        self.* = .{};
+        self.* = .{ .next_id = self.next_id };
     }
 
     pub fn built(self: *const Model) bool {
@@ -70,26 +191,40 @@ pub const Model = struct {
     /// A row differs when `defaults` (the bindings of `Config.default`, null
     /// when there are none to compare with: nothing then differs) lacks it.
     /// On failure the model is left empty.
+    /// A row that is the same binding as one of the last build's keeps that
+    /// row's id; any other row gets a new one (`next_id`).
     pub fn build(self: *Model, gpa: std.mem.Allocator, keybinds: *const Config.Keybinds, defaults: ?*const Config.Keybinds) !void {
-        self.deinit();
+        errdefer self.deinit();
         var arena: std.heap.ArenaAllocator = .init(gpa);
         errdefer arena.deinit();
         var builder: Builder = .{ .alloc = arena.allocator(), .scratch = .init(gpa) };
         defer builder.scratch.deinit();
         try builder.addKeybinds(keybinds);
         if (defaults) |default_keybinds| {
-            // The defaults' config lines alone, in an arena of their own, to
+            // The defaults' bindings alone, in an arena of their own, to
             // compare with: nothing else of them is kept.
             var scratch_arena: std.heap.ArenaAllocator = .init(gpa);
             defer scratch_arena.deinit();
-            var default_builder: Builder = .{ .alloc = scratch_arena.allocator(), .scratch = .init(gpa), .entries_only = true };
+            var default_builder: Builder = .{ .alloc = scratch_arena.allocator(), .scratch = .init(gpa), .identities_only = true };
             defer default_builder.scratch.deinit();
             try default_builder.addKeybinds(default_keybinds);
-            var entries: std.StringHashMapUnmanaged(void) = .empty;
-            defer entries.deinit(gpa);
-            for (default_builder.rows.items) |row| try entries.put(gpa, row.entry, {});
-            for (builder.rows.items) |*row| row.differs = !entries.contains(row.entry);
+            var lookup: Lookup = try .init(gpa, default_builder.rows.items);
+            defer lookup.deinit(gpa);
+            for (builder.rows.items) |*row| row.differs = lookup.find(row.identity) == null;
         }
+        {
+            var lookup: Lookup = try .init(gpa, self.rows);
+            defer lookup.deinit(gpa);
+            for (builder.rows.items) |*row| {
+                if (lookup.find(row.identity)) |last| {
+                    row.id = last.id;
+                } else {
+                    row.id = self.next_id;
+                    self.next_id += 1;
+                }
+            }
+        }
+        self.deinit();
         self.rows = builder.rows.items;
         self.compared = defaults != null;
         self.arena = arena;
@@ -99,21 +234,21 @@ pub const Model = struct {
 const Builder = struct {
     alloc: std.mem.Allocator,
     rows: std.ArrayListUnmanaged(Row) = .empty,
-    /// Make only each row's `trigger` and `entry` (the defaults, to compare
-    /// with), unsorted.
-    entries_only: bool = false,
+    /// Make only each row's `identity` (the defaults, to compare with),
+    /// unsorted.
+    identities_only: bool = false,
     /// Each action's documentation as plain text, made once.
     docs: [action_count]?[]const u8 = @splat(null),
     scratch: std.Io.Writer.Allocating,
 
     fn addKeybinds(self: *Builder, keybinds: *const Config.Keybinds) !void {
         try self.addSet(&keybinds.set, null);
-        if (!self.entries_only) std.sort.pdq(Row, self.rows.items, {}, Row.lessThan);
+        if (!self.identities_only) std.sort.pdq(Row, self.rows.items, {}, Row.lessThan);
         var tables = keybinds.tables.iterator();
         while (tables.next()) |table| {
             const start = self.rows.items.len;
             try self.addSet(table.value_ptr, table.key_ptr.*);
-            if (!self.entries_only) std.sort.pdq(Row, self.rows.items[start..], {}, Row.lessThan);
+            if (!self.identities_only) std.sort.pdq(Row, self.rows.items[start..], {}, Row.lessThan);
         }
     }
 
@@ -141,6 +276,11 @@ const Builder = struct {
     fn addRow(self: *Builder, table: ?[]const u8, keys: []const Binding.Trigger, flags: Binding.Flags, actions: []const Binding.Action) !void {
         if (actions.len == 0) return;
         const alloc = self.alloc;
+        const identity: Identity = try .copy(alloc, table, flags, keys, actions);
+        if (self.identities_only) {
+            try self.rows.append(alloc, .{ .trigger = "", .action = "", .doc = "", .summary = "", .entry = "", .search = "", .identity = identity });
+            return;
+        }
         var trigger: std.Io.Writer.Allocating = .init(alloc);
         if (table) |name| try trigger.writer.print("{s}/", .{name});
         try writeFlags(&trigger.writer, flags);
@@ -152,11 +292,6 @@ const Builder = struct {
         var entry: std.Io.Writer.Allocating = .init(alloc);
         try entry.writer.print("keybind = {s}={f}", .{ trigger.written(), actions[0] });
         for (actions[1..]) |item| try entry.writer.print("\nkeybind = chain={f}", .{item});
-        if (self.entries_only) {
-            try self.rows.append(alloc, .{ .trigger = trigger.written(), .action = "", .doc = "", .summary = "", .entry = entry.written(), .search = "" });
-            return;
-        }
-
         const first_doc = try self.actionDoc(actions[0]);
         const doc = if (actions.len == 1) first_doc else chained: {
             var all: std.Io.Writer.Allocating = .init(alloc);
@@ -170,7 +305,7 @@ const Builder = struct {
         for (lowered) |*c| c.* = std.ascii.toLower(c.*);
 
         try self.rows.append(alloc, .{
-            .id = bindingId(entry.written()),
+            .identity = identity,
             .table = table orelse "",
             .trigger = trigger.written(),
             .action = action.written(),
@@ -191,12 +326,6 @@ const Builder = struct {
         return doc;
     }
 };
-
-/// `Row.id` for a binding written as `entry`.
-fn bindingId(entry: []const u8) u64 {
-    const hash = std.hash.Wyhash.hash(0, entry);
-    return if (hash == 0) 1 else hash;
-}
 
 /// The flags a binding was written with, as the config file writes them
 /// before its keys. A binding consumes its keys unless it says otherwise.
@@ -242,6 +371,175 @@ test "keybinds every action has documentation the list shows as plain text" {
     }
 }
 
+test "keybinds a binding with a lock modifier is a binding of its own, though its text is another's" {
+    const alloc = std.testing.allocator;
+    var config = try Config.default(alloc);
+    defer config.deinit();
+    const arena = config._arena.?.allocator();
+    try config.keybind.parseCLI(arena, "clear");
+    try config.keybind.parseCLI(arena, "ctrl+f12=new_tab");
+    try config.keybind.parseCLI(arena, "caps_lock+ctrl+f12=new_tab");
+    // The defaults to compare with have the plain one only.
+    var defaults = try Config.default(alloc);
+    defer defaults.deinit();
+    try defaults.keybind.parseCLI(defaults._arena.?.allocator(), "clear");
+    try defaults.keybind.parseCLI(defaults._arena.?.allocator(), "ctrl+f12=new_tab");
+    var model: Model = .{};
+    defer model.deinit();
+    try model.build(alloc, &config.keybind, &defaults.keybind);
+    // Two bindings, which the config file writes the same way (the lock
+    // modifier is not printed), with two ids.
+    try std.testing.expectEqual(@as(usize, 2), model.rows.len);
+    for (model.rows) |row| try std.testing.expectEqualStrings("keybind = ctrl+f12=new_tab", row.entry);
+    try std.testing.expect(model.rows[0].id != model.rows[1].id);
+    try std.testing.expect(!model.rows[0].identity.eql(model.rows[1].identity));
+    // The defaults have one of them, and lack the other.
+    for (model.rows) |row| try std.testing.expectEqual(row.identity.keys[0].mods.caps_lock, row.differs);
+}
+
+test "keybinds a rebuild keeps a binding's id, and gives it to no other binding" {
+    const alloc = std.testing.allocator;
+    const Ids = struct {
+        /// The id of the row whose key has `caps_lock` as asked, if any.
+        fn of(model: *const Model, caps_lock: bool) ?u64 {
+            for (model.rows) |row| if (row.identity.keys[0].mods.caps_lock == caps_lock) return row.id;
+            return null;
+        }
+    };
+    var model: Model = .{};
+    defer model.deinit();
+    var both = try Config.default(alloc);
+    defer both.deinit();
+    try both.keybind.parseCLI(both._arena.?.allocator(), "clear");
+    try both.keybind.parseCLI(both._arena.?.allocator(), "ctrl+f12=new_tab");
+    try both.keybind.parseCLI(both._arena.?.allocator(), "caps_lock+ctrl+f12=new_tab");
+    try model.build(alloc, &both.keybind, null);
+    const plain = Ids.of(&model, false).?;
+    const locked = Ids.of(&model, true).?;
+    try std.testing.expect(plain != 0 and locked != 0 and plain != locked);
+    // The same bindings: the same ids.
+    try model.build(alloc, &both.keybind, null);
+    try std.testing.expectEqual(plain, Ids.of(&model, false).?);
+    try std.testing.expectEqual(locked, Ids.of(&model, true).?);
+    // The locked one alone keeps its id.
+    var only_locked = try Config.default(alloc);
+    defer only_locked.deinit();
+    try only_locked.keybind.parseCLI(only_locked._arena.?.allocator(), "clear");
+    try only_locked.keybind.parseCLI(only_locked._arena.?.allocator(), "caps_lock+ctrl+f12=new_tab");
+    try model.build(alloc, &only_locked.keybind, null);
+    try std.testing.expectEqual(@as(usize, 1), model.rows.len);
+    try std.testing.expectEqual(locked, model.rows[0].id);
+    // Replaced by the plain one, written the same: a new id, neither of
+    // the others.
+    var only_plain = try Config.default(alloc);
+    defer only_plain.deinit();
+    try only_plain.keybind.parseCLI(only_plain._arena.?.allocator(), "clear");
+    try only_plain.keybind.parseCLI(only_plain._arena.?.allocator(), "ctrl+f12=new_tab");
+    try model.build(alloc, &only_plain.keybind, null);
+    try std.testing.expectEqual(@as(usize, 1), model.rows.len);
+    try std.testing.expect(model.rows[0].id != locked and model.rows[0].id != plain);
+    // Nor does going without the model start the ids again.
+    const last = model.rows[0].id;
+    model.deinit();
+    try model.build(alloc, &only_plain.keybind, null);
+    try std.testing.expect(model.rows[0].id > last);
+    // The same keys and action with another flag: another binding. Flags
+    // are not in the lookup's hash, so only equality tells them apart.
+    const unflagged = model.rows[0].id;
+    var flagged = try Config.default(alloc);
+    defer flagged.deinit();
+    try flagged.keybind.parseCLI(flagged._arena.?.allocator(), "clear");
+    try flagged.keybind.parseCLI(flagged._arena.?.allocator(), "unconsumed:ctrl+f12=new_tab");
+    try model.build(alloc, &flagged.keybind, null);
+    try std.testing.expectEqual(@as(usize, 1), model.rows.len);
+    try std.testing.expect(model.rows[0].id != unflagged);
+}
+
+test "keybinds a float parameter is the same binding with a zero of either sign, and with any NaN" {
+    const key: Binding.Trigger = .{ .mods = .{ .ctrl = true }, .key = .{ .physical = .f12 } };
+    const Pair = struct { a: f32, b: f32 };
+    const other_nan: f32 = @bitCast(@as(u32, 0x7fc0_0001));
+    for ([_]Pair{
+        .{ .a = 0.0, .b = -0.0 },
+        .{ .a = std.math.nan(f32), .b = std.math.nan(f32) },
+        .{ .a = std.math.nan(f32), .b = other_nan },
+    }, 0..) |pair, index| {
+        errdefer std.debug.print("keybinds float pair {d}\n", .{index});
+        const a: Identity = .{ .keys = &.{key}, .actions = &.{.{ .scroll_page_fractional = pair.a }} };
+        const b: Identity = .{ .keys = &.{key}, .actions = &.{.{ .scroll_page_fractional = pair.b }} };
+        try std.testing.expect(a.eql(b) and b.eql(a));
+        try std.testing.expect(a.eql(a));
+        try std.testing.expectEqual(a.hash(), b.hash());
+    }
+    // Still not one for another value, or another action.
+    const half: Identity = .{ .keys = &.{key}, .actions = &.{.{ .scroll_page_fractional = 0.5 }} };
+    try std.testing.expect(!half.eql(.{ .keys = &.{key}, .actions = &.{.{ .scroll_page_fractional = 0.0 }} }));
+    try std.testing.expect(!half.eql(.{ .keys = &.{key}, .actions = &.{.{ .set_font_size = 0.5 }} }));
+}
+
+test "keybinds a reload that only flips a float parameter's zero, or reads nan again, keeps the id, and defaults written the other way do not differ" {
+    const alloc = std.testing.allocator;
+    for ([_][2][]const u8{
+        .{ "ctrl+f12=scroll_page_fractional:0", "ctrl+f12=scroll_page_fractional:-0" },
+        .{ "ctrl+f12=scroll_page_fractional:nan", "ctrl+f12=scroll_page_fractional:nan" },
+    }) |lines| {
+        errdefer std.debug.print("keybinds float lines {s} then {s}\n", .{ lines[0], lines[1] });
+        var first = try Config.default(alloc);
+        defer first.deinit();
+        try first.keybind.parseCLI(first._arena.?.allocator(), "clear");
+        try first.keybind.parseCLI(first._arena.?.allocator(), lines[0]);
+        var second = try Config.default(alloc);
+        defer second.deinit();
+        try second.keybind.parseCLI(second._arena.?.allocator(), "clear");
+        try second.keybind.parseCLI(second._arena.?.allocator(), lines[1]);
+        var model: Model = .{};
+        defer model.deinit();
+        try model.build(alloc, &first.keybind, &second.keybind);
+        try std.testing.expectEqual(@as(usize, 1), model.rows.len);
+        try std.testing.expect(!model.rows[0].differs);
+        const id = model.rows[0].id;
+        try model.build(alloc, &second.keybind, &first.keybind);
+        try std.testing.expectEqual(id, model.rows[0].id);
+        try std.testing.expect(!model.rows[0].differs);
+    }
+}
+
+test "keybinds an identity is the table, the flags, every modifier of every key and each action" {
+    const key: Binding.Trigger = .{ .mods = .{ .ctrl = true }, .key = .{ .physical = .f12 } };
+    const base: Identity = .{ .keys = &.{key}, .actions = &.{.new_tab} };
+    try std.testing.expect(base.eql(.{ .keys = &.{key}, .actions = &.{.new_tab} }));
+    try std.testing.expectEqual(base.hash(), (Identity{ .keys = &.{key}, .actions = &.{.new_tab} }).hash());
+    // A key the set folds to the same one is the same binding.
+    const lower: Binding.Trigger = .{ .mods = .{ .ctrl = true }, .key = .{ .unicode = 'a' } };
+    const upper: Binding.Trigger = .{ .mods = .{ .ctrl = true }, .key = .{ .unicode = 'A' } };
+    try std.testing.expect((Identity{ .keys = &.{lower}, .actions = &.{.new_tab} }).eql(.{ .keys = &.{upper}, .actions = &.{.new_tab} }));
+
+    var caps = key;
+    caps.mods.caps_lock = true;
+    var num = key;
+    num.mods.num_lock = true;
+    var shift = key;
+    shift.mods.shift = true;
+    var f11 = key;
+    f11.key = .{ .physical = .f11 };
+    for ([_]Identity{
+        .{ .table = "other", .keys = &.{key}, .actions = &.{.new_tab} },
+        .{ .flags = .{ .global = true }, .keys = &.{key}, .actions = &.{.new_tab} },
+        .{ .flags = .{ .consumed = false }, .keys = &.{key}, .actions = &.{.new_tab} },
+        .{ .keys = &.{caps}, .actions = &.{.new_tab} },
+        .{ .keys = &.{num}, .actions = &.{.new_tab} },
+        .{ .keys = &.{shift}, .actions = &.{.new_tab} },
+        .{ .keys = &.{f11}, .actions = &.{.new_tab} },
+        .{ .keys = &.{ key, key }, .actions = &.{.new_tab} },
+        .{ .keys = &.{key}, .actions = &.{.new_window} },
+        .{ .keys = &.{key}, .actions = &.{ .new_tab, .new_window } },
+    }, 0..) |other, index| {
+        errdefer std.debug.print("keybinds identity {d} equals the base\n", .{index});
+        try std.testing.expect(!base.eql(other));
+        try std.testing.expect(!other.eql(base));
+    }
+}
+
 test "keybinds the list holds every binding in effect, sequences, chains, flags and tables included" {
     const alloc = std.testing.allocator;
     var config = try Config.default(alloc);
@@ -252,6 +550,8 @@ test "keybinds the list holds every binding in effect, sequences, chains, flags 
     try config.keybind.parseCLI(arena, "ctrl+alt+y=new_tab");
     try config.keybind.parseCLI(arena, "chain=close_surface");
     try config.keybind.parseCLI(arena, "mine/ctrl+b=reset");
+    // The same keys and action in a second table: another binding.
+    try config.keybind.parseCLI(arena, "other/ctrl+b=reset");
     var defaults = try Config.default(alloc);
     defer defaults.deinit();
     var model: Model = .{};
@@ -304,10 +604,28 @@ test "keybinds the list holds every binding in effect, sequences, chains, flags 
     try std.testing.expect(std.mem.indexOf(u8, chain.search, lower_summary) != null);
     try std.testing.expect(std.mem.indexOf(u8, chain.summary, close_summary) == null);
 
+    // One trigger in two tables is two bindings, with two ids.
+    var in_tables: [2]u64 = undefined;
+    var found: usize = 0;
+    for (model.rows) |row| {
+        if (std.mem.endsWith(u8, row.trigger, "/ctrl+b") and std.mem.eql(u8, row.action, "reset")) {
+            in_tables[found] = row.id;
+            found += 1;
+        }
+    }
+    try std.testing.expectEqual(@as(usize, 2), found);
+    try std.testing.expect(in_tables[0] != in_tables[1]);
+    // A rebuild gives every binding its id again, each table's its own.
+    const before = try alloc.alloc(u64, model.rows.len);
+    defer alloc.free(before);
+    for (model.rows, before) |row, *id| id.* = row.id;
+    try model.build(alloc, &config.keybind, &defaults.keybind);
+    for (model.rows, before) |row, id| try std.testing.expectEqual(id, row.id);
+
     // The default table's bindings by action, then each other table's (the
     // defaults have `copy_mode`), the one added last last.
     try std.testing.expectEqualStrings("", model.rows[0].table);
-    try std.testing.expectEqualStrings("mine", model.rows[model.rows.len - 1].table);
+    try std.testing.expectEqualStrings("other", model.rows[model.rows.len - 1].table);
     var tables_seen: usize = 0;
     for (model.rows[0 .. model.rows.len - 1], model.rows[1..]) |a, b| {
         errdefer std.debug.print("keybinds rows out of order: {s}={s} before {s}={s}\n", .{ a.trigger, a.action, b.trigger, b.action });
