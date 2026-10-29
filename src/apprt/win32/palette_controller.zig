@@ -1465,7 +1465,7 @@ pub const HostControls = struct {
         var arena = std.heap.ArenaAllocator.init(alloc);
         defer arena.deinit();
 
-        const installed = themepkg.list(alloc, arena.allocator()) catch |err| {
+        const installed = themepkg.listCached(alloc, arena.allocator()) catch |err| {
             log.warn("palette theme enumeration failed err={}", .{err});
             return;
         };

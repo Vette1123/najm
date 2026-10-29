@@ -114,7 +114,11 @@ pub const Directory = struct {
 pub fn list(alloc: Allocator, arena_alloc: Allocator) ![]Entry {
     var dirs: std.ArrayList(Directory) = .empty;
     defer dirs.deinit(alloc);
+    try appendDirectories(alloc, arena_alloc, &dirs);
+    return try listFromDirectories(alloc, dirs.items);
+}
 
+fn appendDirectories(alloc: Allocator, arena_alloc: Allocator, dirs: *std.ArrayList(Directory)) !void {
     var it: LocationIterator = .{ .arena_alloc = arena_alloc };
     while (try it.next()) |loc| {
         try dirs.append(alloc, .{
@@ -122,8 +126,99 @@ pub fn list(alloc: Allocator, arena_alloc: Allocator) ![]Entry {
             .dir = loc.dir,
         });
     }
+}
 
-    return try listFromDirectories(alloc, dirs.items);
+/// `list`, without walking the theme directories again while none of them
+/// changed: the command palette and the Settings theme dropdown list every
+/// installed theme each time they open. The caller owns the result, as
+/// with `list` (`freeList`); the cache keeps its own copy. UI thread and
+/// other callers are serialised by `list_cache_mutex`.
+pub fn listCached(alloc: Allocator, arena_alloc: Allocator) ![]Entry {
+    var dirs: std.ArrayList(Directory) = .empty;
+    defer dirs.deinit(alloc);
+    try appendDirectories(alloc, arena_alloc, &dirs);
+    list_cache_mutex.lock();
+    defer list_cache_mutex.unlock();
+    return try list_cache.get(alloc, dirs.items);
+}
+
+var list_cache_mutex: std.Thread.Mutex = .{};
+var list_cache: ListCache = .{};
+
+/// The last listing and, for each directory it came from, its modification
+/// time when the listing started. Adding, removing or renaming a file in a
+/// directory changes that directory's time (NTFS and POSIX alike), which is
+/// all a listing of names and paths depends on.
+const ListCache = struct {
+    arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator),
+    entries: []const Entry = &.{},
+    stamps: []const Stamp = &.{},
+    valid: bool = false,
+    /// Directory walks done; tests read it.
+    rebuilds: u32 = 0,
+
+    const Stamp = struct { dir: []const u8, mtime: i128 };
+
+    fn deinit(self: *ListCache) void {
+        self.arena.deinit();
+        self.* = undefined;
+    }
+
+    fn get(self: *ListCache, alloc: Allocator, dirs: []const Directory) ![]Entry {
+        if (!self.valid or !self.matches(dirs)) {
+            self.valid = false;
+            _ = self.arena.reset(.retain_capacity);
+            const keep = self.arena.allocator();
+            // Stamped before the walk: a file added during it moves a time
+            // past the stamp, so the next call walks again.
+            const stamps = try keep.alloc(Stamp, dirs.len);
+            for (dirs, stamps) |dir, *stamp| stamp.* = .{ .dir = try keep.dupe(u8, dir.dir), .mtime = dirMtime(dir.dir) };
+            const fresh = try listFromDirectories(alloc, dirs);
+            defer freeList(alloc, fresh);
+            self.entries = try copyEntries(keep, fresh);
+            self.stamps = stamps;
+            self.valid = true;
+            self.rebuilds +%= 1;
+        }
+        return try copyEntries(alloc, self.entries);
+    }
+
+    fn matches(self: *const ListCache, dirs: []const Directory) bool {
+        if (self.stamps.len != dirs.len) return false;
+        for (self.stamps, dirs) |stamp, dir| {
+            if (!std.mem.eql(u8, stamp.dir, dir.dir)) return false;
+            if (stamp.mtime != dirMtime(dir.dir)) return false;
+        }
+        return true;
+    }
+
+    /// A directory's modification time, or -1 when it cannot be read (a
+    /// missing user theme directory: creating it changes the stamp).
+    fn dirMtime(path: []const u8) i128 {
+        var dir = std.fs.cwd().openDir(path, .{}) catch return -1;
+        defer dir.close();
+        const stat = dir.stat() catch return -1;
+        return stat.mtime;
+    }
+};
+
+fn copyEntries(alloc: Allocator, entries: []const Entry) ![]Entry {
+    const out = try alloc.alloc(Entry, entries.len);
+    var done: usize = 0;
+    errdefer {
+        for (out[0..done]) |entry| {
+            alloc.free(entry.path);
+            alloc.free(entry.name);
+        }
+        alloc.free(out);
+    }
+    for (entries, out) |entry, *copy| {
+        const path = try alloc.dupe(u8, entry.path);
+        errdefer alloc.free(path);
+        copy.* = .{ .location = entry.location, .path = path, .name = try alloc.dupe(u8, entry.name) };
+        done += 1;
+    }
+    return out;
 }
 
 /// Enumerate installed theme files with the same directory priority as
@@ -435,6 +530,51 @@ test "theme list keeps first duplicate by directory priority" {
     }
     try std.testing.expect(found_user);
     try std.testing.expect(found_legacy_user);
+}
+
+test "the theme list cache walks again only when a directory changed" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.makePath("user");
+    (try tmp.dir.createFile("user/First", .{})).close();
+    const user_dir = try tmp.dir.realpathAlloc(alloc, "user");
+    defer alloc.free(user_dir);
+    const root = try tmp.dir.realpathAlloc(alloc, ".");
+    defer alloc.free(root);
+    const missing_dir = try std.fs.path.join(alloc, &.{ root, "resources" });
+    defer alloc.free(missing_dir);
+    const dirs = [_]Directory{
+        .{ .location = .user, .dir = user_dir },
+        .{ .location = .resources, .dir = missing_dir },
+    };
+
+    var cache: ListCache = .{};
+    defer cache.deinit();
+
+    const first = try cache.get(alloc, &dirs);
+    defer freeList(alloc, first);
+    const again = try cache.get(alloc, &dirs);
+    defer freeList(alloc, again);
+    try std.testing.expectEqual(@as(u32, 1), cache.rebuilds);
+    try std.testing.expectEqual(@as(usize, 1), again.len);
+    // An owned copy, not the cache's own memory.
+    try std.testing.expect(first[0].name.ptr != again[0].name.ptr);
+
+    // A new theme file changes its directory's time.
+    (try tmp.dir.createFile("user/Second", .{})).close();
+    const added = try cache.get(alloc, &dirs);
+    defer freeList(alloc, added);
+    try std.testing.expectEqual(@as(u32, 2), cache.rebuilds);
+    try std.testing.expectEqual(@as(usize, 2), added.len);
+
+    // A directory that appears counts as a change too.
+    try tmp.dir.makePath("resources");
+    (try tmp.dir.createFile("resources/Bundled", .{})).close();
+    const appeared = try cache.get(alloc, &dirs);
+    defer freeList(alloc, appeared);
+    try std.testing.expectEqual(@as(u32, 3), cache.rebuilds);
+    try std.testing.expectEqual(@as(usize, 3), appeared.len);
 }
 
 test "issue149 user theme locations prefer noctty before legacy ghostty" {

@@ -5215,7 +5215,7 @@ pub const SettingsWindow = struct {
         var arena_state = std.heap.ArenaAllocator.init(self.handle.alloc);
         defer arena_state.deinit();
         const arena = arena_state.allocator();
-        const installed = themepkg.list(arena, arena) catch |err| {
+        const installed = themepkg.listCached(arena, arena) catch |err| {
             std.log.warn("settings: theme enumeration failed err={}", .{err});
             return;
         };
