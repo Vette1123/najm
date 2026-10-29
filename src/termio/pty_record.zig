@@ -28,13 +28,21 @@ pub const Recorder = struct {
     pub fn init(alloc: std.mem.Allocator, cols: u16, rows: u16) Recorder {
         const dir = (internal_os.getEnvVarOwnedTrimmedNotEmpty(alloc, "NAJM_PTY_RECORD_DIR") catch return .{}) orelse return .{};
         defer alloc.free(dir);
+        return openIn(alloc, dir, cols, rows);
+    }
+
+    /// A recorder writing into `dir`, or an off one when `dir` is a share
+    /// or a device: a recording holds whatever the screen showed, and a
+    /// stalled share would block the pty reader on every write.
+    pub fn openIn(alloc: std.mem.Allocator, dir: []const u8, cols: u16, rows: u16) Recorder {
+        if (internal_os.path.isNetworkOrDevicePath(dir)) return .{};
         pruneOld(dir, std.time.timestamp());
         const pid = if (@import("builtin").os.tag == .windows) std.os.windows.GetCurrentProcessId() else 0;
         const name = std.fmt.allocPrint(alloc, "najm-{d}-{d}.vt", .{ pid, next_id.fetchAdd(1, .monotonic) }) catch return .{};
         defer alloc.free(name);
         const path = std.fs.path.join(alloc, &.{ dir, name }) catch return .{};
         var self: Recorder = .{ .path = path, .alloc = alloc, .cols = cols, .rows = rows };
-        self.open() catch {
+        self.open("") catch {
             alloc.free(path);
             return .{};
         };
@@ -42,29 +50,48 @@ pub const Recorder = struct {
     }
 
     pub fn deinit(self: *Recorder) void {
+        self.mutex.lock();
         if (self.file) |f| f.close();
         if (self.path) |p| self.alloc.?.free(p);
         self.* = .{};
     }
 
-    /// Bytes the terminal is about to process.
+    /// Bytes the terminal is about to process. The caller holds the lock
+    /// the terminal is changed under, so the file keeps the order the
+    /// terminal saw output and resizes in.
     pub fn output(self: *Recorder, bytes: []const u8) void {
-        if (self.file == null) return;
         self.mutex.lock();
         defer self.mutex.unlock();
+        if (self.file == null) return;
+        // One write per read (up to 64 KiB of escaped lines), not one per
+        // 4 KiB line: the reader waits on this write.
+        var buf: [64 * 1024]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&buf);
         var i: usize = 0;
         while (i < bytes.len) {
-            const end = @min(bytes.len, i + 4096);
-            self.writeLine("send ", bytes[i..end]);
+            if (buf.len - w.end < line_max) {
+                self.writeRaw(w.buffered());
+                w.end = 0;
+            }
+            const end = @min(bytes.len, i + line_bytes);
+            w.writeAll("send ") catch unreachable;
+            writeEscaped(&w, bytes[i..end]) catch unreachable;
+            w.writeByte('\n') catch unreachable;
             i = end;
         }
+        self.writeRaw(w.buffered());
         self.maybeRotate();
     }
 
+    /// Input bytes per `send` line, and the most one escapes to (4 bytes
+    /// each, the prefix, the newline).
+    const line_bytes = 4096;
+    const line_max = line_bytes * 4 + "send \n".len;
+
     pub fn resize(self: *Recorder, cols: u16, rows: u16) void {
-        if (self.file == null) return;
         self.mutex.lock();
         defer self.mutex.unlock();
+        if (self.file == null) return;
         self.cols = cols;
         self.rows = rows;
         var buf: [48]u8 = undefined;
@@ -72,12 +99,12 @@ pub const Recorder = struct {
         self.writeRaw(line);
     }
 
-    fn open(self: *Recorder) !void {
+    fn open(self: *Recorder, note: []const u8) !void {
         const file = try std.fs.cwd().createFile(self.path.?, .{ .truncate = true });
         self.file = file;
         self.written = 0;
-        var buf: [96]u8 = undefined;
-        self.writeRaw(try std.fmt.bufPrint(&buf, "# recorded by Najm\nsize {d} {d}\npty conpty\n", .{ self.cols, self.rows }));
+        var buf: [192]u8 = undefined;
+        self.writeRaw(try std.fmt.bufPrint(&buf, "# recorded by Najm\n{s}size {d} {d}\npty conpty\n", .{ note, self.cols, self.rows }));
     }
 
     fn maybeRotate(self: *Recorder) void {
@@ -88,17 +115,10 @@ pub const Recorder = struct {
         self.file = null;
         const prev = std.fmt.allocPrint(alloc, "{s}.prev.vt", .{path[0 .. path.len - ".vt".len]}) catch return;
         defer alloc.free(prev);
-        std.fs.cwd().rename(path, prev) catch {};
-        self.open() catch {};
-    }
-
-    fn writeLine(self: *Recorder, prefix: []const u8, bytes: []const u8) void {
-        var buf: [4096 * 4 + 16]u8 = undefined;
-        var w: std.Io.Writer = .fixed(&buf);
-        w.writeAll(prefix) catch return;
-        writeEscaped(&w, bytes) catch return;
-        w.writeByte('\n') catch return;
-        self.writeRaw(w.buffered());
+        // A failed rename ends the recording: reopening would truncate the
+        // only copy of what was recorded.
+        std.fs.cwd().rename(path, prev) catch return;
+        self.open("# rotated: this file starts on a blank screen, the screen before it is in .prev.vt\n") catch {};
     }
 
     fn writeRaw(self: *Recorder, bytes: []const u8) void {
@@ -178,4 +198,39 @@ test "a recorded chunk escapes into what the replay decodes" {
     var w: std.Io.Writer = .fixed(&buf);
     try writeEscaped(&w, "\x1b[2K ok\\\r\n\t\xe2\x97\x8f");
     try std.testing.expectEqualStrings("\\e[2K\\x20ok\\\\\\r\\n\\t\\xe2\\x97\\x8f", w.buffered());
+}
+
+test "a share or device directory is never recorded into" {
+    var rec = Recorder.openIn(std.testing.allocator, "\\\\server\\share", 80, 24);
+    defer rec.deinit();
+    try std.testing.expect(rec.file == null);
+}
+
+test "a large read is recorded as whole send lines, in order with resizes" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+    const dir = try tmp.dir.realpathAlloc(alloc, ".");
+    defer alloc.free(dir);
+
+    var rec = Recorder.openIn(alloc, dir, 80, 24);
+    try std.testing.expect(rec.file != null);
+    // Every byte escapes to four: 12 lines of 16 KiB, past one 64 KiB batch.
+    const read = try alloc.alloc(u8, Recorder.line_bytes * 12);
+    defer alloc.free(read);
+    @memset(read, 0x80);
+    rec.output(read);
+    rec.resize(100, 40);
+    rec.output("ok");
+    rec.deinit();
+
+    var it = tmp.dir.iterate();
+    const entry = (try it.next()).?;
+    const text = try tmp.dir.readFileAlloc(alloc, entry.name, 1 << 20);
+    defer alloc.free(text);
+    try std.testing.expect(std.mem.startsWith(u8, text, "# recorded by Najm\nsize 80 24\npty conpty\n"));
+    try std.testing.expectEqual(@as(usize, 13), std.mem.count(u8, text, "send "));
+    const full_line = "send " ++ "\\x80" ** Recorder.line_bytes ++ "\n";
+    try std.testing.expectEqual(@as(usize, 12), std.mem.count(u8, text, full_line));
+    try std.testing.expect(std.mem.endsWith(u8, text, "resize 100 40\nsend ok\n"));
 }

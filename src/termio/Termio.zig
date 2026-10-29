@@ -937,7 +937,6 @@ pub fn resize(
     size: renderer.Size,
 ) !void {
     const grid_size = size.grid();
-    self.pty_record.resize(grid_size.columns, grid_size.rows);
 
     // Update the size of our pty. A pty that refuses (a pseudo console whose
     // host is gone, a handoff session whose signal pipe closed) must not
@@ -956,6 +955,10 @@ pub fn resize(
         // The stream handler reads this under the same lock (DECCOLM's
         // mode 3 reset, size reports).
         self.size = size;
+
+        // Under the lock, so a recording keeps the order the terminal saw
+        // this resize and the reader's output in.
+        self.pty_record.resize(grid_size.columns, grid_size.rows);
 
         // Update the size of our terminal state
         try self.terminal.resize(
@@ -1005,6 +1008,9 @@ pub fn resizeBeforeThreadStart(
         self.renderer_state.mutex.lock();
         defer self.renderer_state.mutex.unlock();
 
+        // A configured window size lands here after the recording started
+        // at the size `init` was given.
+        self.pty_record.resize(grid_size.columns, grid_size.rows);
         try self.terminal.resize(
             self.alloc,
             grid_size.columns,
@@ -1186,7 +1192,6 @@ pub fn focusGained(self: *Termio, td: *ThreadData, focused: bool) !void {
 /// call with pty data but it is also called by the read thread when using
 /// an exec subprocess.
 pub fn processOutput(self: *Termio, buf: []const u8) void {
-    self.pty_record.output(buf);
     const semantic_output_epoch = self.terminal_output_transport.captureEpoch();
     const trace_lock = self.output_trace.enabled();
     const lock_started = if (trace_lock) std.time.Instant.now() catch null else null;
@@ -1197,6 +1202,8 @@ pub fn processOutput(self: *Termio, buf: []const u8) void {
         self.renderer_state.mutex.lock();
         if (trace_lock) lock_acquired = std.time.Instant.now() catch null;
         defer self.renderer_state.mutex.unlock();
+        // Under the lock: see `resize`.
+        self.pty_record.output(buf);
         // Typing at a prompt often echoes only a cursor move (Left is a BS
         // or CUB), which marks nothing dirty but must still be drawn.
         const drawn = self.renderer_state.drawn_undirtied;
