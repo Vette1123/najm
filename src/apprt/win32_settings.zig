@@ -1075,6 +1075,7 @@ const MoveWindow = sys.MoveWindow;
 
 extern "user32" fn AdjustWindowRectExForDpi(lpRect: *RECT, dwStyle: u32, bMenu: BOOL, dwExStyle: u32, dpi: UINT) callconv(.winapi) BOOL;
 extern "user32" fn GetUpdateRect(hWnd: HWND, lpRect: ?*RECT, bErase: BOOL) callconv(.winapi) BOOL;
+extern "user32" fn EndMenu() callconv(.winapi) BOOL;
 extern "user32" fn GetDlgCtrlID(hWnd: HWND) callconv(.winapi) c_int;
 extern "user32" fn SetScrollInfo(hWnd: HWND, nBar: c_int, lpsi: *const SCROLLINFO, redraw: BOOL) callconv(.winapi) c_int;
 extern "user32" fn GetScrollInfo(hWnd: HWND, nBar: c_int, lpsi: *SCROLLINFO) callconv(.winapi) BOOL;
@@ -4558,6 +4559,8 @@ pub const SettingsWindow = struct {
             return;
         }
         provider.help_text = spec.help;
+        // The Terminal theme field opens a list of the installed themes.
+        if (self.fields.edit_theme) |theme| provider.dropdown = theme == control;
         if (index < form_field_count) provider.changed_from_default.store(self.differs_from_default[index], .release);
         self.control_uia_prev_procs[index] = @ptrFromInt(@as(usize, @intCast(previous)));
         self.control_uia_providers[index] = provider;
@@ -5227,6 +5230,9 @@ pub const SettingsWindow = struct {
         const items = themeMenuItems(arena, names, current) catch return;
         var rect: RECT = undefined;
         if (GetWindowRect(edit, &rect) == 0) return;
+        // A reader hears the field expand and collapse around the menu.
+        const provider = self.themeFieldProvider();
+        if (provider) |p| p.setDropdownOpen(true);
         const picked: usize = @intCast(@max(0, fancy_menu.track(
             self.handle.alloc,
             owner,
@@ -5236,11 +5242,19 @@ pub const SettingsWindow = struct {
             fancy_menu.styleFromSettings(&self.theme_adapter.colors, self.dpi),
             origin,
         )));
+        if (provider) |p| p.setDropdownOpen(false);
         const name = themeMenuPick(names, picked) orelse return;
         _ = SetFocus(edit);
         setEditText(edit, name, &self.suppress_edit_events);
         self.markOwnedTextChanged(.theme, edit);
         self.syncThemeFromEdit();
+    }
+
+    /// The UIA provider of the Terminal theme field, once it has one.
+    fn themeFieldProvider(self: *const SettingsWindow) ?*win32_uia.SettingsControlProvider {
+        const edit = self.fields.edit_theme orelse return null;
+        const index = self.controlIndex(edit) orelse return null;
+        return self.control_uia_providers[index];
     }
 
     /// Repaint the frames of the field that stops being invalid and of the
@@ -13839,6 +13853,56 @@ test "settings default profile shows a draft the list left out by the label it s
     try std.testing.expectEqualStrings("user:gone (not found)", profileRowText(&buf, .draft, &missing, "pwsh.exe", "user:gone"));
 }
 
+test "settings UIA reads the Terminal theme field as a combo box that expands" {
+    try dialog_test.onHiddenDesktop(struct {
+        fn body() !void {
+            const com = @import("win32_uia/com.zig");
+            const constants = @import("win32_uia/constants.zig");
+            const events = @import("win32_uia/events.zig");
+            const fixture = try dialog_test.Fixture.startWith(true);
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const edit = settings.fields.edit_theme.?;
+            const index = settings.controlIndex(edit).?;
+            settings.setActiveSection(settings.controlSection(index).?);
+            const provider = settings.themeFieldProvider().?;
+            try std.testing.expect(provider.dropdown);
+
+            // Narrator: "Terminal theme, combo box, collapsed".
+            var value = com.VARIANT.empty();
+            try std.testing.expectEqual(com.S_OK, provider.base.vtbl.GetPropertyValue(&provider.base, constants.UIA_ControlTypePropertyId, &value));
+            try std.testing.expectEqual(constants.UIA_ComboBoxControlTypeId, value.value.i4);
+            var pattern: ?*com.IUnknown = null;
+            try std.testing.expectEqual(com.S_OK, provider.base.vtbl.GetPatternProvider(&provider.base, constants.UIA_ExpandCollapsePatternId, &pattern));
+            try std.testing.expect(pattern != null);
+            _ = pattern.?.vtbl.Release(pattern.?);
+            const expand = &provider.expand_iface;
+            var state: i32 = -1;
+            try std.testing.expectEqual(com.S_OK, expand.vtbl.get_ExpandCollapseState(expand, &state));
+            try std.testing.expectEqual(@as(i32, 0), state);
+
+            // Expand returns at once and leaves the open for the field's
+            // proc: taken off the queue here, so no modal menu starts.
+            try std.testing.expectEqual(com.S_OK, expand.vtbl.Expand(expand));
+            var msg: sys.MSG = undefined;
+            const message = win32_uia.SettingsControlProvider.dropdown_message;
+            try std.testing.expect(sys.PeekMessageW(&msg, edit, message, message, 1) != 0);
+            try std.testing.expectEqual(@as(WPARAM, 1), msg.wParam);
+
+            // The menu's open and close are heard as state changes.
+            const changes = events.testing_property_changes;
+            provider.setDropdownOpen(true);
+            try std.testing.expectEqual(com.S_OK, expand.vtbl.get_ExpandCollapseState(expand, &state));
+            try std.testing.expectEqual(@as(i32, 1), state);
+            // Already open: Expand asks for nothing more.
+            try std.testing.expectEqual(com.S_OK, expand.vtbl.Expand(expand));
+            try std.testing.expect(sys.PeekMessageW(&msg, edit, message, message, 1) == 0);
+            provider.setDropdownOpen(false);
+            try std.testing.expectEqual(changes + 2, events.testing_property_changes);
+        }
+    }.body);
+}
+
 test "settings UIA checkbox and combo actions update the draft and discard restores it" {
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
@@ -15561,6 +15625,11 @@ fn settingsEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callc
         },
         WM_NCLBUTTONDOWN, WM_NCLBUTTONDBLCLK => if (owner) |settings| if (wParam == @as(WPARAM, @intCast(HTBORDER)) and isThemeField(hwnd)) {
             settings.showThemeMenu(.pointer);
+            return 0;
+        },
+        // A screen reader's Expand and Collapse (`dropdown_message`).
+        win32_uia.SettingsControlProvider.dropdown_message => if (owner) |settings| if (isThemeField(hwnd)) {
+            if (wParam != 0) settings.showThemeMenu(.keyboard) else _ = EndMenu();
             return 0;
         },
         // Alt+Down and F4 open the theme dropdown, as they open a combo box's.
