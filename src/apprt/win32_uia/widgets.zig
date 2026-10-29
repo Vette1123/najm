@@ -1053,7 +1053,7 @@ pub const SettingsControlProvider = struct {
             out.* = @ptrCast(&self.invoke_iface);
         } else if (self.role == .check_box and iidEqual(iid, &com.IID_IToggleProvider)) {
             out.* = @ptrCast(&self.toggle_iface);
-        } else if (self.role == .combo_box and iidEqual(iid, &com.IID_IExpandCollapseProvider)) {
+        } else if (self.hasExpandCollapse() and iidEqual(iid, &com.IID_IExpandCollapseProvider)) {
             out.* = @ptrCast(&self.expand_iface);
         } else return com.E_NOINTERFACE;
         _ = AddRef(&self.base);
@@ -1117,6 +1117,12 @@ pub const SettingsControlProvider = struct {
     /// The field holds a value Settings will not accept
     /// (`UIA_IsDataValidForFormPropertyId`).
     data_invalid: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
+    /// An edit with a dropdown list beside it (the Terminal theme field): a
+    /// reader meets a combo box that expands, with the edit's value. Set
+    /// before the provider is published.
+    dropdown: bool = false,
+    /// That dropdown is open; Settings reports it (`setDropdownOpen`).
+    dropdown_open: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
     /// The field's value differs from its default, which the form marks
     /// beside it; said as the field's `ItemStatus`, so the mark is not only
     /// drawn.
@@ -1174,6 +1180,10 @@ pub const SettingsControlProvider = struct {
     pub const action_success: isize = 1;
     pub const Action = enum(usize) { toggle, select, expand, collapse };
     pub const SelectionSync = enum { observe, native_notification, explicit_selection };
+    /// Posted to a `dropdown` edit by Expand (wParam 1) and Collapse (0).
+    /// Its list is a modal menu, so it opens after the reader's call has
+    /// returned; a sent message would hold that call until the menu closed.
+    pub const dropdown_message: u32 = 0x8000 + 0x10E;
 
     const BM_GETCHECK: u32 = 0x00F0;
     const BM_SETCHECK: u32 = 0x00F1;
@@ -1265,6 +1275,21 @@ pub const SettingsControlProvider = struct {
         events.raiseCurrentStringPropertyChanged(&self.base, constants.UIA_ItemStatusPropertyId);
     }
 
+    fn hasExpandCollapse(self: *const SettingsControlProvider) bool {
+        return self.role == .combo_box or (self.role == .edit and self.dropdown);
+    }
+
+    /// Settings opened or closed the dropdown of a `dropdown` edit.
+    pub fn setDropdownOpen(self: *SettingsControlProvider, open: bool) void {
+        if (self.dropdown_open.swap(open, .acq_rel) == open or !self.available()) return;
+        events.raisePropertyChanged(
+            &self.base,
+            constants.UIA_ExpandCollapseExpandCollapseStatePropertyId,
+            com.VARIANT.fromI4(@intFromBool(!open)),
+            com.VARIANT.fromI4(@intFromBool(open)),
+        );
+    }
+
     fn isField(self: *const SettingsControlProvider) bool {
         return self.role == .edit or self.role == .combo_box or self.role == .check_box;
     }
@@ -1344,7 +1369,7 @@ pub const SettingsControlProvider = struct {
             @ptrCast(&self.invoke_iface)
         else if (self.role == .check_box and pattern_id == constants.UIA_TogglePatternId)
             @ptrCast(&self.toggle_iface)
-        else if (self.role == .combo_box and pattern_id == constants.UIA_ExpandCollapsePatternId)
+        else if (self.hasExpandCollapse() and pattern_id == constants.UIA_ExpandCollapsePatternId)
             @ptrCast(&self.expand_iface)
         else
             null;
@@ -1371,7 +1396,7 @@ pub const SettingsControlProvider = struct {
         switch (property) {
             constants.UIA_ControlTypePropertyId => out.* = com.VARIANT.fromI4(switch (self.role) {
                 .text, .live_text => constants.UIA_TextControlTypeId,
-                .edit => constants.UIA_EditControlTypeId,
+                .edit => if (self.dropdown) constants.UIA_ComboBoxControlTypeId else constants.UIA_EditControlTypeId,
                 .combo_box => constants.UIA_ComboBoxControlTypeId,
                 .check_box => constants.UIA_CheckBoxControlTypeId,
                 .button => constants.UIA_ButtonControlTypeId,
@@ -1409,7 +1434,7 @@ pub const SettingsControlProvider = struct {
             constants.UIA_ToggleToggleStatePropertyId => if (self.role == .check_box) {
                 out.* = com.VARIANT.fromI4(self.toggleState());
             },
-            constants.UIA_ExpandCollapseExpandCollapseStatePropertyId => if (self.role == .combo_box) {
+            constants.UIA_ExpandCollapseExpandCollapseStatePropertyId => if (self.hasExpandCollapse()) {
                 out.* = com.VARIANT.fromI4(self.expandCollapseState());
             },
             constants.UIA_LabeledByPropertyId => if (self.labeled_by) |label| {
@@ -1565,6 +1590,12 @@ pub const SettingsControlProvider = struct {
                 return com.S_OK;
             },
             .expand, .collapse => {
+                if (self.role == .edit and self.dropdown) {
+                    const expand = action == .expand;
+                    if (self.dropdown_open.load(.acquire) == expand) return com.S_OK;
+                    if (PostMessageW(self.hwnd, dropdown_message, @intFromBool(expand), 0) == 0) return com.UIA_E_ELEMENTNOTAVAILABLE;
+                    return com.S_OK;
+                }
                 if (self.role != .combo_box) return com.UIA_E_INVALIDOPERATION;
                 _ = SendMessageW(self.hwnd, CB_SHOWDROPDOWN, @intFromBool(action == .expand), 0);
                 self.syncNativeState(.observe);
@@ -1587,6 +1618,7 @@ pub const SettingsControlProvider = struct {
     }
 
     fn expandCollapseState(self: *const SettingsControlProvider) i32 {
+        if (self.role == .edit) return @intFromBool(self.dropdown_open.load(.acquire));
         return @intFromBool(SendMessageW(self.hwnd, CB_GETDROPPEDSTATE, 0, 0) != 0);
     }
 
