@@ -18,6 +18,13 @@
   have broken the field: that role drives `CB_*` messages, subclassing and
   frame painting meant for a real combo box.
 
+- The first cache trusted a directory's modification time outright, and its
+  own test failed on CI (`expected 2, found 1`): two files made in one clock
+  tick (about 15.6 ms on Windows) leave the directory's time where it was.
+  A local PowerShell probe with a 50 ms gap said the times did move, which
+  was true and beside the point. Stamps within 2 s of the listing are now
+  "racy" and not trusted, as version control treats its index.
+
 ## What worked
 
 - Returning an owned copy from the cache: the palette's catalog borrows

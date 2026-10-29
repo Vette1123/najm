@@ -139,7 +139,7 @@ pub fn listCached(alloc: Allocator, arena_alloc: Allocator) ![]Entry {
     try appendDirectories(alloc, arena_alloc, &dirs);
     list_cache_mutex.lock();
     defer list_cache_mutex.unlock();
-    return try list_cache.get(alloc, dirs.items);
+    return try list_cache.get(alloc, dirs.items, std.time.nanoTimestamp());
 }
 
 var list_cache_mutex: std.Thread.Mutex = .{};
@@ -149,23 +149,34 @@ var list_cache: ListCache = .{};
 /// time when the listing started. Adding, removing or renaming a file in a
 /// directory changes that directory's time (NTFS and POSIX alike), which is
 /// all a listing of names and paths depends on.
+///
+/// A file time only advances once per clock tick (about 15.6 ms on Windows),
+/// so a file added in the tick the listing was stamped in leaves the time
+/// where it was. As version control does for its index ("racy clean"), a
+/// stamp that recent is not trusted: the next call walks again, until the
+/// stamps are older than `racy_ns`.
 const ListCache = struct {
     arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator),
     entries: []const Entry = &.{},
     stamps: []const Stamp = &.{},
     valid: bool = false,
+    /// A stamp was within `racy_ns` of the listing.
+    racy: bool = false,
     /// Directory walks done; tests read it.
     rebuilds: u32 = 0,
 
     const Stamp = struct { dir: []const u8, mtime: i128 };
+
+    /// Wider than any file-time granularity in use (FAT's is 2 s).
+    const racy_ns: i128 = 2 * std.time.ns_per_s;
 
     fn deinit(self: *ListCache) void {
         self.arena.deinit();
         self.* = undefined;
     }
 
-    fn get(self: *ListCache, alloc: Allocator, dirs: []const Directory) ![]Entry {
-        if (!self.valid or !self.matches(dirs)) {
+    fn get(self: *ListCache, alloc: Allocator, dirs: []const Directory, now: i128) ![]Entry {
+        if (!self.valid or self.racy or !self.matches(dirs)) {
             self.valid = false;
             _ = self.arena.reset(.retain_capacity);
             const keep = self.arena.allocator();
@@ -177,6 +188,10 @@ const ListCache = struct {
             defer freeList(alloc, fresh);
             self.entries = try copyEntries(keep, fresh);
             self.stamps = stamps;
+            self.racy = false;
+            for (stamps) |stamp| {
+                if (stamp.mtime >= now - racy_ns) self.racy = true;
+            }
             self.valid = true;
             self.rebuilds +%= 1;
         }
@@ -551,19 +566,23 @@ test "the theme list cache walks again only when a directory changed" {
 
     var cache: ListCache = .{};
     defer cache.deinit();
+    // Listed long after every file time below, so no stamp is racy.
+    const later = std.time.nanoTimestamp() + 60 * std.time.ns_per_s;
 
-    const first = try cache.get(alloc, &dirs);
+    const first = try cache.get(alloc, &dirs, later);
     defer freeList(alloc, first);
-    const again = try cache.get(alloc, &dirs);
+    const again = try cache.get(alloc, &dirs, later);
     defer freeList(alloc, again);
     try std.testing.expectEqual(@as(u32, 1), cache.rebuilds);
     try std.testing.expectEqual(@as(usize, 1), again.len);
     // An owned copy, not the cache's own memory.
     try std.testing.expect(first[0].name.ptr != again[0].name.ptr);
 
-    // A new theme file changes its directory's time.
+    // A new theme file changes its directory's time, once the clock has
+    // ticked since the first one.
+    std.Thread.sleep(50 * std.time.ns_per_ms);
     (try tmp.dir.createFile("user/Second", .{})).close();
-    const added = try cache.get(alloc, &dirs);
+    const added = try cache.get(alloc, &dirs, later);
     defer freeList(alloc, added);
     try std.testing.expectEqual(@as(u32, 2), cache.rebuilds);
     try std.testing.expectEqual(@as(usize, 2), added.len);
@@ -571,10 +590,32 @@ test "the theme list cache walks again only when a directory changed" {
     // A directory that appears counts as a change too.
     try tmp.dir.makePath("resources");
     (try tmp.dir.createFile("resources/Bundled", .{})).close();
-    const appeared = try cache.get(alloc, &dirs);
+    const appeared = try cache.get(alloc, &dirs, later);
     defer freeList(alloc, appeared);
     try std.testing.expectEqual(@as(u32, 3), cache.rebuilds);
     try std.testing.expectEqual(@as(usize, 3), appeared.len);
+}
+
+test "the theme list cache does not trust a directory time from the listing's own tick" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    (try tmp.dir.createFile("Fresh", .{})).close();
+    const root = try tmp.dir.realpathAlloc(alloc, ".");
+    defer alloc.free(root);
+    const dirs = [_]Directory{.{ .location = .user, .dir = root }};
+
+    var cache: ListCache = .{};
+    defer cache.deinit();
+    // Listed right after the file was made: a file added in the same tick
+    // would not move the time, so the next call walks again.
+    const now = std.time.nanoTimestamp();
+    const first = try cache.get(alloc, &dirs, now);
+    defer freeList(alloc, first);
+    try std.testing.expect(cache.racy);
+    const again = try cache.get(alloc, &dirs, now);
+    defer freeList(alloc, again);
+    try std.testing.expectEqual(@as(u32, 2), cache.rebuilds);
 }
 
 test "issue149 user theme locations prefer noctty before legacy ghostty" {
