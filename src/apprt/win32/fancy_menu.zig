@@ -197,6 +197,24 @@ pub fn menuChar(wParam: WPARAM, lParam: LPARAM) ?LRESULT {
     return null;
 }
 
+/// The first access key two of `items` share (case-insensitive), or null.
+/// A shared key makes the letter select instead of run, which is never
+/// what a menu row with one obvious key means.
+pub fn duplicateMnemonic(items: []const Item) ?u8 {
+    var seen = std.StaticBitSet(256).initEmpty();
+    for (items) |item| {
+        const key = std.ascii.toLower(mnemonicOf(item.label) orelse continue);
+        if (seen.isSet(key)) return key;
+        seen.set(key);
+    }
+    return null;
+}
+
+test "menu access keys: a shared one is found, distinct ones pass" {
+    try std.testing.expectEqual(@as(?u8, null), duplicateMnemonic(&.{ .{ .label = "&Copy" }, .{ .label = "&Paste" }, .{ .label = "Plain" } }));
+    try std.testing.expectEqual(@as(?u8, 'c'), duplicateMnemonic(&.{ .{ .label = "&Copy" }, .{ .label = "&close" } }));
+}
+
 /// The letter after the first single `&`, as Win32 menus mark mnemonics.
 pub fn mnemonicOf(label: []const u8) ?u8 {
     var i: usize = 0;

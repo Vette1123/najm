@@ -7489,28 +7489,29 @@ pub const Host = struct {
         } else false;
 
         const split_items = [_]fancy_menu.Item{
-            .{ .id = c.CTX_SPLIT_RIGHT, .label = "Split Right", .icon = .right },
-            .{ .id = c.CTX_SPLIT_DOWN, .label = "Split Down", .icon = .down },
-            .{ .id = c.CTX_SPLIT_LEFT, .label = "Split Left", .icon = .left },
-            .{ .id = c.CTX_SPLIT_UP, .label = "Split Up", .icon = .up },
+            .{ .id = c.CTX_SPLIT_RIGHT, .label = "Split &Right", .icon = .right },
+            .{ .id = c.CTX_SPLIT_DOWN, .label = "Split &Down", .icon = .down },
+            .{ .id = c.CTX_SPLIT_LEFT, .label = "Split &Left", .icon = .left },
+            .{ .id = c.CTX_SPLIT_UP, .label = "Split &Up", .icon = .up },
         };
         const items = [_]fancy_menu.Item{
-            .{ .id = c.CTX_COPY, .label = "Copy", .shortcut = "Ctrl+Shift+C", .icon = .copy, .enabled = has_selection },
-            .{ .id = c.CTX_PASTE, .label = "Paste", .shortcut = "Ctrl+Shift+V", .icon = .paste },
-            .{ .id = c.CTX_SELECT_ALL, .label = "Select All", .icon = .select_all },
+            .{ .id = c.CTX_COPY, .label = "&Copy", .shortcut = "Ctrl+Shift+C", .icon = .copy, .enabled = has_selection },
+            .{ .id = c.CTX_PASTE, .label = "&Paste", .shortcut = "Ctrl+Shift+V", .icon = .paste },
+            .{ .id = c.CTX_SELECT_ALL, .label = "Select &All", .icon = .select_all },
             .sep(),
-            .{ .id = c.CTX_FIND, .label = "Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
-            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Command Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
+            .{ .id = c.CTX_FIND, .label = "&Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
+            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Co&mmand Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
             .sep(),
-            .{ .id = c.CTX_NEW_TAB, .label = "New Tab", .icon = .add },
-            .{ .label = "Split", .icon = .split, .submenu = &split_items },
-            .{ .id = c.CTX_NEW_WINDOW, .label = "New Window", .icon = .window },
+            .{ .id = c.CTX_NEW_TAB, .label = "New &Tab", .icon = .add },
+            .{ .label = "&Split", .icon = .split, .submenu = &split_items },
+            .{ .id = c.CTX_NEW_WINDOW, .label = "New &Window", .icon = .window },
         };
 
         // Menu must be owned by top-level host HWND to avoid dismiss bugs
         _ = sys.SetForegroundWindow(hwnd);
         const app = self.app;
         const host_id = self.id;
+        std.debug.assert(fancy_menu.duplicateMnemonic(&items) == null and fancy_menu.duplicateMnemonic(&split_items) == null);
         const cmd = fancy_menu.track(app.core_app.alloc, hwnd, &items, screen_x, screen_y, self.menuStyle(), origin);
         _ = sys.PostMessageW(hwnd, c.WM_NULL, 0, 0);
 
@@ -7587,13 +7588,13 @@ pub const Host = struct {
         self.hideTabTooltip();
         // The only tab closes too: its window goes with it (`tabCloseAction`).
         const items = [_]fancy_menu.Item{
-            .{ .id = c.CTX_TAB_RENAME, .label = "Rename Tab", .icon = .rename },
+            .{ .id = c.CTX_TAB_RENAME, .label = "Re&name Tab", .icon = .rename },
             .sep(),
-            .{ .id = c.CTX_TAB_MOVE_LEFT, .label = "Move Tab Left", .icon = .left },
-            .{ .id = c.CTX_TAB_MOVE_RIGHT, .label = "Move Tab Right", .icon = .right },
+            .{ .id = c.CTX_TAB_MOVE_LEFT, .label = "Move Tab &Left", .icon = .left },
+            .{ .id = c.CTX_TAB_MOVE_RIGHT, .label = "Move Tab &Right", .icon = .right },
             .sep(),
-            .{ .id = c.CTX_TAB_CLOSE, .label = "Close Tab", .icon = .close, .enabled = tabCloseAction(self.tabs.items.len) != .none },
-            .{ .id = c.CTX_TAB_CLOSE_OTHERS, .label = "Close Other Tabs", .icon = .close_others, .destructive = true, .enabled = self.tabs.items.len > 1 },
+            .{ .id = c.CTX_TAB_CLOSE, .label = "&Close Tab", .icon = .close, .enabled = tabCloseAction(self.tabs.items.len) != .none },
+            .{ .id = c.CTX_TAB_CLOSE_OTHERS, .label = "Close &Other Tabs", .icon = .close_others, .destructive = true, .enabled = self.tabs.items.len > 1 },
         };
 
         // Position below the tab button
@@ -7601,6 +7602,7 @@ pub const Host = struct {
         if (sys.GetWindowRect(button_hwnd, &rect) == 0) return true;
 
         _ = sys.SetForegroundWindow(hwnd);
+        std.debug.assert(fancy_menu.duplicateMnemonic(&items) == null);
         const cmd = fancy_menu.track(app.core_app.alloc, hwnd, &items, rect.left, rect.bottom, self.menuStyle(), switch (origin) {
             .pointer => .pointer,
             .keyboard => .keyboard,
@@ -7851,14 +7853,15 @@ pub const Host = struct {
 
         // Utility items
         const utility = [_]fancy_menu.Item{
-            .{ .id = c.CTX_NEW_TAB, .label = "Open a new tab", .icon = .add },
-            .{ .id = c.CTX_NEW_WINDOW, .label = "New Window", .icon = .window },
+            .{ .id = c.CTX_NEW_TAB, .label = "Open a new &tab", .icon = .add },
+            .{ .id = c.CTX_NEW_WINDOW, .label = "New &Window", .icon = .window },
             .sep(),
-            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Command Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
-            .{ .id = c.CTX_FIND, .label = "Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
+            .{ .id = c.CTX_COMMAND_PALETTE, .label = "Co&mmand Palette", .shortcut = "Ctrl+Shift+P", .icon = .command },
+            .{ .id = c.CTX_FIND, .label = "&Find...", .shortcut = "Ctrl+Shift+F", .icon = .find },
             .sep(),
-            .{ .id = c.CTX_INSPECTOR, .label = "Toggle Inspector", .icon = .inspector },
+            .{ .id = c.CTX_INSPECTOR, .label = "Toggle &Inspector", .icon = .inspector },
         };
+        std.debug.assert(fancy_menu.duplicateMnemonic(&utility) == null);
         items.appendSlice(alloc, &utility) catch return;
 
         _ = sys.SetForegroundWindow(hwnd);
