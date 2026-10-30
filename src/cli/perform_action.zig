@@ -39,12 +39,12 @@ pub const Options = struct {
 ///
 /// The action uses the same syntax as `keybind` values, for example:
 ///
-///   * `noctty +perform-action new_tab`
-///   * `noctty +perform-action --surface-id=42 toggle_fullscreen`
+///   * `najm +perform-action new_tab`
+///   * `najm +perform-action --surface-id=42 toggle_fullscreen`
 ///
 /// The default target is the focused surface for surface-scoped actions and the
 /// app for app-scoped actions. `--surface-id` accepts pane IDs from
-/// `noctty +list-windows` and is only valid for surface-scoped actions.
+/// `najm +list-windows` and is only valid for surface-scoped actions.
 ///
 /// To keep this automation surface bounded, terminal-input and arbitrary file
 /// helper actions such as `text`, `csi`, `esc`, `paste_from_clipboard`,

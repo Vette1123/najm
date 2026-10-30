@@ -249,7 +249,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     \\
                     \\Close the other terminals and open a new one to allow the
                     \\fallback, or restart noctty with NOCTTY_CONPTY=inbox. Run
-                    \\`noctty +version` to see which ConPTY is in use.
+                    \\`najm +version` to see which ConPTY is in use.
                     \\
                     \\This terminal is non-functional. Please close it and try again.
                 ;

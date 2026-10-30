@@ -2085,7 +2085,7 @@ test "win32 a new window from a normal one takes maximize, and a forwarded --max
 
 /// A running app with one normal window, for the tests of what a new window
 /// opened from it keeps of the keys a forwarded launch gives it (#496): a
-/// second `noctty` or `noctty +new-window` while one runs.
+/// second `noctty` or `najm +new-window` while one runs.
 const ForwardedKeysTest = struct {
     fixture: WindowStartTestApp = .{},
     source: *Surface = undefined,

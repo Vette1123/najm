@@ -117,12 +117,12 @@ pub const Options = struct {
 ///
 /// If `--working-directory` is found on the command line and is a relative
 /// path (i.e. doesn't start with `/`) it will be resolved to an absolute path
-/// relative to the current working directory that the `noctty +new-window`
+/// relative to the current working directory that the `najm +new-window`
 /// command is run from. `~/` prefixes will also be expanded to the user's home
 /// directory.
 ///
 /// For an ordinary new-window request, if `--working-directory` is _not_ found
-/// on the command line, the directory that `noctty +new-window` is run from
+/// on the command line, the directory that `najm +new-window` is run from
 /// will be passed to noctty. Layout requests use their saved pane directories.
 ///
 /// On Win32, `+new-window` uses a native named-pipe IPC channel to forward the

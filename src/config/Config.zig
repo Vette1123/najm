@@ -205,7 +205,7 @@ renderer: RendererBackend = .opengl,
 ///
 /// You can generate the list of valid values using the CLI:
 ///
-///     noctty +list-fonts
+///     najm +list-fonts
 ///
 /// This configuration can be repeated multiple times to specify preferred
 /// fallback fonts when the requested codepoint is not available in the primary
@@ -630,7 +630,7 @@ renderer: RendererBackend = .opengl,
 /// `share/ghostty/themes` directory next to the built application. When
 /// running from the source tree, this is typically `zig-out/share/ghostty/themes`.
 ///
-/// To see a list of available themes, run `noctty +list-themes`.
+/// To see a list of available themes, run `najm +list-themes`.
 ///
 /// A theme file is simply another noctty configuration file. They share
 /// the same syntax and can set most configuration options. A theme is not
@@ -1570,7 +1570,7 @@ title: ?[:0]const u8 = null,
 /// In this Windows fork, this value is used as the instance identifier for
 /// single-instance behavior and IPC routing. Changing it between invocations
 /// creates a separate noctty instance namespace, so commands such as
-/// `noctty +new-window` will only target processes launched with the same
+/// `najm +new-window` will only target processes launched with the same
 /// `class` value.
 ///
 /// The default is `io.github.vette1123.najm`.
@@ -1749,7 +1749,7 @@ class: ?[:0]const u8 = null,
 /// where `working-directory` and the `*-inherit-working-directory` settings
 /// say, as `command` does. A directory the launch asks for with
 /// `--working-directory` (also on a second `noctty` that forwards to a
-/// running one), or the directory `noctty +new-window` runs in, wins over the
+/// running one), or the directory `najm +new-window` runs in, wins over the
 /// profile's, except an SSH profile's; a second `noctty` that names none
 /// opens in the profile's directory, as the first one did. The terminal
 /// remembers the profile, so its splits and a restored session run it again,
@@ -1794,7 +1794,7 @@ class: ?[:0]const u8 = null,
 
 /// Key bindings. The format is `trigger=action`. Duplicate triggers will
 /// overwrite previously set values. The list of actions is available in
-/// the documentation or using the `noctty +list-actions` command.
+/// the documentation or using the `najm +list-actions` command.
 ///
 /// Trigger: `+`-separated list of keys and modifiers. Example: `ctrl+a`,
 /// `ctrl+shift+b`, `up`.
@@ -1925,7 +1925,7 @@ class: ?[:0]const u8 = null,
 ///     e.g. `text:\x15` sends Ctrl-U.
 ///
 ///   * All other actions can be found in the documentation or by using the
-///     `noctty +list-actions` command.
+///     `najm +list-actions` command.
 ///
 /// Some notes for the action:
 ///
@@ -2892,8 +2892,8 @@ keybind: Keybinds = .{},
 @"initial-window": bool = true,
 
 /// Materialize a saved Windows layout instead of creating the ordinary
-/// initial window, for example `noctty --launch-layout=<name>` or
-/// `noctty +new-window --launch-layout=<name>`.
+/// initial window, for example `najm --launch-layout=<name>` or
+/// `najm +new-window --launch-layout=<name>`.
 ///
 /// This is a CLI-only configuration and it is one-shot. Setting it in a
 /// configuration file has no effect (it is not an error, but the value is
@@ -4158,7 +4158,7 @@ test "launch-layout does not survive in the replay log once consumed" {
     defer cfg.deinit();
     const arena_alloc = cfg._arena.?.allocator();
 
-    // What `loadCliArgs` leaves behind for `noctty --launch-layout=<name>`.
+    // What `loadCliArgs` leaves behind for `najm --launch-layout=<name>`.
     try cfg._replay_steps.append(arena_alloc, .{
         .arg = .{ .value = try arena_alloc.dupeZ(u8, "--launch-layout=Project Alpha") },
     });

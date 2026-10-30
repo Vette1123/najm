@@ -38,7 +38,7 @@ the staged executable's version string and numeric fields to match `-Version`.
 OpenGL remains the default, and noctty switches to this renderer on its own
 when OpenGL cannot start or cannot build its renderer (see
 [Starting without OpenGL](#starting-without-opengl)). The x64 and ARM64 release
-builds include both renderers; `noctty +version` prints a `D3D11 beta` line
+builds include both renderers; `najm +version` prints a `D3D11 beta` line
 that reads `available` (or `omitted` in a build made with `-Dd3d11=false`). To
 opt in, add this to your config and open a new window, tab, or split:
 
@@ -273,7 +273,7 @@ so is a directory or a symlink named `pwsh.exe`. Windows PowerShell and
 `cmd.exe` come from the system directory rather than `PATH`, so an earlier
 `PATH` entry cannot replace them. The profile picker finds `pwsh.exe` with the
 same `PATH` search and takes those two shells from the same directory, so it
-lists the executable a new tab runs. `noctty --safe-mode` always starts
+lists the executable a new tab runs. `najm --safe-mode` always starts
 `cmd.exe /D`: recovery must work when the user's PowerShell profile is what
 broke, and Command Prompt loads no profile (`/D` also skips the `AutoRun`
 command that a registry value or Clink can hang there). The profile
@@ -876,7 +876,7 @@ where `working-directory` and the `*-inherit-working-directory` settings say,
 as `command` does. A directory the launch asks for with `--working-directory`
 (Explorer's "Open noctty here", a jump-list recent folder, or the option on a
 second `noctty` that hands its arguments to a running one), or the directory
-`noctty +new-window` runs in, wins over the profile's
+`najm +new-window` runs in, wins over the profile's
 `profile-working-directory`. A second `noctty` that names no directory (from
 the Start menu, say) opens in the profile's directory, as the first one did.
 An SSH profile always starts in your user profile directory. The pane remembers the profile, so its splits
@@ -922,7 +922,7 @@ or `user:py312`), a detected profile's key (`pwsh.exe`, `powershell.exe`,
 `powershell`, `git`, `cmd`, `wsl`). In `profile-order`
 and `profile-hidden`, `wsl` names every WSL profile. A WSL distribution is
 always written `wsl:<distribution>`. Labels are not references, because they
-can change. `noctty +list-profiles` prints the keys
+can change. `najm +list-profiles` prints the keys
 (see [Listing profiles](#listing-profiles)). A value that cannot name a profile (a typo, an id no
 `profile-command` line defines, a comment after the value) is reported as a
 config problem. One that names a shell this machine does not have
@@ -1018,7 +1018,7 @@ Limits:
 
 ### Listing profiles
 
-`noctty +list-profiles` prints the profiles the picker and the palette offer,
+`najm +list-profiles` prints the profiles the picker and the palette offer,
 with the key each one has for `default-profile`, `profile-order` and
 `profile-hidden`:
 
@@ -1051,7 +1051,7 @@ running noctty may list differently: it keeps the environment and options it
 started with, and a quick slot you pin in it moves a profile to the front of
 its pickers until it exits, which the command, a separate process, does not
 see. A `profile-command` line the config reader rejects leaves its profile
-out; `noctty +validate-config` reports it.
+out; `najm +validate-config` reports it.
 
 On a terminal the output is the table above. When it is piped or redirected,
 or with `--plain`, each profile is one line of tab-separated fields (key,
@@ -1065,7 +1065,7 @@ text forms are UTF-8, and a control character in a label prints as `?`.
 ```
 
 ```powershell
-noctty +list-profiles --format=json | ConvertFrom-Json | ForEach-Object profiles | Where-Object hidden
+najm +list-profiles --format=json | ConvertFrom-Json | ForEach-Object profiles | Where-Object hidden
 ```
 
 The JSON is ASCII (any other character is a `\u` escape), so a console code
@@ -1126,8 +1126,8 @@ untouched rather than replacing it with one Windows cannot show.
 > Register only on a machine you can restore, and unregister after testing.
 
 ```powershell
-noctty +register-default-terminal
-noctty +unregister-default-terminal
+najm +register-default-terminal
+najm +unregister-default-terminal
 ```
 
 Both commands are idempotent. Registration writes only per-user (`HKCU`)
@@ -1148,7 +1148,7 @@ that app's Scoop folder and no process is running from it. Otherwise it
 skips and leaves the registration in place, as it does when the command
 fails to start or exits nonzero, which it reports without failing the
 uninstall. To be sure with Scoop, close noctty and run
-`noctty +unregister-default-terminal` before `scoop uninstall`. For a
+`najm +unregister-default-terminal` before `scoop uninstall`. For a
 portable ZIP, run it yourself before deleting the folder.
 
 The three shared Microsoft `ITerminalHandoff` Interface mappings are
@@ -1297,8 +1297,8 @@ common Program Files directory; in non-administrative mode Inno Setup maps
 `HKA` to `HKCU` and `{autopf}` to the user Program Files directory.
 
 Portable users opt in per-user under `HKCU\Software\Classes` with
-`noctty +register-shell-menu` and remove the same six owned keys with
-`noctty +unregister-shell-menu`. The running app never registers these verbs
+`najm +register-shell-menu` and remove the same six owned keys with
+`najm +unregister-shell-menu`. The running app never registers these verbs
 itself and never writes them to `HKLM`. A per-user verb wins over a
 per-machine one, because `HKCU\Software\Classes` overrides `HKLM` in the
 merged `HKCR` view. So if you registered the verbs from a portable build and
@@ -1435,7 +1435,7 @@ terminfo capability, so a program can check before it reports.
   after the current tab, across windows. Done and failed clear once you
   look, so repeating it works through them. It has no default key binding;
   bind it with, for example,
-  `keybind = ctrl+shift+g=goto_attention`. `noctty +perform-action
+  `keybind = ctrl+shift+g=goto_attention`. `najm +perform-action
 goto_attention` runs it from scripts.
 - **Screen readers.** Each tab's UI Automation `ItemStatus` reads the status,
   such as "claude needs permission: Allow edit to main.rs?". A new state,
@@ -1535,7 +1535,7 @@ variations were explicitly requested. A variable font's Regular name does
 not outrank the same family's static Bold. Regular and fallback queries
 retain their existing ordering.
 
-`noctty +list-fonts --family="Cascadia Code" --bold` lists matching installed
+`najm +list-fonts --family="Cascadia Code" --bold` lists matching installed
 faces. Discovery does not enumerate variable fonts' named instances or add
 localized family-name aliases. Scan cancellation is checked between files;
 one blocked font-file open, including an unreachable network path in an
@@ -1709,7 +1709,7 @@ The quick terminal is frameless on both, so it sits flush with its screen edge.
 
 `maximize = true` and `fullscreen = true` apply to every new window: the
 first one, `new_window`, a profile opened in a new window, a window forwarded
-from another launch (`noctty --maximize`, `noctty +new-window
+from another launch (`najm --maximize`, `najm +new-window
 --fullscreen=true`), a launched layout, and a window restored from the saved
 session (see [Session restore and recovery](#session-restore-and-recovery)).
 They do not apply to new tabs or splits, to the quick terminal, or to a
@@ -1742,7 +1742,7 @@ keeps it unsaved and still shown, and Discard changes or closing without
 saving takes it back. The one exception is a reload whose file now has the
 same value: Settings takes that as saved, and the preview ends with it in
 effect. The window's "Open in default editor" button, and
-`noctty +edit-config` when neither `VISUAL` nor `EDITOR`
+`najm +edit-config` when neither `VISUAL` nor `EDITOR`
 is set, open the config through the `.txt` association rather than the
 file's own; they refuse a network or mapped-drive path and a link (symlink
 or junction) whose target is not a local file, but follow a checked local
@@ -2024,7 +2024,7 @@ quarantine path instead, so that window's layout is not restored. Nothing is
 deleted either way.
 
 Three consecutive pre-ready startup failures select an ephemeral safe mode:
-built-in config, no session restore. `noctty --safe-mode` picks it for one
+built-in config, no session restore. `najm --safe-mode` picks it for one
 launch. Safe mode never overwrites your config or quarantined state. A launch
 that ends at the OpenGL startup dialog is recorded but not counted, and does
 not end a run of other failures either: safe mode still needs working OpenGL
@@ -2074,7 +2074,7 @@ next layout launch runs, exactly as they could by editing your config.
 Bind `save_layout:<name>` to save or atomically replace a layout, and
 `launch_layout:<name>` to open it in a new window. Saved layouts also appear
 in the command palette as `Launch layout: <name>`. From the command line,
-`noctty +new-window --launch-layout=<name>` forwards the request to a
+`najm +new-window --launch-layout=<name>` forwards the request to a
 running instance or launches cold when none is running.
 
 The warm (running-instance) half of that command is not a forwarded
@@ -2447,13 +2447,13 @@ pipe that `+new-window` uses. The verbs, JSON schema, exit codes, and policy
 are in [automation.md](automation.md).
 
 ```powershell
-noctty +list-windows
-noctty +perform-action new_tab
-noctty +perform-action --surface-id=<surface_id> toggle_fullscreen
-noctty +new-tab --window-id=<window_id>
-noctty +new-split --surface-id=<surface_id> --direction=right
-noctty +focus --surface-id=<surface_id>
-noctty +send-text --surface-id=<surface_id> -- "hello"
+najm +list-windows
+najm +perform-action new_tab
+najm +perform-action --surface-id=<surface_id> toggle_fullscreen
+najm +new-tab --window-id=<window_id>
+najm +new-split --surface-id=<surface_id> --direction=right
+najm +focus --surface-id=<surface_id>
+najm +send-text --surface-id=<surface_id> -- "hello"
 ```
 
 ### Pipe security
@@ -2522,7 +2522,7 @@ These settings apply to every window of the instance and are not forwarded:
 `--window-titlebar-foreground`, `--split-divider-color`,
 `--window-show-tab-bar` and `--window-new-tab-position`, and neither is
 `--accent-follow-system`, which no longer has any effect. A second `noctty` and
-`noctty +new-window` leave them out (with a warning on standard error, where
+`najm +new-window` leave them out (with a warning on standard error, where
 there is one) and still open the window.
 
 The new window copies one of the running instance's windows, the way a
@@ -2570,8 +2570,8 @@ writes `.dmp` minidumps for process-level crash exceptions. Some hard-abort
 paths may still terminate before Windows can produce a dump.
 
 ```powershell
-noctty +crash-report
-noctty +diagnostic-bundle --output=noctty-diagnostics
+najm +crash-report
+najm +diagnostic-bundle --output=noctty-diagnostics
 ```
 
 `+crash-report` reads whatever is there. Dumps can contain sensitive memory
@@ -2749,7 +2749,7 @@ clipboard response from the terminal`, and nothing is typed.
 
 Releases since 1.3.125 ship Microsoft's ConPTY pair, `conpty.dll` and
 `OpenConsole.exe`, beside `noctty.exe`, and `zig build` stages the same pinned
-pair in `zig-out\bin`. `noctty +version` reports `ConPTY : bundled (<DLL path>)`,
+pair in `zig-out\bin`. `najm +version` reports `ConPTY : bundled (<DLL path>)`,
 or `ConPTY : inbox` with the reason, for example
 `inbox (conpty.dll is not next to noctty.exe)`. `+diagnostic-bundle` records
 the same selection and reason (`"fallback": "NotFound"`). Set
@@ -2910,7 +2910,7 @@ the Compatibility Pack when it detects an ARM64 native machine, and keeps the
 Remote Desktop and VM guidance, which applies on any architecture. That dialog
 now appears only when Direct3D 11 could not start either; the 1.3.132 dialog
 says the build has no software, DirectX, or ANGLE fallback renderer, which is
-out of date for builds that include the beta. The dialog and `noctty +version`
+out of date for builds that include the beta. The dialog and `najm +version`
 both report the architecture: `ARM64` for a native build, or
 `x64 (running on ARM64)` if you installed the x64 build by mistake. Prefer the
 ARM64 artifacts on a Snapdragon PC.

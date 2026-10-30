@@ -295,7 +295,7 @@ Win32-validated VT protocol coverage is tracked in
 - Crash dumps stay local under `%LOCALAPPDATA%\noctty\crash`. noctty never
   uploads anything from there, and the Sentry initialization path is a no-op
   on Windows.
-- `noctty +crash-report` reads whatever is there. Releases from 1.3.133 on
+- `najm +crash-report` reads whatever is there. Releases from 1.3.133 on
   also publish a zip of debug symbols per architecture for reading a dump
   with a debugger; it is not in the installer or the portable ZIP. Details in
   [windows.md](windows.md#crash-reports-and-diagnostics).

@@ -7,12 +7,12 @@ targets, and stable exit codes for PowerShell and other scripts.
 ## PowerShell quick start
 
 ```powershell
-noctty +list-windows | ConvertFrom-Json
+najm +list-windows | ConvertFrom-Json
 
-$state = noctty +list-windows --class=work | ConvertFrom-Json
+$state = najm +list-windows --class=work | ConvertFrom-Json
 $pane = $state.windows[0].tabs[0].panes[0]
-noctty +focus --class=work --surface-id=$($pane.surface_id)
-noctty +send-text --class=work --surface-id=$($pane.surface_id) 'git status'
+najm +focus --class=work --surface-id=$($pane.surface_id)
+najm +send-text --class=work --surface-id=$($pane.surface_id) 'git status'
 ```
 
 `+send-text` does not append Enter. Check `$LASTEXITCODE` after a command

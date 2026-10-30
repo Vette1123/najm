@@ -17,7 +17,7 @@ scoop install noctty/noctty
 
 Or install with WinGet: `winget install --id AmanThanvi.noctty -e`.
 
-The installer does not add `noctty` to `PATH`. To run the `noctty +...` commands
+The installer does not add `noctty` to `PATH`. To run the `najm +...` commands
 below from a shell, add the install folder to `PATH` or run `.\noctty.com`
 from that folder.
 
@@ -46,7 +46,7 @@ command = direct:"C:\Program Files\Git\bin\bash.exe" --login -i
 ```
 
 Adjust the path if Git is installed elsewhere. Check the file with
-`noctty +validate-config`, save it, and press `Ctrl+Shift+,` to reload.
+`najm +validate-config`, save it, and press `Ctrl+Shift+,` to reload.
 
 ## 3. What stays with the shell
 
@@ -67,7 +67,7 @@ equivalent:
 | -------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------- |
 | `Font`                                 | `font-family`                          |                                                                            |
 | `FontHeight`                           | `font-size`                            |                                                                            |
-| `ThemeFile`                            | `theme`                                | `noctty +list-themes` lists bundled names. mintty themes are not imported. |
+| `ThemeFile`                            | `theme`                                | `najm +list-themes` lists bundled names. mintty themes are not imported. |
 | `ForegroundColour`, `BackgroundColour` | `foreground`, `background`             | Noctty uses hex, for example `#1d1f21`.                                    |
 | `CursorColour`                         | `cursor-color`                         |                                                                            |
 | `CursorType`                           | `cursor-style`                         | `block`, `bar`, `underline`.                                               |
@@ -88,7 +88,7 @@ theme = Dracula
 copy-on-select = clipboard
 ```
 
-The complete option reference is `noctty +show-config --default --docs`.
+The complete option reference is `najm +show-config --default --docs`.
 
 ## 5. Translate the keyboard
 
@@ -109,7 +109,7 @@ daily:
 mintty's own shortcuts vary with its options file, so compare against yours
 rather than this column alone. Rebind anything with
 `keybind = <trigger>=<action>` and inspect the effective set with
-`noctty +list-keybinds`.
+`najm +list-keybinds`.
 
 ## 6. Check the PTY boundary
 

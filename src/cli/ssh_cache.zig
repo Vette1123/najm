@@ -37,12 +37,12 @@ pub const Options = struct {
 /// multiple actions into separate commands.
 ///
 /// Examples:
-///   noctty +ssh-cache                          # List all cached hosts
-///   noctty +ssh-cache --host=example.com       # Check if host is cached
-///   noctty +ssh-cache --add=example.com        # Manually add host to cache
-///   noctty +ssh-cache --add=user@example.com   # Add user@host combination
-///   noctty +ssh-cache --remove=example.com     # Remove host from cache
-///   noctty +ssh-cache --clear                  # Clear entire cache
+///   najm +ssh-cache                          # List all cached hosts
+///   najm +ssh-cache --host=example.com       # Check if host is cached
+///   najm +ssh-cache --add=example.com        # Manually add host to cache
+///   najm +ssh-cache --add=user@example.com   # Add user@host combination
+///   najm +ssh-cache --remove=example.com     # Remove host from cache
+///   najm +ssh-cache --clear                  # Clear entire cache
 pub fn run(alloc_gpa: Allocator) !u8 {
     var arena = std.heap.ArenaAllocator.init(alloc_gpa);
     defer arena.deinit();

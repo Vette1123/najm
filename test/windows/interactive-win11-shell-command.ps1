@@ -141,11 +141,11 @@ Remove-Item -LiteralPath $cmdResolvedPath, $cmdHelpPath, $cmdVersionPath, $cmdKe
 @(
     '@echo off'
     "where noctty > `"$cmdResolvedPath`" || exit /b 1"
-    "noctty +help > `"$cmdHelpPath`" || exit /b 1"
-    "noctty +version > `"$cmdVersionPath`" || exit /b 1"
-    "noctty +list-keybinds > `"$cmdKeybindsPath`" || exit /b 1"
-    "noctty +list-colors > `"$cmdColorsPath`" || exit /b 1"
-    "noctty +list-themes > `"$cmdThemesPath`" || exit /b 1"
+    "najm +help > `"$cmdHelpPath`" || exit /b 1"
+    "najm +version > `"$cmdVersionPath`" || exit /b 1"
+    "najm +list-keybinds > `"$cmdKeybindsPath`" || exit /b 1"
+    "najm +list-colors > `"$cmdColorsPath`" || exit /b 1"
+    "najm +list-themes > `"$cmdThemesPath`" || exit /b 1"
 ) | Set-Content -LiteralPath $cmdPayloadPath -Encoding ASCII
 
 $null = Invoke-AppShellRun `
@@ -161,7 +161,7 @@ if ($cmdResolved.Count -lt 1) {
 if (-not $cmdResolved[0].Equals($expectedCommandPath, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "cmd resolved unexpected first noctty command: $($cmdResolved[0])"
 }
-Assert-Contains -Text (Get-RequiredTextFile -Path $cmdHelpPath) -Expected 'Usage: noctty [+action] [options]' -Label 'cmd +help'
+Assert-Contains -Text (Get-RequiredTextFile -Path $cmdHelpPath) -Expected 'Usage: najm [+action] [options]' -Label 'cmd +help'
 Assert-Contains -Text (Get-RequiredTextFile -Path $cmdVersionPath) -Expected 'Build Config' -Label 'cmd +version'
 Assert-Contains -Text (Get-RequiredTextFile -Path $cmdKeybindsPath) -Expected 'keybind = ctrl+shift+,=reload_config' -Label 'cmd +list-keybinds'
 Assert-Contains -Text (Get-RequiredTextFile -Path $cmdColorsPath) -Expected 'alice blue = #f0f8ff' -Label 'cmd +list-colors'
@@ -188,19 +188,19 @@ Remove-Item -LiteralPath $psResolvedPath, $psHelpPath, $psVersionPath, $psKeybin
 @(
     '$resolved = (Get-Command noctty).Source'
     "Set-Content -LiteralPath '$psResolvedLiteral' -Value `$resolved -Encoding ASCII"
-    '$help = noctty +help | Out-String'
+    '$help = najm +help | Out-String'
     'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     "Set-Content -LiteralPath '$psHelpLiteral' -Value `$help -Encoding UTF8"
-    '$version = noctty +version | Out-String'
+    '$version = najm +version | Out-String'
     'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     "Set-Content -LiteralPath '$psVersionLiteral' -Value `$version -Encoding UTF8"
-    '$keybinds = noctty +list-keybinds | Out-String'
+    '$keybinds = najm +list-keybinds | Out-String'
     'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     "Set-Content -LiteralPath '$psKeybindsLiteral' -Value `$keybinds -Encoding UTF8"
-    '$colors = noctty +list-colors | Out-String'
+    '$colors = najm +list-colors | Out-String'
     'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     "Set-Content -LiteralPath '$psColorsLiteral' -Value `$colors -Encoding UTF8"
-    '$themes = noctty +list-themes | Out-String'
+    '$themes = najm +list-themes | Out-String'
     'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
     "Set-Content -LiteralPath '$psThemesLiteral' -Value `$themes -Encoding UTF8"
 ) | Set-Content -LiteralPath $psPayloadPath -Encoding UTF8
@@ -215,7 +215,7 @@ $psResolved = (Get-RequiredTextFile -Path $psResolvedPath).Trim()
 if (-not $psResolved.Equals($expectedCommandPath, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "PowerShell resolved unexpected noctty command: $psResolved"
 }
-Assert-Contains -Text (Get-RequiredTextFile -Path $psHelpPath) -Expected 'Usage: noctty [+action] [options]' -Label 'PowerShell +help'
+Assert-Contains -Text (Get-RequiredTextFile -Path $psHelpPath) -Expected 'Usage: najm [+action] [options]' -Label 'PowerShell +help'
 Assert-Contains -Text (Get-RequiredTextFile -Path $psVersionPath) -Expected 'Build Config' -Label 'PowerShell +version'
 Assert-Contains -Text (Get-RequiredTextFile -Path $psKeybindsPath) -Expected 'keybind = ctrl+shift+,=reload_config' -Label 'PowerShell +list-keybinds'
 Assert-Contains -Text (Get-RequiredTextFile -Path $psColorsPath) -Expected 'alice blue = #f0f8ff' -Label 'PowerShell +list-colors'

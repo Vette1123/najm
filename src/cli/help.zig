@@ -16,16 +16,16 @@ pub const Options = struct {
 };
 
 pub const keybinding_discovery_hint =
-    \\  `noctty +explain-config --keybind=<action>` explains one keybind action.
-    \\  `noctty +list-actions --docs` lists bindable actions with docs.
-    \\  `noctty +list-keybinds --default` shows the shipped default bindings.
-    \\  `noctty +list-keybinds --docs` annotates bindings with action docs.
+    \\  `najm +explain-config --keybind=<action>` explains one keybind action.
+    \\  `najm +list-actions --docs` lists bindable actions with docs.
+    \\  `najm +list-keybinds --default` shows the shipped default bindings.
+    \\  `najm +list-keybinds --docs` annotates bindings with action docs.
 ;
 
 const help_prelude =
-    \\Usage: noctty [+action] [options]
+    \\Usage: najm [+action] [options]
     \\
-    \\Run the Windows-native noctty terminal or a specific helper action.
+    \\Run the Windows-native Najm terminal or a specific helper action.
     \\
     \\If no `+action` is specified, run `najm.exe`.
     \\All configuration keys are available as command line options.
@@ -34,25 +34,25 @@ const help_prelude =
     \\file. For example, `--font-size=12` or `--font-family="Fira Code"`.
     \\
     \\Discover configuration from the CLI:
-    \\  `noctty +show-config --default --docs` lists every config key and its docs.
-    \\  `noctty +explain-config <option>` explains one config key.
+    \\  `najm +show-config --default --docs` lists every config key and its docs.
+    \\  `najm +explain-config <option>` explains one config key.
     \\
     \\A special command line argument `-e <command>` can be used to run
     \\the specific command inside the terminal emulator. For example,
-    \\`noctty -e top` will run the `top` command inside the terminal.
+    \\`najm -e top` will run the `top` command inside the terminal.
     \\
     \\Discover actions and keybindings:
     \\
 ++ keybinding_discovery_hint ++
     \\
     \\Useful Windows actions:
-    \\  `noctty +new-window` forwards into the running instance when possible.
-    \\  `noctty +list-windows` prints local automation window IDs as JSON.
-    \\  `noctty +list-profiles` prints the profile keys that `default-profile` takes.
-    \\  `noctty +perform-action new_tab` forwards a safe UI action.
-    \\  `noctty --safe-mode` uses built-in config and skips session restore.
-    \\  `noctty +diagnostic-bundle` creates a local redacted support bundle.
-    \\  `noctty +edit-config` opens the config file in your default editor.
+    \\  `najm +new-window` forwards into the running instance when possible.
+    \\  `najm +list-windows` prints local automation window IDs as JSON.
+    \\  `najm +list-profiles` prints the profile keys that `default-profile` takes.
+    \\  `najm +perform-action new_tab` forwards a safe UI action.
+    \\  `najm --safe-mode` uses built-in config and skips session restore.
+    \\  `najm +diagnostic-bundle` creates a local redacted support bundle.
+    \\  `najm +edit-config` opens the config file in your default editor.
     \\
     \\Available actions:
     \\
@@ -95,7 +95,7 @@ pub fn run(alloc: Allocator) !u8 {
 }
 
 test "help prelude is Windows-only" {
-    try std.testing.expect(std.mem.indexOf(u8, help_prelude, "Windows-native noctty terminal") != null);
+    try std.testing.expect(std.mem.indexOf(u8, help_prelude, "Windows-native Najm terminal") != null);
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "najm.exe") != null);
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "Ghostty.app") == null);
     try std.testing.expect(std.mem.indexOf(u8, help_prelude, "open -na") == null);

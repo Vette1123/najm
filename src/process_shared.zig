@@ -130,7 +130,7 @@ pub fn reportStateInitError(err: anyerror) !void {
         error.InvalidAction => try stderr.print(
             "Error: unknown CLI action specified. CLI actions are specified with\n" ++
                 "the '+' character.\n\n" ++
-                "All valid CLI actions can be listed with `noctty +help`\n",
+                "All valid CLI actions can be listed with `najm +help`\n",
             .{},
         ),
 
@@ -164,7 +164,7 @@ fn formatCliActionFailureMessage(
         if (err == error.ActionHelpOutputUnavailable) {
             return std.fmt.bufPrint(
                 buf,
-                "noctty +{s} could not write help text. Launch it from Command Prompt, PowerShell, or Windows Terminal, or redirect the output to a file.\n",
+                "najm +{s} could not write help text. Launch it from Command Prompt, PowerShell, or Windows Terminal, or redirect the output to a file.\n",
                 .{@tagName(action)},
             ) catch "noctty CLI action failed.\n";
         }
@@ -172,7 +172,7 @@ fn formatCliActionFailureMessage(
 
     return std.fmt.bufPrint(
         buf,
-        "noctty +{s} failed: {s}\n",
+        "najm +{s} failed: {s}\n",
         .{ @tagName(action), @errorName(err) },
     ) catch "noctty CLI action failed.\n";
 }
@@ -286,7 +286,7 @@ test "cli help output failures get a text output hint" {
         try std.testing.expect(std.mem.indexOf(u8, message, "write help text") != null);
     } else {
         try std.testing.expectEqualStrings(
-            "noctty +version failed: ActionHelpOutputUnavailable\n",
+            "najm +version failed: ActionHelpOutputUnavailable\n",
             message,
         );
     }

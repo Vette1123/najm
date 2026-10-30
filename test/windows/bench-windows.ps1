@@ -830,7 +830,7 @@ function Invoke-NocttyCli {
 function Get-NocttyAutomationSnapshot {
     param([Parameter(Mandatory)] [string] $Name)
     $raw = Invoke-NocttyCli -Name $Name -Arguments @('+list-windows', "--class=$script:instanceClass")
-    if ([string]::IsNullOrWhiteSpace($raw)) { throw 'noctty +list-windows returned empty stdout' }
+    if ([string]::IsNullOrWhiteSpace($raw)) { throw 'najm +list-windows returned empty stdout' }
     return $raw | ConvertFrom-Json
 }
 

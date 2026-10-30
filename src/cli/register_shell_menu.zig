@@ -99,7 +99,7 @@ fn runInner(
             // get back to a clean state rather than leaving a half-installed
             // Explorer menu behind silently.
             try stderr.print(
-                "Some verbs may already be registered; run `noctty +unregister-shell-menu` to remove them.\n",
+                "Some verbs may already be registered; run `najm +unregister-shell-menu` to remove them.\n",
                 .{},
             );
             return 1;
