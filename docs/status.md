@@ -105,7 +105,7 @@ Win32-validated VT protocol coverage is tracked in
   shell profiles. From 1.3.133 a portable copy builds none, so it leaves the
   installed app's list alone; earlier portable copies replaced it at every
   start.
-- Classic Explorer `Open noctty here` verbs for folders, folder backgrounds,
+- Classic Explorer `Open Najm here` verbs for folders, folder backgrounds,
   and drives, registered by the installer or explicitly per-user for
   portable builds.
 - Per-monitor DPI scaling. With `window-width` and `window-height` set, a

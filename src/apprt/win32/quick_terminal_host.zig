@@ -38,7 +38,7 @@ const win32_quick_terminal = runtime.win32_quick_terminal;
 const win32_theme = runtime.win32_theme;
 const win32_tween = runtime.win32_tween;
 
-pub const quick_terminal_title = std.unicode.utf8ToUtf16LeStringLiteral("noctty quick terminal");
+pub const quick_terminal_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm quick terminal");
 
 pub fn hideQuickTerminalHost(host: *Host) void {
     host.cancelQuickTerminalAnimation();

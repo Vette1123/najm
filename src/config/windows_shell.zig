@@ -2167,7 +2167,7 @@ pub fn shellIntegrationDiagnostic(kind: ProfileKind) ShellIntegrationDiagnostic 
         .user => .{
             .support = .manual,
             .summary = "User profile; shell integration follows the program it runs",
-            .next_step = "Start a shell noctty integrates (PowerShell, cmd, Git Bash) or enable integration in the program's own startup.",
+            .next_step = "Start a shell Najm integrates (PowerShell, cmd, Git Bash) or enable integration in the program's own startup.",
         },
     };
 }

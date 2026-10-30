@@ -551,13 +551,13 @@ fn buildCommandValue(alloc: Allocator, escaped: []const u8, utf8_console: bool) 
         alloc,
         "& {{ ${s} = ${s}; $__ghostty_integration_path = '{s}'; " ++
             "try {{ if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {{ " ++
-            "Microsoft.PowerShell.Utility\\Write-Warning 'noctty PowerShell integration skipped: unsupported language mode.' -WarningAction Continue " ++
+            "Microsoft.PowerShell.Utility\\Write-Warning 'Najm PowerShell integration skipped: unsupported language mode.' -WarningAction Continue " ++
             "}} else {{ $__ghostty_load_error_head = $null; if ($Error.Count) {{ $__ghostty_load_error_head = $Error[0] }}; " ++
             "Microsoft.PowerShell.Core\\Import-Module ([Reflection.Assembly]::Load('Microsoft.PowerShell.Security').Location) -ErrorAction Stop; " ++
             "if ((Microsoft.PowerShell.Security\\Get-ExecutionPolicy -ErrorAction Stop) -eq 'AllSigned') {{ . $__ghostty_integration_path " ++
             "}} else {{ . ([scriptblock]::Create([IO.File]::ReadAllText($__ghostty_integration_path))) }} }} " ++
             "}} catch {{ while ($Error.Count -gt 0 -and -not [object]::ReferenceEquals($Error[0], $__ghostty_load_error_head)) {{ $Error.RemoveAt(0) }}; Microsoft.PowerShell.Utility\\Write-Warning " ++
-            "'noctty PowerShell integration could not load (execution policy or script error).' -WarningAction Continue }} }}",
+            "'Najm PowerShell integration could not load (execution policy or script error).' -WarningAction Continue }} }}",
         .{ utf8_console_variable, if (utf8_console) "true" else "false", escaped },
     );
 }
@@ -1415,7 +1415,7 @@ test "buildInjectedArgv: policy bootstrap executes in Windows PowerShell hosts" 
             try std.testing.expect(std.mem.indexOf(u8, stdout.items, "ERROR-COUNT=0") != null);
             if (std.mem.eql(u8, policy, "AllSigned")) {
                 try std.testing.expect(std.mem.indexOf(u8, stdout.items, "HELPER-LOADED") == null);
-                try std.testing.expect(std.mem.indexOf(u8, stdout.items, "noctty PowerShell integration could not load") != null);
+                try std.testing.expect(std.mem.indexOf(u8, stdout.items, "Najm PowerShell integration could not load") != null);
             } else {
                 try std.testing.expect(std.mem.indexOf(u8, stdout.items, "HELPER-LOADED") != null);
                 try std.testing.expect(std.mem.indexOf(u8, stdout.items, "]133;A;") != null);
@@ -1434,7 +1434,7 @@ test "buildInjectedArgv: policy bootstrap executes in Windows PowerShell hosts" 
     }
 }
 
-const expected_bootstrap_suffix = "'; try { if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { Microsoft.PowerShell.Utility\\Write-Warning 'noctty PowerShell integration skipped: unsupported language mode.' -WarningAction Continue } else { $__ghostty_load_error_head = $null; if ($Error.Count) { $__ghostty_load_error_head = $Error[0] }; Microsoft.PowerShell.Core\\Import-Module ([Reflection.Assembly]::Load('Microsoft.PowerShell.Security').Location) -ErrorAction Stop; if ((Microsoft.PowerShell.Security\\Get-ExecutionPolicy -ErrorAction Stop) -eq 'AllSigned') { . $__ghostty_integration_path } else { . ([scriptblock]::Create([IO.File]::ReadAllText($__ghostty_integration_path))) } } } catch { while ($Error.Count -gt 0 -and -not [object]::ReferenceEquals($Error[0], $__ghostty_load_error_head)) { $Error.RemoveAt(0) }; Microsoft.PowerShell.Utility\\Write-Warning 'noctty PowerShell integration could not load (execution policy or script error).' -WarningAction Continue } }";
+const expected_bootstrap_suffix = "'; try { if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { Microsoft.PowerShell.Utility\\Write-Warning 'Najm PowerShell integration skipped: unsupported language mode.' -WarningAction Continue } else { $__ghostty_load_error_head = $null; if ($Error.Count) { $__ghostty_load_error_head = $Error[0] }; Microsoft.PowerShell.Core\\Import-Module ([Reflection.Assembly]::Load('Microsoft.PowerShell.Security').Location) -ErrorAction Stop; if ((Microsoft.PowerShell.Security\\Get-ExecutionPolicy -ErrorAction Stop) -eq 'AllSigned') { . $__ghostty_integration_path } else { . ([scriptblock]::Create([IO.File]::ReadAllText($__ghostty_integration_path))) } } } catch { while ($Error.Count -gt 0 -and -not [object]::ReferenceEquals($Error[0], $__ghostty_load_error_head)) { $Error.RemoveAt(0) }; Microsoft.PowerShell.Utility\\Write-Warning 'Najm PowerShell integration could not load (execution policy or script error).' -WarningAction Continue } }";
 
 test "buildInjectedArgv: interactive shell injects without changing banner semantics" {
     const argv = [_][]const u8{"pwsh.exe"};

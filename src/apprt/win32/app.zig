@@ -663,7 +663,7 @@ pub const App = struct {
     /// Set only in the process that restored the saved session, or was
     /// eligible to and started with its first window instead. Only that
     /// process saves `session-state.json` or moves it aside: a launch that
-    /// forwarded to the primary, an Explorer "Open noctty here" window, an
+    /// forwarded to the primary, an Explorer "Open Najm here" window, an
     /// `-Embedding` handoff server or a second `single-instance = false`
     /// instance never loaded it, so writing their own windows over it
     /// destroys the user's workspace.

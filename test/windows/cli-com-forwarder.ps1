@@ -265,7 +265,7 @@ function Assert-Version($Result) {
 }
 function Test-NoHandles {
     Assert-Condition (-not [ComCliNative]::HasConsole()) 'No-handle test controller must have no console.'
-    $title = 'noctty CLI action failed'
+    $title = 'Najm CLI action failed'
     $child = [ComCliNative]::Launch($com, '+version', $BinDir, $desktopPath, 'none', $null, $null, $null, 8)
     try {
         $script:found = $null

@@ -36,19 +36,19 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
     const result = handoff.registerDefaultTerminal(alloc, exe_path) catch |err| {
         switch (err) {
             error.CompatibleConsoleHandoffMissing => try stderr.writeAll(
-                "Cannot register noctty as the default terminal: HKCU\\Console\\%%Startup\\DelegationConsole is missing or selects the inbox console host. Select Windows Terminal 1.24 or newer as your default terminal first, so its OpenConsole provides the console half of the handoff.\n",
+                "Cannot register Najm as the default terminal: HKCU\\Console\\%%Startup\\DelegationConsole is missing or selects the inbox console host. Select Windows Terminal 1.24 or newer as your default terminal first, so its OpenConsole provides the console half of the handoff.\n",
             ),
             error.InvalidConsoleHandoff => try stderr.writeAll(
-                "Cannot register noctty as the default terminal: DelegationConsole is not a valid CLSID.\n",
+                "Cannot register Najm as the default terminal: DelegationConsole is not a valid CLSID.\n",
             ),
             error.MissingRestoreState => try stderr.writeAll(
-                "Cannot repair the current noctty selection because its saved previous terminal value is missing; no registry values were changed.\n",
+                "Cannot repair the current Najm selection because its saved previous terminal value is missing; no registry values were changed.\n",
             ),
             error.MissingProxyRestoreState => try stderr.writeAll(
-                "Cannot repair noctty's terminal proxy registration because a shared Interface value already points to noctty but its saved previous value is missing; no shared Interface values were changed.\n",
+                "Cannot repair Najm's terminal proxy registration because a shared Interface value already points to Najm but its saved previous value is missing; no shared Interface values were changed.\n",
             ),
             error.ProxyDllMissing => try stderr.print(
-                "Cannot register noctty as the default terminal: {s} is missing or unreadable. Reinstall noctty so the proxy DLL is beside najm.exe.\n",
+                "Cannot register Najm as the default terminal: {s} is missing or unreadable. Reinstall Najm so the proxy DLL is beside najm.exe.\n",
                 .{handoff.proxy_filename},
             ),
             else => try stderr.print("Default-terminal registration failed: {}\n", .{err}),
@@ -61,9 +61,9 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
     if (result.selection_changed) {
-        try stdout.print("Registered and selected noctty as the current user's default terminal: {s}\n", .{exe_path});
+        try stdout.print("Registered and selected Najm as the current user's default terminal: {s}\n", .{exe_path});
     } else {
-        try stdout.print("noctty was already selected; refreshed its current-user COM registration: {s}\n", .{exe_path});
+        try stdout.print("Najm was already selected; refreshed its current-user COM registration: {s}\n", .{exe_path});
     }
     try stdout.flush();
     return 0;

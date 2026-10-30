@@ -32,11 +32,11 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
     const result = handoff.unregisterDefaultTerminal(alloc) catch |err| {
         if (err == error.MissingRestoreState) {
             stderr.writeAll(
-                "Cannot unregister noctty while it is selected: the saved previous terminal value is missing, so the registry was left unchanged.\n",
+                "Cannot unregister Najm while it is selected: the saved previous terminal value is missing, so the registry was left unchanged.\n",
             ) catch {};
         } else if (err == error.MissingProxyRestoreState) {
             stderr.writeAll(
-                "Cannot unregister noctty safely: a shared Interface value still points to noctty but its saved previous value is missing, so the registry was left unchanged.\n",
+                "Cannot unregister Najm safely: a shared Interface value still points to Najm but its saved previous value is missing, so the registry was left unchanged.\n",
             ) catch {};
         } else {
             stderr.print("Default-terminal unregistration failed: {}\n", .{err}) catch {};
@@ -49,13 +49,13 @@ pub fn run(alloc: std.mem.Allocator) !u8 {
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     const stdout = &stdout_writer.interface;
     if (result.selection_restored) {
-        stdout.writeAll("Restored the default-terminal selection saved before noctty was registered.\n") catch {};
+        stdout.writeAll("Restored the default-terminal selection saved before Najm was registered.\n") catch {};
     } else if (result.newer_selection_preserved) {
-        stdout.writeAll("A different default terminal is selected; preserved it and removed noctty's COM registration.\n") catch {};
+        stdout.writeAll("A different default terminal is selected; preserved it and removed Najm's COM registration.\n") catch {};
     } else if (result.class_removed) {
-        stdout.writeAll("Removed noctty's COM registration; no terminal selection needed restoration.\n") catch {};
+        stdout.writeAll("Removed Najm's COM registration; no terminal selection needed restoration.\n") catch {};
     } else {
-        stdout.writeAll("noctty was already unregistered; no registry values changed.\n") catch {};
+        stdout.writeAll("Najm was already unregistered; no registry values changed.\n") catch {};
     }
     stdout.flush() catch {};
     return 0;

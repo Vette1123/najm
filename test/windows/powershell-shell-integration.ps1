@@ -654,7 +654,7 @@ public sealed class NocttyInjectedChildOutput {
         $payload = '[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); ' + $historyPrefix + $prefix + $Preamble +
             "function global:prompt { 'NOCTTYPROBE> ' }; " +
             "& { `$__ghostty_utf8_console = `$false; `$__ghostty_integration_path = '$childQuotedPath" +
-            '''; try { if ($ExecutionContext.SessionState.LanguageMode -ne ''FullLanguage'') { Microsoft.PowerShell.Utility\Write-Warning ''noctty PowerShell integration skipped: unsupported language mode.'' -WarningAction Continue } else { $__ghostty_load_error_head = $null; if ($Error.Count) { $__ghostty_load_error_head = $Error[0] }; Microsoft.PowerShell.Core\Import-Module ([Reflection.Assembly]::Load(''Microsoft.PowerShell.Security'').Location) -ErrorAction Stop; if ((Microsoft.PowerShell.Security\Get-ExecutionPolicy -ErrorAction Stop) -eq ''AllSigned'') { . $__ghostty_integration_path } else { . ([scriptblock]::Create([IO.File]::ReadAllText($__ghostty_integration_path))) } } } catch { while ($Error.Count -gt 0 -and -not [object]::ReferenceEquals($Error[0], $__ghostty_load_error_head)) { $Error.RemoveAt(0) }; Microsoft.PowerShell.Utility\Write-Warning ''noctty PowerShell integration could not load (execution policy or script error).'' -WarningAction Continue } }' +
+            '''; try { if ($ExecutionContext.SessionState.LanguageMode -ne ''FullLanguage'') { Microsoft.PowerShell.Utility\Write-Warning ''Najm PowerShell integration skipped: unsupported language mode.'' -WarningAction Continue } else { $__ghostty_load_error_head = $null; if ($Error.Count) { $__ghostty_load_error_head = $Error[0] }; Microsoft.PowerShell.Core\Import-Module ([Reflection.Assembly]::Load(''Microsoft.PowerShell.Security'').Location) -ErrorAction Stop; if ((Microsoft.PowerShell.Security\Get-ExecutionPolicy -ErrorAction Stop) -eq ''AllSigned'') { . $__ghostty_integration_path } else { . ([scriptblock]::Create([IO.File]::ReadAllText($__ghostty_integration_path))) } } } catch { while ($Error.Count -gt 0 -and -not [object]::ReferenceEquals($Error[0], $__ghostty_load_error_head)) { $Error.RemoveAt(0) }; Microsoft.PowerShell.Utility\Write-Warning ''Najm PowerShell integration could not load (execution policy or script error).'' -WarningAction Continue } }' +
             $Postamble
         $payloadErrors = $null
         [void][System.Management.Automation.Language.Parser]::ParseInput($payload, [ref]$null, [ref]$payloadErrors)
@@ -804,7 +804,7 @@ public sealed class NocttyInjectedChildOutput {
     $signedOut = Invoke-NocttyInjectedChild -CaseName 'unsigned AllSigned' -ExecutionPolicy AllSigned -WithoutPSReadLine -Preamble '$Error.Clear(); ' `
         -Postamble '; "ERR" + "COUNT=" + $Error.Count'
     Assert-True (-not $signedOut.Contains('HELPER-RESOLVED')) "AllSigned loaded an unsigned integration script"
-    Assert-True ($signedOut.Contains('WARNING: noctty PowerShell integration')) "AllSigned gave no concise integration warning: $signedOut"
+    Assert-True ($signedOut.Contains('WARNING: Najm PowerShell integration')) "AllSigned gave no concise integration warning: $signedOut"
     Assert-True ($signedOut.Contains('ERRCOUNT=0') -and -not ($signedOut -match 'PSSecurityException|UnauthorizedAccess')) "AllSigned left a load error behind: $signedOut"
 
     foreach ($loadCase in @(

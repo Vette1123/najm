@@ -1541,7 +1541,7 @@ pub fn takePortableUpdateFailure(alloc: Allocator) !?[]u8 {
     if (std.mem.eql(u8, failure, @errorName(error.PortableUpdateRecoveryUnavailable))) {
         const message = try alloc.dupe(
             u8,
-            "Portable update recovery files are missing. Noctty abandoned automatic rollback and launched the installed build; reinstall or update manually if it does not work correctly.",
+            "Portable update recovery files are missing. Najm abandoned automatic rollback and launched the installed build; reinstall or update manually if it does not work correctly.",
         );
         return message;
     }

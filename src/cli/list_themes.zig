@@ -126,8 +126,8 @@ pub fn run(gpa_alloc: std.mem.Allocator) !u8 {
 
     const resources_dir = global_state.resources_dir.app();
     if (resources_dir == null) {
-        try stderr.print("Could not find the noctty resources directory. Please ensure " ++
-            "that noctty is installed correctly.\n", .{});
+        try stderr.print("Could not find the Najm resources directory. Please ensure " ++
+            "that Najm is installed correctly.\n", .{});
         try stderr.flush();
     }
 
@@ -277,7 +277,7 @@ const Preview = struct {
         const writer = self.tty.writer();
 
         try self.vx.enterAltScreen(writer);
-        try self.vx.setTitle(writer, "noctty Theme Preview");
+        try self.vx.setTitle(writer, "Najm Theme Preview");
         try self.vx.queryTerminal(writer, 1 * std.time.ns_per_s);
         try self.vx.setMouseMode(writer, true);
         if (self.vx.caps.color_scheme_updates)
@@ -813,18 +813,18 @@ const Preview = struct {
                 const save_instructions = [_][]const u8{
                     "Theme files are config files; only use themes from sources you trust.",
                     "",
-                    "To apply this theme, add the following line to your noctty configuration:",
+                    "To apply this theme, add the following line to your Najm configuration:",
                     "",
                     try std.fmt.allocPrint(alloc, "theme = {s}", .{theme.theme}),
                     "",
                     "Save the configuration file and then reload it to apply the new theme.",
                     "",
                     "Or press 'w' to write an auto theme file to your system's preferred default config path.",
-                    "Then add the following line to your noctty configuration and reload:",
+                    "Then add the following line to your Najm configuration and reload:",
                     "",
                     "config-file = ?auto/theme.ghostty",
                     "",
-                    "For more details on configuration and themes, visit the noctty repository:",
+                    "For more details on configuration and themes, visit the Najm repository:",
                     "",
                     "https://github.com/amanthanvi/noctty/blob/main/src/config/config-template",
                 };

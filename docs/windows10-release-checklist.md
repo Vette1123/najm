@@ -48,7 +48,7 @@ desktop.
 - A second machine at build 17763 is optional and used for one row (W10-02).
 
 Do not change input, display or lock settings beyond what a row says. Do not
-register noctty as the default terminal on a machine you cannot restore.
+register Najm as the default terminal on a machine you cannot restore.
 
 ## What the workflow covers
 
@@ -358,7 +358,7 @@ choosing an entry opens noctty in that folder or profile. A portable copy builds
 jump list ([Taskbar jump list](windows.md#taskbar-jump-list)).
 
 **W10-25 Explorer verb and taskbar progress.** Run `.\noctty.com +register-shell-menu`, then
-right-click a folder in Explorer. Expected: "Open noctty here" is in the main context
+right-click a folder in Explorer. Expected: "Open Najm here" is in the main context
 menu (Windows 11 puts it under "Show more options"); it opens a new instance in that
 folder. Run `.\noctty.com +unregister-shell-menu` afterwards. Then, in a tab, print
 `printf '\e]9;4;1;50\a'` from Git Bash or `[Console]::Write("$([char]27)]9;4;1;50$([char]7)")`

@@ -18,7 +18,7 @@ pub const Options = struct {
     }
 };
 
-/// Register `Open noctty here` in the current user's classic Explorer
+/// Register `Open Najm here` in the current user's classic Explorer
 /// context menus for folders, folder backgrounds, and drives.
 ///
 /// The action writes only to `HKCU\Software\Classes`. It is idempotent and

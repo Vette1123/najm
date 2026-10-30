@@ -246,7 +246,7 @@ fn runArgsWithPerform(
         return 5;
     }) return 0;
 
-    try stderr.print("+new-window could not find or start a matching noctty instance.\n", .{});
+    try stderr.print("+new-window could not find or start a matching Najm instance.\n", .{});
     return 5;
 }
 

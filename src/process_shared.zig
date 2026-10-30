@@ -166,7 +166,7 @@ fn formatCliActionFailureMessage(
                 buf,
                 "najm +{s} could not write help text. Launch it from Command Prompt, PowerShell, or Windows Terminal, or redirect the output to a file.\n",
                 .{@tagName(action)},
-            ) catch "noctty CLI action failed.\n";
+            ) catch "Najm CLI action failed.\n";
         }
     }
 
@@ -174,7 +174,7 @@ fn formatCliActionFailureMessage(
         buf,
         "najm +{s} failed: {s}\n",
         .{ @tagName(action), @errorName(err) },
-    ) catch "noctty CLI action failed.\n";
+    ) catch "Najm CLI action failed.\n";
 }
 
 fn writePlainStderr(message: []const u8) bool {
@@ -189,8 +189,8 @@ fn writePlainStderr(message: []const u8) bool {
 fn showWindowsCliFailureDialog(message: []const u8) void {
     if (comptime builtin.os.tag != .windows) return;
 
-    const caption = std.unicode.utf8ToUtf16LeStringLiteral("noctty CLI action failed");
-    const fallback = std.unicode.utf8ToUtf16LeStringLiteral("noctty CLI action failed.");
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Najm CLI action failed");
+    const fallback = std.unicode.utf8ToUtf16LeStringLiteral("Najm CLI action failed.");
 
     const message_w = std.unicode.utf8ToUtf16LeAllocZ(std.heap.page_allocator, message) catch {
         _ = MessageBoxW(null, fallback, caption, MB_OK | MB_ICONERROR);

@@ -1319,9 +1319,9 @@ fn writeRegistration(
     for (interface_proxy_registrations) |registration| {
         try savePreviousInterfaceProxy(alloc, registration);
     }
-    try writeRegistrySz(alloc, class_key_utf8, null, "noctty Terminal Handoff");
+    try writeRegistrySz(alloc, class_key_utf8, null, "Najm Terminal Handoff");
     try writeRegistrySz(alloc, local_server_key_utf8, null, command);
-    try writeRegistrySz(alloc, proxy_class_key_utf8, null, "noctty Terminal Handoff Proxy/Stub");
+    try writeRegistrySz(alloc, proxy_class_key_utf8, null, "Najm Terminal Handoff Proxy/Stub");
     try writeRegistrySz(alloc, proxy_inproc_server_key_utf8, null, proxy_path);
     try writeRegistrySz(alloc, proxy_inproc_server_key_utf8, "ThreadingModel", "Both");
     for (interface_proxy_registrations) |registration| {
