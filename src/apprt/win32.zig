@@ -71,6 +71,7 @@ const win32_nc_layout = @import("win32_nc_layout.zig");
 const win32_tab_visual = @import("win32_tab_visual.zig");
 const fancy_menu = @import("win32/fancy_menu.zig");
 const focus_cue = @import("win32/focus_cue.zig");
+const edit_keys = @import("win32/edit_keys.zig");
 const win32_types = @import("win32_types.zig");
 const win32_layouts = @import("win32_layouts.zig");
 const session_module = @import("win32/session.zig");
@@ -690,6 +691,7 @@ test {
     _ = @import("win32/fancy_menu.zig");
     _ = @import("win32/focus_region.zig");
     _ = @import("win32/focus_cue.zig");
+    _ = @import("win32/edit_keys.zig");
     _ = @import("win32/first_frame.zig");
     _ = @import("win32_aumid.zig");
     _ = @import("win32_toast_activator.zig");
@@ -11826,6 +11828,7 @@ fn overlayEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callco
         c.WM_LBUTTONDOWN => v.noteChromePointerInput(),
         c.WM_CHAR => {
             if (wParam == c.VK_ESCAPE) return 0;
+            if (is_query_edit and wParam == edit_keys.delete_word_char) return 0;
             if (wParam == c.VK_RETURN) {
                 // The confirm preview pane accepts on Enter too, but not on
                 // a held one (see `confirmButtonKey`), and never a
@@ -11844,6 +11847,9 @@ fn overlayEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callco
             // Tab out of the query is how the keyboard reaches the Close
             // button; it has to show its ring when it gets there.
             v.noteChromeKeyInput(wParam);
+            if (is_query_edit and msg == c.WM_KEYDOWN and
+                edit_keys.isDeleteWordKey(wParam, keyPressed(c.VK_CONTROL), keyPressed(c.VK_MENU)) and
+                edit_keys.deletePreviousWord(hwnd)) return 0;
             if (v.overlay_mode == .confirm) v.holdProgramConfirmForKey(wParam);
             if (v.commandPaletteToggleKeyMessage(msg, wParam, lParam)) {
                 _ = v.dismissCommandPalette();
