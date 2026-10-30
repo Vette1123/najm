@@ -608,20 +608,46 @@ pub const SearchBarFit = struct {
     /// The previous and next buttons. Enter, Shift+Enter and the arrow keys
     /// in the edit still step through the matches without them.
     nav: bool,
+    /// The results chip: the match count, "No matches", "Invalid pattern".
+    results: bool = false,
+};
+
+/// What the bar has to show besides the edit.
+pub const SearchBarWants = struct {
+    /// There is a query, so the results chip has something to say.
+    results: bool = false,
+    /// A regex, case or whole-word toggle is on and filters the matches.
+    toggles_on: bool = false,
 };
 
 /// In a narrow pane the controls used to be placed right to left without
 /// regard to the left edge, so they overlapped each other and the next pane
-/// while the edit shrank to 1 px. The toggles go first, then previous and
-/// next, whenever the edit would be narrower than `min_edit_w` beside them.
-pub fn searchBarFit(frame_width: i32, layout: SearchBarChromeLayout) SearchBarFit {
+/// while the edit shrank to 1 px. Whatever does not fit beside a
+/// `min_edit_w` edit is left out, by importance: the results chip first (the
+/// only place a miss or a bad pattern shows), then the toggles while one is
+/// on (a hidden one still filters), then previous and next (the keys do
+/// their job), then toggles that are all off.
+pub fn searchBarFit(frame_width: i32, layout: SearchBarChromeLayout, wants: SearchBarWants) SearchBarFit {
     const room = frame_width - 2 * layout.pad_x - layout.close_w - layout.close_gap;
     const nav_w = 2 * layout.nav_w + layout.gap + layout.section_gap;
     const toggles_w = 3 * layout.toggle_w + 2 * layout.gap + layout.section_gap;
-    return .{
-        .toggles = room - nav_w - toggles_w >= layout.min_edit_w,
-        .nav = room - nav_w >= layout.min_edit_w,
-    };
+    const results_w = layout.results_w + layout.section_gap;
+    var spare = room - layout.min_edit_w;
+    var fit: SearchBarFit = .{ .toggles = false, .nav = false };
+    if (wants.results and spare >= results_w) {
+        fit.results = true;
+        spare -= results_w;
+    }
+    if (wants.toggles_on and spare >= toggles_w) {
+        fit.toggles = true;
+        spare -= toggles_w;
+    }
+    if (spare >= nav_w) {
+        fit.nav = true;
+        spare -= nav_w;
+    }
+    if (!wants.toggles_on and spare >= toggles_w) fit.toggles = true;
+    return fit;
 }
 
 fn scaledBy(base: i32, dpi: u32) i32 {
@@ -639,13 +665,45 @@ test "searchBarFit drops the toggles, then previous and next, as the pane narrow
             (3 * layout.toggle_w + 2 * layout.gap + layout.section_gap) + layout.min_edit_w;
         const room_nav = room_all - (3 * layout.toggle_w + 2 * layout.gap + layout.section_gap);
 
-        try std.testing.expectEqual(SearchBarFit{ .toggles = true, .nav = true }, searchBarFit(room_all, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = true, .nav = true }, searchBarFit(room_all + 500, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = true }, searchBarFit(room_all - 1, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = true }, searchBarFit(room_nav, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(room_nav - 1, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(0, layout));
-        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(-40, layout));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = true, .nav = true }, searchBarFit(room_all, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = true, .nav = true }, searchBarFit(room_all + 500, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = true }, searchBarFit(room_all - 1, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = true }, searchBarFit(room_nav, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(room_nav - 1, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(0, layout, .{}));
+        try std.testing.expectEqual(SearchBarFit{ .toggles = false, .nav = false }, searchBarFit(-40, layout, .{}));
+    }
+}
+
+test "a narrow search bar keeps its results chip and any toggle that is on" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    for ([_]u32{ 96, 144, 192 }) |dpi| {
+        const layout = searchBarChromeLayout(dpi);
+        const base = 2 * layout.pad_x + layout.close_w + layout.close_gap + layout.min_edit_w;
+        const results_w = layout.results_w + layout.section_gap;
+        const nav_w = 2 * layout.nav_w + layout.gap + layout.section_gap;
+        const toggles_w = 3 * layout.toggle_w + 2 * layout.gap + layout.section_gap;
+
+        // Room for the chip alone: "No matches" and "Invalid pattern" stay
+        // visible, previous and next go (the keys still step).
+        const chip_only = searchBarFit(base + results_w, layout, .{ .results = true });
+        try std.testing.expect(chip_only.results);
+        try std.testing.expect(!chip_only.nav);
+        try std.testing.expect(!chip_only.toggles);
+
+        // A toggle that is on outranks previous and next.
+        const on = searchBarFit(base + results_w + toggles_w, layout, .{ .results = true, .toggles_on = true });
+        try std.testing.expect(on.results and on.toggles and !on.nav);
+        const off = searchBarFit(base + results_w + toggles_w, layout, .{ .results = true });
+        try std.testing.expect(off.results and off.nav and !off.toggles);
+
+        // Wide enough for everything: everything shows.
+        const all = searchBarFit(base + results_w + toggles_w + nav_w, layout, .{ .results = true, .toggles_on = true });
+        try std.testing.expect(all.results and all.toggles and all.nav);
+
+        // No query: the chip takes no room.
+        try std.testing.expect(!searchBarFit(base + results_w, layout, .{}).results);
     }
 }
 
@@ -655,7 +713,7 @@ test "searchBarFit at 232 px leaves an edit that can be typed in" {
     // 232 px at 96 DPI is exactly the width the fixed controls need, which
     // used to leave the edit 1 px wide.
     const layout = searchBarChromeLayout(96);
-    const fit = searchBarFit(232, layout);
+    const fit = searchBarFit(232, layout, .{});
     try std.testing.expect(!fit.toggles);
     try std.testing.expect(!fit.nav);
     const edit_w = 232 - 2 * layout.pad_x - layout.close_w - layout.close_gap;
@@ -664,10 +722,10 @@ test "searchBarFit at 232 px leaves an edit that can be typed in" {
     // The two thresholds at 96 DPI, written out: 16 px of padding, the close
     // button and its gap (40), previous and next with their gaps (72), the
     // toggles with theirs (104) and the 120 px edit.
-    try std.testing.expect(searchBarFit(352, layout).toggles);
-    try std.testing.expect(!searchBarFit(351, layout).toggles);
-    try std.testing.expect(searchBarFit(248, layout).nav);
-    try std.testing.expect(!searchBarFit(247, layout).nav);
+    try std.testing.expect(searchBarFit(352, layout, .{}).toggles);
+    try std.testing.expect(!searchBarFit(351, layout, .{}).toggles);
+    try std.testing.expect(searchBarFit(248, layout, .{}).nav);
+    try std.testing.expect(!searchBarFit(247, layout, .{}).nav);
 }
 
 test "hostLayoutClientRect follows the live client rect while it has an area" {

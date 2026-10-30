@@ -1178,7 +1178,10 @@ pub const SurfaceControls = struct {
         var changed = false;
         var bg_changed = false;
         const layout = searchBarChromeLayout(host.current_dpi);
-        const fit = searchBarFit(frame_rect.right - frame_rect.left, layout);
+        const fit = searchBarFit(frame_rect.right - frame_rect.left, layout, .{
+            .results = showSearchBarResults(&self.search_bar),
+            .toggles_on = self.search_bar.anyFilterOn(),
+        });
         const control_top = frame_rect.top + layout.pad_y;
         const left = frame_rect.left + layout.pad_x;
         var right = frame_rect.right - layout.pad_x;
@@ -1238,9 +1241,7 @@ pub const SurfaceControls = struct {
             changed = self.hideSearchBarButton(.prev) or changed;
         }
 
-        const show_results = showSearchBarResults(&self.search_bar) and
-            (right - layout.results_w - layout.section_gap - left) >= layout.min_edit_w;
-        if (show_results) {
+        if (fit.results) {
             changed = applyChildRect(
                 self.search_bar_results_hwnd.?,
                 &self.search_bar_results_placement,
@@ -1412,6 +1413,7 @@ pub const SurfaceControls = struct {
             else => return false,
         };
         const old = self.searchBarButtonActive(role);
+        const filter_was_on = self.search_bar.anyFilterOn();
         switch (role) {
             .regex => self.search_bar.toggleRegex(now_ms),
             .case_sensitive => self.search_bar.toggleCase(now_ms),
@@ -1424,6 +1426,10 @@ pub const SurfaceControls = struct {
         }
 
         self.invalidateSearchButtons();
+        // In a narrow pane, whether any toggle is on decides what fits.
+        if (filter_was_on != self.search_bar.anyFilterOn()) {
+            if (self.host) |host| try host.layout();
+        }
         if (self.search_bar.query.len > 0) {
             _ = try self.rerunSearchNow();
         } else {
