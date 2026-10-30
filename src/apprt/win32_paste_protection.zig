@@ -64,21 +64,46 @@ pub const Verdict = struct {
 pub fn inspect(text: []const u8) Verdict {
     if (hasControlChars(text)) return .{
         .severity = .control_chars,
-        .reason = "Pasted text contains invisible control characters that could alter terminal behaviour.",
+        .reason = "The text has hidden control characters, which can change what the terminal does.",
     };
     if (hasShellMetachar(text)) return .{
         .severity = .shell_metachar,
-        .reason = "Pasted text contains shell metacharacters that could execute unintended commands.",
+        .reason = "The text has shell symbols such as ; | & or $( ), which can run more than one command.",
     };
     if (hasMixedContent(text)) return .{
         .severity = .mixed_content,
-        .reason = "Pasted text contains a URL embedded in other content, which may be a social-engineering lure.",
+        .reason = "The text has a link inside other text. Check it is what you meant to copy.",
     };
     if (hasNewline(text)) return .{
         .severity = .contains_newline,
-        .reason = "Pasted text spans multiple lines, which may execute commands line-by-line in an interactive shell.",
+        .reason = "The text has more than one line, and a shell may run each line as a command.",
     };
     return .{ .severity = .safe, .reason = "" };
+}
+
+/// The body of the user's own paste prompt: why this paste was stopped.
+/// The core also stops a paste this classifier passes (a bracketed-paste
+/// end marker), which gets the general line.
+pub fn promptBody(text: []const u8) []const u8 {
+    const verdict = inspect(text);
+    if (verdict.severity == .safe) return general_prompt_body;
+    return verdict.reason;
+}
+
+pub const general_prompt_body = "Check the text below before it is sent to the shell.";
+
+test "the paste prompt says why the paste was stopped" {
+    try std.testing.expectEqualStrings(inspect("a\x1bb").reason, promptBody("a\x1bb"));
+    try std.testing.expectEqualStrings(inspect("ls; rm x").reason, promptBody("ls; rm x"));
+    try std.testing.expectEqualStrings(inspect("one\ntwo").reason, promptBody("one\ntwo"));
+    try std.testing.expectEqualStrings(general_prompt_body, promptBody("plain"));
+    for ([_][]const u8{ "a\x1bb", "ls; rm x", "see https://example.com now please", "one\ntwo", "plain" }) |text| {
+        const body = promptBody(text);
+        try std.testing.expect(body.len > 0);
+        // Written for the person pasting, not as a diagnostic.
+        try std.testing.expect(std.mem.indexOf(u8, body, "metachar") == null);
+        try std.testing.expect(std.mem.indexOf(u8, body, "noctty") == null);
+    }
 }
 
 // ---------------------------------------------------------------------------

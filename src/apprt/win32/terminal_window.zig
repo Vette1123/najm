@@ -5127,7 +5127,7 @@ pub const Surface = struct {
         try host.showConfirm(
             .{
                 .title = if (program_request) labels.programClipboardPromptTitle(.read) else "Allow clipboard paste?",
-                .body = program_body orelse "noctty needs confirmation before completing this clipboard paste.",
+                .body = program_body orelse win32_paste_protection.promptBody(data),
                 .accept_label = "Allow",
                 .cancel_label = "Cancel",
                 // Preview the exact bytes the gate stopped. `data_copy`
