@@ -152,6 +152,12 @@ const BM_CLICK: UINT = 0x00F5;
 const DLGC_DEFPUSHBUTTON: LRESULT = 0x0010;
 const DLGC_UNDEFPUSHBUTTON: LRESULT = 0x0020;
 const WM_GETDLGCODE: UINT = 0x0087;
+const DLGC_WANTARROWS: LRESULT = 0x0001;
+const DLGC_HASSETSEL: LRESULT = 0x0008;
+const VK_PRIOR: usize = 0x21;
+const VK_NEXT: usize = 0x22;
+const VK_END: usize = 0x23;
+const VK_HOME: usize = 0x24;
 const SPI_GETWHEELSCROLLLINES: UINT = 0x0068;
 const WHEEL_DELTA: i32 = 120;
 const WHEEL_PAGESCROLL: u32 = 0xFFFF_FFFF;
@@ -1377,6 +1383,45 @@ fn formItemCount(section: Section) usize {
     };
     return count;
 }
+/// What a focused control does with the paging keys itself.
+const PagingKeyOwner = enum { none, text, list };
+
+/// Asked the way the dialog manager asks: an edit has a selection, a combo
+/// box or list wants the arrows, and a button or check box wants neither.
+fn pagingKeyOwner(control: HWND) PagingKeyOwner {
+    const code = sys.SendMessageW(control, WM_GETDLGCODE, 0, 0);
+    if (code & DLGC_HASSETSEL != 0) return .text;
+    if (code & DLGC_WANTARROWS != 0) return .list;
+    return .none;
+}
+
+/// The scroll-bar code a paging key scrolls the form by (`scrollByBar`), or
+/// null where the focused control keeps the key: a list keeps them all (a
+/// closed dropdown changes its choice with them), and a text field keeps
+/// Home and End, with or without Ctrl, for its caret. Alt is the system's.
+fn formScrollKey(vk: usize, alt: bool, owner: PagingKeyOwner) ?usize {
+    if (alt or owner == .list) return null;
+    return switch (vk) {
+        VK_PRIOR => SB_PAGEUP,
+        VK_NEXT => SB_PAGEDOWN,
+        VK_HOME => if (owner == .text) null else SB_TOP,
+        VK_END => if (owner == .text) null else SB_BOTTOM,
+        else => null,
+    };
+}
+
+test "settings paging keys scroll the form unless the focused control uses them" {
+    try std.testing.expectEqual(@as(?usize, SB_PAGEDOWN), formScrollKey(VK_NEXT, false, .none));
+    try std.testing.expectEqual(@as(?usize, SB_PAGEUP), formScrollKey(VK_PRIOR, false, .text));
+    try std.testing.expectEqual(@as(?usize, SB_TOP), formScrollKey(VK_HOME, false, .none));
+    try std.testing.expectEqual(@as(?usize, SB_BOTTOM), formScrollKey(VK_END, false, .none));
+    try std.testing.expectEqual(@as(?usize, null), formScrollKey(VK_HOME, false, .text));
+    try std.testing.expectEqual(@as(?usize, null), formScrollKey(VK_END, false, .text));
+    try std.testing.expectEqual(@as(?usize, null), formScrollKey(VK_NEXT, false, .list));
+    try std.testing.expectEqual(@as(?usize, null), formScrollKey(VK_NEXT, true, .none));
+    try std.testing.expectEqual(@as(?usize, null), formScrollKey('A', false, .none));
+}
+
 fn formItemsForSection(section: Section) []const FormItem {
     return section_form_items[@intFromEnum(section)][0..formItemCount(section)];
 }
@@ -2414,7 +2459,8 @@ pub const SettingsWindow = struct {
     pub fn handleAccelerator(self: *SettingsWindow, target: ?HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) bool {
         // Cheapest test first: this runs for every message while Settings is open.
         if (msg != WM_KEYDOWN) return false;
-        if (wParam != 'S' and wParam != 'F' and wParam != VK_RETURN and wParam != VK_ESCAPE and wParam != VK_DELETE) return false;
+        if (wParam != 'S' and wParam != 'F' and wParam != VK_RETURN and wParam != VK_ESCAPE and wParam != VK_DELETE and
+            (wParam < VK_PRIOR or wParam > VK_HOME)) return false;
         const hwnd = self.hwnd orelse return false;
         const control = target orelse return false;
         if (control != hwnd and IsChild(hwnd, control) == 0) return false;
@@ -2465,6 +2511,12 @@ pub const SettingsWindow = struct {
                     win32_input.keyPressed(VK_MENU)) return false;
                 const row = self.rowOfWindow(control) orelse return false;
                 if (!repeat) self.resetRow(row);
+                return true;
+            },
+            VK_PRIOR, VK_NEXT, VK_HOME, VK_END => {
+                if (self.viewport == null) return false;
+                const code = formScrollKey(wParam, win32_input.keyPressed(VK_MENU), pagingKeyOwner(control)) orelse return false;
+                self.scrollByBar(code);
                 return true;
             },
             else => return false,
@@ -11668,6 +11720,41 @@ test "settings a search shows only the rows it finds, and the others leave the T
     }.body);
 }
 
+test "settings Page Down, Page Up, Home and End page the form from a button, not from a dropdown" {
+    try dialog_test.onHiddenDesktop(struct {
+        fn body() !void {
+            const fixture = try dialog_test.Fixture.start();
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const hwnd = fixture.hwnd();
+            // The minimum size, so the Appearance page is taller than its view.
+            _ = sys.SetWindowPos(hwnd, null, 0, 0, 200, 200, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            try std.testing.expect(settings.content_scroll_max > 0);
+            try std.testing.expectEqual(@as(i32, 0), settings.content_scroll_y);
+
+            // The window itself answers WM_GETDLGCODE with nothing, as a
+            // button does.
+            try std.testing.expect(settings.handleAccelerator(hwnd, WM_KEYDOWN, VK_NEXT, 0));
+            const paged = settings.content_scroll_y;
+            try std.testing.expect(paged > 0);
+            try std.testing.expect(settings.handleAccelerator(hwnd, WM_KEYDOWN, VK_END, 0));
+            try std.testing.expectEqual(settings.content_scroll_max, settings.content_scroll_y);
+            try std.testing.expect(settings.handleAccelerator(hwnd, WM_KEYDOWN, VK_HOME, 0));
+            try std.testing.expectEqual(@as(i32, 0), settings.content_scroll_y);
+
+            // A dropdown keeps them: they change its choice.
+            const combo = settings.fields.combo_window_theme.?;
+            try std.testing.expect(!settings.handleAccelerator(combo, WM_KEYDOWN, VK_NEXT, 0));
+            try std.testing.expectEqual(@as(i32, 0), settings.content_scroll_y);
+            // A text field keeps Home for its caret, and pages on Page Down.
+            const edit = settings.fields.edit_font_size.?;
+            try std.testing.expect(!settings.handleAccelerator(edit, WM_KEYDOWN, VK_HOME, 0));
+            try std.testing.expect(settings.handleAccelerator(edit, WM_KEYDOWN, VK_NEXT, 0));
+            try std.testing.expectEqual(paged, settings.content_scroll_y);
+        }
+    }.body);
+}
+
 test "settings clearing a search keeps the row it found in view" {
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
@@ -12378,7 +12465,6 @@ test "settings arrow-key groups stop at the rail and the action bar" {
             const viewport = settings.viewport.?;
             const VK_UP: u32 = 0x26;
             const VK_DOWN: u32 = 0x28;
-            const DLGC_WANTARROWS: LRESULT = 0x0001;
             const rail = struct {
                 fn has(window: *const SettingsWindow, control: HWND) bool {
                     for (std.enums.values(Section)) |section| {
