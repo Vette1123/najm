@@ -2125,7 +2125,7 @@ fn childExitedAbnormally(
     // Output our error message
     try t.setAttribute(.{ .@"8_fg" = .bright_red });
     try t.setAttribute(.{ .bold = {} });
-    try t.printString("noctty failed to launch the requested command:");
+    try t.printString("Najm could not start the requested command:");
     try t.setAttribute(.{ .unset = {} });
 
     t.carriageReturn();

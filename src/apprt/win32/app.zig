@@ -2067,7 +2067,7 @@ pub const App = struct {
             },
             .newer_schema => {
                 log.warn("named layout launch file was written by a newer noctty name={s} path={s}", .{ name, path });
-                if (banner_host) |host| host.setBanner(.err, "Layout was saved by a newer noctty.") catch {};
+                if (banner_host) |host| host.setBanner(.err, "This layout was saved by a newer Najm. Update Najm to open it.") catch {};
                 return false;
             },
             .corrupt => |err| {
