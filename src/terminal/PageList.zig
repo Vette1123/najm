@@ -629,8 +629,7 @@ fn verifyIntegrity(self: *const PageList) IntegrityError!void {
     }
 }
 
-/// Deinit the pagelist. If you own the memory pool (used clonePool) then
-/// this will reset the pool and retain capacity.
+/// Deinit the pagelist, freeing all page memory and the memory pool.
 pub fn deinit(self: *PageList) void {
     // Verify integrity before cleanup
     self.assertIntegrity();
@@ -2765,6 +2764,8 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
         },
         .delta_prompt => |n| self.scrollPrompt(n),
         .delta_row => |n| delta_row: {
+            const amount: usize = @abs(n);
+
             switch (self.viewport) {
                 // If we're at the top and we're scrolling backwards,
                 // we don't have to do anything, because there's nowhere to go.
@@ -2781,11 +2782,11 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
                 .pin => switch (std.math.order(n, 0)) {
                     .eq => break :delta_row,
 
-                    .lt => switch (self.viewport_pin.upOverflow(@intCast(-n))) {
+                    .lt => switch (self.viewport_pin.upOverflow(amount)) {
                         .offset => |new_pin| {
                             self.viewport_pin.* = new_pin;
                             if (self.viewport_pin_row_offset) |*v| {
-                                v.* -= @as(usize, @intCast(-n));
+                                v.* -= amount;
                             }
                             break :delta_row;
                         },
@@ -2797,7 +2798,7 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
                         },
                     },
 
-                    .gt => switch (self.viewport_pin.downOverflow(@intCast(n))) {
+                    .gt => switch (self.viewport_pin.downOverflow(amount)) {
                         // If we offset its a valid pin but we still have to
                         // check if we're in the active area.
                         .offset => |new_pin| {
@@ -2806,7 +2807,7 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
                             } else {
                                 self.viewport_pin.* = new_pin;
                                 if (self.viewport_pin_row_offset) |*v| {
-                                    v.* += @intCast(n);
+                                    v.* += amount;
                                 }
                             }
                             break :delta_row;
@@ -2824,10 +2825,10 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
             // Slow path: we have to calculate the new pin by moving
             // from our viewport.
             const top = self.getTopLeft(.viewport);
-            const p: Pin = if (n < 0) switch (top.upOverflow(@intCast(-n))) {
+            const p: Pin = if (n < 0) switch (top.upOverflow(amount)) {
                 .offset => |v| v,
                 .overflow => |v| v.end,
-            } else switch (top.downOverflow(@intCast(n))) {
+            } else switch (top.downOverflow(amount)) {
                 .offset => |v| v,
                 .overflow => |v| v.end,
             };
@@ -2865,7 +2866,7 @@ pub fn scroll(self: *PageList, behavior: Scroll) void {
 fn scrollPrompt(self: *PageList, delta: isize) void {
     // If we aren't jumping any prompts then we don't need to do anything.
     if (delta == 0) return;
-    const delta_start: usize = @intCast(if (delta > 0) delta else -delta);
+    const delta_start: usize = @abs(delta);
     var delta_rem: usize = delta_start;
 
     // We start at the row before or after our viewport depending on the
@@ -3232,6 +3233,11 @@ fn fixupViewport(
     self: *PageList,
     removed: usize,
 ) void {
+    // Page removal can mark every pin on the removed page as garbage. The
+    // viewport pin is an internal navigation anchor that is always remapped,
+    // so it remains valid after the removal.
+    self.viewport_pin.garbage = false;
+
     switch (self.viewport) {
         .active => {},
 
@@ -3412,6 +3418,36 @@ pub const IncreaseCapacity = enum {
     grapheme_bytes,
     hyperlink_bytes,
     string_bytes,
+
+    /// Returns the capacity dimension that must be increased for the
+    /// given row clone error to succeed on retry, or null if the page
+    /// only needs to be rehashed at its current capacity.
+    pub fn forCloneError(err: Page.CloneFromError) ?IncreaseCapacity {
+        return switch (err) {
+            // Rehash the sets
+            error.StyleSetNeedsRehash,
+            error.HyperlinkSetNeedsRehash,
+            => null,
+
+            // Increase style memory
+            error.StyleSetOutOfMemory,
+            => .styles,
+
+            // Increase string memory
+            error.StringAllocOutOfMemory,
+            => .string_bytes,
+
+            // Increase hyperlink memory
+            error.HyperlinkSetOutOfMemory,
+            error.HyperlinkMapOutOfMemory,
+            => .hyperlink_bytes,
+
+            // Increase grapheme memory
+            error.GraphemeMapOutOfMemory,
+            error.GraphemeAllocOutOfMemory,
+            => .grapheme_bytes,
+        };
+    }
 };
 
 pub const IncreaseCapacityError = error{
@@ -3455,21 +3491,36 @@ pub fn increaseCapacity(
             const Int = @FieldType(Capacity, field_name);
             const old = @field(cap, field_name);
 
-            // We use checked math to prevent overflow. If there is an
-            // overflow it means we're out of space in this dimension,
-            // since pages can take up to their maxInt capacity in any
-            // category.
-            const new = std.math.mul(
-                Int,
-                old,
-                2,
-            ) catch |err| overflow: {
-                comptime assert(@TypeOf(err) == error{Overflow});
-                // Our final doubling would overflow since maxInt is
-                // 2^N - 1 for an unsignged int of N bits. So, if we overflow
-                // and we haven't used all the bits, use all the bits.
-                if (old < std.math.maxInt(Int)) break :overflow std.math.maxInt(Int);
-                return error.OutOfSpace;
+            const new: Int = new: {
+                // A dimension can be zero for pages with exact
+                // capacities (see compact). Doubling zero stays zero,
+                // which would break our guarantee that we always
+                // increase by at least one unit and turn caller retry
+                // loops into infinite loops. Jump straight to the
+                // standard default instead: it is what all standard
+                // pages start with, so retrying callers are guaranteed
+                // enough room for their pending allocation.
+                if (old == 0) {
+                    const default: Capacity = .{ .cols = 0, .rows = 0 };
+                    break :new @field(default, field_name);
+                }
+
+                // We use checked math to prevent overflow. If there is
+                // an overflow it means we're out of space in this
+                // dimension, since pages can take up to their maxInt
+                // capacity in any category.
+                break :new std.math.mul(
+                    Int,
+                    old,
+                    2,
+                ) catch |err| overflow: {
+                    comptime assert(@TypeOf(err) == error{Overflow});
+                    // Our final doubling would overflow since maxInt is
+                    // 2^N - 1 for an unsignged int of N bits. So, if we overflow
+                    // and we haven't used all the bits, use all the bits.
+                    if (old < std.math.maxInt(Int)) break :overflow std.math.maxInt(Int);
+                    return error.OutOfSpace;
+                };
             };
             @field(cap, field_name) = new;
 
@@ -3483,7 +3534,7 @@ pub fn increaseCapacity(
         },
     };
 
-    log.info("adjusting page capacity={}", .{cap});
+    log.debug("adjusting page capacity={}", .{cap});
 
     // Create our new page and clone the old page into it.
     const new_node = try self.createPage(cap);
@@ -3580,6 +3631,14 @@ inline fn createPageExt(
 
     // In runtime safety modes, allocators fill with 0xAA. On freestanding
     // (WASM), the WasmAllocator reuses freed slots without zeroing.
+    //
+    // Otherwise, we rely on pool item buffers being zeroed: fresh items
+    // come from the OS page allocator (zeroed pages) and destroyNodeExt
+    // zeroes buffers before returning them to the pool. The one
+    // exception is the first pointer-size bytes, which hold the pool's
+    // free list node while a buffer is in the free list; initBuf below
+    // always overwrites those since the page rows start at offset 0
+    // (comptime-asserted in Page).
     if (comptime std.debug.runtime_safety or builtin.os.tag == .freestanding)
         @memset(page_buf, 0);
 
@@ -3631,6 +3690,57 @@ fn destroyNodeExt(
     }
 
     pool.nodes.destroy(node);
+}
+
+/// Clone the given source row into the row at `dst_y` of the given
+/// node's page, increasing the node's capacity as necessary to fit the
+/// source row's managed memory (styles, hyperlinks, etc.).
+///
+/// Since increasing capacity replaces the node in the page list, the
+/// (possibly replaced) node is returned and the caller must use it in
+/// place of the old node. The source must NOT be on the given node
+/// since the node's page memory may be freed on capacity increase.
+fn cloneRowGrowCapacity(
+    self: *PageList,
+    node: *List.Node,
+    dst_y: usize,
+    src_page: *Page,
+    src_row: *const Row,
+) *List.Node {
+    assert(src_page != &node.data);
+
+    var current = node;
+    while (true) {
+        const cur_page = &current.data;
+        const cur_rows = cur_page.rows.ptr(cur_page.memory.ptr);
+        cur_page.cloneRowFrom(
+            src_page,
+            &cur_rows[dst_y],
+            src_row,
+        ) catch |err| {
+            // Adjust our page capacity to make room for what we
+            // didn't have space for.
+            current = self.increaseCapacity(
+                current,
+                IncreaseCapacity.forCloneError(err),
+            ) catch |e| switch (e) {
+                // We can't gracefully recover from either of these
+                // here: our callers have already rotated rows, so
+                // returning an error would leave the page list
+                // half-mutated (and corrupt), so a crash is better.
+                error.OutOfMemory,
+                => @panic("increaseCapacity system allocator OOM"),
+
+                error.OutOfSpace,
+                => @panic("increaseCapacity OutOfSpace"),
+            };
+
+            // Retry the row copy with the increased capacity.
+            continue;
+        };
+
+        return current;
+    }
 }
 
 /// Fast-path function to erase exactly 1 row. Erasing means that the row
@@ -3696,9 +3806,16 @@ pub fn eraseRow(
         //    5         5         5  |      6
         //    6         6         6  |      7
         //    7         7         7 <'      4
-        try node.data.cloneRowFrom(
+        //
+        // The copy may replace the destination node in order to
+        // increase its capacity. We can discard the replacement
+        // because we advance to the next node below, and the
+        // replacement is already linked in its place (so e.g. the
+        // `node.prev` access in the pin fixups below is correct).
+        _ = self.cloneRowGrowCapacity(
+            node,
+            node.data.size.rows - 1,
             &next.data,
-            &rows[node.data.size.rows - 1],
             &next_rows[0],
         );
 
@@ -3843,9 +3960,15 @@ pub fn eraseRowBounded(
     while (node.next) |next| {
         const next_rows = next.data.rows.ptr(next.data.memory.ptr);
 
-        try node.data.cloneRowFrom(
+        // The copy may replace the destination node in order to
+        // increase its capacity. We can discard the replacement
+        // because we advance to the next node below, and the
+        // replacement is already linked in its place (so e.g. the
+        // `node.prev` access in the pin fixups below is correct).
+        _ = self.cloneRowGrowCapacity(
+            node,
+            node.data.size.rows - 1,
             &next.data,
-            &rows[node.data.size.rows - 1],
             &next_rows[0],
         );
 
@@ -3969,6 +4092,10 @@ fn eraseRows(
     // The count of rows that was erased.
     var erased: usize = 0;
 
+    // Erased history rows are gone for good, so mark the pins that pointed
+    // to them as garbage.
+    const discard = tl_pt == .history;
+
     // A pageIterator iterates one page at a time from the back forward.
     // "back" here is in terms of scrollback, but actually the front of the
     // linked list.
@@ -3990,6 +4117,9 @@ fn eraseRows(
             }
 
             erased += chunk.node.data.size.rows;
+            if (discard) for (self.tracked_pins.keys()) |p| {
+                if (p.node == chunk.node) p.garbage = true;
+            };
             self.erasePage(chunk.node);
             continue;
         }
@@ -4032,6 +4162,7 @@ fn eraseRows(
             } else {
                 p.y = 0;
                 p.x = 0;
+                if (discard) p.garbage = true;
             }
         }
 
@@ -5545,13 +5676,14 @@ pub const Pin = struct {
         if (n <= remaining_in_row) return self.left(n);
 
         const extra_after_remaining = n - remaining_in_row;
-
-        const rows_off = 1 + extra_after_remaining / cols;
+        const rows_off = 1 + (extra_after_remaining - 1) / cols;
 
         switch (self.upOverflow(rows_off)) {
             .offset => |v| {
                 var result = v;
-                result.x = @intCast(cols - extra_after_remaining % cols);
+                result.x = @intCast(
+                    cols - 1 - (extra_after_remaining - 1) % cols,
+                );
                 return result;
             },
             .overflow => return null,
@@ -5572,13 +5704,12 @@ pub const Pin = struct {
         if (n <= remaining_in_row) return self.right(n);
 
         const extra_after_remaining = n - remaining_in_row;
-
-        const rows_off = 1 + extra_after_remaining / cols;
+        const rows_off = 1 + (extra_after_remaining - 1) / cols;
 
         switch (self.downOverflow(rows_off)) {
             .offset => |v| {
                 var result = v;
-                result.x = @intCast(extra_after_remaining % cols - 1);
+                result.x = @intCast((extra_after_remaining - 1) % cols);
                 return result;
             },
             .overflow => return null,
@@ -5725,6 +5856,58 @@ pub const Cell = struct {
         } };
     }
 };
+
+test "PageList Pin rightWrap exact row multiple" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 10, 3, null);
+    defer s.deinit();
+
+    const start = s.pin(.{ .active = .{ .x = 5, .y = 0 } }).?;
+    const wrapped = start.rightWrap(14).?;
+    _ = wrapped.rowAndCell();
+
+    try testing.expectEqual(
+        point.Point{ .active = .{ .x = 9, .y = 1 } },
+        s.pointFromPin(.active, wrapped),
+    );
+}
+
+test "PageList Pin leftWrap exact row multiple" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 10, 3, null);
+    defer s.deinit();
+
+    const start = s.pin(.{ .active = .{ .x = 5, .y = 2 } }).?;
+    const wrapped = start.leftWrap(15).?;
+    _ = wrapped.rowAndCell();
+
+    try testing.expectEqual(
+        point.Point{ .active = .{ .x = 0, .y = 1 } },
+        s.pointFromPin(.active, wrapped),
+    );
+}
+
+test "PageList Pin rightWrap maximum distance" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 1, 3, null);
+    defer s.deinit();
+
+    const start = s.pin(.{ .active = .{ .y = 0 } }).?;
+    try testing.expectEqual(null, start.rightWrap(std.math.maxInt(usize)));
+}
+
+test "PageList Pin leftWrap maximum distance" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 1, 3, null);
+    defer s.deinit();
+
+    const start = s.pin(.{ .active = .{ .y = 2 } }).?;
+    try testing.expectEqual(null, start.leftWrap(std.math.maxInt(usize)));
+}
 
 test "PageList" {
     const testing = std.testing;
@@ -6359,6 +6542,20 @@ test "PageList scroll delta row back overflow" {
         .offset = 0,
         .len = s.rows,
     }, s.scrollbar());
+}
+
+test "PageList scroll minimum row delta" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 10, 3, null);
+    defer s.deinit();
+
+    // Create one row of history so scrolling all the way back has an
+    // observable result.
+    try s.growRows(1);
+    s.scroll(.{ .delta_row = std.math.minInt(isize) });
+
+    try testing.expectEqual(Viewport.top, s.viewport);
 }
 
 test "PageList scroll delta row forward" {
@@ -7074,6 +7271,16 @@ test "PageList: jump zero prompts" {
         .offset = s.total_rows - s.rows,
         .len = s.rows,
     }, s.scrollbar());
+}
+
+test "PageList: jump minimum prompt delta" {
+    const testing = std.testing;
+
+    var s = try init(testing.allocator, 10, 3, null);
+    defer s.deinit();
+
+    s.scroll(.{ .delta_prompt = std.math.minInt(isize) });
+    try testing.expectEqual(Viewport.active, s.viewport);
 }
 
 test "Screen: jump back one prompt" {
@@ -9649,6 +9856,34 @@ test "PageList erase row with tracked pin resets to top-left" {
     try testing.expectEqual(s.pages.first.?, p.node);
     try testing.expectEqual(@as(usize, 0), p.y);
     try testing.expectEqual(@as(usize, 0), p.x);
+
+    // Its row was erased, so it should be garbage
+    try testing.expect(p.garbage);
+}
+
+test "PageList eraseHistory marks pins in erased rows as garbage" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, 80, 24, null);
+    defer s.deinit();
+
+    // A few rows of history on the same page as the active area.
+    for (0..10) |_| _ = try s.grow();
+    try testing.expectEqual(@as(usize, 34), s.total_rows);
+
+    const history = try s.trackPin(s.pin(.{ .history = .{ .y = 5 } }).?);
+    defer s.untrackPin(history);
+    const active = try s.trackPin(s.pin(.{ .active = .{ .y = 2 } }).?);
+    defer s.untrackPin(active);
+
+    s.eraseHistory(null);
+    try testing.expectEqual(s.rows, s.total_rows);
+
+    // The history row is gone, the active row just moved up.
+    try testing.expect(history.garbage);
+    try testing.expect(!active.garbage);
+    try testing.expectEqual(point.Point{ .screen = .{ .y = 2 } }, s.pointFromPin(.screen, active.*).?);
 }
 
 test "PageList erase row with tracked pin shifts" {
@@ -10142,6 +10377,227 @@ test "PageList resize trimmed rows have default state" {
         try testing.expectEqual(.none, rac.row.semantic_prompt);
         try testing.expect(rac.cell.isZero());
     }
+}
+
+test "PageList eraseRow hyperlink-dense row crosses page boundary" {
+    // Regression test: when eraseRow shifts rows up across a page
+    // boundary, the top row of the next page is cloned into the last
+    // row of the previous page. If the previous page doesn't have
+    // enough capacity for the managed memory of that row (hyperlinks,
+    // styles, etc.) the error propagated out AFTER the previous page
+    // had already been rotated and its tracked pins moved, leaving
+    // the page list half-mutated.
+    //
+    // eraseRow must instead increase the destination page's capacity
+    // and retry, the same way insertLines/deleteLines and
+    // cursorScrollAbove handle their cross-page copies.
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, 80, 10, null);
+    defer s.deinit();
+
+    // Grow to two pages so our active area straddles them: the first
+    // page is exactly full and the second page holds the last 5 rows
+    // of the active area.
+    {
+        const page = &s.pages.last.?.data;
+        page.pauseIntegrityChecks(true);
+        for (0..page.capacity.rows - page.size.rows) |_| _ = try s.grow();
+        page.pauseIntegrityChecks(false);
+        try s.growRows(5);
+        try testing.expectEqual(@as(usize, 2), s.totalPages());
+        try testing.expectEqual(@as(usize, 5), s.pages.last.?.data.size.rows);
+    }
+
+    // Mark each active row with a codepoint so we can verify the
+    // shift afterwards. Row y gets codepoint '0' + y at x = 0.
+    for (0..10) |y| {
+        const row_pin = s.pin(.{ .active = .{ .y = @intCast(y) } }).?;
+        row_pin.rowAndCell().cell.* = .{
+            .content_tag = .codepoint,
+            .content = .{ .codepoint = @intCast('0' + y) },
+        };
+    }
+
+    // Fill the top row of the second page (active y=5) with more
+    // unique hyperlinks ('A' through 'J') than the first page's
+    // default hyperlink capacity can hold. We must increase the
+    // second page's capacity to even create such a row; the first
+    // page keeps its default capacity.
+    const link_count: usize = 10;
+    while (s.pages.last.?.data.hyperlink_set.layout.cap <= link_count) {
+        _ = try s.increaseCapacity(s.pages.last.?, .hyperlink_bytes);
+    }
+    try testing.expect(s.pages.first.?.data.hyperlink_set.layout.cap < link_count);
+    {
+        const page = &s.pages.last.?.data;
+        for (0..link_count) |x| {
+            var buf: [64]u8 = undefined;
+            const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+            const id = try page.insertHyperlink(.{
+                .id = .{ .implicit = @intCast(x) },
+                .uri = uri,
+            });
+            const rac = page.getRowAndCell(x, 0);
+            rac.cell.* = .{
+                .content_tag = .codepoint,
+                .content = .{ .codepoint = @intCast('A' + x) },
+            };
+            try page.setHyperlink(rac.row, rac.cell, id);
+            page.hyperlink_set.use(page.memory, id);
+        }
+    }
+
+    // Track a pin in the shifted region of the first page to verify
+    // it survives the capacity change of its node.
+    const p = try s.trackPin(s.pin(.{ .active = .{ .x = 3, .y = 1 } }).?);
+    defer s.untrackPin(p);
+
+    // Erase the first active row. The dense hyperlink row must cross
+    // the page boundary into the first page, which requires growing
+    // the first page's hyperlink capacity.
+    try s.eraseRow(.{ .active = .{ .y = 0 } });
+
+    // Every remaining row shifted up by one: the '0' marker row was
+    // erased, the dense row moved up across the page boundary to
+    // row 4, and the last row was cleared.
+    const expected = [10]u21{ '1', '2', '3', '4', 'A', '6', '7', '8', '9', 0 };
+    for (expected, 0..) |cp, y| {
+        const list_cell = s.getCell(.{ .active = .{ .y = @intCast(y) } }).?;
+        try testing.expectEqual(cp, list_cell.cell.content.codepoint);
+    }
+
+    // Every cell of the dense row must still resolve to a real
+    // hyperlink entry with the correct URI. A half-applied erase
+    // leaves cells whose hyperlink flag is set but that have no map
+    // entry, which aborts in clearCells later.
+    for (0..link_count) |x| {
+        const list_cell = s.getCell(.{ .active = .{
+            .x = @intCast(x),
+            .y = 4,
+        } }).?;
+        try testing.expect(list_cell.cell.hyperlink);
+        const page: *Page = &list_cell.node.data;
+        const id = page.lookupHyperlink(list_cell.cell).?;
+        const link = page.hyperlink_set.get(page.memory, id);
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+        try testing.expectEqualStrings(uri, link.uri.slice(page.memory));
+    }
+
+    // All pages must pass integrity checks.
+    var node_: ?*List.Node = s.pages.first;
+    while (node_) |node| : (node_ = node.next) node.data.assertIntegrity();
+
+    // Our tracked pin shifted up by one row and still points into
+    // the (possibly replaced) first page.
+    try testing.expectEqual(s.pages.first.?, p.node);
+    const p_pt = s.pointFromPin(.active, p.*).?.active;
+    try testing.expectEqual(@as(u32, 3), p_pt.x);
+    try testing.expectEqual(@as(u32, 0), p_pt.y);
+}
+
+test "PageList eraseRowBounded hyperlink-dense row crosses page boundary" {
+    // Same as the eraseRow variant above but for eraseRowBounded,
+    // which has the same rotate-then-clone structure and had the
+    // same bug: a cross-page row clone failure propagated out after
+    // the first page had already been rotated.
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, 80, 10, null);
+    defer s.deinit();
+
+    // Grow to two pages so our active area straddles them: the first
+    // page is exactly full and the second page holds the last 5 rows
+    // of the active area.
+    {
+        const page = &s.pages.last.?.data;
+        page.pauseIntegrityChecks(true);
+        for (0..page.capacity.rows - page.size.rows) |_| _ = try s.grow();
+        page.pauseIntegrityChecks(false);
+        try s.growRows(5);
+        try testing.expectEqual(@as(usize, 2), s.totalPages());
+        try testing.expectEqual(@as(usize, 5), s.pages.last.?.data.size.rows);
+    }
+
+    // Mark each active row with a codepoint so we can verify the
+    // shift afterwards. Row y gets codepoint '0' + y at x = 0.
+    for (0..10) |y| {
+        const row_pin = s.pin(.{ .active = .{ .y = @intCast(y) } }).?;
+        row_pin.rowAndCell().cell.* = .{
+            .content_tag = .codepoint,
+            .content = .{ .codepoint = @intCast('0' + y) },
+        };
+    }
+
+    // Fill the top row of the second page (active y=5) with more
+    // unique hyperlinks ('A' through 'J') than the first page's
+    // default hyperlink capacity can hold. We must increase the
+    // second page's capacity to even create such a row; the first
+    // page keeps its default capacity.
+    const link_count: usize = 10;
+    while (s.pages.last.?.data.hyperlink_set.layout.cap <= link_count) {
+        _ = try s.increaseCapacity(s.pages.last.?, .hyperlink_bytes);
+    }
+    try testing.expect(s.pages.first.?.data.hyperlink_set.layout.cap < link_count);
+    {
+        const page = &s.pages.last.?.data;
+        for (0..link_count) |x| {
+            var buf: [64]u8 = undefined;
+            const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+            const id = try page.insertHyperlink(.{
+                .id = .{ .implicit = @intCast(x) },
+                .uri = uri,
+            });
+            const rac = page.getRowAndCell(x, 0);
+            rac.cell.* = .{
+                .content_tag = .codepoint,
+                .content = .{ .codepoint = @intCast('A' + x) },
+            };
+            try page.setHyperlink(rac.row, rac.cell, id);
+            page.hyperlink_set.use(page.memory, id);
+        }
+    }
+
+    // Erase the first active row with a limit that extends into the
+    // second page (5 rows remain in the first page, so a limit of 6
+    // forces the cross-page path). The dense hyperlink row must cross
+    // the page boundary into the first page.
+    try s.eraseRowBounded(.{ .active = .{ .y = 0 } }, 6);
+
+    // Rows within the limit shifted up by one: the '0' marker row was
+    // erased, the dense row moved up across the page boundary to
+    // row 4, row 6 is the new blank row, and rows past the limit are
+    // unchanged.
+    const expected = [10]u21{ '1', '2', '3', '4', 'A', '6', 0, '7', '8', '9' };
+    for (expected, 0..) |cp, y| {
+        const list_cell = s.getCell(.{ .active = .{ .y = @intCast(y) } }).?;
+        try testing.expectEqual(cp, list_cell.cell.content.codepoint);
+    }
+
+    // Every cell of the dense row must still resolve to a real
+    // hyperlink entry with the correct URI. A half-applied erase
+    // leaves cells whose hyperlink flag is set but that have no map
+    // entry, which aborts in clearCells later.
+    for (0..link_count) |x| {
+        const list_cell = s.getCell(.{ .active = .{
+            .x = @intCast(x),
+            .y = 4,
+        } }).?;
+        try testing.expect(list_cell.cell.hyperlink);
+        const page: *Page = &list_cell.node.data;
+        const id = page.lookupHyperlink(list_cell.cell).?;
+        const link = page.hyperlink_set.get(page.memory, id);
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+        try testing.expectEqualStrings(uri, link.uri.slice(page.memory));
+    }
+
+    // All pages must pass integrity checks.
+    var node_: ?*List.Node = s.pages.first;
+    while (node_) |node| : (node_ = node.next) node.data.assertIntegrity();
 }
 
 test "PageList clone" {
@@ -11426,6 +11882,21 @@ test "PageList resize (no reflow) more rows adds blank rows if cursor at bottom"
     }
 }
 
+test "PageList resize reflow from max cols to narrow" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    // A max-width page is large enough that narrowing it to 2 columns
+    // frees memory for more rows than a page can hold. The resize must
+    // cap the row count instead of overflowing it.
+    var s = try init(alloc, std.math.maxInt(size.CellCountInt), 1, 0);
+    defer s.deinit();
+
+    try s.resize(.{ .cols = 2, .reflow = true });
+    try testing.expectEqual(@as(usize, 2), s.cols);
+    s.assertIntegrity();
+}
+
 test "PageList resize reflow more cols no wrapped rows" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -12445,7 +12916,7 @@ test "PageList resize reflow exceeds grapheme memory forcing capacity increase" 
     const testing = std.testing;
     const alloc = testing.allocator;
 
-    var s = try init(alloc, 2, 10, 0);
+    var s = try init(alloc, 4, 10, 0);
     defer s.deinit();
     try testing.expectEqual(@as(usize, 1), s.totalPages());
 
@@ -12467,44 +12938,38 @@ test "PageList resize reflow exceeds grapheme memory forcing capacity increase" 
         try std.testing.expectEqual(s.pages.last.?, s.pages.first.?.next);
     }
 
-    // We use almost all grapheme alloc capacity with a grapheme in the final
-    // row of the first page, and do the same on the first row of the second
-    // page. We also mark the row as wrapped so that when we resize with more
-    // cols the row unwraps and we have a single row that requires almost two
-    // times the base grapheme alloc capacity.
+    // We use all grapheme alloc capacity with four maximum-sized graphemes on
+    // each page. The two rows form one wrapped logical line across the page
+    // boundary, so resizing wider moves all eight graphemes into one page and
+    // requires almost two times the base grapheme alloc capacity.
     //
     // This forces the reflow to increase capacity.
     //
-    //  +--+ = PAGE 0
+    //  +----+ = PAGE 0
     //  :  :
-    //  | X… <- where X is a grapheme which uses almost all the capacity.
-    //  +--+
-    //  +--+ = PAGE 1
-    //  …X | <- X here also almost hits grapheme cap.
-    //  +--+
+    //  |XXXX| <- four capped graphemes in one wrapped row.
+    //  +----+
+    //  +----+ = PAGE 1
+    //  |XXXX| <- four more capped graphemes continue the logical line.
+    //  +----+
 
-    // Almost hit grapheme alloc cap in bottom right of first page.
-    // Mark the final row as wrapped.
+    const suffixes: [pagepkg.grapheme_max_len]u21 = @splat('a');
+
+    // Fill the final row of the first page and mark it as wrapped.
     {
         const page = &s.pages.first.?.data;
-        const rac = page.getRowAndCell(page.size.cols - 1, page.size.rows - 1);
-        rac.row.wrap = true;
-        rac.cell.* = .{
-            .content_tag = .codepoint,
-            .content = .{ .codepoint = 'X' },
-        };
-        try page.setGraphemes(
-            rac.row,
-            rac.cell,
-            &@as(
-                [
-                    @divFloor(
-                        pagepkg.grapheme_bytes_default - 1,
-                        @sizeOf(u21),
-                    )
-                ]u21,
-                @splat('a'),
-            ),
+        const y = page.size.rows - 1;
+        const row = page.getRow(y);
+        row.wrap = true;
+
+        for (0..page.size.cols) |x| {
+            const rac = page.getRowAndCell(x, y);
+            rac.cell.* = .init('X');
+            try page.setGraphemes(rac.row, rac.cell, &suffixes);
+        }
+        try std.testing.expectEqual(
+            page.grapheme_alloc.capacityBytes(),
+            page.grapheme_alloc.usedBytes(page.memory),
         );
         try std.testing.expectError(
             error.OutOfMemory,
@@ -12516,29 +12981,17 @@ test "PageList resize reflow exceeds grapheme memory forcing capacity increase" 
         );
     }
 
-    // Almost hit grapheme alloc cap in top left of second page.
-    // Mark the first row as a wrap continuation.
+    // Fill the first row of the second page and mark it as a continuation.
     {
         const page = &s.pages.last.?.data;
-        const rac = page.getRowAndCell(0, 0);
-        rac.row.wrap = true;
-        rac.cell.* = .{
-            .content_tag = .codepoint,
-            .content = .{ .codepoint = 'X' },
-        };
-        try page.setGraphemes(
-            rac.row,
-            rac.cell,
-            &@as(
-                [
-                    @divFloor(
-                        pagepkg.grapheme_bytes_default - 1,
-                        @sizeOf(u21),
-                    )
-                ]u21,
-                @splat('a'),
-            ),
-        );
+        const row = page.getRow(0);
+        row.wrap_continuation = true;
+
+        for (0..page.size.cols) |x| {
+            const rac = page.getRowAndCell(x, 0);
+            rac.cell.* = .init('X');
+            try page.setGraphemes(rac.row, rac.cell, &suffixes);
+        }
         try std.testing.expectError(
             error.OutOfMemory,
             page.grapheme_alloc.alloc(
@@ -14788,6 +15241,44 @@ test "PageList compact oversized page" {
             );
         }
     }
+}
+
+test "PageList increaseCapacity from zero-capacity dimensions" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, 80, 24, 0);
+    defer s.deinit();
+
+    // Compact the only page. A plain page has no styled, grapheme,
+    // or hyperlink content so the exact capacity is zero in every
+    // managed dimension. Only an oversized page compacts.
+    var node = s.pages.first.?;
+    while (node.data.memory.len <= std_size) {
+        node = try s.increaseCapacity(node, .grapheme_bytes);
+    }
+    node = (try s.compact(node)).?;
+    try testing.expectEqual(0, node.data.capacity.styles);
+    try testing.expectEqual(0, node.data.capacity.grapheme_bytes);
+    try testing.expectEqual(0, node.data.capacity.string_bytes);
+    try testing.expectEqual(0, node.data.capacity.hyperlink_bytes);
+
+    // Increasing each dimension from zero must actually grow it.
+    // Regression: 0 * 2 == 0 used to "succeed" without growing,
+    // which turned caller retry loops into infinite loops.
+    node = try s.increaseCapacity(node, .styles);
+    try testing.expect(node.data.capacity.styles > 0);
+    node = try s.increaseCapacity(node, .grapheme_bytes);
+    try testing.expect(node.data.capacity.grapheme_bytes > 0);
+    node = try s.increaseCapacity(node, .string_bytes);
+    try testing.expect(node.data.capacity.string_bytes > 0);
+    node = try s.increaseCapacity(node, .hyperlink_bytes);
+    try testing.expect(node.data.capacity.hyperlink_bytes > 0);
+
+    // Increasing a non-zero dimension still doubles.
+    const styles = node.data.capacity.styles;
+    node = try s.increaseCapacity(node, .styles);
+    try testing.expectEqual(styles * 2, node.data.capacity.styles);
 }
 
 test "PageList compact insufficient savings returns null" {

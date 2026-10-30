@@ -29,6 +29,7 @@ const Stream = @import("stream_terminal.zig").Stream;
 const size = @import("size.zig");
 const pagepkg = @import("page.zig");
 const style = @import("style.zig");
+const PageList = @import("PageList.zig");
 const Screen = @import("Screen.zig");
 const ScreenSet = @import("ScreenSet.zig");
 const Page = pagepkg.Page;
@@ -416,7 +417,13 @@ pub fn print(self: *Terminal, c: u21) !void {
                 const cps = self.screens.active.cursor.page_pin.node.data.lookupGrapheme(prev.cell).?;
                 for (cps) |cp2| {
                     // log.debug("cp1={x} cp2={x}", .{ previous_codepoint, cp2 });
-                    assert(!unicode.graphemeBreak(previous_codepoint, cp2, &state));
+                    // With mode 2027 disabled, zero-width codepoints are
+                    // attached without applying grapheme boundary rules. If
+                    // the mode is enabled later, an existing cell can
+                    // therefore contain one or more breaks. Feed those breaks
+                    // into the state machine so it can reset its context and
+                    // determine the boundary for the new codepoint.
+                    _ = unicode.graphemeBreak(previous_codepoint, cp2, &state);
                     previous_codepoint = cp2;
                 }
             }
@@ -463,8 +470,7 @@ pub fn print(self: *Terminal, c: u21) !void {
                     self.screens.active.cursorLeft(prev.left);
 
                     // If we don't have space for the wide char, we need to
-                    // insert spacers and wrap. We need special handling if the
-                    // previous cell has grapheme data.
+                    // insert spacers and wrap.
                     if (self.screens.active.cursor.x == right_limit - 1) {
                         if (!self.modes.get(.wraparound)) return;
 
@@ -476,62 +482,27 @@ pub fn print(self: *Terminal, c: u21) !void {
                         if (row_wrap) self.screens.active.cursor.page_row.wrap = true;
 
                         const prev_cp = prev.cell.content.codepoint;
-                        if (prev.cell.hasGrapheme()) {
-                            // This is like printCell but without clearing the
-                            // grapheme data from the cell, so we can move it
-                            // later.
-                            prev.cell.wide = if (row_wrap) .spacer_head else .narrow;
-                            prev.cell.content.codepoint = 0;
+                        // Copy the grapheme codepoints since overwriting the cell frees them.
+                        var prev_grapheme_buf: [pagepkg.grapheme_max_len]u21 = undefined;
+                        const prev_grapheme: []const u21 = prev_grapheme: {
+                            if (!prev.cell.hasGrapheme()) break :prev_grapheme &.{};
+                            const cps = self.screens.active.cursor.page_pin.node.data.lookupGrapheme(prev.cell).?;
+                            const copy = prev_grapheme_buf[0..cps.len];
+                            @memcpy(copy, cps);
+                            break :prev_grapheme copy;
+                        };
 
-                            try self.printWrap();
-                            self.writeCell(prev_cp, .wide);
-
-                            const new_pin = self.screens.active.cursor.page_pin.*;
-                            const new_rac = new_pin.rowAndCell();
-
-                            transfer_graphemes: {
-                                var old_pin = self.screens.active.cursor.page_pin.up(1) orelse break :transfer_graphemes;
-                                old_pin.x = right_limit - 1;
-                                const old_rac = old_pin.rowAndCell();
-
-                                if (new_pin.node == old_pin.node) {
-                                    new_pin.node.data.moveGrapheme(old_rac.cell, new_rac.cell);
-                                    old_rac.cell.content_tag = .codepoint;
-                                    new_rac.cell.content_tag = .codepoint_grapheme;
-                                    new_rac.row.grapheme = true;
-                                } else {
-                                    const cps = old_pin.node.data.lookupGrapheme(old_rac.cell).?;
-                                    for (cps) |cp| {
-                                        // appendGrapheme can grow the cursor
-                                        // page, so read the destination from
-                                        // the cursor each time rather than
-                                        // holding a pointer across the call.
-                                        try self.screens.active.appendGrapheme(
-                                            self.screens.active.cursor.page_cell,
-                                            cp,
-                                        );
-                                    }
-                                    old_pin.node.data.clearGrapheme(old_rac.cell);
-                                }
-
-                                old_pin.node.data.updateRowGraphemeFlag(old_rac.row);
-                            }
-
-                            // Point prev.cell to our new previous cell that
-                            // we'll be appending graphemes to
-                            prev.cell = self.screens.active.cursor.page_cell;
-                        } else {
-                            self.writeCell(
-                                0,
-                                if (row_wrap) .spacer_head else .narrow,
+                        self.writeCell(0, if (row_wrap) .spacer_head else .narrow);
+                        try self.printWrap();
+                        self.writeCell(prev_cp, .wide);
+                        if (prev_grapheme.len > 0) {
+                            try self.screens.active.setGraphemes(
+                                self.screens.active.cursor.page_cell,
+                                prev_grapheme,
                             );
-                            try self.printWrap();
-                            self.writeCell(prev_cp, .wide);
-
-                            // Point prev.cell to our new previous cell that
-                            // we'll be appending graphemes to
-                            prev.cell = self.screens.active.cursor.page_cell;
                         }
+
+                        prev.cell = self.screens.active.cursor.page_cell;
                     } else {
                         prev.cell.wide = .wide;
                     }
@@ -2221,30 +2192,7 @@ pub fn insertLines(self: *Terminal, count: usize) void {
                     // room for we didn't have space for
                     _ = self.screens.active.increaseCapacity(
                         dst_p.node,
-                        switch (err) {
-                            // Rehash the sets
-                            error.StyleSetNeedsRehash,
-                            error.HyperlinkSetNeedsRehash,
-                            => null,
-
-                            // Increase style memory
-                            error.StyleSetOutOfMemory,
-                            => .styles,
-
-                            // Increase string memory
-                            error.StringAllocOutOfMemory,
-                            => .string_bytes,
-
-                            // Increase hyperlink memory
-                            error.HyperlinkSetOutOfMemory,
-                            error.HyperlinkMapOutOfMemory,
-                            => .hyperlink_bytes,
-
-                            // Increase grapheme memory
-                            error.GraphemeMapOutOfMemory,
-                            error.GraphemeAllocOutOfMemory,
-                            => .grapheme_bytes,
-                        },
+                        PageList.IncreaseCapacity.forCloneError(err),
                     ) catch |e| switch (e) {
                         // System OOM. We have no way to recover from this
                         // currently. We should probably change insertLines
@@ -2426,30 +2374,7 @@ pub fn deleteLines(self: *Terminal, count: usize) void {
                     // room for we didn't have space for
                     _ = self.screens.active.increaseCapacity(
                         dst_p.node,
-                        switch (err) {
-                            // Rehash the sets
-                            error.StyleSetNeedsRehash,
-                            error.HyperlinkSetNeedsRehash,
-                            => null,
-
-                            // Increase style memory
-                            error.StyleSetOutOfMemory,
-                            => .styles,
-
-                            // Increase string memory
-                            error.StringAllocOutOfMemory,
-                            => .string_bytes,
-
-                            // Increase hyperlink memory
-                            error.HyperlinkSetOutOfMemory,
-                            error.HyperlinkMapOutOfMemory,
-                            => .hyperlink_bytes,
-
-                            // Increase grapheme memory
-                            error.GraphemeMapOutOfMemory,
-                            error.GraphemeAllocOutOfMemory,
-                            => .grapheme_bytes,
-                        },
+                        PageList.IncreaseCapacity.forCloneError(err),
                     ) catch |e| switch (e) {
                         // See insertLines
                         error.OutOfMemory,
@@ -3681,6 +3606,29 @@ test "Terminal: zero-width character attaches to last column without wraparound"
     try testing.expectEqualStrings("xå̲", str);
 }
 
+test "Terminal: caps zero-width codepoints attached to one cell" {
+    var t = try init(testing.allocator, .{ .cols = 2, .rows = 2 });
+    defer t.deinit(testing.allocator);
+
+    t.modes.set(.grapheme_cluster, false);
+    try t.print('A');
+
+    const initial_capacity = t.screens.active.cursor.page_pin.node.data.capacity.grapheme_bytes;
+    for (0..pagepkg.grapheme_max_len * 4) |_| try t.print(0x0301);
+
+    const list_cell = t.screens.active.pages.getCell(.{
+        .screen = .{ .x = 0, .y = 0 },
+    }).?;
+    try testing.expectEqual(
+        @as(usize, pagepkg.grapheme_max_len),
+        list_cell.node.data.lookupGrapheme(list_cell.cell).?.len,
+    );
+    try testing.expectEqual(
+        initial_capacity,
+        list_cell.node.data.capacity.grapheme_bytes,
+    );
+}
+
 // https://github.com/mitchellh/ghostty/issues/1400
 test "Terminal: print single very long line" {
     var t = try init(testing.allocator, .{ .rows = 5, .cols = 5 });
@@ -4000,6 +3948,22 @@ test "Terminal: print multicodepoint grapheme, disabled mode 2027" {
     }
 
     try testing.expect(t.isDirty(.{ .screen = .{ .x = 0, .y = 0 } }));
+}
+
+test "Terminal: enabling grapheme mode handles stored breaks" {
+    var t = try init(testing.allocator, .{ .cols = 5, .rows = 1 });
+    defer t.deinit(testing.allocator);
+
+    t.modes.set(.grapheme_cluster, false);
+    try t.print('a');
+    try t.print(0x200B); // Zero width space is stored on the prior cell.
+
+    t.modes.set(.grapheme_cluster, true);
+    try t.print(0x0301);
+
+    const str = try t.plainString(testing.allocator);
+    defer testing.allocator.free(str);
+    try testing.expectEqualStrings("a\xE2\x80\x8B\xCC\x81", str);
 }
 
 test "Terminal: VS16 doesn't make character with 2027 disabled" {
@@ -4698,11 +4662,10 @@ test "Terminal: VS16 widening when the spacer tail grows the page" {
 
     // Fill the page hyperlink map until a single slot is left. The '#' below
     // takes that slot so the spacer tail is what forces the page to grow.
-    // (This fork's map has no load-factor limit, so it fills to capacity.)
     while (true) {
         const page = &t.screens.active.cursor.page_pin.node.data;
         const map = page.hyperlink_map.map(page.memory);
-        if (map.capacity() - map.count() == 1) break;
+        if (map.maxLoad() - map.count() == 1) break;
         try t.print('x');
     }
 
@@ -4867,6 +4830,113 @@ test "Terminal: grapheme transfer across pages when the append grows the page" {
             list_cell.node.data.lookupGrapheme(cell).?,
         );
     }
+}
+
+test "Terminal: grapheme transfer when widening wraps below the scroll region" {
+    var t = try init(testing.allocator, .{ .rows = 3, .cols = 3 });
+    defer t.deinit(testing.allocator);
+
+    t.modes.set(.grapheme_cluster, true);
+    t.setTopAndBottomMargin(1, 2);
+    t.setCursorPos(3, 3);
+    try t.print(0x2764); // Heart
+    try t.print(0x200D); // ZWJ
+    try t.print(0x1F44D); // Thumbs up
+
+    const base = t.screens.active.pages.getCell(.{ .active = .{ .x = 0, .y = 2 } }).?;
+    try testing.expectEqual(@as(u21, 0x2764), base.cell.codepoint());
+    try testing.expectEqualSlices(
+        u21,
+        &.{ 0x200D, 0x1F44D },
+        base.node.data.lookupGrapheme(base.cell).?,
+    );
+}
+
+test "Terminal: grapheme transfer when widening scrolls a single row" {
+    for ([_]bool{ false, true }) |alternate| {
+        for ([_]bool{ false, true }) |margins| {
+            var t = try init(testing.allocator, .{ .rows = 1, .cols = 5 });
+            defer t.deinit(testing.allocator);
+
+            t.modes.set(.grapheme_cluster, true);
+            if (alternate) _ = try t.switchScreen(.alternate);
+
+            // Leave a grapheme on the row above, in scrollback. It must stay
+            // there untouched when the cluster wraps below it.
+            t.setCursorPos(1, 5);
+            try t.print('a');
+            try t.print(0x0301); // Combining acute accent
+            try t.index();
+
+            if (margins) {
+                t.modes.set(.enable_left_and_right_margin, true);
+                t.setLeftAndRightMargin(3, 0);
+            }
+            t.setCursorPos(1, 5);
+            try t.print(0x2764); // Heart
+            try t.print(0x200D); // ZWJ
+            try t.print(0x1F44D); // Thumbs up
+
+            const x: size.CellCountInt = if (margins) 2 else 0;
+            const base = t.screens.active.pages.getCell(.{ .active = .{ .x = x, .y = 0 } }).?;
+            try testing.expectEqual(@as(u21, 0x2764), base.cell.codepoint());
+            try testing.expectEqualSlices(
+                u21,
+                &.{ 0x200D, 0x1F44D },
+                base.node.data.lookupGrapheme(base.cell).?,
+            );
+
+            // The alternate screen has no scrollback to check.
+            if (!alternate) {
+                const history = t.screens.active.pages.getCell(.{ .screen = .{ .x = 4, .y = 0 } }).?;
+                try testing.expectEqual(@as(u21, 'a'), history.cell.codepoint());
+                try testing.expectEqualSlices(u21, &.{0x0301}, history.node.data.lookupGrapheme(history.cell).?);
+            }
+        }
+    }
+}
+
+test "Terminal: grapheme transfer when widening wraps to a page without grapheme capacity" {
+    const rows = pagepkg.std_capacity.rows;
+    const cols = pagepkg.std_capacity.cols;
+    var t = try init(testing.allocator, .{ .rows = rows, .cols = cols });
+    defer t.deinit(testing.allocator);
+
+    t.modes.set(.grapheme_cluster, true);
+
+    // Fill the first page so the bottom row of the screen is on a second
+    // page, then compact that page so it has no grapheme capacity. Only an
+    // oversized page compacts, so grow it first.
+    t.cursorDown(rows - 1);
+    for (rows..t.screens.active.pages.pages.first.?.data.capacity.rows + 1) |_| {
+        try t.index();
+    }
+    const pages = &t.screens.active.pages;
+    try testing.expect(pages.pages.first != pages.pages.last);
+    _ = try t.screens.active.increaseCapacity(pages.pages.last.?, .grapheme_bytes);
+    try testing.expect(try pages.compact(pages.pages.last.?) != null);
+    try testing.expectEqual(0, pages.pages.last.?.data.capacity.grapheme_bytes);
+
+    // The cursor is on the compacted page, and compacting freed the page
+    // its cached row and cell pointed into.
+    t.screens.active.cursorReload();
+
+    t.setCursorPos(rows - 1, cols);
+    try t.print(0x2764); // Heart
+    try t.print(0x200D); // ZWJ
+    try t.print(0x1F44D); // Thumbs up
+
+    // The re-attach had to grow the page's grapheme capacity.
+    try testing.expect(pages.pages.last.?.data.capacity.grapheme_bytes > 0);
+    const base = pages.getCell(.{ .active = .{ .x = 0, .y = rows - 1 } }).?;
+    try testing.expectEqual(pages.pages.last.?, base.node);
+    try testing.expectEqual(Cell.Wide.wide, base.cell.wide);
+    try testing.expectEqual(@as(u21, 0x2764), base.cell.codepoint());
+    try testing.expectEqualSlices(
+        u21,
+        &.{ 0x200D, 0x1F44D },
+        base.node.data.lookupGrapheme(base.cell).?,
+    );
 }
 
 test "Terminal: VS16 to make wide character with pending wrap" {
@@ -7034,6 +7104,91 @@ test "Terminal: insertLines across page boundary marks all shifted rows dirty" {
         defer testing.allocator.free(str);
         try testing.expectEqualStrings("\n1AAAA\n2BBBB\n3CCCC\n4DDDD", str);
     }
+}
+
+test "Terminal: insertLines hyperlink-dense row crosses page boundary" {
+    // Regression test for the cross-page copy of insertLines: when the
+    // shifted row carries more unique hyperlinks than the destination
+    // page's hyperlink capacity, the copy must increase the destination
+    // page's capacity and retry rather than corrupting the page list.
+    const alloc = testing.allocator;
+    var t = try init(alloc, .{ .rows = 5, .cols = 10, .max_scrollback = 1024 });
+    defer t.deinit(alloc);
+
+    const pages = &t.screens.active.pages;
+
+    // Fill the first page so it is exactly full, then two more rows so
+    // the second page holds the last two active rows (y=3 and y=4).
+    const first_page_rows = pages.pages.first.?.data.capacity.rows;
+    for (0..first_page_rows + 1) |_| try t.linefeed();
+    try testing.expect(pages.pages.first != pages.pages.last);
+    try testing.expectEqual(@as(usize, 2), pages.pages.last.?.data.size.rows);
+
+    // Marker rows so we can verify the shift afterwards.
+    t.setCursorPos(1, 1);
+    try t.printString("0");
+    t.setCursorPos(2, 1);
+    try t.printString("1");
+    t.setCursorPos(4, 1);
+    try t.printString("3");
+    t.setCursorPos(5, 1);
+    try t.printString("4");
+
+    // Fill the last row of the first page (active y=2) with unique
+    // hyperlinks: more than the second page can hold with its default
+    // hyperlink capacity. Writing them grows the first page's capacity
+    // as needed; the second page keeps its default capacity.
+    t.setCursorPos(3, 1);
+    for (0..10) |i| {
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{i});
+        try t.screens.active.startHyperlink(uri, null);
+        try t.print(@intCast('A' + i));
+        t.screens.active.endHyperlink();
+    }
+    {
+        const pin = pages.pin(.{ .active = .{ .y = 2 } }).?;
+        try testing.expectEqual(pages.pages.first.?, pin.node);
+        try testing.expectEqual(pin.node.data.size.rows - 1, @as(usize, pin.y));
+    }
+    try testing.expect(pages.pages.last.?.data.hyperlink_set.layout.cap < 10);
+
+    // Insert a line at the top: every row shifts down by one and the
+    // dense row crosses the page boundary into the second page.
+    t.setCursorPos(1, 1);
+    t.insertLines(1);
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("\n0\n1\nABCDEFGHIJ\n3", str);
+    }
+
+    // The second page's hyperlink capacity had to grow to receive the
+    // row, proving the capacity-retry path ran.
+    try testing.expect(pages.pages.last.?.data.hyperlink_set.layout.cap >= 10);
+
+    // Every cell of the dense row must still resolve to a real
+    // hyperlink entry with the correct URI. A half-applied shift
+    // leaves cells whose hyperlink flag is set but that have no map
+    // entry, which aborts in clearCells later.
+    for (0..10) |x| {
+        const list_cell = pages.getCell(.{ .active = .{
+            .x = @intCast(x),
+            .y = 3,
+        } }).?;
+        try testing.expect(list_cell.cell.hyperlink);
+        const page: *Page = &list_cell.node.data;
+        const id = page.lookupHyperlink(list_cell.cell).?;
+        const link = page.hyperlink_set.get(page.memory, id);
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+        try testing.expectEqualStrings(uri, link.uri.slice(page.memory));
+    }
+
+    // All pages must pass integrity checks.
+    var node_: ?*PageList.List.Node = pages.pages.first;
+    while (node_) |node| : (node_ = node.next) node.data.assertIntegrity();
 }
 
 test "Terminal: insertLines (legacy test)" {
@@ -9767,6 +9922,96 @@ test "Terminal: deleteLines across page boundary marks all shifted rows dirty" {
     }
 }
 
+test "Terminal: deleteLines hyperlink-dense row crosses page boundary" {
+    // Regression test for the cross-page copy of deleteLines: when the
+    // shifted row carries more unique hyperlinks than the destination
+    // page's hyperlink capacity, the copy must increase the destination
+    // page's capacity and retry rather than corrupting the page list.
+    //
+    // This is the mirror of the insertLines variant: the dense row
+    // starts as the first row of the second page and is pulled up into
+    // the first page, which also happens to be the cursor's page so
+    // this exercises the cursor accounting of the capacity increase.
+    const alloc = testing.allocator;
+    var t = try init(alloc, .{ .rows = 5, .cols = 10, .max_scrollback = 1024 });
+    defer t.deinit(alloc);
+
+    const pages = &t.screens.active.pages;
+
+    // Fill the first page so it is exactly full, then two more rows so
+    // the second page holds the last two active rows (y=3 and y=4).
+    const first_page_rows = pages.pages.first.?.data.capacity.rows;
+    for (0..first_page_rows + 1) |_| try t.linefeed();
+    try testing.expect(pages.pages.first != pages.pages.last);
+    try testing.expectEqual(@as(usize, 2), pages.pages.last.?.data.size.rows);
+
+    // Marker rows so we can verify the shift afterwards.
+    t.setCursorPos(1, 1);
+    try t.printString("0");
+    t.setCursorPos(2, 1);
+    try t.printString("1");
+    t.setCursorPos(3, 1);
+    try t.printString("2");
+    t.setCursorPos(5, 1);
+    try t.printString("4");
+
+    // Fill the first row of the second page (active y=3) with unique
+    // hyperlinks: more than the first page can hold with its default
+    // hyperlink capacity. Writing them grows the second page's
+    // capacity as needed; the first page keeps its default capacity.
+    t.setCursorPos(4, 1);
+    for (0..10) |i| {
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{i});
+        try t.screens.active.startHyperlink(uri, null);
+        try t.print(@intCast('A' + i));
+        t.screens.active.endHyperlink();
+    }
+    {
+        const pin = pages.pin(.{ .active = .{ .y = 3 } }).?;
+        try testing.expectEqual(pages.pages.last.?, pin.node);
+        try testing.expectEqual(@as(usize, 0), @as(usize, pin.y));
+    }
+    try testing.expect(pages.pages.first.?.data.hyperlink_set.layout.cap < 10);
+
+    // Delete the top line: every row shifts up by one and the dense
+    // row crosses the page boundary into the first page.
+    t.setCursorPos(1, 1);
+    t.deleteLines(1);
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("1\n2\nABCDEFGHIJ\n4", str);
+    }
+
+    // The first page's hyperlink capacity had to grow to receive the
+    // row, proving the capacity-retry path ran.
+    try testing.expect(pages.pages.first.?.data.hyperlink_set.layout.cap >= 10);
+
+    // Every cell of the dense row must still resolve to a real
+    // hyperlink entry with the correct URI. A half-applied shift
+    // leaves cells whose hyperlink flag is set but that have no map
+    // entry, which aborts in clearCells later.
+    for (0..10) |x| {
+        const list_cell = pages.getCell(.{ .active = .{
+            .x = @intCast(x),
+            .y = 2,
+        } }).?;
+        try testing.expect(list_cell.cell.hyperlink);
+        const page: *Page = &list_cell.node.data;
+        const id = page.lookupHyperlink(list_cell.cell).?;
+        const link = page.hyperlink_set.get(page.memory, id);
+        var buf: [64]u8 = undefined;
+        const uri = try std.fmt.bufPrint(&buf, "http://example.com/{d}", .{x});
+        try testing.expectEqualStrings(uri, link.uri.slice(page.memory));
+    }
+
+    // All pages must pass integrity checks.
+    var node_: ?*PageList.List.Node = pages.pages.first;
+    while (node_) |node| : (node_ = node.next) node.data.assertIntegrity();
+}
+
 test "Terminal: deleteLines (legacy)" {
     const alloc = testing.allocator;
     var t = try init(alloc, .{ .cols = 80, .rows = 80 });
@@ -12428,6 +12673,24 @@ test "Terminal: eraseLine complete resets wrap" {
     }
 }
 
+test "Terminal: eraseLine complete clears kitty placeholder flag" {
+    if (comptime !build_options.kitty_graphics) return error.SkipZigTest;
+
+    const alloc = testing.allocator;
+    var t = try init(alloc, .{ .rows = 5, .cols = 5 });
+    defer t.deinit(alloc);
+
+    try t.print(kitty.graphics.unicode.placeholder);
+    {
+        const list_cell = t.screens.active.pages.getCell(.{ .active = .{ .x = 0, .y = 0 } }).?;
+        try testing.expect(list_cell.row.kitty_virtual_placeholder);
+    }
+    t.eraseLine(.complete, false);
+
+    const list_cell = t.screens.active.pages.getCell(.{ .active = .{ .x = 0, .y = 0 } }).?;
+    try testing.expect(!list_cell.row.kitty_virtual_placeholder);
+}
+
 test "Terminal: eraseLine complete protected attributes respected with iso" {
     const alloc = testing.allocator;
     var t = try init(alloc, .{ .rows = 5, .cols = 5 });
@@ -13842,6 +14105,19 @@ test "Terminal: resize with wraparound off" {
     const str = try t.plainString(testing.allocator);
     defer testing.allocator.free(str);
     try testing.expectEqualStrings("01", str);
+}
+
+test "Terminal: DECCOLM narrows a maximum-width terminal" {
+    // Program output reaches a reflowing resize through DECCOLM. Narrowing
+    // a page this wide frees memory for more rows than a page can hold.
+    const alloc = testing.allocator;
+    var t = try init(alloc, .{ .cols = std.math.maxInt(size.CellCountInt), .rows = 1 });
+    defer t.deinit(alloc);
+
+    t.modes.set(.enable_mode_3, true);
+    try t.deccolm(alloc, .@"80_cols");
+    try testing.expectEqual(@as(size.CellCountInt, 80), t.cols);
+    t.screens.active.assertIntegrity();
 }
 
 test "Terminal: resize with wraparound on" {

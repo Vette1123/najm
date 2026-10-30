@@ -669,7 +669,7 @@ pub fn cursorCellEndOfPrev(self: *Screen) *pagepkg.Cell {
     assert(self.cursor.y > 0);
 
     var page_pin = self.cursor.page_pin.up(1).?;
-    page_pin.x = self.pages.cols - 1;
+    page_pin.x = page_pin.node.data.size.cols - 1;
     const page_rac = page_pin.rowAndCell();
     return page_rac.cell;
 }
@@ -1078,30 +1078,7 @@ fn cursorScrollAboveRotate(self: *Screen) !void {
                 // room for what we didn't have space for
                 const new_node = self.increaseCapacity(
                     current,
-                    switch (err) {
-                        // Rehash the sets
-                        error.StyleSetNeedsRehash,
-                        error.HyperlinkSetNeedsRehash,
-                        => null,
-
-                        // Increase style memory
-                        error.StyleSetOutOfMemory,
-                        => .styles,
-
-                        // Increase string memory
-                        error.StringAllocOutOfMemory,
-                        => .string_bytes,
-
-                        // Increase hyperlink memory
-                        error.HyperlinkSetOutOfMemory,
-                        error.HyperlinkMapOutOfMemory,
-                        => .hyperlink_bytes,
-
-                        // Increase grapheme memory
-                        error.GraphemeMapOutOfMemory,
-                        error.GraphemeAllocOutOfMemory,
-                        => .grapheme_bytes,
-                    },
+                    PageList.IncreaseCapacity.forCloneError(err),
                 ) catch |e| switch (e) {
                     // See insertLines which takes the same approach for
                     // the same errors. We can't gracefully recover from
@@ -1449,11 +1426,17 @@ pub inline fn scrollClear(self: *Screen) !void {
         }
     }
 
-    // A grow that fails partway can still have moved the cursor pin.
-    errdefer self.cursorReload();
+    // Reload the cursor on both paths, before the style and hyperlink
+    // restore above: a grow that fails partway can still have moved the
+    // cursor pin. A prune marks the cursor pin it moves as garbage. The pin
+    // does point at a real location, and cursorReload keeps it when that
+    // location is in the active area, so clear the flag.
+    defer {
+        self.cursor.page_pin.garbage = false;
+        self.cursorReload();
+    }
 
     try self.pages.scrollClear();
-    self.cursorReload();
 
     if (comptime build_options.kitty_graphics) {
         // No matter what, scrolling marks our image state as dirty since
@@ -1550,6 +1533,8 @@ pub fn clearCells(
     row: *Row,
     cells: []Cell,
 ) void {
+    if (cells.len == 0) return;
+
     // This whole operation does unsafe things, so we just want to assert
     // the end state.
     page.pauseIntegrityChecks(true);
@@ -1605,9 +1590,21 @@ pub fn clearCells(
     }
 
     if (row.styled) {
-        for (cells) |*cell| {
-            if (cell.hasStyling())
-                page.styles.release(page.memory, cell.style_id);
+        // Styled cells overwhelmingly come in runs sharing the same
+        // style (e.g. a colored status bar or a highlighted region),
+        // so group them and release each run with a single ref-count
+        // update rather than per cell.
+        var i: usize = 0;
+        while (i < cells.len) {
+            const id = cells[i].style_id;
+            if (id == style.default_id) {
+                i += 1;
+                continue;
+            }
+            var j = i + 1;
+            while (j < cells.len and cells[j].style_id == id) j += 1;
+            page.styles.releaseMultiple(page.memory, id, @intCast(j - i));
+            i = j;
         }
 
         // If we have no left/right scroll region we can be sure
@@ -1621,14 +1618,8 @@ pub fn clearCells(
     }
 
     if (comptime build_options.kitty_graphics) {
-        if (row.kitty_virtual_placeholder and
-            cells.len == self.pages.cols)
-        {
-            for (cells) |c| {
-                if (c.codepoint() == kitty.graphics.unicode.placeholder) {
-                    break;
-                }
-            } else row.kitty_virtual_placeholder = false;
+        if (cells.len == self.pages.cols) {
+            row.kitty_virtual_placeholder = false;
         }
     }
 
@@ -2251,6 +2242,12 @@ pub fn setAttribute(
         .unknown => return,
     }
 
+    // If the attribute didn't change our style then we can skip the
+    // style update entirely: our current style ID is already correct.
+    // This is a common case in the wild where programs re-assert the
+    // same style repeatedly (e.g. per span or per line).
+    if (self.cursor.style.eql(old_style)) return;
+
     try self.manualStyleUpdate();
 }
 
@@ -2459,6 +2456,58 @@ pub fn appendGrapheme(
     };
 }
 
+/// Set the graphemes of the given cell within the current cursor row.
+/// The cell must have a codepoint and no graphemes yet.
+pub fn setGraphemes(
+    self: *Screen,
+    cell: *Cell,
+    cps: []const u21,
+) PageList.IncreaseCapacityError!void {
+    defer self.cursor.page_pin.node.data.assertIntegrity();
+    self.cursor.page_pin.node.data.setGraphemes(
+        self.cursor.page_row,
+        cell,
+        cps,
+    ) catch |err| switch (err) {
+        error.GraphemeMapOutOfMemory,
+        error.GraphemeAllocOutOfMemory,
+        => {
+            // See appendGrapheme for the capacity increase and cell reload.
+            const cell_idx: usize = cell_idx: {
+                const cells: [*]Cell = @ptrCast(self.cursor.page_cell);
+                const zero: [*]Cell = cells - self.cursor.x;
+                const target: [*]Cell = @ptrCast(cell);
+                const cell_idx = (@intFromPtr(target) - @intFromPtr(zero)) / @sizeOf(Cell);
+                break :cell_idx cell_idx;
+            };
+
+            _ = try self.increaseCapacity(
+                self.cursor.page_pin.node,
+                .grapheme_bytes,
+            );
+
+            const reloaded_cell: *Cell = switch (std.math.order(cell_idx, self.cursor.x)) {
+                .eq => self.cursor.page_cell,
+                .lt => self.cursorCellLeft(@intCast(self.cursor.x - cell_idx)),
+                .gt => self.cursorCellRight(@intCast(cell_idx - self.cursor.x)),
+            };
+
+            self.cursor.page_pin.node.data.setGraphemes(
+                self.cursor.page_row,
+                reloaded_cell,
+                cps,
+            ) catch |err2| {
+                comptime assert(@TypeOf(err2) == Page.GraphemeError);
+                // This should never happen because we just increased capacity.
+                // Log loudly but still return an error so we don't just
+                // crash.
+                log.err("grapheme set failed after capacity increase err={}", .{err2});
+                return error.OutOfMemory;
+            };
+        },
+    };
+}
+
 /// Start the hyperlink state. Future cells will be marked as hyperlinks with
 /// this state. Note that various terminal operations may clear the hyperlink
 /// state, such as switching screens (alt screen).
@@ -2473,13 +2522,13 @@ pub fn startHyperlink(
         .id = if (id_) |id| .{
             .explicit = id,
         } else implicit: {
-            defer self.cursor.hyperlink_implicit_id += 1;
+            defer self.cursor.hyperlink_implicit_id +%= 1;
             break :implicit .{ .implicit = self.cursor.hyperlink_implicit_id };
         },
     };
     errdefer switch (link.id) {
         .explicit => {},
-        .implicit => self.cursor.hyperlink_implicit_id -= 1,
+        .implicit => self.cursor.hyperlink_implicit_id -%= 1,
     };
 
     try self.startHyperlinkLink(link);
@@ -2620,6 +2669,9 @@ pub fn cursorSetHyperlink(self: *Screen) PageList.IncreaseCapacityError!void {
                 page = &new_node.data;
             }
 
+            // The hyperlink map is fixed-capacity, so reaching this error
+            // means live entries fill the usable map capacity and the page
+            // must grow.
             _ = try self.increaseCapacity(
                 self.cursor.page_pin.node,
                 .hyperlink_bytes,
@@ -4122,6 +4174,7 @@ test "Screen scrollClear that prunes the cursor page keeps cursor style and hype
     // top-left is on the page the cursor pin was moved to.
     try testing.expect(s.pages.pages.first.? != old_first);
     try testing.expect(s.cursor.page_pin.node == s.pages.pages.first.?);
+    try testing.expect(!s.cursor.page_pin.garbage);
 
     const page = &s.cursor.page_pin.node.data;
     try testing.expect(s.cursor.style_id != style.default_id);
@@ -4169,6 +4222,7 @@ test "Screen scrollClear that prunes the cursor page before a partial page" {
     // and the cursor ended up on a later page.
     try testing.expect(s.pages.pages.first.? == middle);
     try testing.expect(s.cursor.page_pin.node != middle);
+    try testing.expect(!s.cursor.page_pin.garbage);
 
     const page = &s.cursor.page_pin.node.data;
     try testing.expect(s.cursor.style_id != style.default_id);
@@ -4185,6 +4239,60 @@ test "Screen scrollClear that prunes the cursor page before a partial page" {
 
     // Printing attaches the style and hyperlink to a cell.
     try s.testWriteString("B");
+}
+
+// The prune moves the cursor pin to the top-left of the new first page and
+// marks it garbage. When that cell is also the new active top-left, the
+// cursor keeps the pin, and Kitty placements and prompt records copy the
+// cursor pin with its flag.
+test "Screen scrollClear that prunes the cursor page leaves the cursor pin live" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    const rows = 30;
+    var s = try init(alloc, .{ .cols = 2000, .rows = rows, .max_scrollback = 1 });
+    defer s.deinit();
+    const page_rows = s.pages.pages.first.?.data.capacity.rows;
+    try testing.expect(page_rows < rows - 1);
+
+    // Two full pages of blank rows.
+    for (0..2 * page_rows - 1) |_| try s.testWriteString("\n");
+    try testing.expectEqual(@as(usize, 2), s.pages.totalPages());
+    try testing.expectEqual(page_rows, s.pages.pages.last.?.data.size.rows);
+
+    // Split the first page so that its last row is the active top-left and
+    // the middle page holds the rest of the active area above the full
+    // last page.
+    try s.pages.split(.{
+        .node = s.pages.pages.first.?,
+        .y = 2 * page_rows - rows + 1,
+    });
+    const old_first = s.pages.pages.first.?;
+    const middle = old_first.next.?;
+
+    // Only the top row has text, so the clear grows one row, and that grow
+    // prunes the first page.
+    s.cursorAbsolute(0, 0);
+    try testing.expect(s.cursor.page_pin.node == old_first);
+    try s.testWriteString("x");
+    s.cursorAbsolute(0, 0);
+    try s.setAttribute(.{ .bold = {} });
+    try s.startHyperlink("https://example.com/", null);
+
+    try s.scrollClear();
+
+    try testing.expect(s.pages.pages.first.? == middle);
+    try testing.expect(s.cursor.page_pin.node == middle);
+    try testing.expectEqual(@as(size.CellCountInt, 0), s.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 0), s.cursor.y);
+    try testing.expect(!s.cursor.page_pin.garbage);
+
+    const page = &s.cursor.page_pin.node.data;
+    try testing.expect(page.styles.refCount(page.memory, s.cursor.style_id) > 0);
+    try testing.expect(page.hyperlink_set.refCount(
+        page.memory,
+        s.cursor.hyperlink_id,
+    ) > 0);
 }
 
 // cursorChangePin migrates the style before the hyperlink. If the
@@ -4328,6 +4436,55 @@ test "Screen cursorChangePin hyperlink after style migration splits the page" {
 
     // Printing attaches the migrated style and hyperlink to a cell.
     try s.testWriteString("B");
+}
+
+test "Screen write regrows compacted page capacity" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try Screen.init(alloc, .{
+        .cols = 80,
+        .rows = 24,
+        .max_scrollback = 0,
+    });
+    defer s.deinit();
+
+    // Compact the active page so every managed capacity dimension is
+    // zero, then reload the cursor since its cached row/cell pointers
+    // point into the replaced page. Only an oversized page compacts.
+    {
+        _ = try s.increaseCapacity(s.cursor.page_pin.node, .grapheme_bytes);
+        const node = (try s.pages.compact(s.cursor.page_pin.node)).?;
+        try testing.expectEqual(0, node.data.capacity.styles);
+        try testing.expectEqual(0, node.data.capacity.grapheme_bytes);
+        try testing.expectEqual(0, node.data.capacity.string_bytes);
+        try testing.expectEqual(0, node.data.capacity.hyperlink_bytes);
+        s.cursorReload();
+    }
+
+    // Styled write: exercises the manualStyleUpdate single-retry
+    // path. Prior to increaseCapacity handling zero dimensions, the
+    // retry would fail and the style would be dropped.
+    try s.setAttribute(.{ .bold = {} });
+    try s.testWriteString("A");
+
+    // Grapheme write: exercises the appendGrapheme single-retry path.
+    // We can't use testWriteString here because it appends graphemes
+    // directly on the page without the capacity retry.
+    try s.testWriteString("a");
+    try s.appendGrapheme(s.cursorCellLeft(1), 0x0301);
+
+    // Hyperlink: exercises the startHyperlink retry loop, which used
+    // to loop forever when capacity growth from zero didn't grow.
+    try s.startHyperlink("https://example.com/", null);
+    try s.testWriteString("B");
+    s.endHyperlink();
+
+    // Verify the content landed on the page.
+    const page = &s.cursor.page_pin.node.data;
+    try testing.expect(page.styles.count() >= 1);
+    try testing.expect(page.hyperlink_set.count() >= 1);
+    try testing.expect(page.graphemeCount() >= 1);
 }
 
 test "Screen cursorCopy hyperlink deref new page" {
@@ -4571,6 +4728,18 @@ test "Screen clearRows active styled line" {
     try testing.expectEqualStrings("", str);
 }
 
+test "Screen clearCells empty range" {
+    const testing = std.testing;
+
+    var s = try Screen.init(testing.allocator, .default);
+    defer s.deinit();
+
+    const page = &s.cursor.page_pin.node.data;
+    const row = s.cursor.page_row;
+    const cells = page.getCells(row);
+    s.clearCells(page, row, cells[0..0]);
+}
+
 test "Screen clearRows protected" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -4694,6 +4863,27 @@ test "Screen eraseRows active partial" {
         defer alloc.free(str);
         try testing.expectEqualStrings("3", str);
     }
+}
+
+test "Screen: cursorCellEndOfPrev across mixed-width pages" {
+    const testing = std.testing;
+    var s = try init(testing.allocator, .{
+        .cols = 4,
+        .rows = 2,
+        .max_scrollback = 0,
+    });
+    defer s.deinit();
+
+    try s.testWriteString("ABCDE");
+    const first = s.pages.pages.first.?;
+    try s.pages.split(.{ .node = first, .y = 1 });
+    s.cursorReload();
+    const second = first.next.?;
+    first.data.size.cols = 2;
+
+    try testing.expectEqual(second, s.cursor.page_pin.node);
+    const expected = (Pin{ .node = first, .x = 1 }).rowAndCell().cell;
+    try testing.expectEqual(expected, s.cursorCellEndOfPrev());
 }
 
 test "Screen: cursorDown across pages preserves style" {
@@ -8983,6 +9173,32 @@ test "Screen: select untracked" {
     try testing.expectEqual(tracked, s.pages.countTrackedPins());
 }
 
+test "Screen: select replaces existing pins" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, .{ .cols = 10, .rows = 10, .max_scrollback = 0 });
+    defer s.deinit();
+    try s.testWriteString("ABC  DEF\n 123\n456");
+
+    const tracked = s.pages.countTrackedPins();
+    try s.select(Selection.init(
+        s.pages.pin(.{ .active = .{ .x = 0, .y = 0 } }).?,
+        s.pages.pin(.{ .active = .{ .x = 3, .y = 0 } }).?,
+        false,
+    ));
+    try testing.expectEqual(tracked + 2, s.pages.countTrackedPins());
+
+    // Replacing the selection must untrack the prior selection's pins
+    // rather than leak them.
+    try s.select(Selection.init(
+        s.pages.pin(.{ .active = .{ .x = 0, .y = 1 } }).?,
+        s.pages.pin(.{ .active = .{ .x = 2, .y = 1 } }).?,
+        false,
+    ));
+    try testing.expectEqual(tracked + 2, s.pages.countTrackedPins());
+}
+
 test "Screen: selectAll" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -10869,6 +11085,43 @@ test "Screen: hyperlink start/end" {
     }
 }
 
+test "Screen: implicit hyperlink ID wraps" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, .{ .cols = 5, .rows = 5, .max_scrollback = 0 });
+    defer s.deinit();
+
+    s.cursor.hyperlink_implicit_id = std.math.maxInt(size.OffsetInt);
+    try s.startHyperlink("http://example.com", null);
+
+    try testing.expectEqual(@as(size.OffsetInt, 0), s.cursor.hyperlink_implicit_id);
+    try testing.expectEqual(
+        std.math.maxInt(size.OffsetInt),
+        s.cursor.hyperlink.?.id.implicit,
+    );
+
+    // A failed allocation must roll the wrapped counter back to its
+    // original value as well.
+    s.endHyperlink();
+    s.cursor.hyperlink_implicit_id = std.math.maxInt(size.OffsetInt);
+    var failing = testing.FailingAllocator.init(alloc, .{});
+    failing.fail_index = failing.alloc_index;
+    {
+        const original_alloc = s.alloc;
+        defer s.alloc = original_alloc;
+        s.alloc = failing.allocator();
+        try testing.expectError(
+            error.OutOfMemory,
+            s.startHyperlink("http://example.com", null),
+        );
+    }
+    try testing.expectEqual(
+        std.math.maxInt(size.OffsetInt),
+        s.cursor.hyperlink_implicit_id,
+    );
+}
+
 test "Screen: hyperlink reuse" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -11215,9 +11468,9 @@ test "Screen: cursorDown to page with insufficient capacity" {
     // cursor movement functions). The bug pattern:
     //
     // 1. cursorDown creates a by-value copy of the pin via page_pin.down(n)
-    // 2. cursorChangePin is called, which may trigger adjustCapacity
+    // 2. cursorChangePin is called, which may trigger increaseCapacity
     //    if the target page's style map is full
-    // 3. adjustCapacity frees the old page and creates a new one
+    // 3. increaseCapacity frees the old page and creates a new one
     // 4. The local pin copy still points to the freed page
     // 5. rowAndCell() on the stale pin accesses freed memory
 
@@ -11240,7 +11493,7 @@ test "Screen: cursorDown to page with insufficient capacity" {
     try testing.expect(start_page != new_page);
 
     // Fill new_page's style map to capacity. When we move INTO this page
-    // with a style set, adjustCapacity will be triggered.
+    // with a style set, increaseCapacity will be triggered.
     {
         new_page.pauseIntegrityChecks(true);
         defer new_page.pauseIntegrityChecks(false);
@@ -11269,7 +11522,7 @@ test "Screen: cursorDown to page with insufficient capacity" {
                 try testing.expect(&next_pin.node.data == new_page);
 
                 // This cursorDown triggers the bug: the local page_pin copy
-                // becomes stale after adjustCapacity, causing rowAndCell()
+                // becomes stale after increaseCapacity, causing rowAndCell()
                 // to access freed memory.
                 s.cursorDown(1);
 
