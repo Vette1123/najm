@@ -140,6 +140,12 @@ pub const SearchBar = struct {
         }
     }
 
+    /// A toggle filters the matches. The bar keeps the toggles on screen
+    /// before previous and next while one is on (`searchBarFit`).
+    pub fn anyFilterOn(self: *const SearchBar) bool {
+        return self.toggles.regex or self.toggles.case_sensitive or self.toggles.whole_word;
+    }
+
     pub fn toggleRegex(self: *SearchBar, now_ms: i64) void {
         self.toggles.regex = !self.toggles.regex;
         self.invalidateResults(now_ms);
