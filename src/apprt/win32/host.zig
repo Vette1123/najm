@@ -6905,6 +6905,13 @@ pub const Host = struct {
         var client: RECT = undefined;
         try std.testing.expect(sys.GetClientRect(button, &client) != 0);
         const point: LPARAM = (@as(LPARAM, @divTrunc(client.bottom, 2)) << 16) | @as(LPARAM, client.right - @divTrunc(zone, 2));
+        // With no active tab the X shows only under the pointer, and the
+        // close zone takes a click only where the X shows (`tabCloseAlpha`):
+        // the pointer is on the tab, as it is for a real click.
+        host.hovered_button_hwnd = button;
+        defer host.hovered_button_hwnd = null;
+        host.tab_close_hover_hwnd = null;
+        host.tab_close_prev_hwnd = null;
         _ = tabButtonProc(button, c.WM_LBUTTONDOWN, 1, point);
         _ = tabButtonProc(button, c.WM_LBUTTONUP, 0, point);
         try expectSoleTabWindowPrompt(&host);
