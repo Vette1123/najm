@@ -285,7 +285,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     io,
                     err,
                     cause,
-                    "noctty failed to launch the requested command:",
+                    "Najm could not start the requested command:",
                     \\No child process was created, so there is no exit code.
                     \\
                     \\The underlying shell or command was unable to be started.
@@ -304,8 +304,8 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     io,
                     err,
                     cause,
-                    "noctty failed to launch the requested command:",
-                    \\The child process was created, but noctty could not
+                    "Najm could not start the requested command:",
+                    \\The child process was created, but Najm could not
                     \\finish launching it. Depending on the cause above, the
                     \\child either exited on its own during launch setup or
                     \\cleanup attempted to stop it, so no exit code is

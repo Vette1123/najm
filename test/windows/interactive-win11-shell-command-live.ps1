@@ -866,7 +866,7 @@ if ($ConfiguredScenariosOnly) {
         -Name 'quoted' `
         -ConfigPath $quotedConfigPath `
         -ExpectedText @('CONFIG_QUOTED_A', 'CONFIG_QUOTED_B') `
-        -RejectedText @('noctty failed to launch the requested command:') `
+        -RejectedText @('Najm could not start the requested command:') `
         -CapturePath $quotedCapturePath `
         -StdoutPath $quotedStdoutPath `
         -StderrPath $quotedStderrPath
@@ -875,7 +875,7 @@ if ($ConfiguredScenariosOnly) {
         -Name 'abnormal' `
         -ConfigPath $abnormalConfigPath `
         -ExpectedText @(
-            'noctty failed to launch the requested command:',
+            'Najm could not start the requested command:',
             'cmd.exe /d /c "exit /b 37"',
             'Exit Code: 37',
             'Press any key to close the window.'
@@ -889,7 +889,7 @@ if ($ConfiguredScenariosOnly) {
         -ConfigPath $failedStartConfigPath `
         -ExpectedText @(
             'error starting IO thread: error.ProcessNotStarted (cause: error.FileNotFound)',
-            'noctty failed to launch the requested command:',
+            'Najm could not start the requested command:',
             $missingExecutablePath,
             'No child process was created, so there is no exit code.',
             'common causes include a',

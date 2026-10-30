@@ -51,7 +51,7 @@ pub const PaletteCompletion = struct {
     id: PaletteStableId,
 };
 
-pub const command_palette_unknown_action = "Unknown Noctty action. Example: new_tab or toggle_fullscreen";
+pub const command_palette_unknown_action = "No command matches that. You can also type an action name, like new_tab.";
 
 const search_prev_label = std.unicode.utf8ToUtf16LeStringLiteral("Prev match");
 const search_next_label = std.unicode.utf8ToUtf16LeStringLiteral("Next match");
@@ -3840,7 +3840,7 @@ test "win32 confirm overlay paints its payload title and body" {
     const empty_mru: []const []const u8 = &.{};
     const confirm: ConfirmText = .{
         .title = "Allow clipboard paste?",
-        .body = "noctty needs confirmation before completing this clipboard paste or read request.",
+        .body = "The text has more than one line, and a shell may run each line as a command.",
     };
 
     const title = try buildOverlayPaintLabelText(
@@ -4013,7 +4013,7 @@ test "win32 confirm body text is the one the overlay feedback lane draws" {
     const empty_mru: []const []const u8 = &.{};
     const confirm: ConfirmText = .{
         .title = "Allow clipboard paste?",
-        .body = "noctty needs confirmation before completing this clipboard paste or read request.",
+        .body = "The text has more than one line, and a shell may run each line as a command.",
         .preview_caption = "3 bytes",
     };
 
@@ -4056,7 +4056,7 @@ test "win32 confirm body text is the one the overlay feedback lane draws" {
     const plain = try buildConfirmBodyText(std.testing.allocator, .none, null, confirm);
     defer std.testing.allocator.free(plain);
     try std.testing.expectEqualStrings(
-        "noctty needs confirmation before completing this clipboard paste or read request.  (3 bytes)",
+        "The text has more than one line, and a shell may run each line as a command.  (3 bytes)",
         plain,
     );
 
@@ -4141,7 +4141,7 @@ test "win32 buildOverlayFeedbackText prefers inline banner state" {
     );
     defer std.testing.allocator.free(err);
     try std.testing.expectEqualStrings(
-        "Error: Unknown Noctty action. Example: new_tab or toggle_fullscreen",
+        "Error: No command matches that. You can also type an action name, like new_tab.",
         err,
     );
 
