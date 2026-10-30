@@ -169,6 +169,7 @@
       "description": "Self-Correction Log: keyboard, mouse, IME and default keybindings.",
       "scope": [
         "src/apprt/win32/input.zig",
+        "src/apprt/win32/edit_keys.zig",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
         "src/apprt/win32/host.zig",
