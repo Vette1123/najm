@@ -700,6 +700,7 @@ const DerivedConfig = struct {
     title: ?[:0]const u8,
     title_report: bool,
     links: []DerivedConfig.Link,
+    link_osc8: bool,
     link_previews: configpkg.LinkPreviews,
     scroll_to_bottom: configpkg.Config.ScrollToBottom,
     progress_style: bool,
@@ -768,6 +769,7 @@ const DerivedConfig = struct {
             .title = if (config.title) |title| try alloc.dupeZ(u8, title) else null,
             .title_report = config.@"title-report",
             .links = links,
+            .link_osc8 = config.@"link-osc8",
             .link_previews = config.@"link-previews",
             .scroll_to_bottom = config.@"scroll-to-bottom",
             .progress_style = config.@"progress-style",
@@ -7014,7 +7016,9 @@ fn linkAtPos(
     const mouse_mods = self.mouseModsWithCapture(self.mouse.mods);
 
     // If we have the proper modifiers set then we can check for OSC8 links.
-    if (mouse_mods.equal(input.ctrlOrSuper(.{}))) hyperlink: {
+    if (self.config.link_osc8 and
+        mouse_mods.equal(input.ctrlOrSuper(.{})))
+    hyperlink: {
         const rac = mouse_pin.rowAndCell();
         const cell = rac.cell;
         if (!cell.hyperlink) break :hyperlink;
@@ -7024,6 +7028,59 @@ fn linkAtPos(
 
     // Fall back to configured links
     return try self.linkAtPin(mouse_pin, mouse_mods);
+}
+
+test "Surface: link-osc8 = false finds no OSC 8 link, only the text's own" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    var derived = try DerivedConfig.init(alloc, &config);
+    defer derived.deinit();
+
+    // Only what linkAtPos reads is set. Hover, Ctrl+click, the context menu
+    // and copy_url_to_clipboard all find links through it.
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.alloc = alloc;
+    surface.config.links = derived.links;
+    surface.mouse.mods = input.ctrlOrSuper(.{});
+    surface.size = .{
+        .screen = .{ .width = 400, .height = 20 },
+        .cell = .{ .width = 10, .height = 10 },
+        .padding = .{},
+    };
+    surface.io.terminal = try .init(alloc, .{ .cols = 40, .rows = 2 });
+    defer surface.io.terminal.deinit(alloc);
+    surface.renderer_state.terminal = &surface.io.terminal;
+    {
+        var stream = surface.io.terminal.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("\x1b]8;;https://example.com/hidden\x1b\\click here\x1b]8;;\x1b\\\r\n");
+        stream.nextSlice("\x1b]8;;https://example.com/hidden\x1b\\https://example.com/shown\x1b]8;;\x1b\\");
+    }
+    const at = struct {
+        fn row(y: f32) apprt.CursorPos {
+            return .{ .x = 25, .y = y * 10 + 5 };
+        }
+    };
+
+    surface.config.link_osc8 = true;
+    for ([_]f32{ 0, 1 }) |y| {
+        const link = try surface.linkAtPos(at.row(y)) orelse return error.TestUnexpectedResult;
+        try testing.expectEqual(input.Link.Action._open_osc8, link.action);
+    }
+
+    surface.config.link_osc8 = false;
+    try testing.expect(try surface.linkAtPos(at.row(0)) == null);
+    // Text that is itself a URL is still that URL, never the hidden target.
+    const link = try surface.linkAtPos(at.row(1)) orelse return error.TestUnexpectedResult;
+    try testing.expectEqual(input.Link.Action.open, link.action);
+    const text = try surface.io.terminal.screens.active.selectionString(alloc, .{ .sel = link.selection, .trim = false });
+    defer alloc.free(text);
+    try testing.expectEqualStrings("https://example.com/shown", text);
 }
 
 /// Detects if a link is present at the given pin.
@@ -7043,7 +7100,9 @@ fn linkAtPin(
     const line = screen.selectLine(.{
         .pin = mouse_pin,
         .whitespace = null,
-        .semantic_prompt_boundary = false,
+        // Respect semantic prompt boundaries so link/path matching doesn't
+        // merge shell prompt content with the text beside it.
+        .semantic_prompt_boundary = true,
     }) orelse return null;
 
     var strmap: terminal.StringMap = undefined;
@@ -7075,6 +7134,54 @@ fn linkAtPin(
     }
 
     return null;
+}
+
+test "Surface: a link does not run from a prompt into the command after it" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    var derived = try DerivedConfig.init(alloc, &config);
+    defer derived.deinit();
+
+    // Only what linkAtPin reads is set.
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.alloc = alloc;
+    surface.config.links = derived.links;
+    surface.io.terminal = try .init(alloc, .{ .cols = 40, .rows = 3 });
+    defer surface.io.terminal.deinit(alloc);
+    surface.renderer_state.terminal = &surface.io.terminal;
+    {
+        // Ubuntu's default bash prompt ends in a path, which the URL regex
+        // continues across the space into the command typed after it. cmd
+        // sends no C mark, so what follows stays input, URLs included.
+        var stream = surface.io.terminal.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("\x1b]133;A\x1b\\me@host:~/src$ \x1b]133;B\x1b\\ls docs\r\nsee https://example.com/a");
+    }
+    const Probe = struct {
+        fn link(s: *Surface, x: u16, y: u16) !?[:0]const u8 {
+            const screen = s.io.terminal.screens.active;
+            const pin = screen.pages.pin(.{ .active = .{ .x = x, .y = y } }).?;
+            const found = try s.linkAtPin(pin, null) orelse return null;
+            return try screen.selectionString(testing.allocator, .{ .sel = found.selection, .trim = false });
+        }
+    };
+
+    const prompt = try Probe.link(surface, 8, 0) orelse return error.TestUnexpectedResult;
+    defer alloc.free(prompt);
+    try testing.expectEqualStrings("~/src$", prompt);
+
+    const command = try Probe.link(surface, 18, 0);
+    defer if (command) |text| alloc.free(text);
+    try testing.expectEqualStrings("", command orelse "");
+
+    const url = try Probe.link(surface, 10, 1) orelse return error.TestUnexpectedResult;
+    defer alloc.free(url);
+    try testing.expectEqualStrings("https://example.com/a", url);
 }
 
 /// This returns the mouse mods to consider for link highlighting or
@@ -7127,7 +7234,7 @@ fn processLinks(self: *Surface, pos: apprt.CursorPos) !bool {
 
     switch (action) {
         .open => try self.openLinkText(target),
-        ._open_osc8 => try self.openUrl(.{ .kind = .unknown, .url = target }),
+        ._open_osc8 => try self.openUrl(.{ .kind = .osc8, .url = target }),
     }
     return true;
 }
