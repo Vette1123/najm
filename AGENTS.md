@@ -248,7 +248,8 @@ that govern each symbol you change, or that none does.
   local and structural undo/redo (`win32_undo.zig`,
   `win32_structural_history.zig`, `undo-timeout`, split undo and redo through
   the shell model: `Host.applyCommittedSplitHistory`).
-- [input.md](docs/agents/log/input.md): `win32/input.zig` and key messages
+- [input.md](docs/agents/log/input.md): `win32/input.zig` and key messages,
+  Ctrl+Backspace in the app's text fields (`win32/edit_keys.zig`)
   (`WM_KEYDOWN`/`WM_CHAR`/`WM_SYSCHAR`, dead keys, `ToUnicode`, non-Latin
   layouts), default Windows keybindings, Win32 input mode (DEC 9001), IME
   (the composition string, its caret and target clause:
