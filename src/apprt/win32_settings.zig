@@ -4247,12 +4247,14 @@ pub const SettingsWindow = struct {
     /// only those, in one pass the way a page switch does, painted before
     /// this returns. The page's Reset buttons follow its shown rows. The
     /// viewport draws nothing while its rows are shown, hidden and moved
-    /// (`suspendViewportRedraw`), and is painted once after.
-    fn runSearch(self: *SettingsWindow, from_top: bool) void {
+    /// (`suspendViewportRedraw`), and is painted once after. The form starts
+    /// at the top, then scrolls `keep_in_view` into view, if given, before
+    /// that one paint.
+    fn runSearch(self: *SettingsWindow, keep_in_view: ?HWND) void {
         const started = bench_trace.queryPerformanceCounter();
         self.findSearchRows();
         if (self.search_query.active()) self.filterShownPage();
-        if (from_top) self.content_scroll_y = 0;
+        self.content_scroll_y = 0;
         self.refreshNativeSectionText();
         self.syncSearchCounts();
         self.keepFocusShown();
@@ -4262,6 +4264,9 @@ pub const SettingsWindow = struct {
             self.syncDefaultMarksShowing(false);
             layoutChildren(self);
             self.applySectionVisibility();
+            // Moves the rows while nothing in the viewport draws; the resume
+            // below paints them where they end up.
+            if (keep_in_view) |row| self.ensureControlVisible(row);
         }
         const found = bench_trace.queryPerformanceCounter();
         if (self.hwnd) |hwnd| _ = RedrawWindow(hwnd, null, null, RDW_UPDATENOW | RDW_ALLCHILDREN);
@@ -4353,6 +4358,8 @@ pub const SettingsWindow = struct {
         const text = utf16ToUtf8Lossy(&utf8, wide[0..wide_len]);
         const next = SearchQuery.parse(text);
         const same = next.sameSearch(&self.search_query);
+        // Backspacing the field empty ends the search the way Escape does.
+        const keep = if (!next.active()) self.searchEndRow() else null;
         self.search_query = next;
         if (same) {
             // The message on a page with nothing found repeats what was typed,
@@ -4363,16 +4370,30 @@ pub const SettingsWindow = struct {
             }
             return;
         }
-        self.runSearch(true);
+        self.runSearch(keep);
         self.armSearchAnnounce();
+    }
+
+    /// The row to keep in view when a search ends: the focused row, else the
+    /// first row the search found on this page. The full page lays out
+    /// differently, so the old scroll offset would land on some other row,
+    /// and the top of the page loses the user's place.
+    fn searchEndRow(self: *SettingsWindow) ?HWND {
+        if (!self.search_query.active()) return null;
+        if (GetFocus()) |focused| if (self.viewport) |viewport| {
+            if (IsChild(viewport, focused) != 0) return focused;
+        };
+        if (self.search_item_count == 0) return null;
+        return self.controlHwnd(self.search_items[0].control_index);
     }
 
     /// Empty the search field and show every row again. The field's own
     /// change notification is held back: the search runs here, once.
     fn clearSearch(self: *SettingsWindow) void {
         const was_active = self.search_query.active();
+        const keep = self.searchEndRow();
         self.dropSearch();
-        if (was_active) self.runSearch(true);
+        if (was_active) self.runSearch(keep);
     }
 
     /// Empty the search field and forget the search, with no pass of its own:
@@ -11643,6 +11664,39 @@ test "settings a search shows only the rows it finds, and the others leave the T
             try std.testing.expect(!settings.handleAccelerator(search, WM_KEYDOWN, VK_ESCAPE, 0));
             try std.testing.expect(settings.search_query.active());
             settings.cancelClosePrompt();
+        }
+    }.body);
+}
+
+test "settings clearing a search keeps the row it found in view" {
+    try dialog_test.onHiddenDesktop(struct {
+        fn body() !void {
+            const fixture = try dialog_test.Fixture.start();
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const search = settings.edit_search.?;
+            const viewport = settings.viewport.?;
+            // The minimum size (WM_GETMINMAXINFO clamps it), so the
+            // Appearance page's last rows are below the fold.
+            _ = sys.SetWindowPos(fixture.hwnd(), null, 0, 0, 200, 200, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            const row = settings.fields.combo_pad_balance.?;
+
+            typeSearch(settings, "balance");
+            try std.testing.expect(sys.IsWindowVisible(row) != 0);
+            _ = SetFocus(search);
+            try std.testing.expect(settings.handleAccelerator(search, WM_KEYDOWN, VK_ESCAPE, 0));
+            try std.testing.expect(!settings.search_query.active());
+
+            // The whole page is back and the form did not jump to its top.
+            try std.testing.expect(settings.content_scroll_y > 0);
+            var row_rect: RECT = undefined;
+            var client: RECT = undefined;
+            try std.testing.expect(sys.GetWindowRect(row, &row_rect) != 0);
+            try std.testing.expect(sys.GetClientRect(viewport, &client) != 0);
+            var origin: POINT = .{ .x = row_rect.left, .y = row_rect.top };
+            try std.testing.expect(sys.ScreenToClient(viewport, &origin) != 0);
+            try std.testing.expect(origin.y >= 0);
+            try std.testing.expect(origin.y + (row_rect.bottom - row_rect.top) <= client.bottom);
         }
     }.body);
 }
