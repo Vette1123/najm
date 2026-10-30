@@ -999,14 +999,21 @@ pub fn init(
 
     // Create our terminal grid with the initial size
     const app_mailbox: App.Mailbox = .{ .rt_app = rt_app, .mailbox = &app.mailbox };
-    var renderer_impl = try Renderer.init(alloc, .{
-        .config = try .init(alloc, config),
-        .font_grid = font_grid,
-        .size = size,
-        .surface_mailbox = .{ .surface = self, .app = app_mailbox },
-        .rt_surface = rt_surface,
-        .thread = &self.renderer_thread,
-    });
+    var renderer_impl = renderer: {
+        // Renderer.init takes ownership of the config only on success, after
+        // which the errdefer below frees it, so this errdefer must end here.
+        var renderer_config = try Renderer.DerivedConfig.init(alloc, config);
+        errdefer renderer_config.deinit();
+
+        break :renderer try Renderer.init(alloc, .{
+            .config = renderer_config,
+            .font_grid = font_grid,
+            .size = size,
+            .surface_mailbox = .{ .surface = self, .app = app_mailbox },
+            .rt_surface = rt_surface,
+            .thread = &self.renderer_thread,
+        });
+    };
     // The renderer's GL objects belong to this surface's context, which a
     // later step (`finalizeSurfaceInit`, the renderer thread) can leave
     // un-current. Rebind it before deleting them, and abandon them if that
@@ -1164,14 +1171,18 @@ pub fn init(
         var io_mailbox = try termio.Mailbox.initSPSC(alloc);
         errdefer io_mailbox.deinit(alloc);
 
+        // Termio.init takes ownership of the config only on success.
+        var io_config = try termio.Termio.DerivedConfig.init(
+            alloc,
+            config,
+            app.config_conditional_state,
+        );
+        errdefer io_config.deinit();
+
         try termio.Termio.init(&self.io, alloc, .{
             .size = size,
             .full_config = config,
-            .config = try termio.Termio.DerivedConfig.init(
-                alloc,
-                config,
-                app.config_conditional_state,
-            ),
+            .config = io_config,
             .backend = .{ .exec = io_exec },
             .mailbox = io_mailbox,
             .renderer_state = &self.renderer_state,
@@ -1768,9 +1779,10 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
         .pwd_change => |w| {
             defer w.deinit();
 
-            // We always allocate for this because we need to null-terminate.
-            const str = try self.alloc.dupeZ(u8, w.slice());
-            defer self.alloc.free(str);
+            var stack = std.heap.stackFallback(256, self.alloc);
+            const alloc = stack.get();
+            const str = try alloc.dupeZ(u8, w.slice());
+            defer alloc.free(str);
 
             _ = try self.rt_app.performAction(
                 .{ .surface = self },
@@ -3964,13 +3976,14 @@ fn copySelectionToClipboards(
 
     const ScreenFormatter = terminal.formatter.ScreenFormatter;
     var aw: std.Io.Writer.Allocating = .init(alloc);
-    var contents: std.ArrayList(apprt.ClipboardContent) = .empty;
+    var contents_buf: [2]apprt.ClipboardContent = undefined;
+    var contents: std.ArrayList(apprt.ClipboardContent) = .initBuffer(&contents_buf);
     switch (format) {
         .plain => {
             var formatter: ScreenFormatter = .init(self.io.terminal.screens.active, opts);
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -3987,7 +4000,7 @@ fn copySelectionToClipboards(
 
             // Codepoint mappings affect terminal cell text; formatter-generated
             // VT escape sequences are preserved as-is.
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4003,7 +4016,7 @@ fn copySelectionToClipboards(
             try formatter.format(&aw.writer);
 
             // Codepoint mappings are applied before HTML encoding.
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/html",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4014,7 +4027,7 @@ fn copySelectionToClipboards(
             var formatter: ScreenFormatter = .init(self.io.terminal.screens.active, opts);
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4036,7 +4049,7 @@ fn copySelectionToClipboards(
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
 
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/html",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -5766,17 +5779,15 @@ fn encodeKey(
         );
         defer alloc_writer.deinit();
 
-        // This results in a double allocation but this is such an unlikely
-        // path the performance impact is unimportant.
         try input.key_encode.encode(
             &alloc_writer.writer,
             event,
             encoding_opts,
         );
-        break :req try termio.Message.WriteReq.init(
-            self.alloc,
-            alloc_writer.writer.buffered(),
-        );
+        break :req .{ .alloc = .{
+            .alloc = self.alloc,
+            .data = try alloc_writer.toOwnedSlice(),
+        } };
     };
 
     // Copy the encoded data into the inspector event if we have one.
@@ -7715,10 +7726,10 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
         },
 
         .text => |data| {
-            // For text we always allocate just because its easier to
-            // handle all cases that way.
-            const buf = try self.alloc.alloc(u8, data.len);
-            defer self.alloc.free(buf);
+            var stack = std.heap.stackFallback(256, self.alloc);
+            const alloc = stack.get();
+            const buf = try alloc.alloc(u8, data.len);
+            defer alloc.free(buf);
             const text = configpkg.string.parse(buf, data) catch |err| {
                 log.warn(
                     "error parsing text binding text={s} err={}",
@@ -9218,8 +9229,8 @@ fn completeClipboardReadOSC52(
     // This must hold the base64 encoded data PLUS the OSC code surrounding it.
     const enc = std.base64.standard.Encoder;
     const size = enc.calcSize(data.len);
-    var buf = try self.alloc.alloc(u8, size + 9); // const for OSC
-    defer self.alloc.free(buf);
+    const buf = try self.alloc.alloc(u8, size + 9); // const for OSC
+    errdefer self.alloc.free(buf);
 
     const kind: u8 = switch (clipboard_type) {
         .standard => 'c',
@@ -9237,10 +9248,10 @@ fn completeClipboardReadOSC52(
     const encoded = enc.encode(buf[prefix.len..], data);
     assert(encoded.len == size);
 
-    self.queueIo(try termio.Message.writeReq(
-        self.alloc,
-        buf,
-    ), .unlocked);
+    self.queueIo(.{ .write_alloc = .{
+        .alloc = self.alloc,
+        .data = buf,
+    } }, .unlocked);
 }
 
 fn showDesktopNotification(self: *Surface, title: [:0]const u8, body: [:0]const u8) !void {

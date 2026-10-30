@@ -819,12 +819,12 @@ foreground: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
 /// The null character (U+0000) is always treated as a boundary and does not
 /// need to be included in this configuration.
 ///
-/// Default: `` \t'"│`|:;,()[]{}<>$ ``
+/// Default: ``\t '"│`|:;,()[]{}<>$``
 ///
 /// To add or remove specific characters, you can set this to a custom value.
 /// For example, to treat semicolons as part of words:
 ///
-///     selection-word-chars = " \t'\"│`|:,()[]{}<>$"
+///     selection-word-chars = "\t '\"│`|:,()[]{}<>$"
 ///
 /// Available since: 1.3.0
 @"selection-word-chars": SelectionWordChars = .{},
@@ -971,10 +971,10 @@ palette: Palette = .{},
 /// Enables the ability to move the cursor at prompts by clicking on a
 /// location in the prompt text.
 ///
-/// This feature requires shell integration, specifically prompt marking
-/// via `OSC 133`. Some shells like Fish (v4) and Nu (0.111+) natively
-/// support this while others may require additional configuration or
-/// Ghostty's shell integration features to be enabled.
+/// This feature requires prompt marking via `OSC 133`. Some shells like Fish
+/// (v4.1+) and Nu (0.111+) natively support this while others may require
+/// additional configuration or Ghostty's shell integration features to be
+/// enabled.
 ///
 /// Depending on the shell, this works either by translating your click
 /// position into a series of synthetic arrow key movements or by sending
@@ -1453,6 +1453,13 @@ input: RepeatableReadableIO = .{},
 ///
 /// This can be changed at runtime but will only affect new terminal surfaces.
 @"scrollback-limit": usize = 10_000_000, // 10MB
+
+/// Compatibility setting from upstream Ghostty, which uses it to compress
+/// scrollback pages while the terminal is idle.
+///
+/// This has no effect in the Windows-only fork, which does not compress
+/// scrollback.
+@"scrollback-compression": bool = true,
 
 /// Control when the scrollbar is shown to scroll the scrollback buffer.
 ///
@@ -2572,6 +2579,13 @@ keybind: Keybinds = .{},
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 @"window-titlebar-foreground": ?Color = null,
 
+/// Compatibility setting from upstream Ghostty's macOS and GTK apps, where it
+/// controls when drag handles are shown over splits. Valid values are
+/// `always`, `auto` and `never`.
+///
+/// This has no effect in the Windows-only fork.
+@"drag-handle": DragHandle = .auto,
+
 /// This controls when resize overlays are shown. Resize overlays are a
 /// transient popup that shows the size of the terminal while the surfaces are
 /// being resized. The possible options are:
@@ -3156,9 +3170,16 @@ keybind: Keybinds = .{},
 /// command-palette-entry = title:"noctty",description:"Add a little noctty to your terminal.",action:"text:\xf0\x9f\x91\xbb"
 /// ```
 ///
+/// There are some additional special values that can be specified for
+/// command-palette-entry:
+///
+///   * `command-palette-entry=clear` will clear all command entries. Warning: this
+///     removes ALL entries up to this point, including the default
+///     entries. Available since: 1.4.0
+///
 /// By default, the command palette is preloaded with most actions that might
 /// be useful in an interactive setting yet do not have easily accessible or
-/// memorizable shortcuts. The default entries can be cleared by setting this
+/// memorizable shortcuts. The default entries can be restored by setting this
 /// setting to an empty value:
 ///
 /// ```ini
@@ -3525,6 +3546,11 @@ keybind: Keybinds = .{},
 /// Retained compatibility setting from the removed GTK runtime.
 ///
 /// This has no effect in the Windows-only fork.
+@"gtk-tabs-inverted": bool = false,
+
+/// Retained compatibility setting from the removed GTK runtime.
+///
+/// This has no effect in the Windows-only fork.
 @"gtk-titlebar-hide-when-maximized": bool = false,
 
 /// Retained compatibility setting from the removed GTK runtime.
@@ -3541,6 +3567,11 @@ keybind: Keybinds = .{},
 ///
 /// This has no effect in the Windows-only fork.
 @"gtk-wide-tabs": bool = true,
+
+/// Retained compatibility setting from the removed GTK runtime.
+///
+/// This has no effect in the Windows-only fork.
+@"gtk-horizontal-tab-scroll": bool = true,
 
 /// Retained compatibility setting from the removed GTK runtime.
 ///
@@ -12005,9 +12036,16 @@ pub const RepeatableCommand = struct {
         alloc: Allocator,
         input_: ?[]const u8,
     ) !void {
-        // Unset or empty input clears the list
+        // Unset or empty input restores the default entries
         const input = input_ orelse "";
         if (input.len == 0) {
+            log.info("config has 'command-palette-entry =', using default entries", .{});
+            try self.init(alloc);
+            return;
+        }
+
+        if (std.mem.eql(u8, input, "clear")) {
+            log.info("config has 'command-palette-entry = clear', all command entries cleared", .{});
             self.value.clearRetainingCapacity();
             self.value_c.clearRetainingCapacity();
             return;
@@ -12155,8 +12193,11 @@ pub const RepeatableCommand = struct {
         try testing.expectEqualStrings("Baz", list.value.items[3].title);
         try testing.expectEqualStrings("Raspberry Pie", list.value.items[3].description);
 
-        try list.parseCLI(alloc, "");
+        try list.parseCLI(alloc, "clear");
         try testing.expectEqual(@as(usize, 0), list.value.items.len);
+
+        try list.parseCLI(alloc, "");
+        try testing.expectEqual(inputpkg.command.defaults.len, list.value.items.len);
     }
 
     test "RepeatableCommand formatConfig empty" {
@@ -12271,7 +12312,7 @@ pub const RepeatableCommand = struct {
         try list.parseCLI(alloc, "title:Foo,action:ignore");
         try testing.expectEqual(@as(usize, 1), list.cval().len);
 
-        try list.parseCLI(alloc, "");
+        try list.parseCLI(alloc, "clear");
         try testing.expectEqual(@as(usize, 0), list.cval().len);
     }
 };
@@ -12477,6 +12518,13 @@ pub const WindowNewTabPosition = enum {
 
 /// See window-show-tab-bar
 pub const WindowShowTabBar = enum {
+    always,
+    auto,
+    never,
+};
+
+/// See drag-handle
+pub const DragHandle = enum {
     always,
     auto,
     never,
@@ -13701,10 +13749,52 @@ test "clone command C view survives source config deinit" {
     try testing.expectEqualStrings("", std.mem.span(custom.description));
 
     // Clearing the palette must stay empty through another complete clone.
-    try copy.@"command-palette-entry".parseCLI(copy._arena.?.allocator(), "");
+    try copy.@"command-palette-entry".parseCLI(copy._arena.?.allocator(), "clear");
     var empty = try copy.clone(testing.allocator);
     defer empty.deinit();
     try testing.expectEqual(@as(usize, 0), empty.@"command-palette-entry".cval().len);
+}
+
+test "command-palette-entry in a config file: clear empties the palette, an empty value restores the defaults" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var cleared = try Config.default(alloc);
+    defer cleared.deinit();
+    var clear_reader: std.Io.Reader = .fixed(
+        "command-palette-entry = clear\ncommand-palette-entry = title:Custom,action:open_config\n",
+    );
+    try cleared.loadReader(alloc, &clear_reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(cleared._diagnostics.empty());
+    try testing.expectEqual(@as(usize, 1), cleared.@"command-palette-entry".cval().len);
+    try testing.expectEqualStrings("Custom", cleared.@"command-palette-entry".value.items[0].title);
+
+    var restored = try Config.default(alloc);
+    defer restored.deinit();
+    var restore_reader: std.Io.Reader = .fixed(
+        "command-palette-entry = clear\ncommand-palette-entry =\n",
+    );
+    try restored.loadReader(alloc, &restore_reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(restored._diagnostics.empty());
+    try testing.expectEqual(inputpkg.command.defaults.len, restored.@"command-palette-entry".cval().len);
+}
+
+test "a config shared with upstream 1.4 on macOS or Linux loads its platform keys without a problem" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var cfg = try Config.default(alloc);
+    defer cfg.deinit();
+    var reader: std.Io.Reader = .fixed(
+        "drag-handle = never\n" ++
+            "scrollback-compression = false\n" ++
+            "gtk-tabs-inverted = true\n" ++
+            "gtk-horizontal-tab-scroll = false\n",
+    );
+    try cfg.loadReader(alloc, &reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(cfg._diagnostics.empty());
+    try testing.expectEqual(DragHandle.never, cfg.@"drag-handle");
+    try testing.expect(!cfg.@"scrollback-compression");
 }
 
 test "default quit-after-last-window-closed is enabled in the Windows fork" {
