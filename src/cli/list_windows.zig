@@ -122,7 +122,7 @@ fn runArgsWithQuery(
     defer if (payload) |bytes| alloc.free(bytes);
 
     const json = payload orelse {
-        try stderr.print("No matching noctty instance is listening for automation queries.\n", .{});
+        try stderr.print("No matching Najm instance is listening for automation queries.\n", .{});
         return 2;
     };
 
@@ -288,7 +288,7 @@ test "automation-window-list cli reports missing instance" {
     try testing.expectEqual(@as(u8, 2), exit_code);
     try testing.expectEqualStrings("", stdout_buf.written());
     try testing.expectEqualStrings(
-        "No matching noctty instance is listening for automation queries.\n",
+        "No matching Najm instance is listening for automation queries.\n",
         stderr_buf.written(),
     );
 }

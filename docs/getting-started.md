@@ -65,7 +65,7 @@ checks are in [verify-release.md](verify-release.md).
 Extract the ZIP anywhere and run `noctty.exe`. SmartScreen may warn here too.
 Keep the folder together: `noctty.exe` needs the `share` folder next to it for
 themes, terminfo, and shell integration. `.\noctty.com +register-shell-menu`
-adds an "Open noctty here" entry to Explorer's right-click menu.
+adds an "Open Najm here" entry to Explorer's right-click menu.
 
 To keep config, state, and cache in that folder too, create an empty
 `noctty.portable` file beside `noctty.exe`; extraction alone does not enable

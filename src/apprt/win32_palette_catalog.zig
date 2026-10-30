@@ -99,9 +99,9 @@ pub const reviewed_help = [_]struct {
     keywords: []const u8,
 }{
     .{ .target = .keyboard_shortcuts, .title = "Keyboard shortcuts", .description = "Review keyboard navigation and bindings", .keywords = "keys keybindings commands" },
-    .{ .target = .settings, .title = "Open settings", .description = "Configure noctty", .keywords = "preferences options" },
-    .{ .target = .configuration, .title = "Configuration guide", .description = "Learn the noctty configuration format", .keywords = "config file syntax" },
-    .{ .target = .config_problems, .title = "Config problems", .description = "Show what noctty could not use from the config file", .keywords = "errors invalid unknown key theme font diagnostics validate" },
+    .{ .target = .settings, .title = "Open settings", .description = "Configure Najm", .keywords = "preferences options" },
+    .{ .target = .configuration, .title = "Configuration guide", .description = "Learn the Najm configuration format", .keywords = "config file syntax" },
+    .{ .target = .config_problems, .title = "Config problems", .description = "Show what Najm could not use from the config file", .keywords = "errors invalid unknown key theme font diagnostics validate" },
     .{ .target = .troubleshooting, .title = "Troubleshooting", .description = "Resolve common terminal problems", .keywords = "help repair support" },
     .{ .target = .diagnostics, .title = "Export diagnostics", .description = "Create a local redacted diagnostic bundle", .keywords = "logs debug bundle" },
     .{ .target = .accessibility, .title = "Accessibility", .description = "Keyboard, screen reader, contrast, and motion guidance", .keywords = "narrator nvda contrast reduced motion" },

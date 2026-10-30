@@ -159,13 +159,13 @@ pub fn runInner(
 
         if (cached) {
             try stdout.print(
-                "'{s}' has noctty terminfo installed.\n",
+                "'{s}' has Najm terminfo installed.\n",
                 .{host},
             );
             return 0;
         } else {
             try stdout.print(
-                "'{s}' does not have noctty terminfo installed.\n",
+                "'{s}' does not have Najm terminfo installed.\n",
                 .{host},
             );
             return 1;

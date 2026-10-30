@@ -205,7 +205,7 @@ fn runArgsWithPerform(
 
     if (ok) return 0;
 
-    try stderr.print("No matching noctty instance is listening for automation actions.\n", .{});
+    try stderr.print("No matching Najm instance is listening for automation actions.\n", .{});
     return 2;
 }
 

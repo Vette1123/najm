@@ -874,7 +874,7 @@ profile's command, its `profile-env` variables and its
 `profile-working-directory`; a profile without a directory of its own starts
 where `working-directory` and the `*-inherit-working-directory` settings say,
 as `command` does. A directory the launch asks for with `--working-directory`
-(Explorer's "Open noctty here", a jump-list recent folder, or the option on a
+(Explorer's "Open Najm here", a jump-list recent folder, or the option on a
 second `noctty` that hands its arguments to a running one), or the directory
 `najm +new-window` runs in, wins over the profile's
 `profile-working-directory`. A second `noctty` that names no directory (from
@@ -1153,7 +1153,7 @@ portable ZIP, run it yourself before deleting the folder.
 
 The three shared Microsoft `ITerminalHandoff` Interface mappings are
 snapshotted before noctty changes them. Unregistration restores each prior
-raw value only while that mapping still points to noctty's proxy, so a newer
+raw value only while that mapping still points to Najm's proxy, so a newer
 terminal's registration is preserved. A mapping that did not exist before
 registration is removed again, together with the `Interface\{IID}` key
 registration created for it, but only when nothing else has been added to
@@ -1283,7 +1283,7 @@ right-clicking its entries. See [App identity](#app-identity).
 | Folder background | `Directory\Background\shell\noctty` |
 | Drive             | `Drive\shell\noctty`                |
 
-Each verb is named `Open noctty here` and launches `noctty.exe` with
+Each verb is named `Open Najm here` and launches `noctty.exe` with
 `--single-instance=false --working-directory="%V\."`. The explicit new
 instance keeps the selected path in the launched process, so UNC folders do
 not cross the single-instance IPC boundary, which rejects UNC working
@@ -1953,7 +1953,7 @@ ending the process from being moved aside.
 The save at sign-out, shutdown or reboot is the last one: the sign-out also
 ends the shells, and the panes they leave are not saved over it. A launch that forwards
 to a running noctty, a window opened with `--working-directory` (Explorer's
-"Open noctty here" and the jump list's recent folders), with
+"Open Najm here" and the jump list's recent folders), with
 `--default-profile` (the jump list's user profiles and Visual Studio shells)
 or with `-e` or `initial-command`, the startup profile picker, a `--launch-layout` or
 `initial-window = false` run, a default terminal handoff and a second
@@ -2215,7 +2215,7 @@ process closes without saving and is not started again; the session owner
 brings the session back. No process saves or is started again in safe mode,
 when elevated through UAC, or with `window-save-state = never`. Ownership
 is per process: a process started with `--working-directory` (Explorer's
-"Open noctty here"), `-e` or `initial-command`, the startup profile picker,
+"Open Najm here"), `-e` or `initial-command`, the startup profile picker,
 `--launch-layout` or `initial-window = false`, or as a default terminal
 handoff, does not own the session, and windows forwarded into it are not
 saved either, but a later noctty started normally that does not forward to
@@ -2463,7 +2463,7 @@ The pipe accepts only processes running as the same user: it is created with
 owning token's SID alone, and a `NO_WRITE_UP` mandatory-integrity label at the
 process's exact integrity level. An elevated instance therefore refuses a
 non-elevated client of the same account at `CreateFileW` (`win32=5`); the
-client reports "No matching noctty instance is listening" and `+new-window`
+client reports "No matching Najm instance is listening" and `+new-window`
 starts its own instance instead. An elevated client still reaches the
 elevated instance.
 

@@ -19,7 +19,7 @@ if ($TimeoutSeconds -le 0) {
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $exePath = if ($ExePath) { $ExePath } else { Join-Path $repoRoot 'zig-out\bin\noctty.exe' }
-$expectedTitle = 'noctty CLI action failed'
+$expectedTitle = 'Najm CLI action failed'
 . (Join-Path $repoRoot 'scripts\interactive-win11-lib.ps1')
 
 if (-not (Test-Path $exePath)) {

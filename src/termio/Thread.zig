@@ -324,7 +324,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     io,
                     err,
                     null,
-                    "noctty encountered an IO-thread failure while running the requested command:",
+                    "Najm encountered an IO-thread failure while running the requested command:",
                     "The command or its terminal IO could not continue.",
                 );
             },
