@@ -466,11 +466,11 @@ pub const Section = enum(u32) {
         return switch (self) {
             .appearance => "Fonts, theme, opacity, cursor, and window padding.",
             .terminal => "Scrollback, closing, copying, and clipboard trimming.",
-            .shell => "The program a new tab starts, and how noctty works with your shell.",
+            .shell => "The program a new tab starts, and how Najm works with your shell.",
             .privacy => "What programs may do with your clipboard, links, and notifications.",
-            .updates => "Whether noctty checks for updates, and which releases it follows.",
+            .updates => "Whether Najm checks for updates, and which releases it follows.",
             .keybindings => "Key bindings are set in the config file. Open it here, or list the current bindings from a terminal.",
-            .advanced => "Open the config file in your text editor for settings that have no control here. The file Settings saves to, the problems found in the config, and changes you have not saved yet are listed below.",
+            .advanced => "Open the config file for settings with no control here. Below are the file Settings saves to, config problems, and unsaved changes.",
         };
     }
 };
@@ -1156,10 +1156,10 @@ const SCROLLINFO = extern struct {
 };
 
 const class_name = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings");
-const window_title = std.unicode.utf8ToUtf16LeStringLiteral("noctty settings");
+const window_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm settings");
 /// The title while there are edits to save, so the taskbar and Alt+Tab say so
 /// before the close prompt does. In words: a reader speaks the title.
-const window_title_unsaved = std.unicode.utf8ToUtf16LeStringLiteral("noctty settings (unsaved changes)");
+const window_title_unsaved = std.unicode.utf8ToUtf16LeStringLiteral("Najm settings (unsaved changes)");
 /// The child window that holds the form: it clips the fields to the band
 /// between the section header and the action bar, and owns the scroll bar.
 const viewport_class_name = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings.viewport");
@@ -8683,14 +8683,14 @@ test "settings an invalid field marks its rail section, the title and UIA" {
             for (std.enums.values(Section)) |section| {
                 try std.testing.expectEqual(Marker.none, settings.sectionProvider(section).?.markerState());
             }
-            try std.testing.expectEqualStrings("noctty settings", try titleOf(hwnd));
+            try std.testing.expectEqualStrings("Najm settings", try titleOf(hwnd));
 
             // An unsaved edit marks its own section and the title, not the others.
             _ = sys.SendMessageW(settings.fields.combo_confirm_close.?, CB_SETCURSEL, 2, 0);
             settings.syncCombo(.confirm_close);
             try std.testing.expectEqual(Marker.unsaved, settings.sectionProvider(.terminal).?.markerState());
             try std.testing.expectEqual(Marker.none, settings.sectionProvider(.appearance).?.markerState());
-            try std.testing.expectEqualStrings("noctty settings (unsaved changes)", try titleOf(hwnd));
+            try std.testing.expectEqualStrings("Najm settings (unsaved changes)", try titleOf(hwnd));
 
             // A half-typed number marks Appearance as unsaved, and as invalid
             // once its error is shown. The field says so too.
@@ -8714,7 +8714,7 @@ test "settings an invalid field marks its rail section, the title and UIA" {
             // The mark follows the section's own state through a discard.
             settings.discardChangesNow();
             try std.testing.expectEqual(Marker.none, settings.sectionProvider(.terminal).?.markerState());
-            try std.testing.expectEqualStrings("noctty settings", try titleOf(hwnd));
+            try std.testing.expectEqualStrings("Najm settings", try titleOf(hwnd));
         }
     }.body);
 }
@@ -9268,7 +9268,7 @@ test "settings Discard changes throws the draft away and keeps the window" {
             try std.testing.expectEqual(@as(u32, 0), fixture.closed);
             try std.testing.expectEqual(@as(u32, 0), fixture.saved);
             try std.testing.expectEqualStrings("Changes discarded.", try statusTextOf(settings, &buf));
-            try std.testing.expectEqualStrings("noctty settings", try titleOf(fixture.hwnd()));
+            try std.testing.expectEqualStrings("Najm settings", try titleOf(fixture.hwnd()));
 
             // The next edit replaces the note, as any outcome is replaced.
             _ = sys.SendMessageW(settings.fields.combo_cursor_style.?, CB_SETCURSEL, 2, 0);
@@ -11762,6 +11762,39 @@ test "settings Page Down, Page Up, Home and End page the form from a button, not
             try std.testing.expect(!settings.handleAccelerator(edit, WM_KEYDOWN, VK_HOME, 0));
             try std.testing.expect(settings.handleAccelerator(edit, WM_KEYDOWN, VK_NEXT, 0));
             try std.testing.expectEqual(paged, settings.content_scroll_y);
+        }
+    }.body);
+}
+
+test "settings every page's intro fits its two-line box at the smallest window" {
+    try dialog_test.onHiddenDesktop(struct {
+        fn body() !void {
+            const fixture = try dialog_test.Fixture.start();
+            defer fixture.finish();
+            const settings = &fixture.settings;
+            const hwnd = fixture.hwnd();
+            // The minimum size: WM_GETMINMAXINFO clamps it, and the box is
+            // narrowest there.
+            _ = sys.SetWindowPos(hwnd, null, 0, 0, 200, 200, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            const box = dialog_test.rectIn(hwnd, settings.text_summary.?);
+            const hdc = GetDC(hwnd) orelse return error.SkipZigTest;
+            defer _ = ReleaseDC(hwnd, hdc);
+            // Measured in the summary's own font, as it is drawn.
+            const previous = if (settings.secondary_font) |font| SelectObject(hdc, font) else null;
+            defer {
+                if (previous) |font| _ = SelectObject(hdc, font);
+            }
+            for (std.enums.values(Section)) |section| {
+                var buffer: [512:0]u16 = undefined;
+                const length = try std.unicode.utf8ToUtf16Le(&buffer, section.placeholderText());
+                buffer[length] = 0;
+                var measure: RECT = .{ .left = 0, .top = 0, .right = box.right - box.left, .bottom = 0 };
+                _ = DrawTextW(hdc, &buffer, @intCast(length), &measure, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+                if (measure.bottom > box.bottom - box.top) {
+                    std.debug.print("{s}: {d} px of text in a {d} px box\n", .{ @tagName(section), measure.bottom, box.bottom - box.top });
+                    return error.TestUnexpectedResult;
+                }
+            }
         }
     }.body);
 }

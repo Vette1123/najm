@@ -5480,8 +5480,8 @@ try {
         $settingsElement = Wait-AccessibilityWindowElement `
             -Hwnd $settingsHwnd `
             -Description "Settings cycle $settingsCycle"
-        if ($settingsElement.Current.Name -ne 'noctty settings') {
-            throw "Settings cycle $settingsCycle root name is '$($settingsElement.Current.Name)'; expected 'noctty settings'."
+        if ($settingsElement.Current.Name -ne 'Najm settings') {
+            throw "Settings cycle $settingsCycle root name is '$($settingsElement.Current.Name)'; expected 'Najm settings'."
         }
         $settingsClientRect = [NocttyAccessibilityNative]::ClientRectOnScreen($settingsHwnd)
         $settingsSectionNames = @('Appearance', 'Terminal', 'Shell', 'Privacy', 'Updates', 'Keybindings', 'Advanced')
