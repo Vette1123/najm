@@ -82,6 +82,7 @@ const showSearchBarResults = runtime.showSearchBarResults;
 const std = runtime.std;
 const syncWindowTextUtf8Cached = runtime.syncWindowTextUtf8Cached;
 const sys = runtime.sys;
+const edit_keys = @import("edit_keys.zig");
 const terminal = runtime.terminal;
 const terminalDisconnectThunk = runtime.terminalDisconnectThunk;
 const terminalReleaseThunk = runtime.terminalReleaseThunk;
@@ -262,6 +263,7 @@ fn searchEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callcon
             // dialog manager to take it.
             c.WM_CHAR => {
                 if (wParam == c.VK_RETURN or wParam == c.VK_ESCAPE or wParam == c.VK_TAB) return 0;
+                if (wParam == edit_keys.delete_word_char) return 0;
             },
             // The WM_SYSCHAR of Alt+R / Alt+C / Alt+W; see below.
             c.WM_SYSCHAR => {
@@ -283,6 +285,10 @@ fn searchEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callcon
                 // press is a WM_SYSKEYDOWN, so it never types; the paired
                 // WM_SYSCHAR is swallowed above.
                 if (msg == c.WM_SYSKEYDOWN and searchToggleKey(surface, wParam, lParam)) return 0;
+                // EN_CHANGE from the replacement runs the search again.
+                if (msg == c.WM_KEYDOWN and
+                    edit_keys.isDeleteWordKey(wParam, keyPressed(c.VK_CONTROL), keyPressed(c.VK_MENU)) and
+                    edit_keys.deletePreviousWord(hwnd)) return 0;
                 if (wParam == c.VK_RETURN) {
                     _ = surface.navigateDockedSearch(dockedSearchEnterDirection(keyPressed(c.VK_SHIFT))) catch |err| {
                         logUiActionError("docked search enter navigation failed", err);

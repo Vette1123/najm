@@ -31,6 +31,7 @@ const win32_icons = @import("win32_icons.zig");
 const themepkg = @import("../config/theme.zig");
 const focus_cue = @import("win32/focus_cue.zig");
 const win32_input = @import("win32/input.zig");
+const edit_keys = @import("win32/edit_keys.zig");
 const settings_transaction = @import("win32_settings_transaction.zig");
 const sys = @import("win32/sys.zig");
 const config_problems = @import("win32/config_problems.zig");
@@ -154,6 +155,7 @@ const DLGC_UNDEFPUSHBUTTON: LRESULT = 0x0020;
 const WM_GETDLGCODE: UINT = 0x0087;
 const DLGC_WANTARROWS: LRESULT = 0x0001;
 const DLGC_HASSETSEL: LRESULT = 0x0008;
+const VK_BACK: usize = 0x08;
 const VK_PRIOR: usize = 0x21;
 const VK_NEXT: usize = 0x22;
 const VK_END: usize = 0x23;
@@ -286,6 +288,7 @@ const EDIT_PAD_X: usize = nativeFieldId("edit_pad_x");
 const EDIT_PAD_Y: usize = nativeFieldId("edit_pad_y");
 const EDIT_THEME: usize = nativeFieldId("edit_theme");
 const ES_NUMBER: u32 = 0x2000;
+const ES_READONLY: u32 = 0x0800;
 const ES_AUTOHSCROLL: u32 = 0x80;
 const EN_CHANGE: u16 = 0x0300;
 const EN_KILLFOCUS: u16 = 0x0200;
@@ -2460,7 +2463,7 @@ pub const SettingsWindow = struct {
         // Cheapest test first: this runs for every message while Settings is open.
         if (msg != WM_KEYDOWN) return false;
         if (wParam != 'S' and wParam != 'F' and wParam != VK_RETURN and wParam != VK_ESCAPE and wParam != VK_DELETE and
-            (wParam < VK_PRIOR or wParam > VK_HOME)) return false;
+            wParam != VK_BACK and (wParam < VK_PRIOR or wParam > VK_HOME)) return false;
         const hwnd = self.hwnd orelse return false;
         const control = target orelse return false;
         if (control != hwnd and IsChild(hwnd, control) == 0) return false;
@@ -2512,6 +2515,14 @@ pub const SettingsWindow = struct {
                 const row = self.rowOfWindow(control) orelse return false;
                 if (!repeat) self.resetRow(row);
                 return true;
+            },
+            VK_BACK => {
+                // Taken before TranslateMessage, so no U+007F follows.
+                if (!edit_keys.isDeleteWordKey(wParam, win32_input.keyPressed(VK_CONTROL), win32_input.keyPressed(VK_MENU))) return false;
+                if (pagingKeyOwner(control) != .text) return false;
+                const style: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(control, GWL_STYLE))));
+                if (style & ES_READONLY != 0) return false;
+                return edit_keys.deletePreviousWord(control);
             },
             VK_PRIOR, VK_NEXT, VK_HOME, VK_END => {
                 if (self.viewport == null) return false;
