@@ -279,16 +279,10 @@ pub const StreamHandler = struct {
                 @branchHint(.likely);
                 self.terminal.setCursorPos(value.row, value.col);
             },
-            .cursor_col => self.terminal.setCursorPos(self.terminal.screens.active.cursor.y + 1, value.value),
-            .cursor_row => self.terminal.setCursorPos(value.value, self.terminal.screens.active.cursor.x + 1),
-            .cursor_col_relative => self.terminal.setCursorPos(
-                self.terminal.screens.active.cursor.y + 1,
-                self.terminal.screens.active.cursor.x + 1 +| value.value,
-            ),
-            .cursor_row_relative => self.terminal.setCursorPos(
-                self.terminal.screens.active.cursor.y + 1 +| value.value,
-                self.terminal.screens.active.cursor.x + 1,
-            ),
+            .cursor_col => self.terminal.setCursorCol(value.value),
+            .cursor_row => self.terminal.setCursorRow(value.value),
+            .cursor_col_relative => self.terminal.cursorColRelative(value.value),
+            .cursor_row_relative => self.terminal.cursorRowRelative(value.value),
             .cursor_style => try self.setCursorStyle(value),
             .erase_display_below => self.terminal.eraseDisplay(.below, value),
             .erase_display_above => self.terminal.eraseDisplay(.above, value),
@@ -322,6 +316,10 @@ pub const StreamHandler = struct {
                     return err;
                 };
                 self.semantic_output.resetForFullReset();
+            },
+            .soft_reset => {
+                self.terminal.softReset();
+                try self.setCursorStyle(.default);
             },
             .set_mode => try self.setMode(value.mode, true),
             .reset_mode => try self.setMode(value.mode, false),
@@ -418,7 +416,7 @@ pub const StreamHandler = struct {
             .dcs_put => try self.dcsPut(value),
             .dcs_unhook => try self.dcsUnhook(),
             .apc_start => self.apc.start(),
-            .apc_end => try self.apcEnd(),
+            .apc_end => try self.apcEnd(value.terminated),
             .apc_put => self.apc.feed(self.alloc, value),
 
             // Unimplemented
@@ -603,9 +601,16 @@ pub const StreamHandler = struct {
         }
     }
 
-    pub fn apcEnd(self: *StreamHandler) !void {
+    /// Finish the current APC and run its command. `terminated` is false
+    /// when the APC was cancelled or aborted, and then nothing runs.
+    pub fn apcEnd(self: *StreamHandler, terminated: bool) !void {
         var cmd = self.apc.end() orelse return;
         defer cmd.deinit(self.alloc);
+
+        // ECMA-48 says a cancelled or aborted string is thrown away, so
+        // its command must not run. end() above still resets the APC
+        // handler and frees what it collected.
+        if (!terminated) return;
 
         // log.warn("APC command: {}", .{cmd});
         switch (cmd) {
@@ -709,7 +714,7 @@ pub const StreamHandler = struct {
     }
 
     fn requestModeUnknown(self: *StreamHandler, mode_raw: u16, ansi: bool) !void {
-        self.sendModeReport(self.terminal.modes.getReport(.{ .value = @truncate(mode_raw), .ansi = ansi }));
+        self.sendModeReport(self.terminal.modes.getReport(.{ .value = mode_raw, .ansi = ansi }));
     }
 
     fn sendModeReport(self: *StreamHandler, report: terminal.modes.Report) void {
@@ -945,6 +950,18 @@ pub const StreamHandler = struct {
         }
     }
 
+    /// The cursor position for a CPR/DECXCPR report, honoring origin mode
+    /// (relative to the scrolling region when DECOM is set).
+    fn cursorReportPos(self: *StreamHandler) struct { x: usize, y: usize } {
+        return if (self.terminal.modes.get(.origin)) .{
+            .x = self.terminal.screens.active.cursor.x -| self.terminal.scrolling_region.left,
+            .y = self.terminal.screens.active.cursor.y -| self.terminal.scrolling_region.top,
+        } else .{
+            .x = self.terminal.screens.active.cursor.x,
+            .y = self.terminal.screens.active.cursor.y,
+        };
+    }
+
     pub fn deviceStatusReport(
         self: *StreamHandler,
         req: terminal.device_status.Request,
@@ -953,22 +970,28 @@ pub const StreamHandler = struct {
             .operating_status => self.messageWriter(.{ .write_stable = "\x1B[0n" }),
 
             .cursor_position => {
-                const pos: struct {
-                    x: usize,
-                    y: usize,
-                } = if (self.terminal.modes.get(.origin)) .{
-                    .x = self.terminal.screens.active.cursor.x -| self.terminal.scrolling_region.left,
-                    .y = self.terminal.screens.active.cursor.y -| self.terminal.scrolling_region.top,
-                } else .{
-                    .x = self.terminal.screens.active.cursor.x,
-                    .y = self.terminal.screens.active.cursor.y,
-                };
+                const pos = self.cursorReportPos();
 
                 // Response always is at least 4 chars, so this leaves the
                 // remainder for the row/column as base-10 numbers. This
                 // will support a very large terminal.
                 var msg: termio.Message = .{ .write_small = .{} };
                 const resp = try std.fmt.bufPrint(&msg.write_small.data, "\x1B[{};{}R", .{
+                    pos.y + 1,
+                    pos.x + 1,
+                });
+                msg.write_small.len = @intCast(resp.len);
+
+                self.messageWriter(msg);
+            },
+
+            // DECXCPR: extended cursor position adds a page number. Ghostty has
+            // no page memory, so the page is always 1.
+            .cursor_position_extended => {
+                const pos = self.cursorReportPos();
+
+                var msg: termio.Message = .{ .write_small = .{} };
+                const resp = try std.fmt.bufPrint(&msg.write_small.data, "\x1B[?{};{};1R", .{
                     pos.y + 1,
                     pos.x + 1,
                 });
@@ -1650,6 +1673,7 @@ pub const StreamHandler = struct {
             .csi_14_t => self.messageWriter(.{ .size_report = .csi_14_t }),
             .csi_16_t => self.messageWriter(.{ .size_report = .csi_16_t }),
             .csi_18_t => self.messageWriter(.{ .size_report = .csi_18_t }),
+            .csi_19_t => self.messageWriter(.{ .size_report = .csi_19_t }),
             .csi_21_t => self.surfaceMessageWriter(.{ .report_title = .csi_21_t }),
         }
     }
@@ -1757,15 +1781,19 @@ pub const StreamHandler = struct {
         cmd: terminal.osc.Command.ProgramStatus,
     ) void {
         switch (cmd) {
-            // The reply is always the same fixed bytes, ended the way the
-            // query was. The specification never allows sending anything a
-            // program reported back to it.
-            .query => |terminator| self.messageWriter(.{
-                .write_stable = switch (terminator) {
-                    .st => "\x1b]7501;?\x1b\\",
-                    .bel => "\x1b]7501;?\x07",
-                },
-            }),
+            // The reply is always the same fixed bytes, `?` and the lists
+            // of states and kinds we accept, ended the way the query was.
+            // The specification never allows sending anything a program
+            // reported back to it.
+            .query => |terminator| {
+                const reply = "\x1b]7501;" ++ terminal.osc.program_status.query_reply;
+                self.messageWriter(.{
+                    .write_stable = switch (terminator) {
+                        .st => reply ++ "\x1b\\",
+                        .bel => reply ++ "\x07",
+                    },
+                });
+            },
 
             .report => |report| {
                 const data = apprt.surface.Message.WriteReq.init(
@@ -2802,13 +2830,16 @@ test "OSC 7501 answers the query once and forwards reports, prompts and resets" 
     try h.init(alloc, .{ .seen_title = false });
     defer h.deinit(alloc);
 
-    // The query gets exactly one fixed reply, ended the way it was, and
-    // the surface hears nothing.
+    // The query gets exactly one fixed reply, `?` and the states and
+    // kinds we accept, ended the way it was, and the surface hears
+    // nothing.
+    const reply = "\x1b]7501;?:states=idle,working,done,blocked,error" ++
+        ":kinds=permission,question,auth";
     h.stream.nextSlice("\x1b]7501;?\x1b\\");
-    try std.testing.expectEqualStrings("\x1b]7501;?\x1b\\", popProgramStatusTestWrite(&h.termio_mailbox).?);
+    try std.testing.expectEqualStrings(reply ++ "\x1b\\", popProgramStatusTestWrite(&h.termio_mailbox).?);
     try std.testing.expect(popProgramStatusTestWrite(&h.termio_mailbox) == null);
     h.stream.nextSlice("\x1b]7501;?\x07");
-    try std.testing.expectEqualStrings("\x1b]7501;?\x07", popProgramStatusTestWrite(&h.termio_mailbox).?);
+    try std.testing.expectEqualStrings(reply ++ "\x07", popProgramStatusTestWrite(&h.termio_mailbox).?);
     try std.testing.expect(popProgramStatusTestWrite(&h.termio_mailbox) == null);
     try std.testing.expect(h.nextSurfaceMessage() == null);
 
@@ -2893,4 +2924,122 @@ test "OSC 22 with an empty shape gives the pointer back" {
     h.stream.nextSlice("\x1b]22;\x1b\\");
     try std.testing.expectEqual(@as(?terminal.MouseShape, .default), S.nextShape(h.app_queue));
     try std.testing.expect(S.nextShape(h.app_queue) == null);
+}
+
+test "DECRQM answers a mode past 15 bits as not recognized" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    // Cut to 15 bits, these would read wraparound (7) and insert (4).
+    h.stream.nextSlice("\x1b[?32775$p");
+    try expectIssue149Write(&h.termio_mailbox, "\x1b[?32775;0$y");
+    h.stream.nextSlice("\x1b[4h\x1b[32772$p");
+    try expectIssue149Write(&h.termio_mailbox, "\x1b[32772;0$y");
+    h.stream.nextSlice("\x1b[4$p");
+    try expectIssue149Write(&h.termio_mailbox, "\x1b[4;1$y");
+}
+
+test "DECXCPR reports the cursor position with page 1" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    h.stream.nextSlice("\x1b[5;3H\x1b[?6n");
+    try expectIssue149Write(&h.termio_mailbox, "\x1b[?5;3;1R");
+
+    // In origin mode the position is relative to the scrolling region.
+    h.stream.nextSlice("\x1b[5;20r\x1b[?6h\x1b[3;5H\x1b[?6n");
+    try expectIssue149Write(&h.termio_mailbox, "\x1b[?3;5;1R");
+}
+
+test "DECRQSS SGR reports the underline style and overline" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    h.stream.nextSlice("\x1b[4:3;53m\x1bP$qm\x1b\\");
+    try expectIssue149Write(&h.termio_mailbox, "\x1bP1$r0;4:3;53m\x1b\\");
+
+    // Every attribute and two direct colors still fit the reply buffer.
+    h.stream.nextSlice("\x1b[0;1;2;3;4:5;53;5;7;8;9;38:2::255:255:255;48:2::255:255:255m\x1bP$qm\x1b\\");
+    try expectIssue149Write(&h.termio_mailbox, "\x1bP1$r0;1;2;3;4:5;53;5;7;8;9;38:2::255:255:255;48:2::255:255:255m\x1b\\");
+}
+
+test "DECSTR restores the configured cursor style and keeps the screen" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    h.stream.nextSlice("hello\x1b[4h\x1b[?6h\x1b[6 q\x1b[3;4H\x1b[!p");
+    try std.testing.expect(!h.term.modes.get(.insert));
+    try std.testing.expect(!h.term.modes.get(.origin));
+    try std.testing.expectEqual(terminal.CursorStyle.block, h.term.screens.active.cursor.cursor_style);
+    try std.testing.expect(h.term.modes.get(.cursor_blinking));
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 3), h.term.screens.active.cursor.x);
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 2), h.term.screens.active.cursor.y);
+
+    const str = try h.term.plainString(alloc);
+    defer alloc.free(str);
+    try std.testing.expectEqualStrings("hello", str);
+}
+
+test "CHA, VPA, HPR and VPR stay relative to the margins in origin mode" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    // Margins rows 3-8 and columns 4-9, origin mode, cursor at 2;2 in
+    // the region (absolute row 3, column 4, both 0-based).
+    h.stream.nextSlice("\x1b[?69h\x1b[3;8r\x1b[4;9s\x1b[?6h\x1b[2;2H");
+    const cursor = &h.term.screens.active.cursor;
+
+    h.stream.nextSlice("\x1b[1G");
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 3), cursor.x);
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 3), cursor.y);
+
+    h.stream.nextSlice("\x1b[1d");
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 3), cursor.x);
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 2), cursor.y);
+
+    h.stream.nextSlice("\x1b[2a\x1b[2e");
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 5), cursor.x);
+    try std.testing.expectEqual(@as(terminal.size.CellCountInt, 4), cursor.y);
+}
+
+test "CSI 19 t asks for the size in characters" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+
+    h.stream.nextSlice("\x1b[19t");
+    const message = switch (h.termio_mailbox) {
+        .spsc => |*value| value.queue.pop() orelse return error.NoTermioMessage,
+    };
+    try std.testing.expectEqual(termio.Message.SizeReport.csi_19_t, message.size_report);
+}
+
+test "a cancelled or aborted Kitty graphics APC runs nothing" {
+    const alloc = std.testing.allocator;
+    var h: TestStream = undefined;
+    try h.init(alloc, .{});
+    defer h.deinit(alloc);
+    const storage = &h.term.screens.active.kitty_images;
+
+    // CAN and SUB cancel the APC, and CSI (0x9B) aborts it.
+    for ([_][]const u8{ "\x18", "\x1a", "\x9b" }) |ending| {
+        h.stream.nextSlice("\x1b_Ga=t,f=24,s=1,v=1,i=7,q=2;AAAA");
+        h.stream.nextSlice(ending);
+        try std.testing.expect(storage.imageById(7) == null);
+    }
+
+    // The same command ended by ST stores the image.
+    h.stream.nextSlice("\x1b_Ga=t,f=24,s=1,v=1,i=7,q=2;AAAA\x1b\\");
+    try std.testing.expect(storage.imageById(7) != null);
 }
