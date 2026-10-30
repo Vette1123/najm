@@ -7235,7 +7235,6 @@ comptime {
     // Tab visual-state helpers.
     _ = win32_tab_visual.CloseState;
     _ = win32_tab_visual.easeInOutCubic;
-    _ = win32_tab_visual.closeHitRect;
 }
 
 /// Scan argv for a `wgh://activate?...` entry. Malformed activation
@@ -11530,7 +11529,13 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                     const down_y = signedHighWord(lParamBits(lParam));
                     var btn_rect: RECT = undefined;
                     _ = sys.GetClientRect(hwnd, &btn_rect);
-                    const close_left = btn_rect.right - v.scaled(host_tab_close_zone_width);
+                    const close_alpha = v.tabCloseAlpha(
+                        hwnd,
+                        v.isActiveChromeButton(hwnd),
+                        v.isHoveredButton(hwnd),
+                        sys.GetTickCount64(),
+                    );
+                    const close_left = tabCloseDownLeft(btn_rect, v.scaled(host_tab_close_zone_width), close_alpha);
                     if (tabButtonCloseHit(down_x, down_y, close_left, v.tabContentTopInset()) and tabCloseAction(v.tabs.items.len) != .none) {
                         // Click in close zone — capture for mouseup but don't start drag
                         _ = sys.SetCapture(hwnd);
@@ -12717,6 +12722,36 @@ pub fn desiredTabIndex(total: usize, current: usize, goto: apprt.action.GotoTab)
 
 fn tabButtonCloseHit(x: i32, y: i32, close_left: i32, close_top: i32) bool {
     return x >= close_left and y >= close_top;
+}
+
+/// Left edge of the close zone a mouse-down hits: only as wide as the X
+/// is visible (`Host.tabCloseAlpha`), so an idle tab's hidden X never
+/// closes it. Mouse-up keeps the full zone: it closes only after a
+/// mouse-down that landed in this one.
+fn tabCloseDownLeft(button: RECT, zone_width: i32, alpha: f32) i32 {
+    return win32_tab_visual.closeHitRect(
+        .{ .left = button.left, .top = button.top, .right = button.right, .bottom = button.bottom },
+        alpha,
+        zone_width,
+    ).left;
+}
+
+test "a tap on an idle tab's hidden close X activates the tab instead of closing it" {
+    const button: RECT = .{ .left = 0, .top = 0, .right = 200, .bottom = 32 };
+    const zone: i32 = 22;
+    const x: i32 = 195; // inside the full close zone
+    // Idle tab: the X is not painted, so the down starts a drag/activate.
+    try std.testing.expect(!tabButtonCloseHit(x, 10, tabCloseDownLeft(button, zone, 0.0), 0));
+    try std.testing.expectEqual(
+        TabButtonMouseUpAction.activate,
+        tabButtonMouseUpAction(0, false, x, 10, 200 - zone, 0, 3),
+    );
+    // Active or fully hovered tab: the whole zone closes.
+    try std.testing.expectEqual(@as(i32, 200 - zone), tabCloseDownLeft(button, zone, 1.0));
+    try std.testing.expect(tabButtonCloseHit(x, 10, tabCloseDownLeft(button, zone, 1.0), 0));
+    // Mid-fade: the zone grows from the right edge with the X.
+    const half = tabCloseDownLeft(button, zone, 0.5);
+    try std.testing.expect(half > 200 - zone and half < 200);
 }
 
 test "TABGAP added top rows exclude the close zone on mouse down and up" {

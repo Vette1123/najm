@@ -8174,6 +8174,29 @@ pub const Host = struct {
         self.drawTitlebarGlyph(draw.hDC, draw.rcItem, glyph, visual.glyph, false);
     }
 
+    /// The alpha a tab's close X is painted with. The strip's mouse-down
+    /// reads the same value, so the close zone takes a click only as far
+    /// as the X shows (`win32_tab_visual.closeHitRect`): a touch or pen
+    /// tap on an idle tab, whose hover fade has only just started,
+    /// activates it instead of closing it unseen.
+    pub fn tabCloseAlpha(self: *Host, child: HWND, active: bool, hovered: bool, now_ms: u64) f32 {
+        // Two animation slots: the incoming hover target
+        // (`tab_close_hover_*` fades 0 → 1) and the departing tab
+        // on adjacent transitions (`tab_close_prev_*` fades
+        // 1 → 0). Tabs that match neither slot use alpha 0 for
+        // idle and 1 for active.
+        if (active) return 1.0;
+        if (self.tab_close_hover_hwnd) |target| {
+            if (target == child) return self.tab_close_hover.alphaAt(now_ms);
+        }
+        if (self.tab_close_prev_hwnd) |target| {
+            if (target == child) return self.tab_close_prev.alphaAt(now_ms);
+        }
+        // Hovered but not via CloseState (e.g. first paint).
+        if (hovered) return 1.0;
+        return 0.0;
+    }
+
     pub fn drawButton(self: *Host, draw: *const DRAWITEMSTRUCT) void {
         if (draw.CtlType != c.ODT_BUTTON) return;
         self.ensureThemeBrushes() catch return;
@@ -8426,26 +8449,7 @@ pub const Host = struct {
         // hover treatment. On non-hovered + non-active tabs the alpha
         // drops to 0 so the X vanishes entirely.
         if (can_close_tab) {
-            const now = sys.GetTickCount64();
-            // Two animation slots: the incoming hover target
-            // (`tab_close_hover_*` fades 0 → 1) and the departing tab
-            // on adjacent transitions (`tab_close_prev_*` fades
-            // 1 → 0). Tabs that match neither slot use alpha 0 for
-            // idle and 1 for active.
-            const is_hover_target = self.tab_close_hover_hwnd != null and
-                self.tab_close_hover_hwnd.? == draw.hwndItem;
-            const is_prev_target = self.tab_close_prev_hwnd != null and
-                self.tab_close_prev_hwnd.? == draw.hwndItem;
-            const alpha: f32 = if (active)
-                1.0
-            else if (is_hover_target)
-                self.tab_close_hover.alphaAt(now)
-            else if (is_prev_target)
-                self.tab_close_prev.alphaAt(now)
-            else if (hovered)
-                1.0 // hovered but not via CloseState (e.g. first paint)
-            else
-                0.0;
+            const alpha = self.tabCloseAlpha(draw.hwndItem, active, hovered, sys.GetTickCount64());
             if (alpha > 0.01) {
                 const close_glyph = comptime std.unicode.utf8ToUtf16LeStringLiteral("\u{00D7}"); // ×
                 const close_fg_full = colors.fg;
