@@ -2269,6 +2269,15 @@ drag-and-drop path, so a match carrying shell metacharacters,
 environment-variable expansion, or control bytes raises the paste
 confirmation.
 
+A Ctrl+click (or Ctrl in quick select) opens an `http`, `https` or `mailto`
+link at once. A link with one of the other schemes noctty opens (`ftp`,
+`ssh`, `git`, `tel`, `magnet`, `ipfs`, `ipns`, `gemini`, `gopher`, `news`)
+asks first: the prompt shows the exact link and the app currently set to
+open it (or says no app is set), and starts on Cancel. Windows opens the
+link with whatever app is set when you accept. A Ctrl+click on a `file:`
+link to this machine follows the path rules below. Links with any other
+scheme are not opened.
+
 The same matcher finds paths for Ctrl+click links and double-click selection:
 `C:\dir\file`, `C:/dir/file`, `\\server\share\file`, `.\file` and
 `dir\file.ext`, with an optional `:line:col` or `(line,col)`. A path ends at

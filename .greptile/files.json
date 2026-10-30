@@ -213,7 +213,8 @@
         "src/config/windows_visual_studio.zig",
         "src/apprt/win32_elevation.zig",
         "src/cli/list_profiles.zig",
-        "src/config/command.zig"
+        "src/config/command.zig",
+        "src/apprt/win32/labels.zig"
       ]
     },
     {
@@ -342,7 +343,9 @@
         "src/terminal/search/Thread.zig",
         "scripts/windows-harness-history.ps1",
         "src/apprt/win32/test_support.zig",
-        "src/apprt/win32/registry.zig"
+        "src/apprt/win32/registry.zig",
+        "src/apprt/win32_compositor_native.zig",
+        "src/apprt/win32/sys.zig"
       ]
     },
     {
