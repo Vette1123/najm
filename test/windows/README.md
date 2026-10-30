@@ -123,7 +123,7 @@ Runs a Noctty CLI action through `cmd.exe` or PowerShell and verifies its
 exit code plus expected redirected text.
 
 ```powershell
-pwsh -NoProfile -File .\cli-shell-command.ps1 -Shell cmd -Arguments +help -ExpectedText 'Usage: noctty'
+pwsh -NoProfile -File .\cli-shell-command.ps1 -Shell cmd -Arguments +help -ExpectedText 'Usage: najm'
 ```
 
 ## cli-redirected-text-action.ps1
@@ -132,7 +132,7 @@ Runs a GUI-subsystem CLI action with redirected stdout/stderr and verifies
 clean, bounded text-mode completion. Wired into `package-portable-cli.ps1`.
 
 ```powershell
-pwsh -NoProfile -File .\cli-redirected-text-action.ps1 -Action +help -ExpectedText 'Usage: noctty'
+pwsh -NoProfile -File .\cli-redirected-text-action.ps1 -Action +help -ExpectedText 'Usage: najm'
 ```
 
 ## cli-detached-action.ps1

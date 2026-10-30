@@ -211,7 +211,7 @@ if ($Binary) {
 Assert-InteractiveWin11ExeExists -ExePath $exePath
 $commandPath = Join-Path (Split-Path -Parent $exePath) 'noctty.com'
 $versionText = & $commandPath +version | Out-String
-if ($LASTEXITCODE -ne 0) { throw "noctty +version failed with exit code $LASTEXITCODE" }
+if ($LASTEXITCODE -ne 0) { throw "najm +version failed with exit code $LASTEXITCODE" }
 if ($versionText -notmatch 'custom shaders: enabled') {
     throw 'The current executable does not include custom shader support. Re-run with -Rebuild.'
 }

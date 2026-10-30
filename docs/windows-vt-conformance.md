@@ -69,7 +69,7 @@ The generation boundary is
 
 The packaged noctty pair is v2. The first Windows build whose _in-box_ conhost
 contains v2 could not be verified; do not infer the generation from the OS
-build number. Use `noctty +version` or the diagnostic-bundle manifest to see
+build number. Use `najm +version` or the diagnostic-bundle manifest to see
 which source noctty selected.
 
 The redistributable covers only consoles noctty hosts itself. A nested console
@@ -181,7 +181,7 @@ leave cells behind, so ask about a window resize or a pane-divider drag before
 treating such a report as a pure terminal bug.
 
 To separate the two sides, run the same scenario twice on a current build: once
-as shipped (bundled; confirm with the `ConPTY` line in `noctty +version`) and
+as shipped (bundled; confirm with the `ConPTY` line in `najm +version`) and
 once with `NOCTTY_CONPTY=inbox`. Reproducing only under `inbox` implicates the
 in-box **path**, which is not the same as implicating the transport: the in-box
 stream shape reaches terminal code the bundled stream never exercises (CUF at

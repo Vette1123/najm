@@ -1,6 +1,6 @@
 #requires -Version 7.0
 <#
-Hidden-desktop check of `noctty +list-profiles` (LIST-PROFILES) against a real portable build: that the
+Hidden-desktop check of `najm +list-profiles` (LIST-PROFILES) against a real portable build: that the
 command reads the configuration and the environment it is given, lists the profiles with the order and
 the hidden state that configuration asks for (the picker's rules, `arrangeProfiles`, are unit-tested in
 windows_shell.zig), and never prints a command line, an environment value or a working directory.

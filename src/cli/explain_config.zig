@@ -11,12 +11,12 @@ const Pager = @import("Pager.zig");
 pub const Options = struct {
     /// The config option to explain. For example:
     ///
-    ///   noctty +explain-config --option=font-size
+    ///   najm +explain-config --option=font-size
     option: ?[]const u8 = null,
 
     /// The keybind action to explain. For example:
     ///
-    ///   noctty +explain-config --keybind=copy_to_clipboard
+    ///   najm +explain-config --keybind=copy_to_clipboard
     keybind: ?[]const u8 = null,
 
     pub fn deinit(self: Options) void {
@@ -35,10 +35,10 @@ pub const Options = struct {
 ///
 /// Examples:
 ///
-///   noctty +explain-config font-size
-///   noctty +explain-config copy_to_clipboard
-///   noctty +explain-config --option=font-size
-///   noctty +explain-config --keybind=copy_to_clipboard
+///   najm +explain-config font-size
+///   najm +explain-config copy_to_clipboard
+///   najm +explain-config --option=font-size
+///   najm +explain-config --keybind=copy_to_clipboard
 ///
 /// Flags:
 ///
@@ -78,9 +78,9 @@ pub fn run(alloc: Allocator) !u8 {
         var stderr: std.fs.File = .stderr();
         var buffer: [4096]u8 = undefined;
         var stderr_writer = stderr.writerStreaming(&buffer);
-        try stderr_writer.interface.writeAll("Usage: noctty +explain-config <option>\n");
-        try stderr_writer.interface.writeAll("       noctty +explain-config --option=<option>\n");
-        try stderr_writer.interface.writeAll("       noctty +explain-config --keybind=<action>\n");
+        try stderr_writer.interface.writeAll("Usage: najm +explain-config <option>\n");
+        try stderr_writer.interface.writeAll("       najm +explain-config --option=<option>\n");
+        try stderr_writer.interface.writeAll("       najm +explain-config --keybind=<action>\n");
         try stderr_writer.interface.flush();
         return 1;
     };

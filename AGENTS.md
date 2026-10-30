@@ -263,7 +263,7 @@ that govern each symbol you change, or that none does.
   safe mode's
   `cmd.exe /D`, `CreateProcessW` name resolution, Git Bash discovery, WSL
   (`wsl_env.zig`, the terminfo probe and its cache, `TERM`), the terminfo
-  install (`win32_terminfo.zig`), `noctty +list-profiles`
+  install (`win32_terminfo.zig`), `najm +list-profiles`
   (`src/cli/list_profiles.zig`, which applies the system color scheme through
   `os/color_scheme.zig`), what a log line may print of a command, an
   argument, an environment value or a directory (`os/redact.zig`,

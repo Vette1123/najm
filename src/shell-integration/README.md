@@ -14,12 +14,12 @@ README or the public noctty repository documentation
 
 | Shell | Automatic injection | Prompt / cwd marks | `ssh-env` | `ssh-terminfo` |
 | --- | --- | --- | --- | --- |
-| Bash | Yes, via POSIX `ENV` wrapper | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `noctty +ssh-cache` |
-| Zsh | Yes, via temporary `ZDOTDIR` | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `noctty +ssh-cache` |
-| Fish | Yes, via `XDG_DATA_DIRS` vendor config | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `noctty +ssh-cache` |
-| Nushell | Yes, via `XDG_DATA_DIRS` vendor autoload plus `use ghostty *` | Shell-native where available | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `noctty +ssh-cache` |
-| Elvish | Available as distributed module | Shell-native where available | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `noctty +ssh-cache` |
-| PowerShell | Yes on Windows for interactive `powershell.exe` / `pwsh.exe` | OSC 7 + OSC 133 | Yes | Cache-aware only: uses `xterm-ghostty` for hosts already present in `noctty +ssh-cache`, otherwise falls back to `xterm-256color` |
+| Bash | Yes, via POSIX `ENV` wrapper | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `najm +ssh-cache` |
+| Zsh | Yes, via temporary `ZDOTDIR` | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `najm +ssh-cache` |
+| Fish | Yes, via `XDG_DATA_DIRS` vendor config | Yes | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `najm +ssh-cache` |
+| Nushell | Yes, via `XDG_DATA_DIRS` vendor autoload plus `use ghostty *` | Shell-native where available | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `najm +ssh-cache` |
+| Elvish | Available as distributed module | Shell-native where available | Yes | Installs remote `xterm-ghostty` terminfo with local `infocmp`, remote `tic`, and `najm +ssh-cache` |
+| PowerShell | Yes on Windows for interactive `powershell.exe` / `pwsh.exe` | OSC 7 + OSC 133 | Yes | Cache-aware only: uses `xterm-ghostty` for hosts already present in `najm +ssh-cache`, otherwise falls back to `xterm-256color` |
 | cmd.exe | Yes on Windows for interactive launches via `PROMPT`; `CLINK_PATH` exposes the optional script to active Clink | OSC 9;9 + OSC 133 A/B; active Clink adds OSC 133 C/D | No | No |
 
 ### Bash
@@ -384,7 +384,7 @@ When `GHOSTTY_SHELL_FEATURES` contains `ssh-env` or `ssh-terminfo`, PowerShell
 wraps `ssh` and runs the remote session with `TERM=xterm-256color` by default.
 `ssh-env` also sends `COLORTERM`, `TERM_PROGRAM`, and `TERM_PROGRAM_VERSION`
 and sets `COLORTERM=truecolor` for the SSH process. When `ssh-terminfo` is
-enabled, the wrapper checks `noctty +ssh-cache` for the resolved
+enabled, the wrapper checks `najm +ssh-cache` for the resolved
 `user@hostname` from `ssh -G`; cached hosts use `TERM=xterm-ghostty`.
 
 PowerShell intentionally does not auto-install remote terminfo. The POSIX
@@ -408,6 +408,6 @@ remain available. See [windows.md](../../docs/windows.md#shells) for configured
 When `shell-integration-features` includes `ssh-terminfo`, the Bash integration
 wraps `ssh` to install the `xterm-ghostty` terminfo entry on remote hosts using
 local `infocmp` plus remote `tic`. Successful installs are cached through
-`noctty +ssh-cache`, preferring `$GHOSTTY_BIN_DIR/noctty` and falling
-back to a `noctty` found on `PATH`. If the cache helper is unavailable, SSH
+`najm +ssh-cache`, preferring `$GHOSTTY_BIN_DIR/najm` and falling
+back to a `najm` found on `PATH`. If the cache helper is unavailable, SSH
 still attempts installation but may repeat it on later connections.

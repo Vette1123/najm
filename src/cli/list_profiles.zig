@@ -71,7 +71,7 @@ pub const Options = struct {
 /// quick slot pinned in a running noctty moves a profile to the front of that
 /// instance's picker, and this command, a separate process, does not see the
 /// pin. A `profile-command` line the config reader rejects leaves its profile
-/// out; `noctty +validate-config` reports it.
+/// out; `najm +validate-config` reports it.
 ///
 /// On a terminal the profiles are an aligned table with a header. Anywhere
 /// else, or with `--plain`, each profile is one line of tab-separated fields

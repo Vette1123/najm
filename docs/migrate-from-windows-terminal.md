@@ -26,7 +26,7 @@ scoop install noctty/noctty
 
 Or install with WinGet: `winget install --id AmanThanvi.noctty -e`.
 
-The installer does not add `noctty` to `PATH`. To run the `noctty +...` commands
+The installer does not add `noctty` to `PATH`. To run the `najm +...` commands
 below from a shell, add the install folder to `PATH` or run `.\noctty.com`
 from that folder.
 
@@ -47,7 +47,7 @@ profile inheritance. Copy only the lines you need.
 | `startingDirectory`          | `working-directory`                    |                                                                                     |
 | `font.face`                  | `font-family`                          |                                                                                     |
 | `font.size`                  | `font-size`                            |                                                                                     |
-| `colorScheme`                | `theme`                                | Bundled names come from `noctty +list-themes`. A WT scheme is not imported.         |
+| `colorScheme`                | `theme`                                | Bundled names come from `najm +list-themes`. A WT scheme is not imported.         |
 | `opacity`                    | `background-opacity`                   | Divide the Windows Terminal percentage by 100: `50` becomes `0.5`; `1.0` is opaque. |
 | `useAcrylic`                 | `background-blur`                      | Accepted but inert on Windows; translucency is evenly tinted, never blurred.        |
 | `padding`                    | `window-padding-x`, `window-padding-y` | Noctty splits horizontal and vertical padding.                                      |
@@ -101,7 +101,7 @@ copy-on-select = clipboard
 ```
 
 Theme files are configuration files, so only load theme files from a source you
-trust. The full option reference is `noctty +show-config --default --docs`.
+trust. The full option reference is `najm +show-config --default --docs`.
 
 ## 4. Translate the keybindings
 
@@ -131,7 +131,7 @@ keybind = ctrl+shift+c=copy_to_clipboard
 keybind = ctrl+shift+v=paste_from_clipboard
 ```
 
-`noctty +list-keybinds` prints the effective set, including anything not listed
+`najm +list-keybinds` prints the effective set, including anything not listed
 above.
 
 ## 5. Start the same shell
@@ -158,8 +158,8 @@ working-directory rules.
 ## 6. Validate before switching habits
 
 ```powershell
-noctty +validate-config
-noctty +version
+najm +validate-config
+najm +version
 ```
 
 Then run one real session of each shell you use:

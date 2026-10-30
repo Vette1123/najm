@@ -40,7 +40,7 @@ if ($LASTEXITCODE -ne 0) { throw "Packaged DLL smoke failed: $LASTEXITCODE" }
     -Shell cmd `
     -BinDir $portableRoot `
     -Arguments @('+help') `
-    -ExpectedText 'Usage: noctty [+action] [options]'
+    -ExpectedText 'Usage: najm [+action] [options]'
 
 & $shellHarness `
     -Shell powershell `
@@ -75,7 +75,7 @@ if ($LASTEXITCODE -ne 0) { throw "Packaged DLL smoke failed: $LASTEXITCODE" }
 & $redirectedHarness `
     -ExePath $portableExe `
     -Action '+help' `
-    -ExpectedText 'Usage: noctty [+action] [options]'
+    -ExpectedText 'Usage: najm [+action] [options]'
 
 & $detachedHarness `
     -ExePath $portableExe `

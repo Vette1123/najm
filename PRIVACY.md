@@ -163,7 +163,7 @@ dumps, and SSH host cache go there.
   could not start also records when, and does not count toward safe mode.
 - **Crash dumps:** `crash\`, written only when Noctty crashes. A dump is a
   snapshot of parts of Noctty's memory and can include fragments of what was
-  on screen, file paths, and other text. `noctty +crash-report` lists them.
+  on screen, file paths, and other text. `najm +crash-report` lists them.
 - **Shell integration:** a copy of Noctty's PowerShell integration script in
   `shell-integration\powershell\`. Noctty does not edit your shell profiles.
 - **Terminal description:** outside portable mode, Noctty writes its terminfo
@@ -180,7 +180,7 @@ dumps, and SSH host cache go there.
   (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>J</kbd> and its variants) write the
   terminal's contents, including scrollback, or the selection to a new folder
   in your temp directory and leave it there.
-- **Diagnostic bundle:** `noctty +diagnostic-bundle` writes a folder in the
+- **Diagnostic bundle:** `najm +diagnostic-bundle` writes a folder in the
   current directory, or where `--output` says, with the Noctty version and
   build settings, Windows version and build, build and native architectures,
   emulation status, install kind, the embedded PowerShell integration script's
@@ -217,9 +217,9 @@ Noctty writes these registry entries:
 - **Installer:** Start menu (and optional desktop) shortcuts, the "Open noctty
   here" Explorer menu, the default-terminal handoff classes, and its uninstall
   entry. The uninstaller removes them.
-- **Explorer menu for portable copies:** `noctty +register-shell-menu` adds
+- **Explorer menu for portable copies:** `najm +register-shell-menu` adds
   "Open noctty here" for your account; `+unregister-shell-menu` removes it.
-- **Default terminal:** `noctty +register-default-terminal` makes Noctty the
+- **Default terminal:** `najm +register-default-terminal` makes Noctty the
   terminal Windows opens for console programs in your account. It writes
   per-user COM and console registry entries and saves the previous setting.
   `+unregister-default-terminal` restores that setting and removes Noctty's
@@ -244,8 +244,8 @@ installer created. It does not remove your data. To remove everything:
      them. Noctty never deletes the list Windows keeps; after uninstalling,
      it stays in a `.customDestinations-ms` file in
      `%APPDATA%\Microsoft\Windows\Recent\CustomDestinations`.
-   - If you used them, run `noctty +unregister-default-terminal`,
-     `noctty +unregister-shell-menu`, and `noctty +ssh-cache --clear`.
+   - If you used them, run `najm +unregister-default-terminal`,
+     `najm +unregister-shell-menu`, and `najm +ssh-cache --clear`.
 2. Close Noctty and delete `%LOCALAPPDATA%\noctty` (in portable mode, the files
    next to `noctty.exe`), and the `noctty` folders in `XDG_CONFIG_HOME` and
    `XDG_STATE_HOME` if you set them. Delete the `ghostty` and `winghostty`

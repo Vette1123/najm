@@ -1431,7 +1431,7 @@ pub const HostControls = struct {
                 .keyboard_shortcuts => self.showPaletteHelp("Keyboard shortcuts are configured in Settings > Keybindings."),
                 .configuration => self.showPaletteHelp("Open Settings, then Advanced, to edit the configuration file."),
                 .troubleshooting => self.showPaletteHelp("Run najm +diagnostic-bundle when reporting a problem."),
-                .diagnostics => self.showPaletteHelp("Run noctty +diagnostic-bundle to export a redacted support bundle."),
+                .diagnostics => self.showPaletteHelp("Run najm +diagnostic-bundle to export a redacted support bundle."),
                 .accessibility => self.showPaletteHelp("Keyboard: Ctrl+Page Up or Page Down changes tabs; Ctrl+Shift+Backslash splits right; Ctrl+Shift+E splits down; Alt+Arrow moves between panes."),
             },
             .recent_command => |payload| return self.invokePaletteAction(payload, false),

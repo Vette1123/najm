@@ -114,7 +114,7 @@
       }
 
       if (not-eq $ssh-hostname "") {
-        var ghostty = $E:GHOSTTY_BIN_DIR/"noctty"
+        var ghostty = $E:GHOSTTY_BIN_DIR/"najm"
         var ssh-target = $ssh-user"@"$ssh-hostname
 
         # Check if terminfo is already cached

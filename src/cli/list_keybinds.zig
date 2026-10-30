@@ -450,9 +450,9 @@ test "list-keybinds action help describes docs mode truthfully" {
 }
 
 test "list-keybinds --default prints the Windows default keymap" {
-    // The snapshot is the plain output of `noctty +list-keybinds --default`.
+    // The snapshot is the plain output of `najm +list-keybinds --default`.
     // Change a default and this fails: regenerate the file from the new output
-    // (`noctty +list-keybinds --default --plain > src/cli/testdata/default_keybinds_windows.txt`
+    // (`najm +list-keybinds --default --plain > src/cli/testdata/default_keybinds_windows.txt`
     // from a copy of the build) after checking every changed line.
     if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
     const alloc = std.testing.allocator;

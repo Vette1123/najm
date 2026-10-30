@@ -74,7 +74,7 @@ are also recognized markers; directories are not. A lone `config.ghostty`
 is ignored when the executable's directory is the `InstallLocation` the
 installer registered.
 
-Neither install adds `noctty` to PATH. The `noctty +...` commands below assume
+Neither install adds `noctty` to PATH. The `najm +...` commands below assume
 you added the install folder to PATH or are running from it.
 
 ### About the SmartScreen warning
@@ -102,18 +102,18 @@ options:
 ```ini
 font-family = JetBrains Mono
 font-size   = 12
-# Pick a theme from: noctty +list-themes
+# Pick a theme from: najm +list-themes
 # Theme files are config files; only use themes from sources you trust.
 theme       = Dracula
 ```
 
-`noctty +list-fonts` shows a family whose typographic name differs from the
+`najm +list-fonts` shows a family whose typographic name differs from the
 name Windows registers as `Legacy (Typographic)`, for example
 `JetBrainsMono NFM (JetBrainsMono Nerd Font Mono)`; `font-family` accepts
 either name.
 
 Save, then press `Ctrl+Shift+,` to reload without restarting.
-`noctty +show-config --default --docs | more` lists every option with its
+`najm +show-config --default --docs | more` lists every option with its
 docs, including the keybind grammar.
 
 When the config has a mistake (an unknown key, a value that does not parse, an
@@ -127,7 +127,7 @@ including fallback entries, and listed once per config load, however many tabs
 you open. **Config problems** in the command palette opens
 Settings > Advanced, which lists the problems with their file and line where
 noctty knows them, and shows the file Settings saves to. When the list does not
-fit, or a line is cut short, `noctty +validate-config` prints the problems in
+fit, or a line is cut short, `najm +validate-config` prints the problems in
 the config files in full in a terminal.
 
 ## Keybindings
@@ -170,7 +170,7 @@ the command palette and can be given a custom `copy_last_command_output`
 keybind. Fullscreen moved from `Ctrl+Enter` to `F11`, and the focus cycle
 moved from `F6` / `Shift+F6` to `Ctrl+F6` / `Ctrl+Shift+F6`.
 
-`noctty +list-keybinds` prints the full list. `Ctrl+Shift+O` also splits
+`najm +list-keybinds` prints the full list. `Ctrl+Shift+O` also splits
 right; the docs use `Ctrl+Shift+\` because Narrator can reserve O-based
 commands. Rebind with `keybind = <trigger>=<action>`:
 
@@ -184,7 +184,7 @@ keybind = ctrl+shift+r=reload_config
 noctty detects PowerShell, cmd, Git Bash, and WSL distributions and lists them
 in the profile picker. Without a `command`, a new tab runs `pwsh.exe` (PowerShell
 7) when it is on `PATH`, otherwise Windows PowerShell, otherwise Command Prompt.
-`noctty --safe-mode` always starts `cmd.exe /D`, which loads no PowerShell
+`najm --safe-mode` always starts `cmd.exe /D`, which loads no PowerShell
 profile and skips cmd's `AutoRun` command. To pin a shell as the default:
 
 ```ini
@@ -217,14 +217,14 @@ If a broken config or saved session blocks launch, start once with built-in
 defaults and no session restore:
 
 ```powershell
-noctty --safe-mode
+najm --safe-mode
 ```
 
 Safe mode still needs OpenGL 4.3; without it, see
 [Starting without OpenGL](windows.md#starting-without-opengl).
 
 Crash dumps stay local under `%LOCALAPPDATA%\noctty\crash`; read them with
-`noctty +crash-report`. Recovery and diagnostic bundles are in
+`najm +crash-report`. Recovery and diagnostic bundles are in
 [windows.md](windows.md#crash-reports-and-diagnostics).
 
 ## Uninstall

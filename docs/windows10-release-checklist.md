@@ -60,7 +60,7 @@ branch. GitHub offers no Windows 10 image: `windows-2019` was retired on
 and the image list shows Windows Server 2025, Windows Server 2022 and Windows 11
 Arm64 ([runner-images README](https://github.com/actions/runner-images)).
 
-It exercises: the full unit suite, a `noctty +version` smoke, and a hidden-desktop
+It exercises: the full unit suite, a `najm +version` smoke, and a hidden-desktop
 launch of the real binary (the WARP lifecycle smoke) whose log is checked for
 `win32 os_build=<below 22000> integrated_titlebar=false`. It does not exercise a
 Windows 10 desktop shell, the taskbar, toasts, the jump list, Explorer, a real
