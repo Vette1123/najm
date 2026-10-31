@@ -18,7 +18,7 @@
   ·
   <a href="#features">Features</a>
   ·
-  <a href="#arabic-and-right-to-left-text">Arabic</a>
+  <a href="#arabic-text">Arabic</a>
   ·
   <a href="https://vette1123.github.io/najm/ar/">العربية</a>
   ·
@@ -33,7 +33,7 @@
 
 **Najm** (Arabic for *star*, نجم) is a free, open-source, native Windows terminal emulator built
 on [Ghostty](https://github.com/ghostty-org/ghostty)'s terminal core. It draws on the GPU, opens
-in tabs and splits, restores your session, and handles Arabic properly. It runs PowerShell,
+in tabs and splits, and restores your session. It runs PowerShell,
 Command Prompt, Git Bash and WSL with no setup.
 
 Looking for [Ghostty on Windows](https://vette1123.github.io/najm/ghostty-for-windows/) or a
@@ -52,8 +52,6 @@ merged.
   a Direct3D 11 renderer (beta) takes over.
 - It is a native Win32 app, with real tabs, splits, context menus, per-monitor DPI, IME input,
   jump lists and toasts.
-- Arabic reads right to left with joined letters, and one config line gives it a monospace
-  font. [See below](#arabic-and-right-to-left-text).
 - One line in your config makes `Ctrl+V` paste the way Windows Terminal does: text, the paths of
   files copied in Explorer, and images, so tools like
   [Claude Code and opencode can attach screenshots](https://vette1123.github.io/najm/paste-images-claude-code-windows/).
@@ -130,11 +128,12 @@ keybind = performable:ctrl+v=paste_from_clipboard
 
 Press `Ctrl+Shift+,` to reload. `najm +show-config --default --docs` lists every option.
 
-## Arabic and right-to-left text
+## Arabic text
 
-Najm lays out right-to-left text and shapes Arabic letters so they join. The default terminal
-fonts have no Arabic, though, so Windows draws it in Segoe UI, a proportional font that sits
-unevenly in the cell grid. Map the Arabic blocks to a monospace font that has them:
+Najm draws Arabic letters in their joined forms but does not reorder a line right to left yet, so
+Arabic in plain command output reads backwards. The default terminal fonts have no Arabic, so
+Windows draws it in Segoe UI, a proportional font that sits unevenly in the cell grid. Map the
+Arabic blocks to a monospace font that has them:
 
 ```ini
 font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF
@@ -143,7 +142,7 @@ font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+F
 The copy of Cascadia Code that ships with Windows has no Arabic. Install the current release from
 [microsoft/cascadia-code](https://github.com/microsoft/cascadia-code/releases), which has.
 `najm +show-face --string="مرحبا"` shows which font each letter comes from. The
-[Arabic terminal guide](https://vette1123.github.io/najm/arabic-terminal-windows/) has more.
+[Arabic text guide](https://vette1123.github.io/najm/arabic-terminal-windows/) has more.
 
 ## Keyboard shortcuts
 

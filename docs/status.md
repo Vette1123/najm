@@ -55,7 +55,8 @@ noctty is based on post-`v1.3.1` upstream main (`1.3.2-dev`, `ba398dfff`,
 - 256-color and true-color.
 - Bracketed paste, mouse tracking, OSC 8 hyperlinks, OSC 10 / 11 / 52 (all
   OSC 52 selectors target the single native Windows clipboard).
-- Bidi, combining marks, grapheme cluster rendering.
+- Combining marks and grapheme cluster rendering. No bidi: the shaper forces
+  LTR and nothing reorders a line, so Arabic in plain output reads backwards.
 - Kitty graphics protocol and inline image display. Sixel is passed through
   by the bundled ConPTY but not decoded or drawn; see
   [inline graphics](windows.md#inline-graphics-replies-sixel-and-memory).

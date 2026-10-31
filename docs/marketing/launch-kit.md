@@ -11,36 +11,18 @@ Traffic and referrers: `gh api repos/Vette1123/najm/traffic/popular/referrers`.
 
 | # | Where | Why | Time |
 |---|---|---|---|
-| 1 | Google Search Console, Bing Webmaster Tools | Gets the pages indexed and shows the real queries | 10 min |
+| 1 | Bing Webmaster Tools | Google Search Console is verified; Bing imports it | 5 min |
 | 2 | WinGet | `winget search terminal` is a permanent install channel | 20 min |
 | 3 | AlternativeTo | Ranks for "Windows Terminal alternatives" and "Ghostty alternatives" | 10 min |
 | 4 | Show HN | The largest single audience for a new terminal | 10 min, then a day of replies |
 | 5 | Reddit, one community per day | Each is a separate audience | 10 min each |
-| 6 | Arabic developer communities | Almost no competition for this feature | 15 min |
-| 7 | awesome-terminals | A lasting link from a list people browse | 5 min |
+| 6 | awesome-terminals | A lasting link from a list people browse | 5 min |
 
 ## Search engines
 
-1. Open <https://search.google.com/search-console>, add a URL prefix property for
-   `https://vette1123.github.io/najm/`, and pick the HTML tag method.
-2. Copy only the `content` value and store it, then rerun the site workflow:
-
-```powershell
-gh variable set GOOGLE_SITE_VERIFICATION --repo Vette1123/najm --body "PASTE_CONTENT_VALUE"
-```
-
-```powershell
-gh workflow run najm-pages.yml --repo Vette1123/najm
-```
-
-3. Click Verify, then submit this sitemap:
-
-```text
-https://vette1123.github.io/najm/sitemap.xml
-```
-
-4. Bing Webmaster Tools can import the property from Search Console. The site
-   also notifies Bing through IndexNow on every deploy.
+Google Search Console is verified and the sitemap is submitted. Bing Webmaster
+Tools can import the property from it, and the site notifies Bing through
+IndexNow on every deploy.
 
 ## WinGet
 
@@ -61,17 +43,17 @@ Add Najm at <https://alternativeto.net/software/new/> as an alternative to
 Windows Terminal, Ghostty, WezTerm and Alacritty.
 
 ```text
-Najm is a free, open-source terminal emulator for Windows, built on Ghostty's terminal core. It has native tabs and splits, session restore, a command palette, and right-to-left Arabic with joined letters. It runs PowerShell, cmd, Git Bash and WSL with no setup.
+Najm is a free, open-source terminal emulator for Windows, built on Ghostty's terminal core. It has native tabs and splits, session restore, and a command palette. Ctrl+V can paste screenshots into tools like Claude Code. It runs PowerShell, cmd, Git Bash and WSL with no setup.
 ```
 
-Tags: `terminal-emulator`, `windows`, `gpu-acceleration`, `open-source`, `arabic`.
+Tags: `terminal-emulator`, `windows`, `gpu-acceleration`, `open-source`.
 
 ## Show HN
 
 Title:
 
 ```text
-Show HN: Najm, a Ghostty-based terminal for Windows with real Arabic support
+Show HN: Najm, a native Ghostty-based terminal for Windows
 ```
 
 URL:
@@ -83,16 +65,16 @@ https://vette1123.github.io/najm/
 First comment:
 
 ```text
-I work in both Arabic and English, and I wanted Ghostty on Windows. Najm is a fork of Noctty, which put Ghostty's core in a native Win32 app, with my own fixes on top.
+I wanted Ghostty on Windows. Najm is a fork of Noctty, which put Ghostty's core in a native Win32 app, with my own fixes on top.
 
-What it adds for me: Arabic that reads right to left with joined letters, Ctrl+V that pastes images into tools like Claude Code, and a session that comes back after a restart.
+What it adds for me: Ctrl+V that pastes images into tools like Claude Code, and a session that comes back after a restart.
 
 The rough edge is signing. Builds use my own certificate, so SmartScreen warns on first install. The download page shows how to check the SHA-256 and the signature first.
 
-Tell me what breaks. I'd especially like to hear from people who use Arabic, Hebrew or Persian in a terminal.
-```
+What doesn't work yet: Arabic letters join, but lines aren't reordered right to left, so plain output reads backwards.
 
-Change the first sentence if any of it is not accurate for you.
+Tell me what breaks.
+```
 
 ## Reddit
 
@@ -132,13 +114,13 @@ Feedback and bug reports are welcome.
 
 ## Arabic communities
 
-Good places: Arabic developer groups on Facebook, LinkedIn, X and Telegram, and
+Post this only with the limit stated. Good places: Arabic developer groups on Facebook, LinkedIn, X and Telegram, and
 Hsoub I/O (`io.hsoub.com`).
 
 ```text
-طرفية ويندوز تعرض العربية بشكل صحيح
+طرفية ويندوز مجانية مبنية على Ghostty
 
-بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تعرض النص من اليمين إلى اليسار بأحرف متصلة، وتدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد.
+بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد. لا تعرض العربية من اليمين إلى اليسار بعد.
 
 جرّبها وأخبرني بما يحتاج إلى تحسين:
 https://vette1123.github.io/najm/ar/
@@ -146,10 +128,10 @@ https://vette1123.github.io/najm/ar/
 
 ## X and LinkedIn
 
-Attach `web/assets/shot-restored-dark.webp`, or better, a short recording.
+Attach `web/assets/shot-splits-dark.png`, or better, a short recording.
 
 ```text
-I wanted Ghostty on Windows with Arabic that reads properly, so I built Najm.
+I wanted Ghostty on Windows, so I built Najm.
 
 Native tabs and splits, session restore, a command palette, and Ctrl+V that pastes screenshots into Claude Code.
 
@@ -162,7 +144,7 @@ Open a pull request on <https://github.com/cdleon/awesome-terminals> adding this
 line to its Windows or cross-platform section, following the list's own format:
 
 ```markdown
-- [Najm](https://github.com/Vette1123/najm) - Native Windows terminal built on Ghostty's core, with right-to-left Arabic.
+- [Najm](https://github.com/Vette1123/najm) - Native Windows terminal built on Ghostty's core, with tabs, splits and session restore.
 ```
 
 ## Repository social preview
