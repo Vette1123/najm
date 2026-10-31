@@ -1,0 +1,66 @@
+  <section class="hero">
+    <div class="frame">
+      <h1>طرفية سريعة لويندوز تتحدث العربية</h1>
+      <p class="hero__lede">نص من اليمين إلى اليسار بأحرف متصلة، مع تبويبات وتقسيم للنوافذ وجلسة تعود كما تركتها.</p>
+      <div class="actions">
+        <a class="button" href="{{setupUrl}}">تنزيل</a>
+        <a class="button button--ghost" href="{{repo}}">GitHub</a>
+      </div>
+      <div class="hero__shot">
+        <span class="window"><img src="{{base}}/assets/shot-restored-dark.webp" width="1800" height="600" alt="نجم بثلاثة تبويبات ولوحتين مقسمتين بعد استعادة الجلسة، يعرض PowerShell وموجه الأوامر." fetchpriority="high" /></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="band script" aria-labelledby="ar-why">
+    <div class="frame">
+      <p class="script__word">مرحبا بالعالم</p>
+      <h2 id="ar-why">العربية كما يجب أن تظهر</h2>
+      <p>تعرض طرفيات كثيرة العربية أحرفا منفصلة وبترتيب معكوس. يعرض نجم النص من اليمين إلى اليسار ويصل الأحرف، فتقرأ أسماء الملفات والرسائل والمحادثات مع أدوات الذكاء الاصطناعي بشكل طبيعي.</p>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="ar-setup">
+    <div class="frame">
+      <h2 id="ar-setup">جهّز الخط العربي بسطر واحد</h2>
+      <p>لا تحتوي خطوط الطرفية الافتراضية على العربية، فيرسمها ويندوز بخط متغير العرض. ثبّت أحدث إصدار من <a href="https://github.com/microsoft/cascadia-code/releases">Cascadia Code</a>، ثم أضف هذا السطر إلى الملف <code>%LOCALAPPDATA%\najm\config.ghostty</code> واضغط <kbd>Ctrl+Shift+,</kbd>:</p>
+      <div class="code"><pre>font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF</pre></div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="ar-features">
+    <div class="frame">
+      <h2 id="ar-features">كل ما تحتاجه في طرفية حديثة</h2>
+      <div class="spec">
+        <div>
+          <h3>تعمل مع أدواتك فورا</h3>
+          <p>يكتشف PowerShell وcmd وGit Bash وتوزيعات WSL دون أي إعداد.</p>
+        </div>
+        <div>
+          <h3>الجلسة تعود بعد إعادة التشغيل</h3>
+          <p>تعود النوافذ والتبويبات والتقسيمات ومجلدات العمل كما كانت.</p>
+        </div>
+        <div>
+          <h3>لوحة أوامر</h3>
+          <p>اضغط <kbd>Ctrl+Shift+P</kbd> لتصل إلى أي إجراء بالبحث عن اسمه.</p>
+        </div>
+        <div>
+          <h3>بلا تتبع</h3>
+          <p>لا يرسل نجم بيانات استخدام، واتصاله الوحيد هو فحص التحديثات ويمكنك إيقافه.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="install" aria-labelledby="ar-install">
+    <div class="frame">
+      <h2 id="ar-install">التثبيت</h2>
+      <p>يعمل نجم على ويندوز 10 إصدار 1809 أو أحدث وويندوز 11، على معالجات x64.</p>
+      <ol>
+        <li>نزّل المثبّت <code>{{setupFile}}</code>.</li>
+        <li>شغّله. يظهر تحذير "Windows protected your PC" في المرة الأولى، فاضغط <strong>More info</strong> ثم <strong>Run anyway</strong>.</li>
+        <li>افتح <strong>Najm</strong> من قائمة ابدأ.</li>
+      </ol>
+      <p>تحقق من الملف قبل التشغيل عبر <a href="{{sumsUrl}}">بصمات SHA-256</a> المنشورة.</p>
+    </div>
+  </section>

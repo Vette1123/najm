@@ -61,3 +61,6 @@ vgcore.*
 # Local flagship verification evidence.
 /test/windows/flagship/artifacts/
 /dist/artifacts/
+
+# Najm site build output
+web/_site/

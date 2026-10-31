@@ -12,23 +12,34 @@
 </p>
 
 <p align="center">
-  <b><a href="https://github.com/Vette1123/najm/releases/latest">Download</a></b>
+  <b><a href="https://vette1123.github.io/najm/download/">Download</a></b>
+  ·
+  <a href="https://vette1123.github.io/najm/">Website</a>
   ·
   <a href="#features">Features</a>
   ·
   <a href="#arabic-and-right-to-left-text">Arabic</a>
   ·
-  <a href="#configure">Configure</a>
+  <a href="https://vette1123.github.io/najm/ar/">العربية</a>
   ·
-  <a href="SYNCING.md">How Najm tracks Noctty</a>
+  <a href="#configure">Configure</a>
+</p>
+
+<p align="center">
+  <img src="web/assets/shot-restored-dark.webp" alt="Najm terminal on Windows with tabs and split panes, restored after a restart" width="880" />
 </p>
 
 ---
 
-**Najm** (Arabic for *star*, نجم) is a native Windows terminal emulator built on
-[Ghostty](https://github.com/ghostty-org/ghostty)'s terminal core. It draws on the GPU, opens
+**Najm** (Arabic for *star*, نجم) is a free, open-source, native Windows terminal emulator built
+on [Ghostty](https://github.com/ghostty-org/ghostty)'s terminal core. It draws on the GPU, opens
 in tabs and splits, restores your session, and handles Arabic properly. It runs PowerShell,
 Command Prompt, Git Bash and WSL with no setup.
+
+Looking for [Ghostty on Windows](https://vette1123.github.io/najm/ghostty-for-windows/) or a
+[Windows Terminal alternative](https://vette1123.github.io/najm/windows-terminal-alternative/)?
+Najm reads Ghostty's config syntax and installs beside Windows Terminal. If it works for you, a
+star helps other people find it.
 
 Najm is a fork of [Noctty](https://github.com/amanthanvi/noctty), which brought Ghostty to
 Windows. We follow Noctty closely and ship our own fixes on top, without waiting for them to be
@@ -44,8 +55,8 @@ merged.
 - Arabic reads right to left with joined letters, and one config line gives it a monospace
   font. [See below](#arabic-and-right-to-left-text).
 - One line in your config makes `Ctrl+V` paste the way Windows Terminal does: text, the paths of
-  files copied in Explorer, and images, so tools like Claude Code and opencode can attach
-  screenshots.
+  files copied in Explorer, and images, so tools like
+  [Claude Code and opencode can attach screenshots](https://vette1123.github.io/najm/paste-images-claude-code-windows/).
 - It sends no telemetry. Its only network call is the update check against this repo's
   releases, and you can turn that off.
 
@@ -131,7 +142,8 @@ font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+F
 
 The copy of Cascadia Code that ships with Windows has no Arabic. Install the current release from
 [microsoft/cascadia-code](https://github.com/microsoft/cascadia-code/releases), which has.
-`najm +show-face --string="مرحبا"` shows which font each letter comes from.
+`najm +show-face --string="مرحبا"` shows which font each letter comes from. The
+[Arabic terminal guide](https://vette1123.github.io/najm/arabic-terminal-windows/) has more.
 
 ## Keyboard shortcuts
 

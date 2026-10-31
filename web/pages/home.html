@@ -1,0 +1,90 @@
+  <section class="hero">
+    <div class="frame">
+      <h1>A fast GPU terminal for Windows, built on Ghostty</h1>
+      <p class="hero__lede">Native tabs and splits, a session that comes back after a restart, and Arabic that reads right.</p>
+      <div class="actions">
+        <a class="button" href="{{setupUrl}}">Download</a>
+        <a class="button button--ghost" href="{{repo}}">GitHub</a>
+      </div>
+      <div class="hero__shot">
+        <span class="window"><img src="{{base}}/assets/shot-restored-dark.webp" width="1800" height="600" alt="Najm with three tabs and two split panes, restored after a restart, showing PowerShell and Command Prompt." fetchpriority="high" /></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="keys-title">
+    <div class="frame">
+      <div class="split split--even">
+        <div>
+          <h2 id="keys-title">Every action is one search away</h2>
+          <p>Press <kbd>Ctrl+Shift+P</kbd> and type. The command palette reaches every action by name, so you never have to memorize a menu.</p>
+        </div>
+        <ul class="keys">
+          <li>New tab <kbd>Ctrl+Shift+T</kbd></li>
+          <li>Split right <kbd>Ctrl+Shift+\</kbd></li>
+          <li>Split down <kbd>Ctrl+Shift+E</kbd></li>
+          <li>Move between panes <kbd>Alt+Arrow</kbd></li>
+          <li>Find <kbd>Ctrl+Shift+F</kbd></li>
+        </ul>
+      </div>
+      <span class="window window--below"><img src="{{base}}/assets/shot-palette-dark.webp" width="1800" height="600" alt="The Najm command palette filtered to split actions, with their shortcuts." loading="lazy" /></span>
+    </div>
+  </section>
+
+  <section class="band script" aria-labelledby="arabic-title">
+    <div class="frame">
+      <p class="script__word" lang="ar" dir="rtl">مرحبا بالعالم</p>
+      <h2 id="arabic-title">Arabic that joins and reads right to left</h2>
+      <p>Many terminals draw Arabic as separate letters in the wrong order. Najm lays it out right to left and joins the letters, and one config line gives it a monospace font.</p>
+      <p><a href="{{base}}/arabic-terminal-windows/">Set up Arabic in Najm</a></p>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="native-title">
+    <div class="frame">
+      <h2 id="native-title">A native Windows app with Ghostty's core</h2>
+      <div class="spec">
+        <div>
+          <h3>Your shells, found for you</h3>
+          <p>PowerShell 7, Windows PowerShell, cmd, Git Bash and every WSL distro, with no setup.</p>
+        </div>
+        <div>
+          <h3>Sessions that survive a restart</h3>
+          <p>Windows, tabs, splits and working directories all come back.</p>
+        </div>
+        <div>
+          <h3>Modern terminal protocols</h3>
+          <p>Kitty graphics and keyboard protocols, inline images, OSC 52 and bracketed paste.</p>
+        </div>
+        <div>
+          <h3>Paste that works for AI tools</h3>
+          <p>One line makes <kbd>Ctrl+V</kbd> paste text, files and images. <a href="{{base}}/paste-images-claude-code-windows/">Use it with Claude Code</a>.</p>
+        </div>
+        <div>
+          <h3>Windows done properly</h3>
+          <p>Per-monitor DPI, IME input, jump lists, toasts and an "Open Najm here" menu in Explorer.</p>
+        </div>
+        <div>
+          <h3>No telemetry</h3>
+          <p>The only network call is the update check, and you can turn that off.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="config-title">
+    <div class="frame split">
+      <div>
+        <h2 id="config-title">Configure it in a text file</h2>
+        <p>Najm uses Ghostty's config syntax, so most options and hundreds of themes work as they are. Press <kbd>Ctrl+Shift+,</kbd> to reload.</p>
+        <p>Coming from another terminal? See <a href="{{base}}/windows-terminal-alternative/">how Najm compares to Windows Terminal</a> or <a href="{{base}}/ghostty-for-windows/">how it relates to Ghostty</a>.</p>
+      </div>
+      <div class="code"><pre>font-family = JetBrains Mono
+font-size   = 12
+theme       = Dracula
+command     = pwsh
+
+# Ctrl+V pastes text, copied files and images
+keybind = performable:ctrl+v=paste_from_clipboard</pre></div>
+    </div>
+  </section>

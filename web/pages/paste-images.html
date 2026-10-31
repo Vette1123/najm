@@ -1,0 +1,31 @@
+  <article class="prose">
+    <div class="frame">
+      <h1>Paste screenshots into Claude Code on Windows</h1>
+      <p class="lede">AI coding tools running in a terminal read screenshots straight from your clipboard, but only if the terminal tells them a paste happened. In Najm, one line makes <kbd>Ctrl+V</kbd> do that.</p>
+
+      <h2>Add one line to your config</h2>
+      <p>Open <code>%LOCALAPPDATA%\najm\config.ghostty</code>, add this line, and press <kbd>Ctrl+Shift+,</kbd> to reload:</p>
+      <div class="code"><pre>keybind = performable:ctrl+v=paste_from_clipboard</pre></div>
+      <p><code>performable</code> means <kbd>Ctrl+V</kbd> reaches your shell as usual whenever there is nothing to paste.</p>
+
+      <h2>What Ctrl+V does then</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">On the clipboard</th><th scope="col">What the app receives</th></tr></thead>
+          <tbody>
+            <tr><td>Text</td><td>The text, as a bracketed paste</td></tr>
+            <tr><td>Files copied in Explorer</td><td>Their paths, quoted, separated by spaces</td></tr>
+            <tr><td>An image</td><td>An empty bracketed paste, so the app reads the image from the clipboard itself</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>That empty paste is the same signal Windows Terminal sends, which is why tools like Claude Code and opencode can attach the screenshot.</p>
+
+      <h2>Try it</h2>
+      <ol>
+        <li>Press <kbd>Win+Shift+S</kbd> and capture part of the screen.</li>
+        <li>Start your tool in a Najm tab.</li>
+        <li>Press <kbd>Ctrl+V</kbd>.</li>
+      </ol>
+    </div>
+  </article>
