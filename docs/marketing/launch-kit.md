@@ -83,7 +83,7 @@ https://vette1123.github.io/najm/
 First comment:
 
 ```text
-I'm a developer in Egypt who works in both Arabic and English, and I wanted Ghostty on Windows. Najm is a fork of Noctty, which put Ghostty's core in a native Win32 app, with my own fixes on top.
+I work in both Arabic and English, and I wanted Ghostty on Windows. Najm is a fork of Noctty, which put Ghostty's core in a native Win32 app, with my own fixes on top.
 
 What it adds for me: Arabic that reads right to left with joined letters, Ctrl+V that pastes images into tools like Claude Code, and a session that comes back after a restart.
 
