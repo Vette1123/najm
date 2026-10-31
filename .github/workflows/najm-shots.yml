@@ -1,0 +1,34 @@
+# Retakes the website's screenshots from the latest release.
+# Download the "site-shots" artifact and copy the PNGs into web/assets/.
+name: Najm site shots
+
+on:
+  push:
+    branches: [site-shots]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shots:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Capture
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force } catch { Write-Host "Resolution unchanged: $_" }
+          $tag = gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName
+          ./scripts/najm-site-shots.ps1 -Version $tag.TrimStart('v') -OutputDirectory "$env:RUNNER_TEMP/shots"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: site-shots
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: warn
