@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="web/assets/shot-restored-dark.webp" alt="Najm terminal on Windows with tabs and split panes, restored after a restart" width="880" />
+  <img src="web/assets/shot-splits-dark.png" alt="Najm terminal on Windows with tabs and split panes" width="880" />
 </p>
 
 ---

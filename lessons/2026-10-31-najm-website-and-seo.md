@@ -3,10 +3,10 @@
 ## What
 
 - `web/`: a static site on GitHub Pages, seven pages aimed at real searches
-  (Ghostty for Windows, Windows Terminal alternative, Arabic terminal, pasting
+  (Ghostty for Windows, Windows Terminal alternative, Arabic text, pasting
   images into Claude Code, download) plus an Arabic home page.
 - One source for metadata (`web/pages.mjs`), a build with no dependencies, and
-  46 checks in `web/tests/site.test.mjs`.
+  47 checks in `web/tests/site.test.mjs`.
 - JSON-LD, a sitemap, `llms.txt`, IndexNow on deploy, and a version stamped from
   the latest release.
 - README, repo description and topics now lead to the site;
@@ -23,6 +23,12 @@
   in `assets/brand/` all along.
 - A comparison row said to check Arabic in Windows Terminal "against your own
   text". That hid a fact nobody had verified, so the row was removed.
+- The site, launch kit, repo description and topics all sold right-to-left Arabic
+  that the app does not do. I copied the README line without testing it, and only
+  retaking the screenshots showed the text reading backwards. Nothing had been
+  posted yet, which was luck: the site had been live and indexed with it.
+- The Show HN draft invented a developer in Egypt and a bilingual background.
+  Both were removed.
 - `robots.txt` was planned and dropped: a project page cannot serve it.
 
 ## What worked
@@ -36,3 +42,5 @@
 - Before auditing a surface, confirm it belongs to this product.
 - Test both sides of anything reciprocal.
 - A claim about another product needs a source, or it stays out.
+- A claim about our own product needs a capture. A README line is not evidence.
+- Take the marketing screenshots before writing the marketing.
