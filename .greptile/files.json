@@ -23,7 +23,8 @@
         "src/main_ghostty.zig",
         "src/terminal/Screen.zig",
         "src/terminal/resize_replay.zig",
-        "test/windows/interactive-win11-conpty-sync.ps1"
+        "test/windows/interactive-win11-conpty-sync.ps1",
+        "src/os/local_path.zig"
       ]
     },
     {
@@ -51,6 +52,7 @@
         "src/os/file.zig",
         "src/os/TempDir.zig",
         "src/os/local_path.zig",
+        "src/os/path.zig",
         "src/config/windows_shell.zig",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
