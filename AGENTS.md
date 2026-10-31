@@ -193,7 +193,10 @@ that govern each symbol you change, or that none does.
   OSC 133 exit codes, prompt typeahead
   in `semantic_command.zig`, the scrollback search thread and its cached
   results (`ScreenSearch.pruneHistory`, `LiveNodes`), what a search window
-  copies at append (`SlidingWindow.append`, `AppendResult`), the selection
+  copies at append (`SlidingWindow.append`, `AppendResult`), the regex,
+  whole-word and case matcher and its run-time failure latch
+  (`search/pattern.zig`: `Pattern`), one query over a terminal and its
+  reports (`search/query_search.zig`: `QuerySearch.step`), the selection
   and search-highlight rows of `RenderState` (`render.zig`),
   `TerminalFormatter`/`ScreenFormatter` output for undo snapshots and Copy as
   HTML, Kitty graphics commands, placements and deletes in

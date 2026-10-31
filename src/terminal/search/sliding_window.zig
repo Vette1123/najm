@@ -11,9 +11,7 @@ const Screen = @import("../Screen.zig");
 const Terminal = @import("../Terminal.zig");
 const PageFormatter = @import("../formatter.zig").PageFormatter;
 const FlattenedHighlight = @import("../highlight.zig").Flattened;
-const QueryOptions = @import("query_options.zig").QueryOptions;
 const Pattern = @import("pattern.zig").Pattern;
-const oni = if (build_options.oniguruma) @import("oniguruma") else struct {};
 
 /// Searches page nodes via a sliding window. The sliding window maintains
 /// the invariant that data isn't pruned until (1) we've searched it and
@@ -68,9 +66,6 @@ pub const SlidingWindow = struct {
     /// The needle we're searching for. Does own the memory.
     needle: []const u8,
 
-    /// Match behavior for the current query.
-    query_options: QueryOptions,
-
     /// The search direction. If the direction is forward then pages should
     /// be appended in forward linked list order from the PageList. If the
     /// direction is reverse then pages should be appended in reverse order.
@@ -85,20 +80,17 @@ pub const SlidingWindow = struct {
     /// ends on another. The length is always `needle.len * 2`.
     overlap_buf: []u8,
 
-    /// Scratch buffer used by regex / whole-word / case-sensitive paths
-    /// when a contiguous linear view of the circular buffer is required.
-    regex_buf: std.ArrayListUnmanaged(u8) = .empty,
+    /// A linear copy of the unsearched data for `Pattern.find`, which
+    /// needs one contiguous haystack. `append` reserves it.
+    haystack_buf: std.ArrayListUnmanaged(u8) = .empty,
 
-    /// The matcher for non-default query options. Null runs the literal
-    /// scan.
+    /// The matcher for non-default query options, borrowed. Null runs the
+    /// literal scan.
     pattern: ?*Pattern,
 
     const Direction = enum { forward, reverse };
     const DataBuf = CircBuf(u8, 0);
     const MetaBuf = CircBuf(Meta, undefined);
-
-    pub const InitError = Pattern.CompileError;
-    pub const SearchError = Allocator.Error || Pattern.Failure;
 
     /// Information copied from a page while appending it to the window.
     ///
@@ -133,25 +125,19 @@ pub const SlidingWindow = struct {
         direction: Direction,
         needle_unowned: []const u8,
     ) Allocator.Error!SlidingWindow {
-        return SlidingWindow.initWithOptions(alloc, direction, needle_unowned, .{}) catch |err| switch (err) {
-            error.OutOfMemory => error.OutOfMemory,
-            // Default options never request the optional regex engine.
-            else => unreachable,
-        };
+        return SlidingWindow.initPattern(alloc, direction, needle_unowned, null);
     }
 
-    pub fn initWithOptions(
+    /// A window that matches with `pattern`, the query's compiled
+    /// `Pattern`, or with the literal scan when it is null. The pattern is
+    /// borrowed: it must outlive the window, and every window that shares
+    /// it runs on one thread.
+    pub fn initPattern(
         alloc: Allocator,
         direction: Direction,
         needle_unowned: []const u8,
-        query_options: QueryOptions,
-    ) InitError!SlidingWindow {
-        const pattern = try Pattern.forQuery(alloc, .{
-            .needle = needle_unowned,
-            .options = query_options,
-        });
-        errdefer if (pattern) |p| p.destroy(alloc);
-
+        pattern: ?*Pattern,
+    ) Allocator.Error!SlidingWindow {
         var data = try DataBuf.init(alloc, 0);
         errdefer data.deinit(alloc);
 
@@ -174,7 +160,6 @@ pub const SlidingWindow = struct {
             .meta = meta,
             .chunk_buf = .empty,
             .needle = needle,
-            .query_options = query_options,
             .direction = direction,
             .overlap_buf = overlap_buf,
             .pattern = pattern,
@@ -182,8 +167,7 @@ pub const SlidingWindow = struct {
     }
 
     pub fn deinit(self: *SlidingWindow) void {
-        if (self.pattern) |p| p.destroy(self.alloc);
-        self.regex_buf.deinit(self.alloc);
+        self.haystack_buf.deinit(self.alloc);
         self.alloc.free(self.overlap_buf);
         self.alloc.free(self.needle);
         self.chunk_buf.deinit(self.alloc);
@@ -218,7 +202,11 @@ pub const SlidingWindow = struct {
     /// sliding window and are only valid until the next call to `next()`
     /// or `append()`. If the caller wants to retain the flattened highlight
     /// then they should clone it.
-    pub fn next(self: *SlidingWindow) SearchError!?FlattenedHighlight {
+    ///
+    /// This reads only memory the window owns and never allocates: `append`
+    /// reserves what a scan needs. A pattern that fails at run time finds
+    /// nothing (see `Pattern.failure`).
+    pub fn next(self: *SlidingWindow) ?FlattenedHighlight {
         const using_regex_engine = self.pattern != null;
         const slices = slices: {
             const data_len = self.data.len();
@@ -236,7 +224,7 @@ pub const SlidingWindow = struct {
         };
 
         if (self.pattern) |pattern| {
-            if (try self.patternMatch(pattern, slices[0], slices[1])) |match| {
+            if (self.patternMatch(pattern, slices[0], slices[1])) |match| {
                 return self.highlight(match.start, match.len);
             }
         } else {
@@ -351,10 +339,10 @@ pub const SlidingWindow = struct {
         pattern: *Pattern,
         first: []const u8,
         second: []const u8,
-    ) SearchError!?Pattern.Span {
-        const text = try self.buildRegexHaystack(first, second);
+    ) ?Pattern.Span {
+        const text = self.buildHaystack(first, second);
         const around = self.edges();
-        const span = try pattern.find(.{
+        const span = pattern.find(.{
             .text = text,
             .before = around.before,
             .after = around.after,
@@ -369,37 +357,37 @@ pub const SlidingWindow = struct {
         };
     }
 
-    fn buildRegexHaystack(
+    /// The unsearched data in screen order, in the buffer `append`
+    /// reserved.
+    fn buildHaystack(
         self: *SlidingWindow,
         first: []const u8,
         second: []const u8,
-    ) Allocator.Error![]const u8 {
-        const total_len = first.len + second.len;
-        self.regex_buf.clearRetainingCapacity();
-        try self.regex_buf.ensureTotalCapacity(self.alloc, total_len);
+    ) []const u8 {
+        self.haystack_buf.clearRetainingCapacity();
 
         switch (self.direction) {
             .forward => {
-                self.regex_buf.appendSliceAssumeCapacity(first);
-                self.regex_buf.appendSliceAssumeCapacity(second);
+                self.haystack_buf.appendSliceAssumeCapacity(first);
+                self.haystack_buf.appendSliceAssumeCapacity(second);
             },
             .reverse => {
                 // `first` and `second` are logical search-order slices after
                 // data_offset. Reverse the whole range across the circular
                 // split: reverse(first ++ second) == reverse(second) ++ reverse(first).
-                self.appendReverseForRegex(second);
-                self.appendReverseForRegex(first);
+                self.appendReversed(second);
+                self.appendReversed(first);
             },
         }
 
-        return self.regex_buf.items;
+        return self.haystack_buf.items;
     }
 
-    fn appendReverseForRegex(self: *SlidingWindow, bytes: []const u8) void {
+    fn appendReversed(self: *SlidingWindow, bytes: []const u8) void {
         var i = bytes.len;
         while (i > 0) {
             i -= 1;
-            self.regex_buf.appendAssumeCapacity(bytes[i]);
+            self.haystack_buf.appendAssumeCapacity(bytes[i]);
         }
     }
 
@@ -803,10 +791,14 @@ pub const SlidingWindow = struct {
             },
         }
 
-        // Ensure our buffers are big enough to store what we need.
+        // Ensure our buffers are big enough to store what we need, and
+        // reserve what next() needs so it never allocates.
         try self.data.ensureUnusedCapacity(self.alloc, written.len);
         try self.meta.ensureUnusedCapacity(self.alloc, 1);
         try self.chunk_buf.ensureTotalCapacity(self.alloc, self.meta.capacity());
+        if (self.pattern != null) {
+            try self.haystack_buf.ensureTotalCapacity(self.alloc, self.data.len() + written.len);
+        }
 
         // Append our new node to the circular buffer.
         self.data.appendSliceAssumeCapacity(written);
@@ -845,6 +837,8 @@ pub const SlidingWindow = struct {
     }
 };
 
+const testPattern = @import("pattern.zig").testPattern;
+
 test "SlidingWindow empty on init" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -873,7 +867,7 @@ test "SlidingWindow single append" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -885,7 +879,7 @@ test "SlidingWindow single append" {
         } }, s.pages.pointFromPin(.active, sel.end));
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -896,8 +890,8 @@ test "SlidingWindow single append" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end));
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append case insensitive ASCII" {
@@ -918,7 +912,7 @@ test "SlidingWindow single append case insensitive ASCII" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -930,7 +924,7 @@ test "SlidingWindow single append case insensitive ASCII" {
         } }, s.pages.pointFromPin(.active, sel.end));
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -941,8 +935,8 @@ test "SlidingWindow single append case insensitive ASCII" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end));
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append case sensitive" {
@@ -950,11 +944,9 @@ test "SlidingWindow single append case sensitive" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "Boo!", .{
-        .case_sensitive = true,
-    });
+    const p = try testPattern(.{ .needle = "Boo!", .options = .{ .case_sensitive = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "Boo!", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -965,7 +957,7 @@ test "SlidingWindow single append case sensitive" {
     const node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(node);
 
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow non-regex regex engine prunes no-match pages" {
@@ -973,11 +965,9 @@ test "SlidingWindow non-regex regex engine prunes no-match pages" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "Needle", .{
-        .case_sensitive = true,
-    });
+    const p = try testPattern(.{ .needle = "Needle", .options = .{ .case_sensitive = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "Needle", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 20, .rows = 4, .max_scrollback = 1000 });
@@ -989,10 +979,10 @@ test "SlidingWindow non-regex regex engine prunes no-match pages" {
 
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(first_node);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 
     _ = try w.append(first_node.next.?);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(@as(usize, 1), w.meta.len());
     try testing.expectEqual(w.needle.len - 1, w.data.len() - w.data_offset);
 }
@@ -1002,11 +992,9 @@ test "SlidingWindow single append whole word" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
+    const p = try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -1017,7 +1005,7 @@ test "SlidingWindow single append whole word" {
     const node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(node);
 
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(point.Point{ .active = .{
         .x = 5,
@@ -1027,7 +1015,7 @@ test "SlidingWindow single append whole word" {
         .x = 7,
         .y = 0,
     } }, s.pages.pointFromPin(.active, sel.end));
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow whole word matches true page edge" {
@@ -1035,11 +1023,9 @@ test "SlidingWindow whole word matches true page edge" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
+    const p = try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
@@ -1054,7 +1040,7 @@ test "SlidingWindow whole word matches true page edge" {
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(first_node);
 
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(point.Point{ .active = .{
         .x = 77,
@@ -1064,7 +1050,7 @@ test "SlidingWindow whole word matches true page edge" {
         .x = 79,
         .y = 23,
     } }, s.pages.pointFromPin(.active, sel.end));
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow whole word does not match synthetic page edge" {
@@ -1072,11 +1058,9 @@ test "SlidingWindow whole word does not match synthetic page edge" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
+    const p = try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
@@ -1091,10 +1075,10 @@ test "SlidingWindow whole word does not match synthetic page edge" {
 
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(first_node);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 
     _ = try w.append(first_node.next.?);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow whole-word literal retains full synthetic edge match" {
@@ -1102,11 +1086,9 @@ test "SlidingWindow whole-word literal retains full synthetic edge match" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
+    const p = try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
@@ -1121,10 +1103,10 @@ test "SlidingWindow whole-word literal retains full synthetic edge match" {
 
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(first_node);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 
     _ = try w.append(first_node.next.?);
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(first_node, sel.start.node);
     try testing.expectEqual(first_node, sel.end.node);
@@ -1135,11 +1117,9 @@ test "SlidingWindow single append regex" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "b[o]{2}!", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "b[o]{2}!", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "b[o]{2}!", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -1150,7 +1130,7 @@ test "SlidingWindow single append regex" {
     const node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(node);
 
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(point.Point{ .active = .{
         .x = 19,
@@ -1160,38 +1140,7 @@ test "SlidingWindow single append regex" {
         .x = 22,
         .y = 0,
     } }, s.pages.pointFromPin(.active, sel.end));
-    try testing.expect((try w.next()) == null);
-}
-
-test "SlidingWindow regex runtime error preserves window state" {
-    if (comptime !build_options.oniguruma) return error.SkipZigTest;
-
-    const testing = std.testing;
-    const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "b[o]{2}!", .{
-        .regex = true,
-    });
-    defer w.deinit();
-
-    var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
-    defer s.deinit();
-    try s.testWriteString("hello. boo! hello. boo!");
-
-    const node: *PageList.List.Node = s.pages.pages.first.?;
-    _ = try w.append(node);
-
-    const data_len = w.data.len();
-    const meta_len = w.meta.len();
-
-    var failing = std.testing.FailingAllocator.init(alloc, .{ .fail_index = 0 });
-    const original_alloc = w.alloc;
-    defer w.alloc = original_alloc;
-    w.alloc = failing.allocator();
-    try testing.expectError(error.OutOfMemory, w.next());
-    try testing.expectEqual(data_len, w.data.len());
-    try testing.expectEqual(meta_len, w.meta.len());
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow regex no match preserves window state" {
@@ -1199,11 +1148,9 @@ test "SlidingWindow regex no match preserves window state" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo!", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "boo!", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo!", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -1215,7 +1162,7 @@ test "SlidingWindow regex no match preserves window state" {
 
     const data_len = w.data.len();
     const meta_len = w.meta.len();
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(data_len, w.data.len());
     try testing.expectEqual(meta_len, w.meta.len());
 }
@@ -1225,11 +1172,9 @@ test "SlidingWindow regex no match defers pruning" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "b[o]{2}!", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "b[o]{2}!", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "b[o]{2}!", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
@@ -1246,7 +1191,7 @@ test "SlidingWindow regex no match defers pruning" {
     _ = try w.append(first_node.next.?);
     const data_len = w.data.len();
 
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(@as(usize, 2), w.meta.len());
     try testing.expectEqual(data_len, w.data.len());
     try testing.expectEqual(@as(usize, 0), w.data_offset);
@@ -1257,11 +1202,9 @@ test "SlidingWindow regex no match keeps bounded suffix" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "y+z", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "y+z", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "y+z", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 120, .rows = 24, .max_scrollback = 1000 });
@@ -1279,7 +1222,7 @@ test "SlidingWindow regex no match keeps bounded suffix" {
     const meta_len = w.meta.len();
     try testing.expect(meta_len > 1);
 
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(@as(usize, 0), w.data_offset);
     try testing.expectEqual(Pattern.regex_no_match_retain_len, w.data.len());
 }
@@ -1289,11 +1232,9 @@ test "SlidingWindow regex match can span more than literal overlap" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "startx+end", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "startx+end", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "startx+end", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 20, .rows = 4, .max_scrollback = 1000 });
@@ -1307,27 +1248,25 @@ test "SlidingWindow regex match can span more than literal overlap" {
 
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(first_node);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(@as(usize, 1), w.meta.len());
     try testing.expectEqual(@as(usize, 0), w.data_offset);
 
     _ = try w.append(first_node.next.?);
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(first_node, sel.start.node);
     try testing.expectEqual(first_node.next.?, sel.end.node);
 }
 
-test "SlidingWindow reverse regex haystack preserves offset across circular split" {
+test "SlidingWindow reverse pattern haystack preserves offset across circular split" {
     if (comptime !build_options.oniguruma) return error.SkipZigTest;
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .reverse, "abc", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "abc", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .reverse, "abc", p);
     defer w.deinit();
 
     try w.data.ensureUnusedCapacity(alloc, 8);
@@ -1340,39 +1279,10 @@ test "SlidingWindow reverse regex haystack preserves offset across circular spli
     try testing.expect(slices[0].len > 0);
     try testing.expect(slices[1].len > 0);
 
-    const haystack = try w.buildRegexHaystack(slices[0], slices[1]);
+    // append reserves this; the data here was written directly.
+    try w.haystack_buf.ensureTotalCapacity(alloc, w.data.len());
+    const haystack = w.buildHaystack(slices[0], slices[1]);
     try testing.expectEqualStrings("fedcba", haystack);
-}
-
-test "SlidingWindow whole-word regex accepts hard newline page boundary" {
-    if (comptime !build_options.oniguruma) return error.SkipZigTest;
-
-    const testing = std.testing;
-    const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
-    defer w.deinit();
-
-    var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
-    defer s.deinit();
-
-    const first_page_rows = s.pages.pages.first.?.capacity().rows;
-    for (0..first_page_rows - 1) |_| try s.testWriteString("\n");
-    try s.testWriteString("tail");
-    try s.testWriteString("\n");
-    try testing.expect(s.pages.pages.first != s.pages.pages.last);
-    try s.testWriteString("boo ok");
-
-    const second_node: *PageList.List.Node = s.pages.pages.first.?.next.?;
-    _ = try w.append(second_node);
-
-    const h = (try w.next()).?;
-    const sel = h.untracked();
-    try testing.expectEqual(second_node, sel.start.node);
-    try testing.expectEqual(second_node, sel.end.node);
 }
 
 test "SlidingWindow edge decision uses the page state captured at append" {
@@ -1380,12 +1290,8 @@ test "SlidingWindow edge decision uses the page state captured at append" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
-        .whole_word = true,
-    });
-    defer w.deinit();
+    const p = try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } });
+    defer p.destroy(alloc);
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
     defer s.deinit();
@@ -1399,6 +1305,19 @@ test "SlidingWindow edge decision uses the page state captured at append" {
 
     const first_node: *PageList.List.Node = s.pages.pages.first.?;
     const second_node = first_node.next.?;
+
+    // The positive control: a word at the start of a page whose previous
+    // line ends in a hard newline is a whole word.
+    {
+        var control: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
+        defer control.deinit();
+        _ = try control.append(second_node);
+        const h = control.next() orelse return error.TestExpectedMatch;
+        try testing.expectEqual(second_node, h.untracked().start.node);
+    }
+
+    var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", p);
+    defer w.deinit();
     _ = try w.append(second_node);
 
     // The previous page ended its last line with a hard newline when the
@@ -1409,7 +1328,7 @@ test "SlidingWindow edge decision uses the page state captured at append" {
     last_row.wrap = true;
     defer last_row.wrap = false;
 
-    const h = (try w.next()) orelse return error.TestExpectedMatch;
+    const h = w.next() orelse return error.TestExpectedMatch;
     const sel = h.untracked();
     try testing.expectEqual(second_node, sel.start.node);
     try testing.expectEqual(second_node, sel.end.node);
@@ -1418,23 +1337,14 @@ test "SlidingWindow edge decision uses the page state captured at append" {
 }
 
 test "SlidingWindow reverse search works with non-default query options" {
+    if (comptime !build_options.oniguruma) return error.SkipZigTest;
+
     const testing = std.testing;
     const alloc = testing.allocator;
-    if (comptime !build_options.oniguruma) {
-        try testing.expectError(
-            error.UnsupportedQueryOptions,
-            SlidingWindow.initWithOptions(alloc, .reverse, "boo!", .{
-                .case_sensitive = true,
-            }),
-        );
-        return;
-    }
 
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .reverse, "boo!", .{
-        .case_sensitive = true,
-    });
+    const p = try testPattern(.{ .needle = "boo!", .options = .{ .case_sensitive = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .reverse, "boo!", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -1444,7 +1354,7 @@ test "SlidingWindow reverse search works with non-default query options" {
     const node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(node);
 
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(point.Point{ .active = .{
         .x = 19,
@@ -1461,11 +1371,9 @@ test "SlidingWindow reverse regex searches UTF-8 haystack in forward order" {
 
     const testing = std.testing;
     const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .reverse, "caf.", .{
-        .regex = true,
-    });
+    const p = try testPattern(.{ .needle = "caf.", .options = .{ .regex = true } });
+    defer p.destroy(alloc);
+    var w: SlidingWindow = try .initPattern(alloc, .reverse, "caf.", p);
     defer w.deinit();
 
     var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 0 });
@@ -1475,7 +1383,7 @@ test "SlidingWindow reverse regex searches UTF-8 haystack in forward order" {
     const node: *PageList.List.Node = s.pages.pages.first.?;
     _ = try w.append(node);
 
-    const h = (try w.next()).?;
+    const h = w.next().?;
     const sel = h.untracked();
     try testing.expectEqual(point.Point{ .active = .{
         .x = 9,
@@ -1485,6 +1393,49 @@ test "SlidingWindow reverse regex searches UTF-8 haystack in forward order" {
         .x = 12,
         .y = 0,
     } }, s.pages.pointFromPin(.active, sel.end).?);
+}
+
+test "SlidingWindow next does not allocate once pages are appended" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try Screen.init(alloc, .{
+        .cols = 20,
+        .rows = 4,
+        .max_scrollback = std.math.maxInt(usize),
+    });
+    defer s.deinit();
+    const first_page_cells = s.pages.cols * s.pages.pages.first.?.capacity().rows;
+    const words = first_page_cells / 8 + 4;
+
+    // Not "boo! x  ": the formatter trims the spaces that end the first
+    // page, which glues its last word to the next page's first "boo" for
+    // a whole-word match.
+    for (0..words) |_| try s.testWriteString("boo! x..");
+    try testing.expect(s.pages.pages.first != s.pages.pages.last);
+
+    const p: ?*Pattern = if (comptime build_options.oniguruma)
+        try testPattern(.{ .needle = "boo", .options = .{ .whole_word = true } })
+    else
+        null;
+    defer if (p) |pattern| pattern.destroy(alloc);
+
+    for ([_]?*Pattern{ null, p }) |pattern| {
+        var w: SlidingWindow = try .initPattern(alloc, .forward, "boo", pattern);
+        defer w.deinit();
+        var node = s.pages.pages.first;
+        while (node) |n| : (node = n.next) _ = try w.append(n);
+
+        // Every allocation from here on fails, and the scan still finds
+        // every match without one.
+        var failing = std.testing.FailingAllocator.init(alloc, .{ .fail_index = 0 });
+        w.alloc = failing.allocator();
+        defer w.alloc = alloc;
+        var matches: usize = 0;
+        while (w.next()) |_| matches += 1;
+        try testing.expectEqual(words, matches);
+        try testing.expect(!failing.has_induced_failure);
+    }
 }
 
 test "SlidingWindow single append single char" {
@@ -1505,7 +1456,7 @@ test "SlidingWindow single append single char" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -1517,7 +1468,7 @@ test "SlidingWindow single append single char" {
         } }, s.pages.pointFromPin(.active, sel.end));
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -1528,8 +1479,8 @@ test "SlidingWindow single append single char" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end));
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append no match" {
@@ -1549,8 +1500,8 @@ test "SlidingWindow single append no match" {
     _ = try w.append(node);
 
     // No matches
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // Should still keep the page
     try testing.expectEqual(1, w.meta.len());
@@ -1584,7 +1535,7 @@ test "SlidingWindow two pages" {
 
     // Search should find two matches
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 76,
@@ -1596,7 +1547,7 @@ test "SlidingWindow two pages" {
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -1607,8 +1558,8 @@ test "SlidingWindow two pages" {
             .y = 23,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow two pages single char" {
@@ -1639,7 +1590,7 @@ test "SlidingWindow two pages single char" {
 
     // Search should find two matches
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 76,
@@ -1651,7 +1602,7 @@ test "SlidingWindow two pages single char" {
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -1662,8 +1613,8 @@ test "SlidingWindow two pages single char" {
             .y = 23,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow two pages match across boundary" {
@@ -1693,7 +1644,7 @@ test "SlidingWindow two pages match across boundary" {
 
     // Search should find a match
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 76,
@@ -1704,8 +1655,8 @@ test "SlidingWindow two pages match across boundary" {
             .y = 23,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // We shouldn't prune because we don't have enough space
     try testing.expectEqual(2, w.meta.len());
@@ -1737,8 +1688,8 @@ test "SlidingWindow two pages no match across boundary with newline" {
     _ = try w.append(node.next.?);
 
     // Search should NOT find a match
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // We shouldn't prune because we don't have enough space
     try testing.expectEqual(2, w.meta.len());
@@ -1770,8 +1721,8 @@ test "SlidingWindow two pages no match across boundary with newline reverse" {
     _ = try w.append(node);
 
     // Search should NOT find a match
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow two pages no match prunes first page" {
@@ -1801,8 +1752,8 @@ test "SlidingWindow two pages no match prunes first page" {
     _ = try w.append(node.next.?);
 
     // Search should find nothing
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // We should've pruned our page because the second page
     // has enough text to contain our needle.
@@ -1842,8 +1793,8 @@ test "SlidingWindow two pages no match keeps both pages" {
     _ = try w.append(node.next.?);
 
     // Search should find nothing
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // No pruning because both pages are needed to fit needle.
     try testing.expectEqual(2, w.meta.len());
@@ -1877,7 +1828,7 @@ test "SlidingWindow single append across circular buffer boundary" {
     }
 
     // Search non-match, prunes page
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(1, w.meta.len());
 
     // Change the needle, just needs to be the same length (not a real API)
@@ -1891,7 +1842,7 @@ test "SlidingWindow single append across circular buffer boundary" {
         try testing.expect(slices[1].len > 0);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -1902,7 +1853,7 @@ test "SlidingWindow single append across circular buffer boundary" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append match on boundary" {
@@ -1936,7 +1887,7 @@ test "SlidingWindow single append match on boundary" {
     }
 
     // Search non-match, prunes page
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(1, w.meta.len());
 
     // Change the needle, just needs to be the same length (not a real API)
@@ -1950,7 +1901,7 @@ test "SlidingWindow single append match on boundary" {
         try testing.expect(slices[1].len > 0);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 21,
@@ -1961,7 +1912,7 @@ test "SlidingWindow single append match on boundary" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append reversed" {
@@ -1982,7 +1933,7 @@ test "SlidingWindow single append reversed" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -1994,7 +1945,7 @@ test "SlidingWindow single append reversed" {
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -2005,8 +1956,8 @@ test "SlidingWindow single append reversed" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append no match reversed" {
@@ -2026,8 +1977,8 @@ test "SlidingWindow single append no match reversed" {
     _ = try w.append(node);
 
     // No matches
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // Should still keep the page
     try testing.expectEqual(1, w.meta.len());
@@ -2061,7 +2012,7 @@ test "SlidingWindow two pages reversed" {
 
     // Search should find two matches (in reverse order)
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 7,
@@ -2073,7 +2024,7 @@ test "SlidingWindow two pages reversed" {
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 76,
@@ -2084,8 +2035,8 @@ test "SlidingWindow two pages reversed" {
             .y = 22,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow two pages match across boundary reversed" {
@@ -2115,7 +2066,7 @@ test "SlidingWindow two pages match across boundary reversed" {
 
     // Search should find a match
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const chunks = h.chunks.slice();
         const nodes = chunks.items(.node);
         const serials = chunks.items(.serial);
@@ -2135,8 +2086,8 @@ test "SlidingWindow two pages match across boundary reversed" {
             .y = 23,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // In reverse mode, the last appended meta (first original page) is large
     // enough to contain needle.len - 1 bytes, so pruning occurs
@@ -2170,8 +2121,8 @@ test "SlidingWindow two pages no match prunes first page reversed" {
     _ = try w.append(node);
 
     // Search should find nothing
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // We should've pruned our page because the second page
     // has enough text to contain our needle.
@@ -2211,8 +2162,8 @@ test "SlidingWindow two pages no match keeps both pages reversed" {
     _ = try w.append(node);
 
     // Search should find nothing
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 
     // No pruning because both pages are needed to fit needle.
     try testing.expectEqual(2, w.meta.len());
@@ -2246,7 +2197,7 @@ test "SlidingWindow single append across circular buffer boundary reversed" {
     }
 
     // Search non-match, prunes page
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(1, w.meta.len());
 
     // Change the needle, just needs to be the same length (not a real API)
@@ -2261,7 +2212,7 @@ test "SlidingWindow single append across circular buffer boundary reversed" {
         try testing.expect(slices[1].len > 0);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 19,
@@ -2272,7 +2223,7 @@ test "SlidingWindow single append across circular buffer boundary reversed" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append match on boundary reversed" {
@@ -2306,7 +2257,7 @@ test "SlidingWindow single append match on boundary reversed" {
     }
 
     // Search non-match, prunes page
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
     try testing.expectEqual(1, w.meta.len());
 
     // Change the needle, just needs to be the same length (not a real API)
@@ -2321,7 +2272,7 @@ test "SlidingWindow single append match on boundary reversed" {
         try testing.expect(slices[1].len > 0);
     }
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 21,
@@ -2332,7 +2283,7 @@ test "SlidingWindow single append match on boundary reversed" {
             .y = 0,
         } }, s.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append soft wrapped" {
@@ -2357,7 +2308,7 @@ test "SlidingWindow single append soft wrapped" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 2,
@@ -2368,8 +2319,8 @@ test "SlidingWindow single append soft wrapped" {
             .y = 2,
         } }, screen.pages.pointFromPin(.active, sel.end));
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 test "SlidingWindow single append reversed soft wrapped" {
@@ -2394,7 +2345,7 @@ test "SlidingWindow single append reversed soft wrapped" {
 
     // We should be able to find two matches.
     {
-        const h = (try w.next()).?;
+        const h = w.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 2,
@@ -2405,8 +2356,8 @@ test "SlidingWindow single append reversed soft wrapped" {
             .y = 2,
         } }, screen.pages.pointFromPin(.active, sel.end));
     }
-    try testing.expect((try w.next()) == null);
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
+    try testing.expect(w.next() == null);
 }
 
 // This tests a real bug that occurred where a whitespace-only page
@@ -2436,5 +2387,5 @@ test "SlidingWindow append whitespace only node" {
     _ = try w.append(node);
 
     // No matches expected
-    try testing.expect((try w.next()) == null);
+    try testing.expect(w.next() == null);
 }

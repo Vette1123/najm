@@ -7,7 +7,7 @@ const FlattenedHighlight = @import("../highlight.zig").Flattened;
 const PageList = @import("../PageList.zig");
 const SlidingWindow = @import("sliding_window.zig").SlidingWindow;
 const Terminal = @import("../Terminal.zig");
-const QueryOptions = @import("query_options.zig").QueryOptions;
+const Pattern = @import("pattern.zig").Pattern;
 
 /// Searches for a substring within the active area of a PageList.
 ///
@@ -25,22 +25,19 @@ pub const ActiveSearch = struct {
         alloc: Allocator,
         needle: []const u8,
     ) Allocator.Error!ActiveSearch {
-        return ActiveSearch.initWithOptions(alloc, needle, .{}) catch |err| switch (err) {
-            error.OutOfMemory => error.OutOfMemory,
-            // Default options cannot hit unsupported regex/option paths.
-            else => unreachable,
-        };
+        return ActiveSearch.initPattern(alloc, needle, null);
     }
 
-    pub fn initWithOptions(
+    /// See `SlidingWindow.initPattern`: the pattern is borrowed.
+    pub fn initPattern(
         alloc: Allocator,
         needle: []const u8,
-        query_options: QueryOptions,
-    ) SlidingWindow.InitError!ActiveSearch {
+        pattern: ?*Pattern,
+    ) Allocator.Error!ActiveSearch {
         // We just do a forward search since the active area is usually
         // pretty small so search results are instant anyways. This avoids
         // a small amount of work to reverse things.
-        var window: SlidingWindow = try .initWithOptions(alloc, .forward, needle, query_options);
+        var window: SlidingWindow = try .initPattern(alloc, .forward, needle, pattern);
         errdefer window.deinit();
         return .{ .window = window };
     }
@@ -105,7 +102,7 @@ pub const ActiveSearch = struct {
 
     /// Find the next match for the needle in the active area. This returns
     /// null when there are no more matches.
-    pub fn next(self: *ActiveSearch) SlidingWindow.SearchError!?FlattenedHighlight {
+    pub fn next(self: *ActiveSearch) ?FlattenedHighlight {
         return self.window.next();
     }
 };
@@ -124,7 +121,7 @@ test "simple search" {
     _ = try search.update(&t.screens.active.pages);
 
     {
-        const h = (try search.next()).?;
+        const h = search.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 0,
@@ -136,7 +133,7 @@ test "simple search" {
         } }, t.screens.active.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try search.next()).?;
+        const h = search.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 0,
@@ -147,7 +144,7 @@ test "simple search" {
             .y = 2,
         } }, t.screens.active.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 }
 
 test "clear screen and search" {
@@ -169,7 +166,7 @@ test "clear screen and search" {
     _ = try search.update(&t.screens.active.pages);
 
     {
-        const h = (try search.next()).?;
+        const h = search.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 0,
@@ -180,5 +177,5 @@ test "clear screen and search" {
             .y = 1,
         } }, t.screens.active.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 }

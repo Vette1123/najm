@@ -7,7 +7,7 @@ const PageList = @import("../PageList.zig");
 const Pin = PageList.Pin;
 const Terminal = @import("../Terminal.zig");
 const SlidingWindow = @import("sliding_window.zig").SlidingWindow;
-const QueryOptions = @import("query_options.zig").QueryOptions;
+const Pattern = @import("pattern.zig").Pattern;
 
 /// Searches for a term in a PageList structure.
 ///
@@ -47,20 +47,17 @@ pub const PageListSearch = struct {
         list: *PageList,
         start: *PageList.List.Node,
     ) Allocator.Error!PageListSearch {
-        return PageListSearch.initWithOptions(alloc, needle, .{}, list, start) catch |err| switch (err) {
-            error.OutOfMemory => error.OutOfMemory,
-            // Default options cannot hit unsupported regex/option paths.
-            else => unreachable,
-        };
+        return PageListSearch.initPattern(alloc, needle, null, list, start);
     }
 
-    pub fn initWithOptions(
+    /// See `SlidingWindow.initPattern`: the pattern is borrowed.
+    pub fn initPattern(
         alloc: Allocator,
         needle: []const u8,
-        query_options: QueryOptions,
+        pattern: ?*Pattern,
         list: *PageList,
         start: *PageList.List.Node,
-    ) SlidingWindow.InitError!PageListSearch {
+    ) Allocator.Error!PageListSearch {
         // We put a tracked pin into the node that we're starting from.
         // By using a tracked pin, we can keep our pagelist references safe
         // because if the pagelist prunes pages, the tracked pin will
@@ -73,7 +70,7 @@ pub const PageListSearch = struct {
         errdefer list.untrackPin(pin);
 
         // Create our sliding window we'll use for searching.
-        var window: SlidingWindow = try .initWithOptions(alloc, .reverse, needle, query_options);
+        var window: SlidingWindow = try .initPattern(alloc, .reverse, needle, pattern);
         errdefer window.deinit();
 
         // We always feed our initial page data into the window, because
@@ -113,7 +110,7 @@ pub const PageListSearch = struct {
     ///
     /// This does NOT access the PageList, so it can be called without
     /// a lock held.
-    pub fn next(self: *PageListSearch) SlidingWindow.SearchError!?FlattenedHighlight {
+    pub fn next(self: *PageListSearch) ?FlattenedHighlight {
         return self.window.next();
     }
 
@@ -173,7 +170,7 @@ test "simple search" {
     defer search.deinit();
 
     {
-        const h = (try search.next()).?;
+        const h = search.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 0,
@@ -185,7 +182,7 @@ test "simple search" {
         } }, t.screens.active.pages.pointFromPin(.active, sel.end).?);
     }
     {
-        const h = (try search.next()).?;
+        const h = search.next().?;
         const sel = h.untracked();
         try testing.expectEqual(point.Point{ .active = .{
             .x = 0,
@@ -196,7 +193,7 @@ test "simple search" {
             .y = 0,
         } }, t.screens.active.pages.pointFromPin(.active, sel.end).?);
     }
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // We should not be able to feed since we have one page
     try testing.expect(!try search.feed());
@@ -230,17 +227,17 @@ test "feed multiple pages with matches" {
     defer search.deinit();
 
     // First match on the last page
-    const sel1 = try search.next();
+    const sel1 = search.next();
     try testing.expect(sel1 != null);
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // Feed should succeed and load the first page
     try testing.expect(try search.feed());
 
     // Now we should find the match on the first page
-    const sel2 = try search.next();
+    const sel2 = search.next();
     try testing.expect(sel2 != null);
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // No more pages to feed
     try testing.expect(!try search.feed());
@@ -273,13 +270,13 @@ test "feed multiple pages no matches" {
     defer search.deinit();
 
     // No matches on last page
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // Feed first page
     try testing.expect(try search.feed());
 
     // Still no matches
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // No more pages
     try testing.expect(!try search.feed());
@@ -314,13 +311,13 @@ test "feed iteratively through multiple matches" {
     defer search.deinit();
 
     // Match on page 2
-    try testing.expect((try search.next()) != null);
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() != null);
+    try testing.expect(search.next() == null);
 
     // Feed page 1
     try testing.expect(try search.feed());
-    try testing.expect((try search.next()) != null);
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() != null);
+    try testing.expect(search.next() == null);
 
     // No more pages
     try testing.expect(!try search.feed());
@@ -355,13 +352,13 @@ test "feed with match spanning page boundary" {
     defer search.deinit();
 
     // No complete match on last page alone (only has "st")
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // Feed first page - this should give us enough data to find "Test"
     try testing.expect(try search.feed());
 
     // Should find the spanning match
-    const h = (try search.next()).?;
+    const h = search.next().?;
     const sel = h.untracked();
     try testing.expect(sel.start.node != sel.end.node);
     {
@@ -374,7 +371,7 @@ test "feed with match spanning page boundary" {
     }
 
     // No more matches
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
 
     // No more pages
     try testing.expect(!try search.feed());
@@ -410,9 +407,9 @@ test "feed with match spanning page boundary with newline" {
     defer search.deinit();
 
     // Should not find any matches since we broke with an explicit newline.
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
     try testing.expect(try search.feed());
-    try testing.expect((try search.next()) == null);
+    try testing.expect(search.next() == null);
     try testing.expect(!try search.feed());
 }
 
