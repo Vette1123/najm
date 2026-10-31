@@ -1,0 +1,102 @@
+# Najm's public site (web/) on GitHub Pages. site/ is Noctty's noctty.com and
+# stays as upstream has it, so merges never conflict.
+#
+# "Najm release" publishes with GITHUB_TOKEN, and an event made with that token
+# starts no workflow, so workflow_run is what picks up a new version.
+name: Najm site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - web/**
+      - .github/workflows/najm-pages.yml
+  pull_request:
+    paths:
+      - web/**
+      - .github/workflows/najm-pages.yml
+  workflow_run:
+    workflows: ["Najm release"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: najm-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Read the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "Building for $tag"
+          echo "NAJM_VERSION=${tag#v}" >> "$GITHUB_ENV"
+
+      - name: Build
+        env:
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          BING_SITE_VERIFICATION: ${{ vars.BING_SITE_VERIFICATION }}
+        run: node web/build.mjs
+
+      - name: Test
+        run: node --test web/tests/site.test.mjs
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: web/_site
+          include-hidden-files: true
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  ping:
+    # Tells Bing and Yandex the pages changed. A failure here only warns: the
+    # site is live either way.
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Notify IndexNow
+        run: |
+          payload=$(node --input-type=module -e '
+            import { INDEXNOW_KEY, SITE_URL, pages } from "./web/pages.mjs";
+            const host = new URL(SITE_URL).host;
+            console.log(JSON.stringify({
+              host,
+              key: INDEXNOW_KEY,
+              keyLocation: `${SITE_URL}/${INDEXNOW_KEY}.txt`,
+              urlList: pages.map((page) => `${SITE_URL}/${page.slug}`),
+            }));
+          ')
+          status=$(curl -sS -o /dev/null -w '%{http_code}' -X POST https://api.indexnow.org/indexnow \
+            -H 'Content-Type: application/json; charset=utf-8' -d "$payload") || status=000
+          echo "IndexNow answered $status"
+          case "$status" in
+            200|202) ;;
+            *) echo "::warning::IndexNow answered $status" ;;
+          esac

@@ -126,6 +126,7 @@ reading step under [Self-Correction Log](#self-correction-log).
   labels/input, startup/render tracing, chrome rectangle math, and GDI paint
   primitives.
 - Windows packaging: `dist/windows/` + `scripts/package-windows.ps1`
+- Najm's website: `web/` (GitHub Pages); `site/` is Noctty's and stays as is
 - libghostty-vt headers: `include/ghostty/`
 
 This fork ships only the Win32 runtime (`src/apprt/win32*`): it removed the
@@ -336,8 +337,10 @@ that govern each symbol you change, or that none does.
   and package managers (WinGet, Scoop,
   Chocolatey), GitHub Actions CI (path filter, caching, runners), CRLF and
   `.gitattributes` in shipped files.
-- [docs-and-site.md](docs/agents/log/docs-and-site.md): site edits (`site/`,
-  including styles, scripts and the generated CSP/asset hashes); changing
+- [docs-and-site.md](docs/agents/log/docs-and-site.md): Najm's site (`web/`,
+  `web/pages.mjs`, `web/build.mjs`, `.github/workflows/najm-pages.yml`);
+  site edits (`site/`, Noctty's noctty.com, including styles, scripts and the
+  generated CSP/asset hashes); changing
   what README.md, PRIVACY.md, PACKAGING.md, `docs/*.md` or install copy
   claims about behaviour.
 - [test-harnesses.md](docs/agents/log/test-harnesses.md): writing or running
