@@ -30,11 +30,13 @@ function Save-Shot([IntPtr]$window, [string]$name) {
     # GetWindowRect includes an 8 px invisible resize border on three sides.
     $border = 8
     $width = $rect.R - $rect.L - 2 * $border
-    $height = $rect.B - $rect.T - $border
+    # The title row says "Administrator:" on an elevated runner; the tabs start below it.
+    $titleRow = 31
+    $height = $rect.B - $rect.T - $border - $titleRow
     if ($width -lt 600) { throw "Window is only $width px wide" }
     $bitmap = New-Object System.Drawing.Bitmap $width, $height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.CopyFromScreen($rect.L + $border, $rect.T, 0, 0, $bitmap.Size)
+    $graphics.CopyFromScreen($rect.L + $border, $rect.T + $titleRow, 0, 0, $bitmap.Size)
     $path = Join-Path $OutputDirectory "$name.png"
     $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     Write-Host "Saved $path at ${width}x$height"
