@@ -34,10 +34,9 @@ const field_model = @import("win32_settings_fields.zig");
 const settings_reference = @import("win32_settings_reference.zig");
 const settings_keybinds = @import("win32_settings_keybinds.zig");
 const bench_trace = @import("win32/bench_trace.zig");
-const local_target = @import("win32/local_target.zig");
+const local_path = @import("../os/local_path.zig");
 const config_file_load = @import("../config/file_load.zig");
 const windows_shell = @import("../config/windows_shell.zig");
-const os_path = @import("../os/path.zig");
 const SetFocus = sys.SetFocus;
 
 /// Minimal set of Win32 aliases + externs we need here. Shared ABI structs
@@ -12626,7 +12625,7 @@ test "settings @modified on the All settings page finds a key a UTF-16 or BOM co
 
 test "settings the All settings page never follows a link to a share to read the config file" {
     const alloc = std.testing.allocator;
-    const links = local_target.test_links;
+    const links = local_path.test_links;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.makeDir("real");
@@ -12788,7 +12787,7 @@ test "settings the All settings page refuses a share or device path before norma
 
 test "settings the All settings page never opens a cloud placeholder as its provider presents it" {
     const alloc = std.testing.allocator;
-    const cloud = local_target.test_cloud;
+    const cloud = local_path.test_cloud;
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.makeDir("real");
@@ -12803,7 +12802,7 @@ test "settings the All settings page never opens a cloud placeholder as its prov
     defer alloc.free(local_dir);
     const real_nt = try std.fmt.allocPrint(alloc, "\\??\\{s}", .{real_dir});
     defer alloc.free(real_nt);
-    try local_target.test_links.junction(alloc, local_dir, real_nt);
+    try local_path.test_links.junction(alloc, local_dir, real_nt);
     // No real placeholder (that needs a sync provider): the seam makes the
     // plain file read as a dehydrated one, and counts the opens that could
     // recall it.
@@ -12825,14 +12824,6 @@ test "settings the All settings page never opens a cloud placeholder as its prov
         try std.testing.expectEqual(std.meta.Tag(settings_reference.ConfigFile).unavailable, std.meta.activeTag(source.file));
         try std.testing.expectEqual(@as(?config_file_load.FileState, null), localFileState(alloc, path));
         try std.testing.expectEqual(@as(usize, 0), cloud.reopened);
-        // The link opener and the editor (`local_target.open`) still open it
-        // as its provider presents it; behind the junction their direct open
-        // stops at the link, so they reach it by the walk.
-        if (std.mem.startsWith(u8, rel, "cfg-local")) {
-            const opened = local_target.open(alloc, path, false) orelse return error.TestUnexpectedResult;
-            opened.close();
-            try std.testing.expectEqual(@as(usize, 1), cloud.reopened);
-        }
     }
 }
 
@@ -18924,14 +18915,11 @@ fn measureLine(hwnd: HWND, font: HGDIOBJ, text: [*:0]const u16) i32 {
 
 /// The file a save writes, as the All settings page reads it on the UI
 /// thread: `override` (the `--config-file` path the process started with) or
-/// the default the loader would pick, and its bytes. Nothing here opens a path
-/// that might lead off this machine, a share behind a link included, since
-/// one gone away could hold the UI thread for a network timeout: every look
-/// at a file, the default path's probes too, goes through `local_target`,
-/// which checks each link before it follows it. For the same reason it never
-/// opens a cloud placeholder (OneDrive and the like) in a way that could make
-/// the provider recall it (`settings_lookup`). A default whose candidates
-/// cannot all be looked at that way is not named.
+/// the default the loader would pick, and its bytes. Every look at a file,
+/// the default path's probes too, goes through `local_path.open` with
+/// `Cloud.refuse`, so no link is followed unchecked and no placeholder is
+/// recalled; a default whose candidates cannot all be looked at that way is
+/// not named.
 pub fn readConfigSource(alloc: std.mem.Allocator, override: ?[]const u8) settings_reference.ConfigSource {
     const path: []const u8 = if (override) |given|
         alloc.dupe(u8, given) catch return .{}
@@ -18942,53 +18930,31 @@ pub fn readConfigSource(alloc: std.mem.Allocator, override: ?[]const u8) setting
 }
 
 /// The config file at `path`, for the lines that set each key: read only
-/// through a handle `local_target` showed to be local, and only up to a size
-/// a config file has. A file that is not there is `.missing`; one that could
-/// not be shown to be local, or read, `.unavailable`. The bytes are the
+/// through a handle `local_path.open` showed to be local, and only up to a
+/// size a config file has. A file that is not there is `.missing`; one that
+/// could not be shown to be local, or read, `.unavailable`. The bytes are the
 /// caller's to free.
 fn readConfigFile(alloc: std.mem.Allocator, path: []const u8) settings_reference.ConfigFile {
-    const resolved = localConfigPath(alloc, path) orelse return .unavailable;
-    defer alloc.free(resolved);
-    return switch (local_target.lookup(alloc, resolved, .{ .read_data = true, .cloud = settings_lookup })) {
-        .missing => .missing,
-        .refused => .unavailable,
-        .file => |file| read: {
-            defer file.close();
-            break :read .{ .bytes = file.readToEndAlloc(alloc, reference_config_max_bytes) catch return .unavailable };
-        },
+    const found = switch (local_path.open(alloc, path, .{ .data = true, .cloud = .refuse }) catch return .unavailable) {
+        .found => |hit| hit,
+        .missing => return .missing,
+        .refused => return .unavailable,
     };
+    defer found.deinit(alloc);
+    return .{ .bytes = found.file.readToEndAlloc(alloc, reference_config_max_bytes) catch return .unavailable };
 }
 
 /// A default-path candidate's state for `preferredXdgPathProbed`, looked at
-/// through `local_target`; null when it cannot be shown to be local.
+/// through `local_path.open`; null when it cannot be shown to be local.
 fn localFileState(alloc: std.mem.Allocator, path: []const u8) ?config_file_load.FileState {
-    const resolved = localConfigPath(alloc, path) orelse return null;
-    defer alloc.free(resolved);
-    return switch (local_target.lookup(alloc, resolved, .{ .cloud = settings_lookup })) {
-        .missing => .missing,
-        .refused => null,
-        .file => |file| state: {
-            defer file.close();
-            const stat = file.stat() catch break :state null;
-            break :state if (stat.size == 0) .empty else .content;
-        },
+    const found = switch (local_path.open(alloc, path, .{ .cloud = .refuse }) catch return null) {
+        .found => |hit| hit,
+        .missing => return .missing,
+        .refused => return null,
     };
-}
-
-/// How the All settings page treats a cloud placeholder: it refuses one, as
-/// `.unavailable`, before anything could make its provider recall it on the
-/// UI thread, where a slow or offline provider would stall the window.
-const settings_lookup: local_target.Cloud = .refuse;
-
-/// `path` normalized for `local_target`, or null when it is not a path on a
-/// drive letter. The shape is checked as given: `std.fs.path.resolve` must
-/// not see a share or device path, since in Zig 0.15.2 it unwraps a null on a
-/// mixed-separator share such as `\\a\/` (lib/std/fs/path.zig:593), a panic no
-/// `catch` stops, and a `--config-file` path reaches here as given.
-fn localConfigPath(alloc: std.mem.Allocator, path: []const u8) ?[]u8 {
-    if (!windows_shell.isDriveAbsolutePath(path) or os_path.isNetworkOrDevicePath(path) or
-        std.mem.indexOfScalar(u8, path[2..], ':') != null) return null;
-    return std.fs.path.resolve(alloc, &.{path}) catch null;
+    defer found.deinit(alloc);
+    const stat = found.file.stat() catch return null;
+    return if (stat.size == 0) .empty else .content;
 }
 
 /// The largest config file the All settings page reads for line numbers.
