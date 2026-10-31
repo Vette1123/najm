@@ -66,7 +66,7 @@ function softwareSchema(page) {
     license: "https://opensource.org/license/mit",
     isAccessibleForFree: true,
     image: `${SITE_URL}/assets/najm-social.png`,
-    screenshot: `${SITE_URL}/assets/shot-restored-dark.webp`,
+    screenshot: `${SITE_URL}/assets/shot-splits-dark.png`,
     description: page.description,
     inLanguage: ["en", "ar"],
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },

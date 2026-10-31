@@ -3,8 +3,6 @@
 name: Najm site shots
 
 on:
-  push:
-    branches: [site-shots]
   workflow_dispatch:
 
 permissions:

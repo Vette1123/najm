@@ -311,20 +311,6 @@ kbd {
   margin-block-start: clamp(2rem, 4vw, 3rem);
 }
 
-.script {
-  background: var(--bg-raised);
-}
-
-.script__word {
-  font-size: clamp(3.5rem, 12vw, 8.5rem);
-  line-height: 1.25;
-  font-weight: 600;
-  color: var(--gold);
-  margin: 0 0 1.5rem;
-  max-width: none;
-  font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
-}
-
 .spec {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

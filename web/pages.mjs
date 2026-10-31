@@ -71,7 +71,7 @@ export const pages = [
     description:
       "Free native terminal for Windows 10 and 11, built on Ghostty's core. Tabs, splits, session restore and image paste, with PowerShell, WSL and Git Bash.",
     updated: "2026-10-31",
-    image: "assets/shot-restored-dark.webp",
+    image: "assets/shot-splits-dark.png",
     software: true,
     faq: faqEn,
   },
@@ -176,7 +176,7 @@ export const pages = [
     description:
       "نجم طرفية مجانية لويندوز 10 و11 مبنية على نواة Ghostty، مع التبويبات وتقسيم النوافذ واستعادة الجلسة ولصق الصور في أدوات الذكاء الاصطناعي.",
     updated: "2026-10-31",
-    image: "assets/shot-restored-dark.webp",
+    image: "assets/shot-splits-dark.png",
     software: true,
     faq: faqAr,
   },
