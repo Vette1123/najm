@@ -1002,6 +1002,7 @@ const titlebar_glyph_new_tab = std.unicode.utf8ToUtf16LeStringLiteral("\u{E710}"
 const titlebar_glyph_dropdown = std.unicode.utf8ToUtf16LeStringLiteral("\u{E70D}");
 const titlebar_glyph_command_palette = std.unicode.utf8ToUtf16LeStringLiteral("\u{E721}");
 const titlebar_glyph_settings = std.unicode.utf8ToUtf16LeStringLiteral("\u{E713}");
+const titlebar_glyph_tab_shell = std.unicode.utf8ToUtf16LeStringLiteral("\u{E756}");
 
 pub const GlobalHotkeySpec = win32_input.GlobalHotkeySpec;
 pub const RegisteredGlobalHotkey = win32_input.RegisteredGlobalHotkey;
@@ -3982,6 +3983,8 @@ pub const TitlebarGlyphKind = enum {
     dropdown,
     command_palette,
     settings,
+    /// A tab's default icon, a command prompt.
+    tab_shell,
 };
 
 const TitlebarButtonVisual = struct {
@@ -3999,6 +4002,7 @@ fn titlebarGlyphCodepoint(kind: TitlebarGlyphKind) u16 {
         .dropdown => 0xE70D,
         .command_palette => 0xE721,
         .settings => 0xE713,
+        .tab_shell => 0xE756,
     };
 }
 
@@ -4012,6 +4016,7 @@ fn titlebarGlyphText(kind: TitlebarGlyphKind) [*:0]const u16 {
         .dropdown => titlebar_glyph_dropdown,
         .command_palette => titlebar_glyph_command_palette,
         .settings => titlebar_glyph_settings,
+        .tab_shell => titlebar_glyph_tab_shell,
     };
 }
 
@@ -4025,6 +4030,7 @@ fn titlebarFallbackIcon(kind: TitlebarGlyphKind) win32_icons.Kind {
         .dropdown => .arrow_down,
         .command_palette => .search,
         .settings => .settings,
+        .tab_shell => .overflow,
     };
 }
 
@@ -4048,6 +4054,12 @@ fn createIconFontForFace(face: [*:0]const u16, height_px: i32) ?*anyopaque {
 const search_codicon_glyphs = search_controls.search_codicon_glyphs;
 
 const fontHasSearchCodicons = search_controls.fontHasSearchCodicons;
+
+/// The font a tab draws a title's symbol with, larger than the label's so a
+/// spinner reads as an icon. Null falls back to the chrome font.
+pub fn createTabSymbolFont(height_px: i32) ?*anyopaque {
+    return createIconFontForFace(std.unicode.utf8ToUtf16LeStringLiteral("Segoe UI Symbol"), height_px);
+}
 
 /// What `fontGlyphCoverage` found.
 pub const GlyphCoverage = enum {
@@ -5874,7 +5886,7 @@ pub fn clientTitlebarTheme(
 ///
 /// Neither palette reads on every background: on a mid-tone such as
 /// `#777777` the light label reaches 3.85:1 and its inactive-window shade
-/// 1.40:1. The label carries the `* ` marker, the active tab's essential cue,
+/// 1.40:1. The label is the tab's name, on whatever the terminal paints,
 /// so the label's two colors are moved toward black or white until they
 /// reach 4.5:1 and the focus ring until it reaches 3:1 (DESIGN.md); the
 /// status badge is held to 3:1 where it is drawn (`tabStatusBadgeColor`).
@@ -5896,6 +5908,38 @@ pub fn activeTabTheme(theme: *const ThemeColors, background: u32) ThemeColors {
     result.text_secondary = readableOn(result.text_secondary, background, 4.5);
     result.button_active_focus_ring = readableOn(result.button_active_focus_ring, background, 3.0);
     return result;
+}
+
+/// The surface a resting tab's hover fades in.
+pub fn tabHoverSurface(theme: *const ThemeColors) u32 {
+    return if (theme.is_dark)
+        adjustColor(theme.chrome_bg, 16, 16, 19)
+    else
+        adjustColor(theme.chrome_bg, -13, -13, -13);
+}
+
+/// A pressed tab sinks a step past its hover.
+pub fn tabPressedSurface(theme: *const ThemeColors) u32 {
+    return if (theme.is_dark)
+        adjustColor(theme.chrome_bg, 9, 9, 11)
+    else
+        adjustColor(theme.chrome_bg, -21, -21, -21);
+}
+
+/// The active tab's cap: the accent, held to DESIGN.md's 3:1 for an essential
+/// indicator on the tab's own background, which comes from the terminal and
+/// so can be anything. An inactive window quiets it, as it does the labels.
+pub fn activeTabCapColor(accent: u32, background: u32, window_active: bool) u32 {
+    const readable = readableOn(accent, background, 3.0);
+    return if (window_active) readable else blendColorRGB(background, readable, 0.5);
+}
+
+test "the active tab's cap reads on any terminal background" {
+    for ([_]u32{ rgb(0, 0, 0), rgb(0x28, 0x2C, 0x34), rgb(0x77, 0x77, 0x77), rgb(0xFF, 0xFF, 0xFF), rgb(0x00, 0x78, 0xD4) }) |background| {
+        const cap = activeTabCapColor(rgb(0x00, 0x78, 0xD4), background, true);
+        try std.testing.expect(rgbFromColorRef(cap).contrast(rgbFromColorRef(background)) >= 3.0);
+        try std.testing.expect(activeTabCapColor(rgb(0x00, 0x78, 0xD4), background, false) != cap);
+    }
 }
 
 /// `color`, or the least mix of it toward black or white (whichever stands
@@ -11540,6 +11584,8 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                     const close_left = tabCloseDownLeft(btn_rect, v.scaled(host_tab_close_zone_width), close_alpha);
                     if (tabButtonCloseHit(down_x, down_y, close_left, v.tabContentTopInset()) and tabCloseAction(v.tabs.items.len) != .none) {
                         // Click in close zone — capture for mouseup but don't start drag
+                        v.tab_close_pressed = true;
+                        _ = sys.InvalidateRect(hwnd, null, 0);
                         _ = sys.SetCapture(hwnd);
                     } else {
                         // Start potential drag: record origin
@@ -11547,6 +11593,7 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                         v.tab_drag_start_x = down_x;
                         v.tab_drag_start_y = down_y;
                         v.tab_drag_active = false;
+                        _ = sys.InvalidateRect(hwnd, null, 0);
                         _ = sys.SetCapture(hwnd);
                     }
                     return 0;
@@ -11558,6 +11605,8 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                     const drop_target_surface = v.tab_drop_target_surface;
                     v.tab_drag_index = null;
                     v.tab_drag_active = false;
+                    v.tab_close_pressed = false;
+                    _ = sys.InvalidateRect(hwnd, null, 0);
                     _ = sys.ReleaseCapture();
                     if (was_drag) {
                         if (drag_index) |source_index| {
@@ -11593,6 +11642,8 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                 c.WM_CAPTURECHANGED => {
                     v.tab_drag_index = null;
                     v.tab_drag_active = false;
+                    v.tab_close_pressed = false;
+                    _ = sys.InvalidateRect(hwnd, null, 0);
                     v.hideTabDropPreview();
                 },
                 c.WM_MOUSEMOVE => {
@@ -11607,6 +11658,7 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                     };
                     _ = sys.TrackMouseEvent(&track);
                     v.setHoveredButton(hwnd);
+                    v.syncTabCloseHot(hwnd, signedLowWord(lParamBits(lParam)), signedHighWord(lParamBits(lParam)));
 
                     // Handle tab drag reorder
                     if (v.tab_drag_index) |drag_idx| {

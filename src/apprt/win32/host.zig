@@ -209,6 +209,8 @@ const tabCloseAction = win32.tabCloseAction;
 const tabContainerProc = win32.tabContainerProc;
 const tabDirectionFromWheelDelta = win32.tabDirectionFromWheelDelta;
 const tabStatusBadgeColor = win32.tabStatusBadgeColor;
+const tabHoverSurface = win32.tabHoverSurface;
+const tabPressedSurface = win32.tabPressedSurface;
 const tabStatusHeadline = win32.tabStatusHeadline;
 const tabStatusKey = win32.tabStatusKey;
 const tabStripChildVisible = win32.tabStripChildVisible;
@@ -298,14 +300,41 @@ pub const palette_catalog_capacity: usize = 768;
 
 const palette_catalog_label_capacity: usize = 768;
 
-/// The program status badge a tab draws before its label, and the room it
-/// takes from the label with the gap after it, in DIPs and in label cells
-/// (about 7 DIPs each in the chrome font).
+/// The program status badge a tab draws in its icon slot, in DIPs.
 const tab_status_badge_size: i32 = 10;
 
-const tab_status_badge_slot: i32 = tab_status_badge_size + 5;
+/// A tab's icon slot, and the room it takes from the label with the gap after
+/// it, in DIPs and in label cells (about 7 DIPs each in the chrome font).
+const tab_icon_size: i32 = 16;
 
-const tab_status_badge_cells: usize = 2;
+const tab_icon_slot: i32 = tab_icon_size + 4;
+
+const tab_icon_cells: usize = 2;
+
+/// A tab keeps its icon down to this many DIPs of content width; below it
+/// the title has the room.
+const tab_icon_min_content: i32 = 64;
+
+/// Space from a tab's left edge to its content, and from its number to its
+/// title, in DIPs.
+const tab_content_left: i32 = 10;
+
+const tab_index_gap: i32 = 7;
+
+/// `RoundRect` takes the corner's diameter, so 10 draws a 5 DIP radius.
+const tab_corner_diameter: i32 = 10;
+
+/// Height of the active tab's accent cap, and of the hairline between
+/// resting tabs, in DIPs.
+const tab_cap_height: i32 = 2;
+
+const tab_divider_height: i32 = 14;
+
+/// Em of the symbol a tab shows in its icon slot, in DIPs.
+const tab_symbol_font_px: i32 = 15;
+
+/// Side of the chip behind a tab's close X, in DIPs.
+const tab_close_chip: i32 = 18;
 
 /// The fewest cells `hostTabLabelMaxWidth` gives a label.
 const tab_label_min_cells: usize = 6;
@@ -507,6 +536,7 @@ pub const Host = struct {
     /// the glyphs, and `win32_icons` draws them.
     titlebar_caption_icon_font: ?*anyopaque = null, // HFONT, owned
     titlebar_action_icon_font: ?*anyopaque = null, // HFONT, owned
+    tab_symbol_font: ?*anyopaque = null, // HFONT, owned
     /// Both titlebar icon fonts are null because no icon face has the
     /// glyphs, not because GDI failed to create or check one, so
     /// `reconfigureSystemTheme` does not count them as missing.
@@ -577,6 +607,22 @@ pub const Host = struct {
     /// `win32_tab_visual.close_fade_ms` (120 ms) cubic ease-in-out.
     tab_close_hover: win32_tab_visual.CloseState = .{},
     tab_close_hover_hwnd: ?HWND = null,
+    /// The tab whose close zone the pointer is in (`syncTabCloseHot`), and
+    /// whether a press that started there is held.
+    tab_close_hot_hwnd: ?HWND = null,
+    tab_close_pressed: bool = false,
+    /// The close chip's own fade, and the tab it belongs to, which outlives
+    /// `tab_close_hot_hwnd` while the chip fades out.
+    tab_close_chip_state: win32_tab_visual.CloseState = .{},
+    tab_close_chip_hwnd: ?HWND = null,
+    /// The active tab's cap on its way to a new tab. `tab_cap_hwnd` is the
+    /// active tab's button, so only a change of tab slides; a resize or a
+    /// tab dragged along moves the cap at once. `tab_cap_from_*` is the tab
+    /// that fades out meanwhile, and the terminal background it fades from.
+    tab_cap_slide: win32_tab_visual.CapSlide = .{},
+    tab_cap_hwnd: ?HWND = null,
+    tab_cap_from_hwnd: ?HWND = null,
+    tab_cap_from_bg: u32 = 0,
     /// Where the band last painted the active tab's join to its terminal
     /// (`activeTabJoin`), so a layout that moves it repaints the old place.
     tab_join: ?TabJoin = null,
@@ -1925,17 +1971,31 @@ pub const Host = struct {
         // here and its WM_DRAWITEM path re-reads `CloseState.alphaAt(now)`
         // each frame. When both slots converge, we stop forcing repaints.
         if (self.tab_close_hover_hwnd) |tab_hwnd| {
-            if (self.tab_close_hover.animating(now)) {
-                _ = sys.InvalidateRect(tab_hwnd, null, 0);
-            } else {
-                self.tab_close_hover_hwnd = null;
-            }
+            // The stopping tick repaints too: the fade tints the whole tab,
+            // and the last frame must land on the settled color.
+            _ = sys.InvalidateRect(tab_hwnd, null, 0);
+            if (!self.tab_close_hover.animating(now)) self.tab_close_hover_hwnd = null;
         }
         if (self.tab_close_prev_hwnd) |prev_hwnd| {
-            if (self.tab_close_prev.animating(now)) {
-                _ = sys.InvalidateRect(prev_hwnd, null, 0);
-            } else {
-                self.tab_close_prev_hwnd = null;
+            _ = sys.InvalidateRect(prev_hwnd, null, 0);
+            if (!self.tab_close_prev.animating(now)) self.tab_close_prev_hwnd = null;
+        }
+        if (self.tab_close_chip_hwnd) |chip_hwnd| {
+            if (self.tab_close_chip_state.fade_started_ms != 0) {
+                _ = sys.InvalidateRect(chip_hwnd, null, 0);
+                if (!self.tab_close_chip_state.animating(now)) {
+                    self.tab_close_chip_state.alpha = self.tab_close_chip_state.target;
+                    self.tab_close_chip_state.fade_started_ms = 0;
+                }
+            }
+        }
+        if (self.tab_cap_slide.started_ms != 0) {
+            // The bar crosses every tab between the two, and each paints its
+            // own part. This tick's repaint also lands the last frame.
+            self.invalidateTabButtons();
+            if (!self.tab_cap_slide.animating(now)) {
+                self.tab_cap_slide.started_ms = 0;
+                self.tab_cap_from_hwnd = null;
             }
         }
         if (self.titlebar_hover_fade_role != .none) {
@@ -2003,6 +2063,13 @@ pub const Host = struct {
         const previous = self.tab_join;
         if (std.meta.eql(join, previous)) return;
         self.tab_join = join;
+        const active_button = if (join != null) self.tabs.items[self.active_tab].button_hwnd else null;
+        if (active_button != self.tab_cap_hwnd) {
+            if (previous) |old| if (join) |new| self.startTabCapSlide(old, new);
+            self.tab_cap_hwnd = active_button;
+        }
+        // A resting tab's divider depends on its neighbor being active.
+        self.invalidateTabButtons();
         const hwnd = self.hwnd orelse return;
         if (previous) |old| _ = sys.InvalidateRect(hwnd, &old.rect, 0);
         const new = join orelse return;
@@ -2010,6 +2077,47 @@ pub const Host = struct {
         if (previous == null or previous.?.color != new.color) {
             if (self.tabs.items[self.active_tab].button_hwnd) |button| _ = sys.InvalidateRect(button, null, 0);
         }
+    }
+
+    fn invalidateTabButtons(self: *Host) void {
+        for (self.tabs.items) |*tab| {
+            if (tab.button_hwnd) |button| _ = sys.InvalidateRect(button, null, 0);
+        }
+    }
+
+    /// Slide the cap between two tabs' joins, the band's own record of where
+    /// each tab paints. Reduced motion and High Contrast keep the snap.
+    fn startTabCapSlide(self: *Host, old: TabJoin, new: TabJoin) void {
+        const duration: u16 = @intCast(win32_tab_visual.cap_slide_ms);
+        if (self.effectiveTweenDuration(duration) == 0) return;
+        self.tab_cap_slide.start(
+            .{ .left = old.rect.left, .right = old.rect.right },
+            .{ .left = new.rect.left, .right = new.rect.right },
+            sys.GetTickCount64(),
+        );
+        self.tab_cap_from_hwnd = self.tab_cap_hwnd;
+        self.tab_cap_from_bg = old.color;
+        _ = self.addTween(0.0, 1.0, duration, (win32_theme.ThemeMotion{}).easing_standard);
+    }
+
+    /// Where the cap crosses a tab's button, in button coordinates: the
+    /// sliding bar's part of it, else the active tab's whole cap.
+    fn tabCapSpan(self: *Host, index: usize, active: bool, button: RECT, corner_radius: i32, now_ms: u64) ?win32_tab_visual.Span {
+        var span: win32_tab_visual.Span = undefined;
+        if (self.tab_cap_slide.animating(now_ms)) {
+            const placement = self.tabs.items[index].button_placement;
+            if (!placement.rect_known) return null;
+            const edges = self.tab_cap_slide.edgesAt(now_ms);
+            const offset = button.left - placement.rect.left;
+            span = .{
+                .left = @max(button.left, edges.left + corner_radius + offset),
+                .right = @min(button.right, edges.right - corner_radius + offset),
+            };
+        } else {
+            if (!active) return null;
+            span = .{ .left = button.left + corner_radius, .right = button.right - corner_radius };
+        }
+        return if (span.right > span.left) span else null;
     }
 
     /// Focus `handle` in `tab`. A tab shows its focused pane's terminal
@@ -2722,6 +2830,7 @@ pub const Host = struct {
         if (self.preview_font) |font| _ = sys.DeleteObject(font);
         if (self.titlebar_caption_icon_font) |font| _ = sys.DeleteObject(font);
         if (self.titlebar_action_icon_font) |font| _ = sys.DeleteObject(font);
+        if (self.tab_symbol_font) |font| _ = sys.DeleteObject(font);
         if (self.search_icon_font) |font| _ = sys.DeleteObject(font);
         self.clearStructuralHistory(.host_destroy);
         self.structural_undo_entries.deinit(self.app.core_app.alloc);
@@ -2832,6 +2941,10 @@ pub const Host = struct {
         self.tab_tooltip_tab_id = null;
 
         self.hovered_button_hwnd = null;
+        self.tab_close_hot_hwnd = null;
+        self.tab_close_chip_hwnd = null;
+        self.tab_cap_hwnd = null;
+        self.tab_cap_from_hwnd = null;
         self.tab_close_hover_hwnd = null;
         self.tab_close_prev_hwnd = null;
     }
@@ -5144,8 +5257,15 @@ pub const Host = struct {
         self.hideTabTooltip();
         const previous = self.hovered_button_hwnd;
         self.hovered_button_hwnd = child;
-        if (previous) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
-        if (child) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+        if (self.tab_close_hot_hwnd != child) self.setTabCloseHot(null);
+        if (previous) |hwnd| {
+            _ = sys.InvalidateRect(hwnd, null, 0);
+            self.invalidateTabBefore(hwnd);
+        }
+        if (child) |hwnd| {
+            _ = sys.InvalidateRect(hwnd, null, 0);
+            self.invalidateTabBefore(hwnd);
+        }
         if (self.bannerButtonOf(previous) != null or self.bannerButtonOf(child) != null) self.syncBannerExpiry();
 
         const previous_titlebar_role = if (previous) |h| self.titlebarActionButtonRole(h) else .none;
@@ -5198,6 +5318,42 @@ pub const Host = struct {
                 (win32_theme.ThemeMotion{}).easing_standard,
             );
         }
+    }
+
+    /// The tab to the left of `child` owns the divider `child`'s hover hides.
+    fn invalidateTabBefore(self: *Host, child: HWND) void {
+        const index = self.tabIndexForButton(child) orelse return;
+        if (index == 0) return;
+        if (self.tabs.items[index - 1].button_hwnd) |button| _ = sys.InvalidateRect(button, null, 0);
+    }
+
+    pub fn setTabCloseHot(self: *Host, child: ?HWND) void {
+        if (self.tab_close_hot_hwnd == child) return;
+        if (self.tab_close_hot_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+        if (child) |hwnd| {
+            _ = sys.InvalidateRect(hwnd, null, 0);
+            if (self.tab_close_chip_hwnd != hwnd) self.tab_close_chip_state = .{};
+            self.tab_close_chip_hwnd = hwnd;
+        }
+        self.tab_close_hot_hwnd = child;
+        const duration: u16 = @intCast(win32_tab_visual.close_fade_ms);
+        const animate = self.effectiveTweenDuration(duration) != 0;
+        self.tab_close_chip_state.setHoveredWithMotion(child != null, sys.GetTickCount64(), animate);
+        if (animate) _ = self.addTween(0.0, 1.0, duration, (win32_theme.ThemeMotion{}).easing_standard);
+    }
+
+    /// Light the close chip of the tab under the pointer when the pointer is
+    /// in its close zone. The whole zone counts, however far the X has faded
+    /// in, because the chip fades with the X and a pointer that stops moving
+    /// sends no second chance. A tab being dragged lights nothing.
+    pub fn syncTabCloseHot(self: *Host, child: HWND, x: i32, y: i32) void {
+        var rect: RECT = undefined;
+        const in_zone = self.tab_drag_index == null and
+            tabCloseAction(self.tabs.items.len) != .none and
+            sys.GetClientRect(child, &rect) != 0 and
+            x >= rect.right - self.scaled(host_tab_close_zone_width) and
+            y >= self.tabContentTopInset();
+        self.setTabCloseHot(if (in_zone) child else null);
     }
 
     pub fn assignSelectedProfileToQuickSlot(self: *Host, slot_ordinal: usize) bool {
@@ -7353,9 +7509,11 @@ pub const Host = struct {
     fn recreateTitlebarIconFontsFrom(self: *Host, faces: []const [*:0]const u16) void {
         if (self.titlebar_caption_icon_font) |old| _ = sys.DeleteObject(old);
         if (self.titlebar_action_icon_font) |old| _ = sys.DeleteObject(old);
+        if (self.tab_symbol_font) |old| _ = sys.DeleteObject(old);
         if (self.search_icon_font) |old| _ = sys.DeleteObject(old);
         const caption = self.createTitlebarIconFont(faces, 10);
         const action = self.createTitlebarIconFont(faces, 12);
+        self.tab_symbol_font = win32.createTabSymbolFont(self.scaled(tab_symbol_font_px));
         self.titlebar_caption_icon_font = caption.font;
         self.titlebar_action_icon_font = action.font;
         self.titlebar_icons_geometric = caption.geometric and action.geometric;
@@ -8278,33 +8436,40 @@ pub const Host = struct {
             null;
         const tab_theme_value = if (tab_background) |background| activeTabTheme(theme, background) else theme.*;
         const tab_theme = &tab_theme_value;
+        const tab_index = if (tab_button) self.tabIndexForButton(draw.hwndItem) else null;
+        const tab_pressed = tab_index != null and tab_index == self.tab_drag_index and !self.tab_drag_active;
+        // A resting tab has no surface of its own: it lies on the band, and
+        // the hover fade brings its surface and label up together.
+        var tab_lit = false;
+        var tab_fade: f32 = 0;
+        const tab_now = sys.GetTickCount64();
         if (tab_button and !disabled and !is_hc) {
-            colors.fg = if (active or hovered) tab_theme.text_primary else theme.button_chrome_fg;
+            // A slide also crossfades the two tabs' surfaces.
+            const slide_progress = self.tab_cap_slide.progressAt(tab_now);
             if (active) {
-                colors.bg = tab_background orelse if (theme.is_dark)
+                colors.fg = tab_theme.text_primary;
+                colors.bg = blendColorRGB(theme.chrome_bg, tab_background orelse if (theme.is_dark)
                     adjustColor(theme.chrome_bg, 18, 18, 22)
                 else
-                    adjustColor(theme.chrome_bg, 12, 12, 12);
-                colors.border = colors.bg;
-            } else if (hovered) {
-                colors.bg = if (theme.is_dark)
-                    adjustColor(theme.chrome_bg, 10, 10, 12)
-                else
-                    adjustColor(theme.chrome_bg, 7, 7, 7);
-                colors.border = if (theme.is_dark)
-                    adjustColor(theme.chrome_border, 20, 20, 22)
-                else
-                    adjustColor(theme.chrome_border, -22, -22, -22);
+                    adjustColor(theme.chrome_bg, 12, 12, 12), slide_progress);
+                tab_lit = true;
             } else {
-                colors.bg = if (theme.is_dark)
-                    adjustColor(theme.chrome_bg, 4, 4, 6)
+                const leaving = self.tab_cap_slide.animating(tab_now) and self.tab_cap_from_hwnd == draw.hwndItem;
+                const hover_fade = self.tabCloseAlpha(draw.hwndItem, false, hovered, tab_now);
+                tab_fade = if (tab_pressed) 1.0 else hover_fade;
+                const leaving_fade: f32 = if (leaving) 1.0 - slide_progress else 0.0;
+                const fade = @max(tab_fade, leaving_fade);
+                const surface = if (tab_pressed)
+                    tabPressedSurface(theme)
+                else if (leaving_fade > hover_fade)
+                    self.tab_cap_from_bg
                 else
-                    adjustColor(theme.chrome_bg, 3, 3, 3);
-                colors.border = if (theme.is_dark)
-                    adjustColor(theme.chrome_border, 8, 8, 10)
-                else
-                    adjustColor(theme.chrome_border, -14, -14, -14);
+                    tabHoverSurface(theme);
+                colors.bg = blendColorRGB(theme.chrome_bg, surface, fade);
+                colors.fg = blendColorRGB(theme.button_chrome_fg, tab_theme.text_primary, fade);
+                tab_lit = fade > 0;
             }
+            colors.border = colors.bg;
         }
         if (tab_button and !disabled) colors.fg = win32_theme.windowChromeTextColor(tab_theme, colors.fg, self.window_active, is_hc);
         const bg = colors.bg;
@@ -8316,26 +8481,64 @@ pub const Host = struct {
         const parent_bg = if (overlay) theme.overlay_bg else theme.chrome_bg;
         fillSolidRect(draw.hDC, draw.rcItem, parent_bg);
         if (tab_button) {
-            gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, self.scaled(4), self.tabsFlushWithTop());
+            const corner = self.scaled(tab_corner_diameter);
+            const corner_radius = @divTrunc(corner, 2);
+            const flush_top = self.tabsFlushWithTop();
+            if (tab_lit or is_hc) gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, corner, flush_top);
             // Square lower corners and the last row, which the rounded
             // rectangle's inset leaves to the parent color, so the tab meets
             // the join below it without a notch.
             if (tab_background != null) fillSolidRect(draw.hDC, .{
                 .left = draw.rcItem.left + 1,
-                .top = @max(draw.rcItem.top, draw.rcItem.bottom - 1 - self.scaled(4)),
+                .top = @max(draw.rcItem.top, draw.rcItem.bottom - 1 - corner_radius),
                 .right = draw.rcItem.right - 1,
                 .bottom = draw.rcItem.bottom,
             }, bg);
+            if (!is_hc and !disabled) if (tab_index) |index| {
+                // The cap marks the active tab now the paint drops the `* `.
+                // It starts past the corners, and a restored window keeps it
+                // off row 0, where it would merge with DWM's border.
+                const cap_top = draw.rcItem.top + @as(i32, if (flush_top) 0 else 1);
+                const cap_bottom = cap_top + self.scaled(tab_cap_height);
+                const cap_color = win32.activeTabCapColor(theme.accent, bg, self.window_active);
+                if (tab_fade > 0) {
+                    const line = win32_tab_visual.hoverLineSpan(
+                        draw.rcItem.left + corner_radius,
+                        draw.rcItem.right - corner_radius,
+                        tab_fade,
+                    );
+                    fillSolidRect(draw.hDC, .{
+                        .left = line.left,
+                        .top = cap_top,
+                        .right = line.right,
+                        .bottom = cap_bottom,
+                    }, blendColorRGB(bg, cap_color, 0.6));
+                }
+                if (self.tabCapSpan(index, active, draw.rcItem, corner_radius, tab_now)) |cap| {
+                    fillSolidRect(draw.hDC, .{
+                        .left = cap.left,
+                        .top = cap_top,
+                        .right = cap.right,
+                        .bottom = cap_bottom,
+                    }, cap_color);
+                }
+                const next = index + 1;
+                const next_lit = next == self.active_tab or (next < self.tabs.items.len and
+                    self.tabs.items[next].button_hwnd != null and
+                    self.isHoveredButton(self.tabs.items[next].button_hwnd.?));
+                if (win32_tab_visual.dividerVisible(tab_lit, next_lit)) {
+                    const height = self.scaled(tab_divider_height);
+                    const top = @divTrunc(draw.rcItem.top + content_top_inset + draw.rcItem.bottom - height, 2);
+                    fillSolidRect(draw.hDC, .{
+                        .left = draw.rcItem.right - 1,
+                        .top = top,
+                        .right = draw.rcItem.right,
+                        .bottom = top + height,
+                    }, blendColorRGB(theme.chrome_bg, theme.button_chrome_fg, 0.22));
+                }
+            };
         } else {
             drawRoundedRect(draw.hDC, draw.rcItem, bg, border, self.scaled(4));
-        }
-        if (tab_button and !overlay and !disabled and hovered and !active) {
-            fillSolidRect(draw.hDC, .{
-                .left = draw.rcItem.left + self.scaled(5),
-                .top = draw.rcItem.top + content_top_inset + self.scaled(3),
-                .right = draw.rcItem.right - self.scaled(5),
-                .bottom = draw.rcItem.top + content_top_inset + self.scaled(5),
-            }, border);
         }
         // An overlay button is the default button of a modal prompt: focus
         // lands on Allow programmatically and Enter presses whatever holds
@@ -8433,13 +8636,18 @@ pub const Host = struct {
                 fg,
                 isHighContrastActive(),
             );
+        } else if (tab_button and !overlay and tab_index != null) {
+            self.drawTabLabel(
+                draw.hDC,
+                text_rect,
+                text_buf[0..@intCast(text_len)],
+                self.tabs.items[tab_index.?].status_indicator,
+                tab_theme,
+                fg,
+                bg,
+                is_hc,
+            );
         } else {
-            if (tab_button and !overlay) {
-                if (self.tabIndexForButton(draw.hwndItem)) |index| {
-                    const status = self.tabs.items[index].status_indicator;
-                    self.drawTabStatusBadge(draw.hDC, &text_rect, @ptrCast(&text_buf), text_len, status, tab_theme, fg, bg);
-                }
-            }
             _ = sys.DrawTextW(
                 draw.hDC,
                 @ptrCast(&text_buf),
@@ -8449,48 +8657,137 @@ pub const Host = struct {
             );
         }
 
-        // Per-tab close X glyph. Active tabs keep the X fully opaque
-        // (it's a permanent affordance the user can always click).
-        // Inactive tabs fade the X in/out based on hover via
-        // `win32_tab_visual.CloseState` — matches Windows Terminal's
-        // hover treatment. On non-hovered + non-active tabs the alpha
-        // drops to 0 so the X vanishes entirely.
+        // Per-tab close X, in the icon font the caption buttons use. Active
+        // tabs keep it fully opaque (a permanent affordance the user can
+        // always click). Inactive tabs fade it in/out on hover via
+        // `win32_tab_visual.CloseState`; at rest the alpha drops to 0 and the
+        // X vanishes. Under the pointer it gets its own chip, so what a click
+        // will close is plain and the tab's own hover cannot be mistaken for it.
         if (can_close_tab) {
             const alpha = self.tabCloseAlpha(draw.hwndItem, active, hovered, sys.GetTickCount64());
             if (alpha > 0.01) {
-                const close_glyph = comptime std.unicode.utf8ToUtf16LeStringLiteral("\u{00D7}"); // ×
-                const close_fg_full = colors.fg;
-                // Alpha-blend the glyph colour against the tab bg —
-                // GDI's DrawTextW has no alpha channel, so we
-                // pre-composite.
-                const blended = blendColorRGB(bg, close_fg_full, alpha);
-                _ = sys.SetTextColor(draw.hDC, blended);
-                var close_rect = RECT{
-                    .left = draw.rcItem.right - close_zone_width,
-                    .top = text_rect.top,
-                    .right = draw.rcItem.right - self.scaled(2),
-                    .bottom = draw.rcItem.bottom,
-                };
-                _ = sys.DrawTextW(
-                    draw.hDC,
-                    close_glyph,
-                    1,
-                    &close_rect,
-                    c.DT_CENTER | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX,
+                const button = draw.rcItem;
+                const chip_box = win32_tab_visual.closeChipRect(
+                    .{ .left = button.left, .top = button.top, .right = button.right, .bottom = button.bottom },
+                    close_zone_width,
+                    self.scaled(tab_close_chip),
+                    content_top_inset,
                 );
+                const chip = RECT{ .left = chip_box.left, .top = chip_box.top, .right = chip_box.right, .bottom = chip_box.bottom };
+                const hot = self.tab_close_chip_hwnd == draw.hwndItem;
+                const strength = win32_tab_visual.closeChipStrength(
+                    hot,
+                    self.tab_close_pressed,
+                    alpha * self.tab_close_chip_state.alphaAt(tab_now),
+                );
+                if (strength > 0) {
+                    if (is_hc) {
+                        gdi.drawRoundedOutline(draw.hDC, chip, fg, self.scaled(tab_corner_diameter));
+                    } else {
+                        const fill = blendColorRGB(bg, fg, strength);
+                        drawRoundedRect(draw.hDC, chip, fill, fill, self.scaled(tab_corner_diameter));
+                    }
+                }
+                // Pre-composite against the tab background: a glyph has no
+                // alpha channel in GDI.
+                self.drawTitlebarGlyph(draw.hDC, chip, .close, blendColorRGB(bg, fg, alpha), false);
             }
         }
     }
 
-    /// Draw a tab's program status badge (OSC 7501) before its label, and
-    /// narrow `text_rect` to where the label goes, so the badge and the
-    /// label are centered together the way the label alone is.
+    /// A tab's content, left to right: its icon, its number, muted, and its
+    /// title. The icon is the program status badge (OSC 7501), else the
+    /// symbol leading the label (the bell, a program's spinner), else a
+    /// prompt. High Contrast has no cap, so it keeps the painted `* `.
+    fn drawTabLabel(
+        self: *Host,
+        hdc: HDC,
+        area: RECT,
+        label: []const u16,
+        status: win32_program_status.Indicator,
+        theme: *const ThemeColors,
+        fg: u32,
+        bg: u32,
+        high_contrast: bool,
+    ) void {
+        const parts = labels.tabLabelParts(label);
+        const muted = if (high_contrast) fg else blendColorRGB(bg, fg, 0.68);
+        var rect = area;
+        rect.left += self.scaled(tab_content_left - 6);
+
+        if (rect.right - rect.left >= self.scaled(tab_icon_min_content)) {
+            const size = self.scaled(tab_icon_size);
+            const top = @divTrunc(rect.top + rect.bottom - size, 2);
+            const slot = RECT{ .left = rect.left, .top = top, .right = rect.left + size, .bottom = top + size };
+            self.drawTabIcon(hdc, slot, parts.symbol, status, theme, fg, muted, bg);
+            rect.left += self.scaled(tab_icon_slot);
+        }
+
+        const marked = if (high_contrast) parts.marker else parts.marker[0..0];
+        const number_len = marked.len + parts.index.len;
+        if (number_len > 0) {
+            var number_buf: [32]u16 = undefined;
+            const copied = @min(number_len, number_buf.len);
+            const number = number_buf[0..copied];
+            @memcpy(number[0..marked.len], marked);
+            @memcpy(number[marked.len..], parts.index[0 .. copied - marked.len]);
+            var number_rect = rect;
+            _ = sys.SetTextColor(hdc, muted);
+            _ = sys.DrawTextW(hdc, @ptrCast(number.ptr), @intCast(copied), &number_rect, c.DT_LEFT | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX | c.DT_END_ELLIPSIS);
+            var measure: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
+            _ = sys.DrawTextW(hdc, @ptrCast(number.ptr), @intCast(copied), &measure, c.DT_CALCRECT | c.DT_SINGLELINE | c.DT_NOPREFIX);
+            rect.left += measure.right + self.scaled(tab_index_gap);
+        }
+
+        if (rect.right <= rect.left or parts.title.len == 0) return;
+        _ = sys.SetTextColor(hdc, fg);
+        _ = sys.DrawTextW(
+            hdc,
+            @ptrCast(parts.title.ptr),
+            @intCast(parts.title.len),
+            &rect,
+            c.DT_LEFT | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX | c.DT_END_ELLIPSIS,
+        );
+    }
+
+    fn drawTabIcon(
+        self: *Host,
+        hdc: HDC,
+        slot: RECT,
+        symbol: []const u16,
+        status: win32_program_status.Indicator,
+        theme: *const ThemeColors,
+        fg: u32,
+        muted: u32,
+        bg: u32,
+    ) void {
+        if (status != .none) {
+            self.drawTabStatusBadge(hdc, slot, status, theme, fg, bg);
+            return;
+        }
+        if (symbol.len == 0) {
+            self.drawTitlebarGlyph(hdc, slot, .tab_shell, muted, false);
+            return;
+        }
+        var symbol_rect = slot;
+        const previous = if (self.tab_symbol_font) |font| sys.SelectObject(hdc, font) else null;
+        defer restoreFont(hdc, previous);
+        _ = sys.SetTextColor(hdc, fg);
+        _ = sys.DrawTextW(
+            hdc,
+            @ptrCast(symbol.ptr),
+            @intCast(symbol.len),
+            &symbol_rect,
+            c.DT_CENTER | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX | c.DT_NOCLIP,
+        );
+    }
+
+    /// Draw a tab's program status badge (OSC 7501) centered in its icon
+    /// slot.
     fn drawTabStatusBadge(
         self: *Host,
         hdc: HDC,
-        text_rect: *RECT,
-        text: [*:0]const u16,
-        text_len: i32,
+        slot: RECT,
         status: win32_program_status.Indicator,
         theme: *const ThemeColors,
         fg: u32,
@@ -8504,19 +8801,8 @@ pub const Host = struct {
             .failed => .cross,
         };
         const size = self.scaled(tab_status_badge_size);
-        const slot = self.scaled(tab_status_badge_slot);
-        var measure: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
-        _ = sys.DrawTextW(
-            hdc,
-            text,
-            text_len,
-            &measure,
-            c.DT_CALCRECT | c.DT_SINGLELINE | c.DT_NOPREFIX,
-        );
-        const room = text_rect.right - text_rect.left;
-        const group = @min(room, slot + (measure.right - measure.left));
-        const left = text_rect.left + @divTrunc(room - group, 2);
-        const top = @divTrunc(text_rect.top + text_rect.bottom - size, 2);
+        const left = @divTrunc(slot.left + slot.right - size, 2);
+        const top = @divTrunc(slot.top + slot.bottom - size, 2);
         // High contrast draws every badge in the text color; the shapes
         // still tell the states apart.
         const high_contrast = isHighContrastActive();
@@ -8530,8 +8816,6 @@ pub const Host = struct {
             @max(2, self.scaled(2)),
             high_contrast,
         );
-        text_rect.left = left + slot;
-        text_rect.right = left + group;
     }
 
     fn buttonProfileKind(self: *Host, hwnd: HWND) ?windows_shell.ProfileKind {
@@ -9299,7 +9583,9 @@ pub const Host = struct {
         _ = sys.SetWindowTextW(draw.hwndItem, std.unicode.utf8ToUtf16LeStringLiteral("* 1: label"));
         host.drawButton(&draw);
         _ = BannerTestCanvas.raw.GdiFlush();
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(@divTrunc(width, 2), 1));
+        // The cap, the active tab's mark, on its top rows; the fill below it.
+        try std.testing.expect(tab_canvas.pixel(@divTrunc(width, 2), 1) != terminal_bg);
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(@divTrunc(width, 2), 5));
         try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, @divTrunc(height, 2)));
         try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, height - 1));
         try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(width - 2, height - 1));
@@ -9312,7 +9598,7 @@ pub const Host = struct {
         // default dark terminal reach 1.23:1 (active window) and about 2.2:1
         // (inactive); the light palette's on #777777, 3.85:1 and 1.40:1.
         // Inside the button's fill: its top row and side columns are the band's.
-        const label_rect = childRect(@divTrunc(width, 4), 2, @divTrunc(width * 3, 8), height - 4);
+        const label_rect = childRect(@divTrunc(width, 4), 6, @divTrunc(width * 3, 8), height - 8);
         const backgrounds = [_]u32{ terminal_bg, rgb(0x77, 0x77, 0x77), rgb(0x80, 0x80, 0x80), rgb(0xFF, 0x00, 0x00), rgb(0x00, 0x78, 0xD4) };
         for ([_]ThemeColors{ win32.darkTheme(), win32.lightTheme() }) |band_theme| {
             app.resolved_theme = band_theme;
@@ -9351,6 +9637,120 @@ pub const Host = struct {
         const la = luminance.of(a);
         const lb = luminance.of(b);
         return (@max(la, lb) + 0.05) / (@min(la, lb) + 0.05);
+    }
+
+    test "a resting tab lies flat, and the pointer lights its close chip only in the zone" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        try runOnPrivateDesktop(tabRestAndCloseChipTestBody);
+    }
+
+    fn tabRestAndCloseChipTestBody() !void {
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var first: Surface = undefined;
+        var second: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host }},
+            .surfaces = &.{ .{ .storage = &first, .host = &host }, .{ .storage = &second, .host = &host } },
+            .tabs = &.{ .{ .host = &host, .surface = &first, .id = 1 }, .{ .host = &host, .surface = &second, .id = 2 } },
+        });
+        defer session.deinit();
+        const window = try BannerTestWindow.init(&host);
+        defer window.deinit(&host);
+        const width: i32 = 200;
+        const height: i32 = 34;
+        const button = try createTestChromeChild(window.parent, prompt_button_class);
+        _ = sys.MoveWindow(button, 0, 0, width, height, 0);
+        setWindowData(button, &host);
+        host.tabs.items[1].button_hwnd = button;
+        defer host.tabs.items[1].button_hwnd = null;
+        _ = sys.SetWindowTextW(button, std.unicode.utf8ToUtf16LeStringLiteral("2: pwsh"));
+
+        // At rest: no box, no stripe, nothing above the label but the band.
+        const canvas = try BannerTestCanvas.init(width, height);
+        defer canvas.deinit();
+        const draw: DRAWITEMSTRUCT = .{
+            .CtlType = c.ODT_BUTTON,
+            .CtlID = 1000,
+            .itemID = 0,
+            .itemAction = 0,
+            .itemState = 0,
+            .hwndItem = button,
+            .hDC = canvas.dc,
+            .rcItem = .{ .left = 0, .top = 0, .right = width, .bottom = height },
+            .itemData = 0,
+        };
+        host.drawButton(&draw);
+        _ = BannerTestCanvas.raw.GdiFlush();
+        try std.testing.expectEqual(@as(usize, 0), canvas.inked(
+            .{ .left = 0, .top = 0, .right = width - 1, .bottom = 6 },
+            canvas.pixel(0, 0),
+        ));
+
+        const zone = host.scaled(host_tab_close_zone_width);
+        const middle = @divTrunc(height, 2);
+        const at = struct {
+            fn lparam(x: i32, y: i32) LPARAM {
+                return (@as(LPARAM, y) << 16) | @as(LPARAM, x);
+            }
+        }.lparam;
+        _ = tabButtonProc(button, c.WM_MOUSEMOVE, 0, at(10, middle));
+        try std.testing.expect(host.tab_close_hot_hwnd == null);
+        _ = tabButtonProc(button, c.WM_MOUSEMOVE, 0, at(width - @divTrunc(zone, 2), middle));
+        try std.testing.expect(host.tab_close_hot_hwnd == button);
+        _ = tabButtonProc(button, c.WM_MOUSEMOVE, 0, at(10, middle));
+        try std.testing.expect(host.tab_close_hot_hwnd == null);
+        host.setHoveredButton(null);
+    }
+
+    test "a tab switch slides the cap and a layout change does not" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        try runOnPrivateDesktop(tabCapSlideTestBody);
+    }
+
+    fn tabCapSlideTestBody() !void {
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var first: Surface = undefined;
+        var second: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host }},
+            .surfaces = &.{ .{ .storage = &first, .host = &host }, .{ .storage = &second, .host = &host } },
+            .tabs = &.{ .{ .host = &host, .surface = &first, .id = 1 }, .{ .host = &host, .surface = &second, .id = 2 } },
+        });
+        defer session.deinit();
+        const window = try BannerTestWindow.init(&host);
+        defer window.deinit(&host);
+        first.tab_background = rgb(0x12, 0x34, 0x56);
+        second.tab_background = rgb(0x65, 0x43, 0x21);
+        host.tabs.items[0].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
+        host.tabs.items[1].button_hwnd = try createTestChromeChild(window.parent, prompt_button_class);
+        var client: RECT = .{ .left = 0, .top = 0, .right = 1000, .bottom = 300 };
+        var changed = false;
+        _ = host.layoutChromeForRect(client, &changed);
+        if (isHighContrastActive()) return; // no join, so no cap to slide
+
+        // The first placement has nothing to slide from, and a resize moves
+        // the cap with its tab at once.
+        try std.testing.expectEqual(@as(u64, 0), host.tab_cap_slide.started_ms);
+        client.right = 900;
+        _ = host.layoutChromeForRect(client, &changed);
+        try std.testing.expectEqual(@as(u64, 0), host.tab_cap_slide.started_ms);
+
+        host.active_tab = 1;
+        _ = host.layoutChromeForRect(client, &changed);
+        const duration: u16 = @intCast(win32_tab_visual.cap_slide_ms);
+        const motion = host.effectiveTweenDuration(duration) != 0;
+        try std.testing.expectEqual(motion, host.tab_cap_slide.started_ms != 0);
+        try std.testing.expect(host.tab_cap_hwnd == host.tabs.items[1].button_hwnd);
     }
 
     test "the active tab's join follows the active tab and its terminal background" {
@@ -9863,13 +10263,10 @@ pub const Host = struct {
             const bell = tab.bellRinging();
             const pane_count = tab.leafCount();
             const show_pane_count = shouldShowPaneCount(button_width, pane_count, self.current_dpi);
-            // A program status badge takes its slot out of the label's room,
-            // charged in cells after `hostTabLabelMaxWidth` has capped the
-            // budget the way the layout caps the button.
-            const tab_label_max_width = if (tab.status_indicator == .none)
-                label_max_width
-            else
-                @max(tab_label_min_cells, label_max_width -| tab_status_badge_cells);
+            // The icon slot comes out of the label's room, charged in cells
+            // after `hostTabLabelMaxWidth` has capped the budget the way the
+            // layout caps the button.
+            const tab_label_max_width = @max(tab_label_min_cells, label_max_width -| tab_icon_cells);
             const title_unchanged = if (title) |value|
                 ownedStringEquals(tab.cached_button_title, value)
             else
