@@ -1,0 +1,45 @@
+  <article class="prose">
+    <div class="frame">
+      <h1>A Windows Terminal alternative you can try beside it</h1>
+      <p class="lede">Windows Terminal is a good default, and it ships with Windows 11. Najm is for people who want Ghostty's core and a plain text config on Windows. The two install side by side, so trying Najm costs you nothing.</p>
+
+      <h2>Where they differ</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">&nbsp;</th><th scope="col">Najm</th><th scope="col">Windows Terminal</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Terminal core</th><td>Ghostty's</td><td>Microsoft's own</td></tr>
+            <tr><th scope="row">Configuration</th><td>Plain key/value file, also a Settings window</td><td>JSON file and a Settings UI</td></tr>
+            <tr><th scope="row">Publisher</th><td>Independent project, self-signed</td><td>Microsoft, trusted by Windows</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>If you need a publisher Windows already trusts, stay with Windows Terminal. Najm's self-signed certificate means SmartScreen warns you on first install.</p>
+
+      <h2>Translate your settings</h2>
+      <p>Najm does not import <code>settings.json</code> and never reads it. Copy the lines you use into <code>%LOCALAPPDATA%\najm\config.ghostty</code>:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Windows Terminal</th><th scope="col">Najm</th><th scope="col">Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>commandline</code></td><td><code>command</code></td><td></td></tr>
+            <tr><td><code>startingDirectory</code></td><td><code>working-directory</code></td><td></td></tr>
+            <tr><td><code>font.face</code></td><td><code>font-family</code></td><td></td></tr>
+            <tr><td><code>font.size</code></td><td><code>font-size</code></td><td></td></tr>
+            <tr><td><code>colorScheme</code></td><td><code>theme</code></td><td>Bundled names come from <code>najm +list-themes</code></td></tr>
+            <tr><td><code>opacity</code></td><td><code>background-opacity</code></td><td>Divide by 100: <code>50</code> becomes <code>0.5</code></td></tr>
+            <tr><td><code>padding</code></td><td><code>window-padding-x</code>, <code>window-padding-y</code></td><td></td></tr>
+            <tr><td><code>copyOnSelect</code></td><td><code>copy-on-select</code></td><td></td></tr>
+            <tr><td><code>cursorShape</code></td><td><code>cursor-style</code></td><td></td></tr>
+            <tr><td><code>historySize</code></td><td><code>scrollback-limit</code></td><td>Najm counts bytes, not lines</td></tr>
+            <tr><td><code>initialCols</code>, <code>initialRows</code></td><td><code>window-width</code>, <code>window-height</code></td><td>Set both or neither</td></tr>
+            <tr><td><code>backgroundImage</code></td><td><code>background-image</code></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Make it feel familiar</h2>
+      <p>Windows Terminal pastes with <code>Ctrl+V</code>. This line does the same in Najm, including copied files and images:</p>
+      <div class="code"><pre>keybind = performable:ctrl+v=paste_from_clipboard</pre></div>
+    </div>
+  </article>

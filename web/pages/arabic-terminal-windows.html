@@ -1,0 +1,24 @@
+  <article class="prose">
+    <div class="frame">
+      <h1>An Arabic terminal for Windows</h1>
+      <p class="lede">Terminals are built on a grid of equal cells, which suits Latin text and breaks Arabic: letters split apart and the order runs backwards. Najm lays out right-to-left text and shapes Arabic so the letters join.</p>
+
+      <h2>Set it up in three steps</h2>
+      <ol>
+        <li>Install the current <a href="https://github.com/microsoft/cascadia-code/releases">Cascadia Code release</a>. The copy that ships with Windows has no Arabic.</li>
+        <li>Add this line to <code>%LOCALAPPDATA%\najm\config.ghostty</code>:</li>
+      </ol>
+      <div class="code"><pre>font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF</pre></div>
+      <ol start="3">
+        <li>Press <kbd>Ctrl+Shift+,</kbd> to reload the config.</li>
+      </ol>
+
+      <h2>Why the font line matters</h2>
+      <p>The default terminal fonts have no Arabic, so Windows draws it in Segoe UI. That font is proportional, so it sits unevenly in the grid. The line above sends every Arabic block to a monospace font that has them, and the text lines up.</p>
+      <p>To see which font each letter comes from, run:</p>
+      <div class="code"><pre>najm +show-face --string="مرحبا"</pre></div>
+
+      <h2>Read this page in Arabic</h2>
+      <p>Najm's site has an <a href="{{base}}/ar/" lang="ar">Arabic version</a>, because the people who need this feature most may prefer to read about it in their own language.</p>
+    </div>
+  </article>

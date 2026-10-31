@@ -1,0 +1,29 @@
+  <article class="prose">
+    <div class="frame">
+      <h1>Download Najm for Windows</h1>
+      <p class="lede">Version {{version}} for Windows 10 version 1809 or later and Windows 11, on x64. The default renderer needs a GPU driver with OpenGL 4.3, and Najm switches to Direct3D 11 when OpenGL is missing.</p>
+      <div class="actions">
+        <a class="button" href="{{setupUrl}}">Download installer</a>
+        <a class="button button--ghost" href="{{portableUrl}}">Portable ZIP</a>
+      </div>
+
+      <h2>Install it</h2>
+      <ol>
+        <li>Run <code>{{setupFile}}</code>.</li>
+        <li>Windows shows "Windows protected your PC" the first time. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</li>
+        <li>Open <strong>Najm</strong> from the Start menu.</li>
+      </ol>
+      <p>Prefer no installer? Unzip <code>{{portableFile}}</code> anywhere and run <code>najm.exe</code>.</p>
+
+      <h2>Why SmartScreen warns</h2>
+      <p>Najm signs its builds with its own certificate, which Windows does not know yet. The warning means Windows does not recognize the publisher. It does not mean a problem was found in the file. If you want to be sure, check the file first.</p>
+
+      <h2>Check the download</h2>
+      <p>Hash the file and compare the result with its line in <a href="{{sumsUrl}}">SHA256SUMS-windows-x64.txt</a>:</p>
+      <div class="code"><pre>Get-FileHash .\{{setupFile}} -Algorithm SHA256</pre></div>
+      <p>The installer and every program file in it are signed by <code>CN=Najm Code Signing</code>, thumbprint <code>26D9DB30682A45008C05E08729B7CC9016D492FB</code>. The in-app updater refuses anything signed by another key.</p>
+
+      <h2>Stay up to date</h2>
+      <p>Najm updates itself from its <a href="{{repo}}/releases">GitHub releases</a>, and each update is signed and checksum-verified. You can turn the update check off. See <a href="{{repo}}/blob/main/README.md#build-from-source">how to build from source</a> if you prefer that.</p>
+    </div>
+  </article>

@@ -1,0 +1,34 @@
+  <article class="prose">
+    <div class="frame">
+      <h1>Ghostty for Windows: what you can install today</h1>
+      <p class="lede">At the time of writing, the Ghostty project ships for macOS and Linux and has no official Windows release. If you want Ghostty's terminal core on Windows now, a community build is the way to get it. Najm is one of those builds.</p>
+
+      <h2>What Najm is</h2>
+      <p>Najm is a native Win32 terminal that uses Ghostty's terminal core. Its Windows app comes from Noctty, which brought Ghostty to Windows, and Najm follows Noctty closely while shipping its own fixes on top.</p>
+      <div class="code"><pre>Ghostty (terminal core, macOS and Linux)
+  └── Noctty (Ghostty's core in a native Windows app)
+        └── Najm (Noctty plus its own fixes and releases)</pre></div>
+      <p>Najm is not affiliated with the Ghostty or Noctty projects. All three are MIT licensed.</p>
+
+      <h2>What carries over from Ghostty</h2>
+      <ul>
+        <li>The same config syntax, read from <code>%LOCALAPPDATA%\najm\config.ghostty</code>.</li>
+        <li>Most options, and hundreds of bundled themes. List them with <code>najm +list-themes</code>.</li>
+        <li>The Kitty graphics and keyboard protocols.</li>
+        <li>Shell integration: prompt marks, and jumping to the previous or next command.</li>
+      </ul>
+
+      <h2>What Windows adds</h2>
+      <ul>
+        <li>A real installer, plus a portable ZIP, with signed updates inside the app.</li>
+        <li>Automatic discovery of PowerShell, cmd, Git Bash and WSL distros.</li>
+        <li>An "Open Najm here" entry in Explorer, jump lists and toasts.</li>
+        <li>A Direct3D 11 renderer (beta) for machines without OpenGL 4.3, such as Remote Desktop sessions and VMs without 3D acceleration.</li>
+      </ul>
+
+      <h2>Move your config</h2>
+      <p>Open the config file, then paste in the Ghostty lines you use:</p>
+      <div class="code"><pre>notepad "$env:LOCALAPPDATA\najm\config.ghostty"</pre></div>
+      <p>Press <kbd>Ctrl+Shift+,</kbd> to reload. To see every option, run <code>najm +show-config --default --docs</code>. The installer does not add <code>najm</code> to <code>PATH</code>, so run this from the install folder or add that folder to <code>PATH</code>.</p>
+    </div>
+  </article>

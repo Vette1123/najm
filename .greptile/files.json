@@ -317,6 +317,7 @@
         "PRIVACY.md",
         "docs/**",
         "site/**",
+        "web/**",
         "PACKAGING.md"
       ]
     },
