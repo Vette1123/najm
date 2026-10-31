@@ -87,11 +87,21 @@ Focus is never represented by hover styling.
 
 - One adaptive tab row with readable minimum widths and searchable overflow.
 - Preserve the active and recently used tabs longest during compression.
-- Active tab treatment is restrained but visible in active and inactive
-  windows. The active tab takes its terminal's background and runs on into
-  the terminal, with no accent colour; its `* ` label marker is the essential
-  cue, so the background (often under 3:1 against the tab row) is extra, and
-  the label keeps 4.5:1 on any terminal background.
+- Active tab treatment is visible in active and inactive windows. The active
+  tab takes its terminal's background and runs on into the terminal, under a
+  2 px accent cap held to 3:1 on that background. The cap is the essential
+  cue, a shape and not only a colour; the background is often under 3:1
+  against the tab row, so it is extra, and the label keeps 4.5:1 on any
+  terminal background. `* ` stays in the window text for screen readers, and
+  High Contrast, which has no cap, still paints it.
+- A resting tab has no surface: it lies on the band, split from its neighbour
+  by a hairline. Content runs left to right: icon (status badge, else the
+  title's leading symbol, else a prompt), muted number, title.
+- Motion: switching tabs slides the cap across the strip, its leading edge
+  stretching ahead, while the two tabs' surfaces crossfade. Hover fades the
+  surface in and grows a line from the tab's centre. The close X has its own
+  chip, which fades in only over the close zone. All of it runs on the tween
+  heartbeat, stops when settled, and snaps under Reduced Motion.
 - Active pane uses a thin accent indicator. Direction and size labels appear
   only while navigating or resizing.
 - Drag previews appear only during drag and name the resulting operation.

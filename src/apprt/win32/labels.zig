@@ -1166,6 +1166,108 @@ pub fn buildTabButtonLabel(
     );
 }
 
+/// A drawn tab label (`win32_bell.tabLabel`) split for painting. The window
+/// text keeps the whole label, `* ` included: NVDA reads the active tab from
+/// it (`docs/accessibility-matrix.md`). Only the paint takes it apart.
+pub const TabLabelParts = struct {
+    /// The active marker, trailing space included; empty on other tabs.
+    marker: []const u16 = &.{},
+    /// The tab's number, without its colon; empty when the label has none.
+    index: []const u16 = &.{},
+    /// A symbol that leads the label or the title (the bell, or a program's
+    /// spinner such as `U+25D0`), which the tab's icon slot shows instead.
+    symbol: []const u16 = &.{},
+    /// The rest: the title and any pane count.
+    title: []const u16 = &.{},
+};
+
+/// The leading picture of `text`, when it is a symbol standing alone before
+/// a space or the end. Symbols are the Geometric Shapes through Miscellaneous
+/// Symbols and Arrows blocks (Dingbats and Braille spinners included) and
+/// astral emoji; a letter, digit or punctuation mark stays in the title.
+fn leadingTabSymbol(text: []const u16) []const u16 {
+    if (text.len == 0) return &.{};
+    const unit = text[0];
+    const units: usize = if (unit >= 0x25A0 and unit <= 0x2BFF)
+        1
+    else if (std.unicode.utf16IsHighSurrogate(unit) and text.len >= 2 and std.unicode.utf16IsLowSurrogate(text[1]))
+        2
+    else
+        return &.{};
+    if (text.len > units and text[units] != ' ') return &.{};
+    return text[0..units];
+}
+
+fn afterTabSymbol(text: []const u16, symbol: []const u16) []const u16 {
+    const rest = text[symbol.len..];
+    return if (rest.len > 0) rest[1..] else rest;
+}
+
+/// Split `label` into what a tab paints apart. A label that does not have the
+/// `N: ` shape is all title, so unexpected text is drawn rather than lost.
+pub fn tabLabelParts(label: []const u16) TabLabelParts {
+    var parts: TabLabelParts = .{};
+    var rest = label;
+    parts.symbol = leadingTabSymbol(rest);
+    if (parts.symbol.len > 0) rest = afterTabSymbol(rest, parts.symbol);
+    if (rest.len >= 2 and rest[0] == '*' and rest[1] == ' ') {
+        parts.marker = rest[0..2];
+        rest = rest[2..];
+    }
+    var digits: usize = 0;
+    while (digits < rest.len and rest[digits] >= '0' and rest[digits] <= '9') digits += 1;
+    if (digits > 0 and rest.len >= digits + 2 and rest[digits] == ':' and rest[digits + 1] == ' ') {
+        parts.index = rest[0..digits];
+        rest = rest[digits + 2..];
+    }
+    if (parts.symbol.len == 0) {
+        parts.symbol = leadingTabSymbol(rest);
+        if (parts.symbol.len > 0) rest = afterTabSymbol(rest, parts.symbol);
+    }
+    parts.title = rest;
+    return parts;
+}
+
+test "tabLabelParts takes the marker, number, symbol and title apart" {
+    const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
+    const active = tabLabelParts(utf16("* 4: \u{25D0} docs site seo"));
+    try std.testing.expectEqualSlices(u16, utf16("* "), active.marker);
+    try std.testing.expectEqualSlices(u16, utf16("4"), active.index);
+    try std.testing.expectEqualSlices(u16, utf16("\u{25D0}"), active.symbol);
+    try std.testing.expectEqualSlices(u16, utf16("docs site seo"), active.title);
+
+    const plain = tabLabelParts(utf16("12: pwsh (3)"));
+    try std.testing.expectEqual(@as(usize, 0), plain.marker.len);
+    try std.testing.expectEqualSlices(u16, utf16("12"), plain.index);
+    try std.testing.expectEqual(@as(usize, 0), plain.symbol.len);
+    try std.testing.expectEqualSlices(u16, utf16("pwsh (3)"), plain.title);
+}
+
+test "tabLabelParts: the bell takes the slot and a title's symbol stays text" {
+    const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
+    const parts = tabLabelParts(utf16("\u{1F514} * 2: \u{2733} claude"));
+    try std.testing.expectEqualSlices(u16, utf16("\u{1F514}"), parts.symbol);
+    try std.testing.expectEqualSlices(u16, utf16("* "), parts.marker);
+    try std.testing.expectEqualSlices(u16, utf16("2"), parts.index);
+    try std.testing.expectEqualSlices(u16, utf16("\u{2733} claude"), parts.title);
+}
+
+test "tabLabelParts keeps text that only looks like a decoration" {
+    const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
+    // Not `N: `: all title, nothing lost.
+    const odd = tabLabelParts(utf16("3:no space"));
+    try std.testing.expectEqualSlices(u16, utf16("3:no space"), odd.title);
+    // A symbol glued to a word is part of the word, Arabic stays text, and a
+    // title that is only a symbol leaves an empty title, not an underflow.
+    const glued = tabLabelParts(utf16("1: \u{2733}claude"));
+    try std.testing.expectEqualSlices(u16, utf16("\u{2733}claude"), glued.title);
+    const arabic = tabLabelParts(utf16("2: \u{0645}\u{0644}\u{0641}"));
+    try std.testing.expectEqualSlices(u16, utf16("\u{0645}\u{0644}\u{0641}"), arabic.title);
+    const only = tabLabelParts(utf16("1: \u{25D0}"));
+    try std.testing.expectEqual(@as(usize, 0), only.title.len);
+    try std.testing.expectEqual(@as(usize, 0), tabLabelParts(&.{}).title.len);
+}
+
 pub fn buildSearchOverlayLabel(
     alloc: Allocator,
     total: ?usize,
