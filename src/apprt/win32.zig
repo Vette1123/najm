@@ -20226,16 +20226,27 @@ fn testTabGapHost(decorated: bool) !void {
             .itemData = 0,
         };
         const theme = clientTitlebarTheme(&app.resolved_theme, &app.config, decorated, isHighContrastActive());
+        // A running slide would crossfade the surfaces this reads.
+        host.tab_cap_slide = .{};
         for ([_]bool{ false, true }) |active| {
             host.active_tab = if (active) 0 else 1;
             host.drawButton(&draw);
             _ = Host.BannerTestCanvas.raw.GdiFlush();
-            const pixel = canvas.pixel(@divTrunc(canvas.width, 2), 0);
-            if (maximized) {
+            const center_x = @divTrunc(canvas.width, 2);
+            const pixel = canvas.pixel(center_x, 0);
+            if (!maximized) {
+                try std.testing.expectEqual(theme.chrome_bg, pixel);
+            } else if (isHighContrastActive() or active) {
                 try std.testing.expect(pixel != theme.chrome_bg);
-                // The active tab has no border: its edge is its terminal's background.
-                if (active and !isHighContrastActive()) try std.testing.expectEqual(rgb(0x28, 0x2C, 0x34), pixel);
-            } else try std.testing.expectEqual(theme.chrome_bg, pixel);
+                // The active tab has no border: below its cap on row 0, its
+                // edge is its terminal's background.
+                if (active and !isHighContrastActive()) {
+                    try std.testing.expectEqual(rgb(0x28, 0x2C, 0x34), canvas.pixel(center_x, host.scaled(2)));
+                }
+            } else {
+                // A resting tab has no surface of its own.
+                try std.testing.expectEqual(theme.chrome_bg, pixel);
+            }
         }
         host.active_tab = 1;
     }
