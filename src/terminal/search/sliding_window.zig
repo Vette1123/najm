@@ -6,16 +6,14 @@ const build_options = @import("terminal_options");
 const point = @import("../point.zig");
 const size = @import("../size.zig");
 const PageList = @import("../PageList.zig");
+const Page = @import("../page.zig").Page;
 const Screen = @import("../Screen.zig");
 const Terminal = @import("../Terminal.zig");
 const PageFormatter = @import("../formatter.zig").PageFormatter;
 const FlattenedHighlight = @import("../highlight.zig").Flattened;
 const QueryOptions = @import("query_options.zig").QueryOptions;
+const Pattern = @import("pattern.zig").Pattern;
 const oni = if (build_options.oniguruma) @import("oniguruma") else struct {};
-
-// Regexes can be arbitrary-width. Keep a generous bounded suffix on no-match
-// scans so large scrollback cannot accumulate in the sliding window forever.
-const regex_no_match_retain_len = 64 * 1024;
 
 /// Searches page nodes via a sliding window. The sliding window maintains
 /// the invariant that data isn't pruned until (1) we've searched it and
@@ -91,39 +89,44 @@ pub const SlidingWindow = struct {
     /// when a contiguous linear view of the circular buffer is required.
     regex_buf: std.ArrayListUnmanaged(u8) = .empty,
 
-    /// Precompiled regex for non-default query options.
-    regex_state: if (build_options.oniguruma) ?RegexState else void =
-        if (build_options.oniguruma) null else {},
+    /// The matcher for non-default query options. Null runs the literal
+    /// scan.
+    pattern: ?*Pattern,
 
     const Direction = enum { forward, reverse };
     const DataBuf = CircBuf(u8, 0);
     const MetaBuf = CircBuf(Meta, undefined);
-    const RegexError = if (build_options.oniguruma) oni.errors.Error else error{};
 
-    pub const InitError = Allocator.Error || RegexError || error{
-        UnsupportedQueryOptions,
+    pub const InitError = Pattern.CompileError;
+    pub const SearchError = Allocator.Error || Pattern.Failure;
+
+    /// Information copied from a page while appending it to the window.
+    ///
+    /// Callers use `last_row_wrapped` to decide whether an adjacent page can
+    /// contribute to a cross-page match without reading the node again.
+    pub const AppendResult = struct {
+        content_len: usize,
+        last_row_wrapped: bool,
     };
-    pub const SearchError = Allocator.Error || RegexError;
 
     const Meta = struct {
         node: *PageList.List.Node,
         serial: u64,
+        rows: size.CellCountInt,
         cell_map: std.ArrayList(point.Coordinate),
+
+        /// What preceded the node's text in screen order when it was
+        /// appended: the previous node's hard newline, text whose byte the
+        /// window does not have (a soft wrap), or nothing.
+        before: Pattern.Edge,
+
+        /// Whether another node followed it when it was appended.
+        has_next: bool,
 
         pub fn deinit(self: *Meta, alloc: Allocator) void {
             self.cell_map.deinit(alloc);
         }
     };
-
-    const RegexState = if (build_options.oniguruma) struct {
-        pattern: []u8,
-        regex: oni.Regex,
-
-        fn deinit(self: *RegexState, alloc: Allocator) void {
-            self.regex.deinit();
-            alloc.free(self.pattern);
-        }
-    } else void;
 
     pub fn init(
         alloc: Allocator,
@@ -143,9 +146,11 @@ pub const SlidingWindow = struct {
         needle_unowned: []const u8,
         query_options: QueryOptions,
     ) InitError!SlidingWindow {
-        if (comptime !build_options.oniguruma) {
-            if (!query_options.isDefault()) return error.UnsupportedQueryOptions;
-        }
+        const pattern = try Pattern.forQuery(alloc, .{
+            .needle = needle_unowned,
+            .options = query_options,
+        });
+        errdefer if (pattern) |p| p.destroy(alloc);
 
         var data = try DataBuf.init(alloc, 0);
         errdefer data.deinit(alloc);
@@ -163,16 +168,6 @@ pub const SlidingWindow = struct {
         const overlap_buf = try alloc.alloc(u8, needle.len * 2);
         errdefer alloc.free(overlap_buf);
 
-        var regex_state = if (comptime build_options.oniguruma) @as(?RegexState, null) else {};
-        if (comptime build_options.oniguruma) {
-            if (!query_options.isDefault()) {
-                regex_state = try initRegexState(alloc, needle_unowned, query_options);
-            }
-        }
-        errdefer if (comptime build_options.oniguruma) {
-            if (regex_state) |*state| state.deinit(alloc);
-        };
-
         return .{
             .alloc = alloc,
             .data = data,
@@ -182,14 +177,12 @@ pub const SlidingWindow = struct {
             .query_options = query_options,
             .direction = direction,
             .overlap_buf = overlap_buf,
-            .regex_state = regex_state,
+            .pattern = pattern,
         };
     }
 
     pub fn deinit(self: *SlidingWindow) void {
-        if (comptime build_options.oniguruma) {
-            if (self.regex_state) |*state| state.deinit(self.alloc);
-        }
+        if (self.pattern) |p| p.destroy(self.alloc);
         self.regex_buf.deinit(self.alloc);
         self.alloc.free(self.overlap_buf);
         self.alloc.free(self.needle);
@@ -210,66 +203,6 @@ pub const SlidingWindow = struct {
         self.data_offset = 0;
     }
 
-    fn initRegexState(
-        alloc: Allocator,
-        needle_unowned: []const u8,
-        query_options: QueryOptions,
-    ) InitError!RegexState {
-        const pattern = try buildRegexPattern(alloc, needle_unowned, query_options);
-        errdefer alloc.free(pattern);
-
-        var regex = try oni.Regex.init(
-            pattern,
-            .{
-                .ignorecase = !query_options.case_sensitive,
-                .word_is_ascii = true,
-            },
-            oni.Encoding.utf8,
-            oni.Syntax.default,
-            null,
-        );
-        errdefer regex.deinit();
-
-        return .{
-            .pattern = pattern,
-            .regex = regex,
-        };
-    }
-
-    fn buildRegexPattern(
-        alloc: Allocator,
-        needle_unowned: []const u8,
-        query_options: QueryOptions,
-    ) Allocator.Error![]u8 {
-        const base = if (query_options.regex)
-            try alloc.dupe(u8, needle_unowned)
-        else
-            try escapeRegexLiteral(alloc, needle_unowned);
-        errdefer alloc.free(base);
-
-        if (!query_options.whole_word) return base;
-        const wrapped = try std.fmt.allocPrint(alloc, "\\b(?:{s})\\b", .{base});
-        alloc.free(base);
-        return wrapped;
-    }
-
-    fn escapeRegexLiteral(alloc: Allocator, input: []const u8) Allocator.Error![]u8 {
-        var out: std.ArrayListUnmanaged(u8) = .empty;
-        defer out.deinit(alloc);
-
-        for (input) |c| {
-            switch (c) {
-                '\\', '.', '^', '$', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}' => {
-                    try out.append(alloc, '\\');
-                },
-                else => {},
-            }
-            try out.append(alloc, c);
-        }
-
-        return try out.toOwnedSlice(alloc);
-    }
-
     /// Search the window for the next occurrence of the needle. As
     /// the window moves, the window will prune itself while maintaining
     /// the invariant that the window is always big enough to contain
@@ -286,10 +219,7 @@ pub const SlidingWindow = struct {
     /// or `append()`. If the caller wants to retain the flattened highlight
     /// then they should clone it.
     pub fn next(self: *SlidingWindow) SearchError!?FlattenedHighlight {
-        const using_regex_engine = if (comptime build_options.oniguruma)
-            self.regex_state != null
-        else
-            false;
+        const using_regex_engine = self.pattern != null;
         const slices = slices: {
             const data_len = self.data.len();
             if (data_len == 0) return null;
@@ -305,15 +235,11 @@ pub const SlidingWindow = struct {
             );
         };
 
-        if (comptime build_options.oniguruma) {
-            if (using_regex_engine) {
-                if (try self.regexMatch(slices[0], slices[1])) |match| {
-                    return self.highlight(match.start, match.len);
-                }
+        if (self.pattern) |pattern| {
+            if (try self.patternMatch(pattern, slices[0], slices[1])) |match| {
+                return self.highlight(match.start, match.len);
             }
-        }
-
-        if (!using_regex_engine) {
+        } else {
             // Search the first slice for the needle.
             if (std.ascii.indexOfIgnoreCase(slices[0], self.needle)) |idx| {
                 return self.highlight(
@@ -363,7 +289,12 @@ pub const SlidingWindow = struct {
             }
         }
 
-        const retain_len = self.noMatchRetainLen(using_regex_engine);
+        const retain_len = if (self.pattern) |p|
+            p.retainLen()
+        else if (self.needle.len == 0)
+            0
+        else
+            self.needle.len - 1;
 
         // Special case zero-overlap searches to delete the entire buffer.
         if (retain_len == 0) {
@@ -413,106 +344,29 @@ pub const SlidingWindow = struct {
         self.data_offset = 0;
     }
 
-    fn noMatchRetainLen(self: *const SlidingWindow, using_regex_engine: bool) usize {
-        if (self.needle.len == 0) return 0;
-
-        if (using_regex_engine and self.query_options.regex) {
-            return @max(self.needle.len + 1, regex_no_match_retain_len);
-        }
-
-        if (using_regex_engine and self.query_options.whole_word) {
-            // A literal whole-word match at the end of the current window may
-            // need left context and the next page's first byte to validate
-            // word boundaries.
-            return self.needle.len + 1;
-        }
-
-        return self.needle.len - 1;
-    }
-
-    const RegexMatch = struct {
-        start: usize,
-        len: usize,
-    };
-
-    const RegexEdgeContext = struct {
-        word_boundary: bool = false,
-        line_anchor: bool = false,
-        absolute_anchor: bool = false,
-
-        fn any(self: RegexEdgeContext) bool {
-            return self.word_boundary or self.line_anchor or self.absolute_anchor;
-        }
-    };
-
-    const RegexEdgeSensitivity = struct {
-        before: RegexEdgeContext = .{},
-        after: RegexEdgeContext = .{},
-
-        fn any(self: RegexEdgeSensitivity) bool {
-            return self.before.any() or self.after.any();
-        }
-    };
-
-    fn regexMatch(
+    /// The pattern's match in the unsearched data, as an offset from
+    /// `data_offset` in search order.
+    fn patternMatch(
         self: *SlidingWindow,
+        pattern: *Pattern,
         first: []const u8,
         second: []const u8,
-    ) SearchError!?RegexMatch {
-        if (comptime !build_options.oniguruma) return null;
-        const state = if (self.regex_state) |*state| state else return null;
-        const edge_sensitivity = self.regexEdgeSensitivity();
-        const haystack = try self.buildRegexHaystack(first, second);
-
-        var search_start: usize = 0;
-        var last_match: ?RegexMatch = null;
-        while (search_start <= haystack.len) {
-            var region: oni.Region = .{};
-            defer region.deinit();
-
-            _ = state.regex.searchAdvanced(haystack, search_start, haystack.len, &region, .{
-                .find_not_empty = true,
-            }) catch |err| switch (err) {
-                error.Mismatch => break,
-                else => return err,
-            };
-
-            const starts = region.starts();
-            const ends = region.ends();
-            if (starts.len == 0 or ends.len == 0) break;
-
-            const start_i: usize = @intCast(starts[0]);
-            const end_i: usize = @intCast(ends[0]);
-            if (end_i <= start_i) {
-                search_start = start_i + 1;
-                continue;
-            }
-            if (edge_sensitivity.any() and self.regexMatchTouchesSyntheticEdge(
-                haystack,
-                start_i,
-                end_i,
-                edge_sensitivity,
-            )) {
-                search_start = start_i + 1;
-                continue;
-            }
-
-            last_match = if (self.direction == .forward)
-                .{
-                    .start = start_i,
-                    .len = end_i - start_i,
-                }
-            else
-                .{
-                    .start = haystack.len - end_i,
-                    .len = end_i - start_i,
-                };
-
-            if (self.direction == .forward) break;
-            search_start = start_i + 1;
-        }
-
-        return last_match;
+    ) SearchError!?Pattern.Span {
+        const text = try self.buildRegexHaystack(first, second);
+        const around = self.edges();
+        const span = try pattern.find(.{
+            .text = text,
+            .before = around.before,
+            .after = around.after,
+            .pick = switch (self.direction) {
+                .forward => .first,
+                .reverse => .last,
+            },
+        }) orelse return null;
+        return switch (self.direction) {
+            .forward => span,
+            .reverse => .{ .start = text.len - span.start - span.len, .len = span.len },
+        };
     }
 
     fn buildRegexHaystack(
@@ -549,90 +403,36 @@ pub const SlidingWindow = struct {
         }
     }
 
-    fn regexMatchTouchesSyntheticEdge(
-        self: *const SlidingWindow,
-        haystack: []const u8,
-        start: usize,
-        end: usize,
-        sensitivity: RegexEdgeSensitivity,
-    ) bool {
-        if (start == 0 and
-            sensitivity.before.any() and
-            self.hasRegexContextBeforeHaystack(haystack, sensitivity.before))
-        {
-            return true;
-        }
-        if (end == haystack.len and
-            sensitivity.after.any() and
-            self.hasRegexContextAfterHaystack(haystack, sensitivity.after))
-        {
-            return true;
-        }
-        return false;
-    }
-
-    fn hasRegexContextBeforeHaystack(
-        self: *const SlidingWindow,
-        haystack: []const u8,
-        context: RegexEdgeContext,
-    ) bool {
+    /// What lies before and after the unsearched data in screen order.
+    fn edges(self: *const SlidingWindow) struct { before: Pattern.Edge, after: Pattern.Edge } {
         return switch (self.direction) {
-            .forward => self.hasSearchOrderContextBeforeWindow(context, haystack[0]),
-            .reverse => self.hasSearchOrderContextAfterWindow(context, haystack[0]),
+            .forward => .{ .before = self.searchStartEdge(), .after = self.searchEndEdge() },
+            .reverse => .{ .before = self.searchEndEdge(), .after = self.searchStartEdge() },
         };
     }
 
-    fn hasRegexContextAfterHaystack(
-        self: *const SlidingWindow,
-        haystack: []const u8,
-        context: RegexEdgeContext,
-    ) bool {
-        return switch (self.direction) {
-            .forward => self.hasSearchOrderContextAfterWindow(context, haystack[haystack.len - 1]),
-            .reverse => self.hasSearchOrderContextBeforeWindow(context, haystack[haystack.len - 1]),
-        };
-    }
-
-    fn hasSearchOrderContextBeforeWindow(
-        self: *const SlidingWindow,
-        context: RegexEdgeContext,
-        edge_byte: u8,
-    ) bool {
+    /// What lies before `data_offset` in search order.
+    fn searchStartEdge(self: *const SlidingWindow) Pattern.Edge {
         if (self.data_offset > 0) {
-            const prior_byte = self.dataByteAt(self.data_offset - 1) orelse return true;
-            return regexContextRejectsKnownBefore(context, prior_byte, edge_byte);
+            const prior_byte = self.dataByteAt(self.data_offset - 1) orelse return .unknown;
+            return .{ .byte = prior_byte };
         }
 
         var it = self.meta.iterator(.forward);
-        const meta = it.next() orelse return false;
+        const meta = it.next() orelse return .none;
         return switch (self.direction) {
-            .forward => {
-                const prev = meta.node.prev orelse return false;
-                if (hardNewlineAfterNode(prev)) |byte| {
-                    return regexContextRejectsKnownBefore(context, byte, edge_byte);
-                }
-                return true;
-            },
-            .reverse => meta.node.next != null,
+            .forward => meta.before,
+            .reverse => if (meta.has_next) .unknown else .none,
         };
     }
 
-    fn hasSearchOrderContextAfterWindow(
-        self: *const SlidingWindow,
-        context: RegexEdgeContext,
-        edge_byte: u8,
-    ) bool {
+    /// What lies after the window's data in search order.
+    fn searchEndEdge(self: *const SlidingWindow) Pattern.Edge {
         var it = self.meta.iterator(.reverse);
-        const meta = it.next() orelse return false;
+        const meta = it.next() orelse return .none;
         return switch (self.direction) {
-            .forward => meta.node.next != null,
-            .reverse => {
-                const prev = meta.node.prev orelse return false;
-                if (hardNewlineAfterNode(prev)) |byte| {
-                    return regexContextRejectsKnownAfter(context, edge_byte, byte);
-                }
-                return true;
-            },
+            .forward => if (meta.has_next) .unknown else .none,
+            .reverse => meta.before,
         };
     }
 
@@ -645,150 +445,6 @@ pub const SlidingWindow = struct {
         const idx = self.data.tail + offset;
         const storage_idx = if (idx < cap) idx else idx - cap;
         return self.data.storage[storage_idx];
-    }
-
-    fn isAsciiWordBoundary(a: u8, b: u8) bool {
-        return isAsciiWordByte(a) != isAsciiWordByte(b);
-    }
-
-    fn isAsciiWordByte(c: u8) bool {
-        return std.ascii.isAlphanumeric(c) or c == '_';
-    }
-
-    fn regexContextRejectsKnownBefore(context: RegexEdgeContext, prior_byte: u8, edge_byte: u8) bool {
-        if (context.absolute_anchor) return true;
-        if (context.line_anchor and prior_byte != '\n') return true;
-        if (context.word_boundary and !isAsciiWordBoundary(prior_byte, edge_byte)) return true;
-        return false;
-    }
-
-    fn regexContextRejectsKnownAfter(context: RegexEdgeContext, edge_byte: u8, next_byte: u8) bool {
-        if (context.absolute_anchor) return true;
-        if (context.line_anchor and next_byte != '\n') return true;
-        if (context.word_boundary and !isAsciiWordBoundary(edge_byte, next_byte)) return true;
-        return false;
-    }
-
-    fn hardNewlineAfterNode(node: *PageList.List.Node) ?u8 {
-        const row = node.page().getRow(node.rows() - 1);
-        return if (row.wrap) null else '\n';
-    }
-
-    fn regexEdgeSensitivity(self: *const SlidingWindow) RegexEdgeSensitivity {
-        if (comptime build_options.oniguruma) {
-            const state = self.regex_state orelse return .{};
-            return regexPatternEdgeSensitivity(state.pattern);
-        } else {
-            return .{};
-        }
-    }
-
-    fn regexPatternEdgeSensitivity(pattern: []const u8) RegexEdgeSensitivity {
-        var sensitivity: RegexEdgeSensitivity = .{};
-        var escaped = false;
-        var in_class = false;
-        var at_alt_start = true;
-        var group_prefix = false;
-        for (pattern, 0..) |c, i| {
-            if (escaped) {
-                escaped = false;
-                if (!in_class) {
-                    switch (c) {
-                        'A', 'G' => sensitivity.before.absolute_anchor = true,
-                        'Z', 'z' => sensitivity.after.absolute_anchor = true,
-                        'b' => {
-                            sensitivity.before.word_boundary = true;
-                            sensitivity.after.word_boundary = true;
-                        },
-                        else => {},
-                    }
-                    at_alt_start = false;
-                    group_prefix = false;
-                }
-                continue;
-            }
-
-            if (c == '\\') {
-                escaped = true;
-                continue;
-            }
-
-            if (in_class) {
-                if (c == ']') in_class = false;
-                continue;
-            }
-
-            switch (c) {
-                '[' => {
-                    in_class = true;
-                    at_alt_start = false;
-                    group_prefix = false;
-                },
-                '(' => {
-                    at_alt_start = true;
-                    group_prefix = true;
-                },
-                ')' => {
-                    at_alt_start = false;
-                    group_prefix = false;
-                },
-                '|' => {
-                    at_alt_start = true;
-                    group_prefix = false;
-                },
-                '?', ':' => {
-                    if (!(group_prefix and at_alt_start)) {
-                        at_alt_start = false;
-                        group_prefix = false;
-                    }
-                },
-                '^' => {
-                    if (at_alt_start) sensitivity.before.line_anchor = true;
-                    at_alt_start = false;
-                    group_prefix = false;
-                },
-                '$' => {
-                    if (regexDollarIsLineAnchor(pattern, i)) {
-                        sensitivity.after.line_anchor = true;
-                    }
-                    at_alt_start = false;
-                    group_prefix = false;
-                },
-                else => {
-                    at_alt_start = false;
-                    group_prefix = false;
-                },
-            }
-        }
-
-        return sensitivity;
-    }
-
-    fn regexDollarIsLineAnchor(pattern: []const u8, dollar_i: usize) bool {
-        var escaped = false;
-        var in_class = false;
-        var i = dollar_i + 1;
-        while (i < pattern.len) : (i += 1) {
-            const c = pattern[i];
-            if (escaped) {
-                return false;
-            }
-            if (c == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (in_class) {
-                if (c == ']') in_class = false;
-                continue;
-            }
-            return switch (c) {
-                '|' => true,
-                ')' => true,
-                '[' => false,
-                else => false,
-            };
-        }
-        return true;
     }
 
     /// Return a flattened highlight for the given start and length.
@@ -816,6 +472,12 @@ pub const SlidingWindow = struct {
 
         self.chunk_buf.clearRetainingCapacity();
         var result: FlattenedHighlight = .empty;
+
+        // A reverse cross-page match needs the row count of the last meta in
+        // search order after the chunks themselves are reversed. Snapshot it
+        // while traversing Meta rather than dereferencing a PageList node after
+        // the terminal lock has been released.
+        var cross_page_end_rows: ?size.CellCountInt = null;
 
         // Go through the meta nodes to find our start.
         const tl: struct {
@@ -883,7 +545,7 @@ pub const SlidingWindow = struct {
                         .node = meta.node,
                         .serial = meta.serial,
                         .start = @intCast(map.y),
-                        .end = meta.node.rows(),
+                        .end = meta.rows,
                     });
 
                     break :tl .{
@@ -918,7 +580,7 @@ pub const SlidingWindow = struct {
                         .node = meta.node,
                         .serial = meta.serial,
                         .start = 0,
-                        .end = meta.node.rows(),
+                        .end = meta.rows,
                     });
 
                     meta_consumed += meta.cell_map.items.len;
@@ -928,6 +590,7 @@ pub const SlidingWindow = struct {
                 // We found it
                 const map = meta.cell_map.items[meta_i];
                 result.bot_x = map.x;
+                cross_page_end_rows = meta.rows;
                 self.chunk_buf.appendAssumeCapacity(.{
                     .node = meta.node,
                     .serial = meta.serial,
@@ -1001,7 +664,7 @@ pub const SlidingWindow = struct {
                     // order.
                     assert(nodes.len >= 2);
                     starts[0] = ends[0] - 1;
-                    ends[0] = nodes[0].rows();
+                    ends[0] = cross_page_end_rows.?;
                     ends[nodes.len - 1] = starts[nodes.len - 1] + 1;
                     starts[nodes.len - 1] = 0;
                 } else {
@@ -1030,18 +693,56 @@ pub const SlidingWindow = struct {
     /// the sliding window; data isn't pruned until it is consumed
     /// via a search (via next()).
     ///
-    /// Returns the number of bytes of content added to the sliding window.
-    /// The total bytes will be larger since this omits metadata, but it is
-    /// an accurate measure of the text content size added.
+    /// The content length is the number of bytes of content added to the
+    /// sliding window. The total bytes will be larger since this omits
+    /// metadata, but it is an accurate measure of the text content size
+    /// added.
+    ///
+    /// This reads the node and its neighbours, so the caller must hold the
+    /// necessary locks. `next()` then reads only what the window copied.
     pub fn append(
         self: *SlidingWindow,
         node: *PageList.List.Node,
-    ) Allocator.Error!usize {
+    ) Allocator.Error!AppendResult {
+        const page = node.page();
+        const last_row_wrapped = page.getRow(page.size.rows - 1).wrap;
+        return self.appendPage(node, page, last_row_wrapped);
+    }
+
+    /// Append a node only when its last row is soft wrapped.
+    ///
+    /// It is used when loading the overlap around an otherwise complete
+    /// search region.
+    pub fn appendIfWrapped(
+        self: *SlidingWindow,
+        node: *PageList.List.Node,
+    ) Allocator.Error!?AppendResult {
+        const page = node.page();
+        const last_row_wrapped = page.getRow(page.size.rows - 1).wrap;
+        if (!last_row_wrapped) return null;
+        return try self.appendPage(node, page, last_row_wrapped);
+    }
+
+    /// Copy one page into the window's owned search buffers.
+    fn appendPage(
+        self: *SlidingWindow,
+        node: *PageList.List.Node,
+        page: *const Page,
+        last_row_wrapped: bool,
+    ) Allocator.Error!AppendResult {
         // Initialize our metadata for the node.
         var meta: Meta = .{
             .node = node,
             .serial = node.serial,
+            .rows = page.size.rows,
             .cell_map = .empty,
+            .before = before: {
+                const prev = node.prev orelse break :before .none;
+                const prev_page = prev.page();
+                if (prev_page.getRow(prev_page.size.rows - 1).wrap) break :before .unknown;
+                break :before .{ .byte = '\n' };
+            },
+            .has_next = node.next != null,
         };
         errdefer meta.deinit(self.alloc);
 
@@ -1052,7 +753,7 @@ pub const SlidingWindow = struct {
 
         // Encode the page into the buffer.
         const formatter: PageFormatter = formatter: {
-            var formatter: PageFormatter = .init(meta.node.page(), .{
+            var formatter: PageFormatter = .init(page, .{
                 .emit = .plain,
                 .unwrap = true,
             });
@@ -1070,8 +771,7 @@ pub const SlidingWindow = struct {
 
         // If the node we're adding isn't soft-wrapped, we add the
         // trailing newline.
-        const row = node.page().getRow(node.rows() - 1);
-        if (!row.wrap) {
+        if (!last_row_wrapped) {
             encoded.writer.writeByte('\n') catch return error.OutOfMemory;
             try meta.cell_map.append(
                 self.alloc,
@@ -1087,7 +787,10 @@ pub const SlidingWindow = struct {
         const written = encoded.written();
         if (written.len == 0) {
             self.assertIntegrity();
-            return 0;
+            return .{
+                .content_len = 0,
+                .last_row_wrapped = last_row_wrapped,
+            };
         }
 
         // Get our written data. If we're doing a reverse search then we
@@ -1110,7 +813,10 @@ pub const SlidingWindow = struct {
         self.meta.appendAssumeCapacity(meta);
 
         self.assertIntegrity();
-        return written.len;
+        return .{
+            .content_len = written.len,
+            .last_row_wrapped = last_row_wrapped,
+        };
     }
 
     /// Only for tests!
@@ -1457,24 +1163,6 @@ test "SlidingWindow single append regex" {
     try testing.expect((try w.next()) == null);
 }
 
-test "SlidingWindow invalid regex init returns recoverable error" {
-    if (comptime !build_options.oniguruma) return error.SkipZigTest;
-
-    const testing = std.testing;
-    const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w = SlidingWindow.initWithOptions(alloc, .forward, "[", .{
-        .regex = true,
-    }) catch |err| switch (err) {
-        error.OutOfMemory => return error.OutOfMemory,
-        else => return,
-    };
-    defer w.deinit();
-
-    return error.TestExpectedError;
-}
-
 test "SlidingWindow regex runtime error preserves window state" {
     if (comptime !build_options.oniguruma) return error.SkipZigTest;
 
@@ -1581,7 +1269,7 @@ test "SlidingWindow regex no match keeps bounded suffix" {
 
     var text: std.ArrayList(u8) = .empty;
     defer text.deinit(alloc);
-    try text.appendNTimes(alloc, 'x', regex_no_match_retain_len + 8192);
+    try text.appendNTimes(alloc, 'x', Pattern.regex_no_match_retain_len + 8192);
     try s.testWriteString(text.items);
 
     var node: ?*PageList.List.Node = s.pages.pages.first.?;
@@ -1593,7 +1281,7 @@ test "SlidingWindow regex no match keeps bounded suffix" {
 
     try testing.expect((try w.next()) == null);
     try testing.expectEqual(@as(usize, 0), w.data_offset);
-    try testing.expectEqual(regex_no_match_retain_len, w.data.len());
+    try testing.expectEqual(Pattern.regex_no_match_retain_len, w.data.len());
 }
 
 test "SlidingWindow regex match can span more than literal overlap" {
@@ -1630,55 +1318,6 @@ test "SlidingWindow regex match can span more than literal overlap" {
     try testing.expectEqual(first_node.next.?, sel.end.node);
 }
 
-test "SlidingWindow regex edge sensitivity detects anchors and character classes" {
-    const testing = std.testing;
-
-    const absolute_start = SlidingWindow.regexPatternEdgeSensitivity("\\Afoo");
-    try testing.expect(absolute_start.before.absolute_anchor);
-    try testing.expect(!absolute_start.after.any());
-
-    const search_start = SlidingWindow.regexPatternEdgeSensitivity("\\Gfoo");
-    try testing.expect(search_start.before.absolute_anchor);
-    try testing.expect(!search_start.after.any());
-
-    const absolute_end = SlidingWindow.regexPatternEdgeSensitivity("foo\\Z");
-    try testing.expect(!absolute_end.before.any());
-    try testing.expect(absolute_end.after.absolute_anchor);
-
-    const strict_end = SlidingWindow.regexPatternEdgeSensitivity("foo\\z");
-    try testing.expect(!strict_end.before.any());
-    try testing.expect(strict_end.after.absolute_anchor);
-
-    const word = SlidingWindow.regexPatternEdgeSensitivity("\\bfoo");
-    try testing.expect(word.before.word_boundary);
-    try testing.expect(word.after.word_boundary);
-
-    const class_only = SlidingWindow.regexPatternEdgeSensitivity("[^$^]+");
-    try testing.expect(!class_only.any());
-
-    const anchors = SlidingWindow.regexPatternEdgeSensitivity("^foo$");
-    try testing.expect(anchors.before.line_anchor);
-    try testing.expect(anchors.after.line_anchor);
-}
-
-test "SlidingWindow regex edge sensitivity ignores literal anchor bytes" {
-    const testing = std.testing;
-
-    const literals = SlidingWindow.regexPatternEdgeSensitivity("foo^bar price$usd");
-    try testing.expect(!literals.before.line_anchor);
-    try testing.expect(!literals.after.line_anchor);
-
-    const alternation_start = SlidingWindow.regexPatternEdgeSensitivity("foo|^bar");
-    try testing.expect(alternation_start.before.line_anchor);
-
-    const alternation_end = SlidingWindow.regexPatternEdgeSensitivity("foo$|bar");
-    try testing.expect(alternation_end.after.line_anchor);
-
-    const grouped = SlidingWindow.regexPatternEdgeSensitivity("(?:^bar$)");
-    try testing.expect(grouped.before.line_anchor);
-    try testing.expect(grouped.after.line_anchor);
-}
-
 test "SlidingWindow reverse regex haystack preserves offset across circular split" {
     if (comptime !build_options.oniguruma) return error.SkipZigTest;
 
@@ -1703,25 +1342,6 @@ test "SlidingWindow reverse regex haystack preserves offset across circular spli
 
     const haystack = try w.buildRegexHaystack(slices[0], slices[1]);
     try testing.expectEqualStrings("fedcba", haystack);
-}
-
-test "SlidingWindow whole-word regex edge sensitivity preserves embedded anchors" {
-    if (comptime !build_options.oniguruma) return error.SkipZigTest;
-
-    const testing = std.testing;
-    const alloc = testing.allocator;
-    try oni.testing.ensureInit();
-
-    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "^boo", .{
-        .regex = true,
-        .whole_word = true,
-    });
-    defer w.deinit();
-
-    const sensitivity = w.regexEdgeSensitivity();
-    try testing.expect(sensitivity.before.word_boundary);
-    try testing.expect(sensitivity.before.line_anchor);
-    try testing.expect(sensitivity.after.word_boundary);
 }
 
 test "SlidingWindow whole-word regex accepts hard newline page boundary" {
@@ -1753,6 +1373,48 @@ test "SlidingWindow whole-word regex accepts hard newline page boundary" {
     const sel = h.untracked();
     try testing.expectEqual(second_node, sel.start.node);
     try testing.expectEqual(second_node, sel.end.node);
+}
+
+test "SlidingWindow edge decision uses the page state captured at append" {
+    if (comptime !build_options.oniguruma) return error.SkipZigTest;
+
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    try oni.testing.ensureInit();
+
+    var w: SlidingWindow = try .initWithOptions(alloc, .forward, "boo", .{
+        .whole_word = true,
+    });
+    defer w.deinit();
+
+    var s = try Screen.init(alloc, .{ .cols = 80, .rows = 24, .max_scrollback = 1000 });
+    defer s.deinit();
+
+    const first_page_rows = s.pages.pages.first.?.capacity().rows;
+    for (0..first_page_rows - 1) |_| try s.testWriteString("\n");
+    try s.testWriteString("tail");
+    try s.testWriteString("\n");
+    try testing.expect(s.pages.pages.first != s.pages.pages.last);
+    try s.testWriteString("boo ok");
+
+    const first_node: *PageList.List.Node = s.pages.pages.first.?;
+    const second_node = first_node.next.?;
+    _ = try w.append(second_node);
+
+    // The previous page ended its last line with a hard newline when the
+    // window took this one. The window is scanned without the terminal lock,
+    // so the scan decides with that state even after a writer wraps the line.
+    const last_row = first_node.page().getRow(first_node.rows() - 1);
+    try testing.expect(!last_row.wrap);
+    last_row.wrap = true;
+    defer last_row.wrap = false;
+
+    const h = (try w.next()) orelse return error.TestExpectedMatch;
+    const sel = h.untracked();
+    try testing.expectEqual(second_node, sel.start.node);
+    try testing.expectEqual(second_node, sel.end.node);
+    try testing.expectEqual(@as(size.CellCountInt, 0), sel.start.x);
+    try testing.expectEqual(@as(size.CellCountInt, 2), sel.end.x);
 }
 
 test "SlidingWindow reverse search works with non-default query options" {
