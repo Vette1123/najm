@@ -123,3 +123,21 @@ test("Pages and IndexNow files exist", () => {
   assert.ok(existsSync(join(out, ".nojekyll")));
   assert.match(read("llms.txt"), /not affiliated/);
 });
+
+// A capture of v1.0.6 showed Arabic in cell order, reading backwards: the shaper
+// forces LTR and nothing reorders a line. These claims stay out until that changes.
+test("nothing claims right-to-left Arabic the renderer does not do", () => {
+  const banned = [
+    /reads? right to left|lays (it|out)|right-to-left Arabic/i,
+    /joined letters|letters join|full Arabic support|Arabic that/i,
+    /بأحرف متصلة|ويصل الأحرف|تدعم العربية|تتحدث العربية/,
+  ];
+  const readme = readFileSync(join(out, "..", "..", "README.md"), "utf8");
+  const sources = built.map(({ page, html }) => [page.slug || "home", html]);
+  sources.push(["README.md", readme], ["llms.txt", read("llms.txt")]);
+  for (const [name, text] of sources) {
+    for (const claim of banned) {
+      assert.doesNotMatch(text, claim, `${name} repeats a false Arabic claim`);
+    }
+  }
+});

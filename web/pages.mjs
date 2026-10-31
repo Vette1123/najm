@@ -13,7 +13,7 @@ export const INDEXNOW_KEY = "6f1d2c7ab3e94d0c8e57a1b46d90c3f2";
 const faqEn = [
   [
     "What is Najm?",
-    "Najm is a free, open-source terminal emulator for Windows 10 and 11. It is a native Win32 app built on Ghostty's terminal core, with tabs, splits, session restore and full Arabic support.",
+    "Najm is a free, open-source terminal emulator for Windows 10 and 11. It is a native Win32 app built on Ghostty's terminal core, with tabs, splits and session restore.",
   ],
   [
     "Is Najm the official Ghostty for Windows?",
@@ -40,11 +40,11 @@ const faqEn = [
 const faqAr = [
   [
     "ما هو نجم؟",
-    "نجم طرفية مجانية مفتوحة المصدر لنظامي ويندوز 10 و11. تطبيق Win32 أصلي مبني على نواة Ghostty، يدعم التبويبات وتقسيم النوافذ واستعادة الجلسة واللغة العربية.",
+    "نجم طرفية مجانية مفتوحة المصدر لنظامي ويندوز 10 و11. تطبيق Win32 أصلي مبني على نواة Ghostty، يدعم التبويبات وتقسيم النوافذ واستعادة الجلسة.",
   ],
   [
-    "هل تعمل الأحرف العربية متصلة في الطرفية؟",
-    "نعم. يعرض نجم النص من اليمين إلى اليسار ويصل الأحرف العربية. أضف سطرا واحدا إلى الإعدادات ليستخدم خطا أحادي المسافة يدعم العربية.",
+    "هل يعرض نجم العربية من اليمين إلى اليسار؟",
+    "ليس بعد. يرسم نجم الحروف العربية بأشكالها الموصولة، لكنه لا يعيد ترتيب السطر، فتظهر الكلمات في مخرجات الأوامر بترتيب معكوس. أضف سطرا واحدا إلى الإعدادات ليستخدم خطا أحادي المسافة يحتوي على العربية.",
   ],
   [
     "هل نجم مجاني؟",
@@ -69,7 +69,7 @@ export const pages = [
     nav: "Home",
     title: "Najm: a fast GPU terminal for Windows, built on Ghostty",
     description:
-      "Free native terminal for Windows 10 and 11, built on Ghostty's core. Tabs, splits, session restore, full Arabic support, PowerShell, WSL and Git Bash.",
+      "Free native terminal for Windows 10 and 11, built on Ghostty's core. Tabs, splits, session restore and image paste, with PowerShell, WSL and Git Bash.",
     updated: "2026-10-31",
     image: "assets/shot-restored-dark.webp",
     software: true,
@@ -119,12 +119,16 @@ export const pages = [
     slug: "arabic-terminal-windows/",
     source: "arabic-terminal-windows",
     lang: "en",
-    nav: "Arabic terminal",
-    title: "Arabic terminal for Windows with RTL and joined letters",
+    nav: "Arabic text",
+    title: "Arabic text in a Windows terminal: fonts and limits | Najm",
     description:
-      "Many terminals break Arabic into separate letters. Najm lays out right-to-left text and joins the letters on Windows. Set it up with one config line.",
+      "How to give Arabic a monospace font in Najm on Windows with one config line, and what does not work yet: lines are not reordered right to left.",
     updated: "2026-10-31",
     faq: [
+      [
+        "Does Najm display Arabic right to left?",
+        "Not yet. Najm draws Arabic letters in their joined forms, but it keeps a line in left-to-right cell order, so Arabic in plain command output reads backwards. There is no bidirectional layout in the renderer today.",
+      ],
       [
         "Why does Arabic look uneven in my terminal?",
         "Most terminal fonts have no Arabic, so Windows draws it in a proportional font that sits unevenly in the cell grid. Map the Arabic blocks to a monospace font that has them.",
@@ -168,9 +172,9 @@ export const pages = [
     lang: "ar",
     alternate: "",
     nav: "الرئيسية",
-    title: "نجم: طرفية سريعة لويندوز تدعم العربية",
+    title: "نجم: طرفية سريعة لويندوز مبنية على Ghostty",
     description:
-      "نجم طرفية مجانية لويندوز 10 و11 مبنية على نواة Ghostty. تدعم العربية من اليمين إلى اليسار بأحرف متصلة، مع التبويبات وتقسيم النوافذ واستعادة الجلسة.",
+      "نجم طرفية مجانية لويندوز 10 و11 مبنية على نواة Ghostty، مع التبويبات وتقسيم النوافذ واستعادة الجلسة ولصق الصور في أدوات الذكاء الاصطناعي.",
     updated: "2026-10-31",
     image: "assets/shot-restored-dark.webp",
     software: true,

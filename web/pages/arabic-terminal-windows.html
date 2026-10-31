@@ -1,9 +1,15 @@
   <article class="prose">
     <div class="frame">
-      <h1>An Arabic terminal for Windows</h1>
-      <p class="lede">Terminals are built on a grid of equal cells, which suits Latin text and breaks Arabic: letters split apart and the order runs backwards. Najm lays out right-to-left text and shapes Arabic so the letters join.</p>
+      <h1>Arabic text in a Windows terminal</h1>
+      <p class="lede">Terminals are built on a grid of equal cells, which suits Latin text and fights Arabic. Najm can draw Arabic in a monospace font with one config line, but it does not reorder lines right to left yet.</p>
 
-      <h2>Set it up in three steps</h2>
+      <h2>What works today</h2>
+      <ul>
+        <li><strong>Works:</strong> Arabic letters take their joined forms, and the font line below keeps them on the cell grid.</li>
+        <li><strong>Does not work yet:</strong> a line stays in left-to-right cell order, so Arabic in plain command output reads backwards. Some pairs, such as lam-alef, also draw badly. Najm has no bidirectional layout today.</li>
+      </ul>
+
+      <h2>Set the font in three steps</h2>
       <ol>
         <li>Install the current <a href="https://github.com/microsoft/cascadia-code/releases">Cascadia Code release</a>. The copy that ships with Windows has no Arabic.</li>
         <li>Add this line to <code>%LOCALAPPDATA%\najm\config.ghostty</code>:</li>
@@ -19,6 +25,6 @@
       <div class="code"><pre>najm +show-face --string="مرحبا"</pre></div>
 
       <h2>Read this page in Arabic</h2>
-      <p>Najm's site has an <a href="{{base}}/ar/" lang="ar">Arabic version</a>, because the people who need this feature most may prefer to read about it in their own language.</p>
+      <p>Najm's site has an <a href="{{base}}/ar/" lang="ar">Arabic version</a>.</p>
     </div>
   </article>
