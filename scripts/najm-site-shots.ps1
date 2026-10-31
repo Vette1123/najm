@@ -27,12 +27,14 @@ function Send-Keys([string]$keys, [int]$wait = 700) {
 function Save-Shot([IntPtr]$window, [string]$name) {
     $rect = New-Object Win+RECT
     [void][Win]::GetWindowRect($window, [ref]$rect)
-    $width = $rect.R - $rect.L
-    $height = $rect.B - $rect.T
+    # GetWindowRect includes an 8 px invisible resize border on three sides.
+    $border = 8
+    $width = $rect.R - $rect.L - 2 * $border
+    $height = $rect.B - $rect.T - $border
     if ($width -lt 600) { throw "Window is only $width px wide" }
     $bitmap = New-Object System.Drawing.Bitmap $width, $height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    $graphics.CopyFromScreen($rect.L, $rect.T, 0, 0, $bitmap.Size)
+    $graphics.CopyFromScreen($rect.L + $border, $rect.T, 0, 0, $bitmap.Size)
     $path = Join-Path $OutputDirectory "$name.png"
     $bitmap.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     Write-Host "Saved $path at ${width}x$height"
@@ -71,6 +73,26 @@ window-height = 30
 auto-update = off
 "@ | Set-Content $config
 
+Add-Content $config 'font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF'
+
+# The Arabic shot uses the setup the site documents: the Cascadia Code release.
+$fontZip = "$env:RUNNER_TEMP\cascadia.zip"
+gh release download --repo microsoft/cascadia-code --pattern 'CascadiaCode-*.zip' --output $fontZip
+Expand-Archive $fontZip "$env:RUNNER_TEMP\cascadia"
+$font = Get-ChildItem "$env:RUNNER_TEMP\cascadia" -Recurse -Filter 'CascadiaCodeNF.ttf' | Select-Object -First 1
+Copy-Item $font.FullName C:\Windows\Fonts\
+New-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts' -Name 'Cascadia Code NF (TrueType)' -Value $font.Name -Force | Out-Null
+
+@'
+مرحبا بالعالم
+طرفية سريعة لويندوز تدعم العربية
+كل أداة تعرض نصها من اليمين إلى اليسار
+'@ | Set-Content -Encoding utf8NoBOM "$demo\arabic.txt"
+
+# The runner defaults to light mode; the site is dark.
+Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' AppsUseLightTheme 0 -Type DWord -ErrorAction SilentlyContinue
+reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' /v AppsUseLightTheme /t REG_DWORD /d 0 /f | Out-Null
+
 $process = Start-Process $exe.FullName -WorkingDirectory $demo -PassThru
 for ($i = 0; $i -lt 40 -and $process.Refresh() -eq $null -and $process.MainWindowHandle -eq 0; $i++) {
     Start-Sleep -Milliseconds 500
@@ -80,10 +102,19 @@ if ($window -eq 0) { throw 'Najm never opened a window' }
 [void][Win]::SetForegroundWindow($window)
 Start-Sleep -Seconds 5
 
+Send-Keys 'title api& cls{ENTER}' 1000
 Send-Keys 'git log --oneline -n 6{ENTER}'
 Send-Keys 'git status{ENTER}' 1200
-Send-Keys '^+e' 2000              # Split down
+Send-Keys '^+\' 2000              # Split right
+Send-Keys 'title api& cls{ENTER}' 1000
 Send-Keys 'dir /b{ENTER}' 1200
+Send-Keys '^+t' 2000              # New tab
+Send-Keys 'title web& cls{ENTER}' 1000
+Send-Keys '^+t' 2000
+Send-Keys 'title arabic& chcp 65001 >nul& cls& type arabic.txt{ENTER}' 2500
+Save-Shot $window 'shot-arabic-dark'
+
+Send-Keys '%1' 1500               # Back to the first tab
 Save-Shot $window 'shot-splits-dark'
 
 Send-Keys '^+p' 1500              # Command palette
