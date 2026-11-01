@@ -132,8 +132,9 @@ pub const Shaper = struct {
             });
         }
 
-        pub fn finalize(self: RunIteratorHook) !void {
+        pub fn finalize(self: RunIteratorHook, rtl: bool) void {
             _ = self;
+            _ = rtl;
         }
     };
 };

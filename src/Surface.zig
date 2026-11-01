@@ -685,6 +685,7 @@ const DerivedConfig = struct {
     selection_clear_on_copy: bool,
     selection_clear_on_typing: bool,
     selection_word_chars: []const u21,
+    bidi: bool,
     vt_kam_allowed: bool,
     wait_after_command: bool,
     window_padding_top: u32,
@@ -752,6 +753,7 @@ const DerivedConfig = struct {
             .selection_clear_on_copy = config.@"selection-clear-on-copy",
             .selection_clear_on_typing = config.@"selection-clear-on-typing",
             .selection_word_chars = try alloc.dupe(u21, config.@"selection-word-chars".codepoints),
+            .bidi = config.bidi,
             .vt_kam_allowed = config.@"vt-kam-allowed",
             .wait_after_command = config.@"wait-after-command",
             .window_padding_top = config.@"window-padding-y".top_left,
@@ -1961,13 +1963,13 @@ fn selectionScrollTick(self: *Surface) !void {
     if (self.mouse.left_click_count == 0) return;
 
     const pos = try self.rt_surface.getCursorPos();
-    const pos_vp = self.posToViewport(pos.x, pos.y);
     const delta: isize = if (pos.y < 0) -1 else 1;
 
     // We need our locked state for the remainder
     self.renderer_state.mutex.lock();
     defer self.renderer_state.mutex.unlock();
     const t: *terminal.Terminal = self.renderer_state.terminal;
+    const pos_vp = self.posToCell(pos.x, pos.y);
 
     // If our left-click pin no longer belongs to the active screen, we stop
     // our selection scroll.
@@ -4274,7 +4276,7 @@ pub fn keyCallback(
             defer self.renderer_state.mutex.unlock();
             self.mouseRefreshLinks(
                 pos,
-                self.posToViewport(pos.x, pos.y),
+                self.posToCell(pos.x, pos.y),
                 self.mouse.over_link,
             ) catch |err| {
                 log.warn("failed to refresh links err={}", .{err});
@@ -5636,12 +5638,16 @@ fn mouseReport(
 
     var data: termio.Message.WriteReq.Small.Array = undefined;
     var writer: std.Io.Writer = .fixed(&data);
+    // A program addresses the cell it wrote, wherever that cell is shown.
+    const shown = self.posToViewport(pos.x, pos.y);
+    const columns_moved = @as(i64, self.cellAtViewport(shown).x) - @as(i64, shown.x);
+    const cell_width: f32 = @floatFromInt(self.size.cell.width);
     input.mouse_encode.encode(&writer, .{
         .button = button,
         .action = action,
         .mods = mods,
         .pos = .{
-            .x = pos.x,
+            .x = pos.x + @as(f32, @floatFromInt(columns_moved)) * cell_width,
             .y = pos.y,
         },
     }, encoding_opts) catch |err| switch (err) {
@@ -5843,7 +5849,7 @@ pub fn mouseButtonCallback(
                 // Mouse reporting still reaches the child in copy mode, but a
                 // left press must also leave the modal selection usable.
                 if (button == .left and action == .press) {
-                    const point = self.posToViewport(pos.x, pos.y);
+                    const point = self.posToCell(pos.x, pos.y);
                     if (self.io.terminal.screens.active.pages.pin(.{ .viewport = point })) |pin| {
                         try self.io.terminal.screens.active.select(
                             terminal.Selection.init(pin, pin, false),
@@ -5886,7 +5892,7 @@ pub fn mouseButtonCallback(
 
         const pos = try self.rt_surface.getCursorPos();
         const pin = pin: {
-            const pt_viewport = self.posToViewport(pos.x, pos.y);
+            const pt_viewport = self.posToCell(pos.x, pos.y);
             const pin = screen.pages.pin(.{
                 .viewport = .{
                     .x = pt_viewport.x,
@@ -6039,7 +6045,7 @@ pub fn mouseButtonCallback(
         const screen: *terminal.Screen = self.renderer_state.terminal.screens.active;
         const pos = try self.rt_surface.getCursorPos();
         const pin = pin: {
-            const pt_viewport = self.posToViewport(pos.x, pos.y);
+            const pt_viewport = self.posToCell(pos.x, pos.y);
             const pin = screen.pages.pin(.{
                 .viewport = .{
                     .x = pt_viewport.x,
@@ -6167,7 +6173,7 @@ fn maybePromptClick(self: *Surface) !bool {
 
     // Get the pin for our mouse click.
     const pos = try self.rt_surface.getCursorPos();
-    const pos_vp = self.posToViewport(pos.x, pos.y);
+    const pos_vp = self.posToCell(pos.x, pos.y);
     const click_pin: terminal.Pin = pin: {
         const pin = screen.pages.pin(.{
             .viewport = .{
@@ -6332,7 +6338,7 @@ fn linkAtPos(
     // Convert our cursor position to a screen point.
     const screen: *terminal.Screen = self.renderer_state.terminal.screens.active;
     const mouse_pin: terminal.Pin = mouse_pin: {
-        const point = self.posToViewport(pos.x, pos.y);
+        const point = self.posToCell(pos.x, pos.y);
         const pin = screen.pages.pin(.{ .viewport = point }) orelse {
             log.warn("failed to get pin for clicked point", .{});
             return null;
@@ -6703,9 +6709,6 @@ pub fn cursorPosCallback(
     // Update our modifiers if they changed
     if (mods) |v| self.modsChanged(v);
 
-    // The mouse position in the viewport
-    const pos_vp = self.posToViewport(pos.x, pos.y);
-
     // We always reset the over link status because it will be reprocessed
     // below. But we need the old value to know if we need to undo mouse
     // shape changes.
@@ -6715,6 +6718,9 @@ pub fn cursorPosCallback(
     // We are reading/writing state for the remainder
     self.renderer_state.mutex.lock();
     defer self.renderer_state.mutex.unlock();
+
+    // The stored cell under the mouse.
+    const pos_vp = self.posToCell(pos.x, pos.y);
 
     // Stop selection scrolling when inside the viewport within a 1px buffer
     // for fullscreen windows, but only when selection scrolling is active.
@@ -7110,6 +7116,38 @@ pub fn posToViewport(self: Surface, xpos: f64, ypos: f64) terminal.point.Coordin
     const coord: rendererpkg.Coordinate = .{ .surface = .{ .x = xpos, .y = ypos } };
     const grid = coord.convert(.grid, self.size).grid;
     return .{ .x = grid.x, .y = grid.y };
+}
+
+/// The stored cell shown at viewport column `point.x`, for a row whose
+/// right-to-left text the renderer reorders. Everything a click or a drag
+/// touches goes through this, so it lands on the letter under the mouse.
+///
+/// Requires the renderer mutex is held.
+fn cellAtViewport(self: *Surface, point: terminal.point.Coordinate) terminal.point.Coordinate {
+    if (!self.config.bidi) return point;
+    const t: *terminal.Terminal = self.renderer_state.terminal;
+    const pin = t.screens.active.pages.pin(.{ .viewport = point }) orelse return point;
+    const cells = pin.cells(.all);
+    if (!rendererpkg.bidi.hasRtl(cells)) return point;
+
+    // The renderer's `bidiRow` finds the same row from its snapshot.
+    var head = pin;
+    while (head.rowAndCell().row.wrap_continuation) head = head.up(1) orelse break;
+    const paragraph = rendererpkg.bidi.direction(
+        head.cells(.all),
+        t.screens.active_key == .alternate,
+    );
+
+    var layout: rendererpkg.bidi.Layout = .{};
+    defer layout.deinit(self.alloc);
+    const laid_out = layout.update(self.alloc, cells, paragraph) catch return point;
+    if (!laid_out or point.x >= layout.visual_to_logical.items.len) return point;
+    return .{ .x = layout.visual_to_logical.items[point.x], .y = point.y };
+}
+
+/// `posToViewport` then `cellAtViewport`. Requires the renderer mutex is held.
+fn posToCell(self: *Surface, xpos: f64, ypos: f64) terminal.point.Coordinate {
+    return self.cellAtViewport(self.posToViewport(xpos, ypos));
 }
 
 /// Scroll to the bottom of the viewport, redrawing only if it moved. Every

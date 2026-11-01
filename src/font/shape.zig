@@ -77,6 +77,12 @@ pub const RunOptions = struct {
     /// null.
     cursor_x: ?usize = null,
 
+    /// Whether each cell of `cells` is right-to-left text, for a row whose
+    /// `cells` are already in display order. A run never crosses a change,
+    /// and a right-to-left run is shaped in its logical order so its letters
+    /// join. Null is a left-to-right row.
+    rtl: ?[]const bool = null,
+
     /// Apply the font break configuration to the run.
     pub fn applyBreakConfig(
         self: *RunOptions,

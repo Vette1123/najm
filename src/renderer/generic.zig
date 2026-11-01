@@ -97,6 +97,7 @@ pub const CommonDerivedConfig = struct {
     font_features: std.ArrayListUnmanaged([:0]const u8),
     font_styles: font.CodepointResolver.StyleStatus,
     font_shaping_break: configpkg.FontShapingBreak,
+    bidi: bool,
     cursor_color: ?configpkg.Config.TerminalColor,
     cursor_opacity: f64,
     cursor_text: ?configpkg.Config.TerminalColor,
@@ -175,6 +176,7 @@ pub const CommonDerivedConfig = struct {
             .font_features = font_features.list,
             .font_styles = font_styles,
             .font_shaping_break = config.@"font-shaping-break",
+            .bidi = config.bidi,
 
             .cursor_color = config.@"cursor-color",
             .cursor_text = config.@"cursor-text",
@@ -434,6 +436,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
         font_grid: *font.SharedGrid,
         font_shaper: font.Shaper,
         font_shaper_cache: font.ShaperCache,
+
+        /// The display order of the row last laid out, and that row's cells
+        /// in that order. See `bidiRow`.
+        bidi: renderer.bidi.Layout = .{},
+        bidi_cells: std.MultiArrayList(terminal.RenderState.Cell) = .empty,
 
         /// The images that we may render.
         images: ImageState = .empty,
@@ -984,6 +991,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
             self.font_shaper.deinit();
             self.font_shaper_cache.deinit(self.alloc);
+            self.bidi.deinit(self.alloc);
+            self.bidi_cells.deinit(self.alloc);
 
             if (free_config) self.config.deinit();
 
@@ -2959,6 +2968,15 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 // we don't render a cursor.
                 const style = cursor_style_ orelse break :cursor;
 
+                // The cursor sits on its cell, wherever that cell is shown.
+                // This block runs on every call and the row may be clean, so
+                // the layout is worked out here rather than kept from the
+                // row's last rebuild.
+                const cursor_x: terminal.size.CellCountInt = if (self.bidiRow(cursor_vp.y))
+                    self.bidi.logical_to_visual.items[cursor_vp.x]
+                else
+                    cursor_vp.x;
+
                 // Determine the cursor color.
                 const cursor_color = cursor_color: {
                     // If an explicit cursor color was set by OSC 12, use that.
@@ -2998,8 +3016,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     break :cursor_color state.colors.foreground;
                 };
 
+                var shown_cursor = state.cursor;
+                shown_cursor.viewport.?.x = cursor_x;
                 self.addCursor(
-                    &state.cursor,
+                    &shown_cursor,
                     style,
                     cursor_color,
                 );
@@ -3013,8 +3033,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                         // to move back one cell. The saturate is to ensure we don't
                         // overflow but this shouldn't happen with well-formed input.
                         switch (wide) {
-                            .narrow, .spacer_head, .wide => cursor_vp.x,
-                            .spacer_tail => cursor_vp.x -| 1,
+                            .narrow, .spacer_head, .wide => cursor_x,
+                            .spacer_tail => cursor_x -| 1,
                         },
                         @intCast(cursor_vp.y),
                     };
@@ -3127,6 +3147,30 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 start;
         }
 
+        /// Lay out row `y` into `self.bidi`. False means it stays in the order
+        /// it is stored in: it has no right-to-left text, or `bidi` is off.
+        ///
+        /// A wrapped line takes its direction from the row that starts it.
+        fn bidiRow(self: *Self, y: usize) bool {
+            if (!self.config.bidi) return false;
+            const state = &self.terminal_state;
+            const row_cells = state.row_data.items(.cells);
+            const raw = row_cells[y].items(.raw);
+            if (!renderer.bidi.hasRtl(raw)) return false;
+
+            const row_raws = state.row_data.items(.raw);
+            var head = y;
+            while (head > 0 and row_raws[head].wrap_continuation) head -= 1;
+            const paragraph = renderer.bidi.direction(
+                row_cells[head].items(.raw),
+                state.screen == .alternate,
+            );
+            return self.bidi.update(self.alloc, raw, paragraph) catch |err| {
+                log.warn("error laying out row y={} err={}", .{ y, err });
+                return false;
+            };
+        }
+
         fn rebuildRow(
             self: *Self,
             y: terminal.size.CellCountInt,
@@ -3139,9 +3183,26 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
         ) !void {
             const state = &self.terminal_state;
 
+            // From here on `x` is a column and `cells_slice` is in column
+            // order. Selection, search and links are kept in stored order, so
+            // they compare `logical_x`, and the run iterator gets no selection
+            // because a selection need not be contiguous on screen.
+            //
+            // ponytail: an input method's composition is drawn over stored
+            // columns, so its row stays in stored order while it is open. An
+            // upgrade would lay the composition out with the row.
+            const preedit_row = if (preedit_range) |range| range.y == y else false;
+            const reordered = !preedit_row and self.bidiRow(y);
+            const cells_slice = if (reordered) visual: {
+                try self.bidi_cells.resize(self.alloc, cells.len);
+                for (self.bidi.visual_to_logical.items, 0..) |logical, x| {
+                    self.bidi_cells.set(x, cells.get(logical));
+                }
+                break :visual self.bidi_cells.slice();
+            } else cells.slice();
+
             // If our viewport is wider than our cell contents buffer,
             // we still only process cells up to the width of the buffer.
-            const cells_slice = cells.slice();
             const cells_len = @min(cells_slice.len, self.cells.size.columns);
             const cells_raw = cells_slice.items(.raw);
             const cells_style = cells_slice.items(.style);
@@ -3179,13 +3240,15 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             var run_iter_opts: font.shape.RunOptions = .{
                 .grid = self.font_grid,
                 .cells = cells_slice,
-                .selection = if (selection) |s| s else null,
+                .selection = if (reordered) null else selection,
+                .rtl = if (reordered) self.bidi.rtl.items else null,
 
                 // We want to do font shaping as long as the cursor is
                 // visible on this viewport.
                 .cursor_x = cursor_x: {
                     const vp = state.cursor.viewport orelse break :cursor_x null;
                     if (vp.y != y) break :cursor_x null;
+                    if (reordered) break :cursor_x self.bidi.logical_to_visual.items[vp.x];
                     break :cursor_x vp.x;
                 },
             };
@@ -3275,6 +3338,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     managed_style.*
                 else
                     .{};
+                const logical_x: usize = if (reordered) self.bidi.visual_to_logical.items[x] else x;
 
                 // True if this cell is selected
                 const selected: enum {
@@ -3287,9 +3351,9 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
                     // Selection should take the highest precedence.
                     const x_compare = if (wide == .spacer_tail)
-                        x -| 1
+                        logical_x -| 1
                     else
-                        x;
+                        logical_x;
                     if (selection) |sel| {
                         if (x_compare >= sel[0] and
                             x_compare <= sel[1]) break :selected .selection;
@@ -3460,7 +3524,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 // distinguish them.
                 const underline: terminal.Attribute.Underline = underline: {
                     if (links.contains(.{
-                        .x = @intCast(x),
+                        .x = @intCast(logical_x),
                         .y = @intCast(y),
                     })) {
                         break :underline if (style.flags.underline == .single)
