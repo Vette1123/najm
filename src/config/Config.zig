@@ -448,6 +448,18 @@ renderer: RendererBackend = .opengl,
 /// Available since: 1.2.0
 @"font-shaping-break": FontShapingBreak = .{},
 
+/// Show right-to-left text, such as Arabic and Hebrew, in reading order.
+///
+/// A line that starts with right-to-left text is set against the right edge.
+/// On any other line, such as one after a shell prompt, only the right-to-left
+/// words reverse in place. Full-screen programs keep every column where they
+/// put it. Only the display changes: copying, searching and what programs read
+/// use the text in the order it was written, and clicking a letter selects
+/// that letter.
+///
+/// Turn this off for a program that reorders its own right-to-left text.
+bidi: bool = true,
+
 /// What color space to use when performing alpha blending.
 ///
 /// This affects the appearance of text and of any images with transparency.

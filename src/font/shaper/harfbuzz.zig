@@ -5,6 +5,7 @@ const harfbuzz = @import("harfbuzz");
 const font = @import("../main.zig");
 const terminal = @import("../../terminal/main.zig");
 const unicode = @import("../../unicode/main.zig");
+const renderer_bidi = @import("../../renderer/bidi.zig");
 const Feature = font.shape.Feature;
 const FeatureList = font.shape.FeatureList;
 const default_features = font.shape.default_features;
@@ -37,6 +38,9 @@ pub const Shaper = struct {
     /// these separately because after shaping, HarfBuzz replaces codepoints
     /// with glyph indices in the buffer.
     codepoints: std.ArrayListUnmanaged(Codepoint) = .{},
+
+    /// Whether the current run is shaped right to left.
+    rtl: bool = false,
 
     const Codepoint = struct {
         cluster: u32,
@@ -165,6 +169,13 @@ pub const Shaper = struct {
         // This keeps track of the cell starting x and cluster.
         var cell_offset: CellOffset = .{};
 
+        // Right to left, the codepoints not yet drawn. The last of them holds
+        // the leftmost cell still to fill. A ligature's cluster is its first
+        // letter, the rightmost of its cells, so it starts at this cell
+        // instead, or it would draw over the cell to its right.
+        var rtl_remaining: usize = self.codepoints.items.len;
+        var rtl_started = false;
+
         // Convert all our info/pos to cells and set it.
         self.cell_buf.clearRetainingCapacity();
         for (info, pos) |info_v, pos_v| {
@@ -174,7 +185,24 @@ pub const Shaper = struct {
             // Our cluster is also our cell X position. If the cluster changes
             // then we need to reset our current cell offsets.
             const cluster = self.codepoints.items[index].cluster;
-            if (cell_offset.cluster != cluster) {
+            if (self.rtl) {
+                // Output runs left to right, so a cell starts wherever a
+                // cluster past every one so far appears. Marks can come before
+                // their base or carry a lower cluster, and stay in the cell
+                // they arrive in.
+                if (!rtl_started or cluster > run_offset.cluster) {
+                    rtl_started = true;
+                    cell_offset = .{
+                        .cluster = self.codepoints.items[rtl_remaining - 1].cluster,
+                        .x = run_offset.x,
+                    };
+                    while (rtl_remaining > 0 and
+                        self.codepoints.items[rtl_remaining - 1].cluster <= cluster)
+                    {
+                        rtl_remaining -= 1;
+                    }
+                }
+            } else if (cell_offset.cluster != cluster) {
                 const is_after_glyph_from_current_or_next_clusters =
                     cluster <= run_offset.cluster;
 
@@ -273,11 +301,6 @@ pub const Shaper = struct {
             self.shaper.hb_buf.setClusterLevel(.characters);
 
             self.shaper.codepoints.clearRetainingCapacity();
-
-            // We don't support RTL text because RTL in terminals is messy.
-            // Its something we want to improve. For now, we force LTR because
-            // our renderers assume a strictly increasing X value.
-            self.shaper.hb_buf.setDirection(.ltr);
         }
 
         pub fn addCodepoint(self: RunIteratorHook, cp: u32, cluster: u32) !void {
@@ -285,15 +308,24 @@ pub const Shaper = struct {
             // We pass the index into codepoints as the cluster value to HarfBuzz.
             // After shaping, we use info.cluster to get back the index, which
             // lets us look up the original cluster value from codepoints.
-            const index: u32 = @intCast(self.shaper.codepoints.items.len);
-            self.shaper.hb_buf.add(cp, index);
+            // `finalize` hands them to HarfBuzz once their order is known.
             try self.shaper.codepoints.append(self.shaper.alloc, .{
                 .cluster = cluster,
                 .codepoint = cp,
             });
         }
 
-        pub fn finalize(self: RunIteratorHook) void {
+        /// Right-to-left codepoints arrive in display order, and HarfBuzz
+        /// needs them in logical order to join them. Its output comes back
+        /// left to right, so X still increases, as our renderers assume.
+        pub fn finalize(self: RunIteratorHook, rtl: bool) void {
+            const codepoints = self.shaper.codepoints.items;
+            if (rtl) reverseClusters(codepoints);
+            for (codepoints, 0..) |cp, index| {
+                self.shaper.hb_buf.add(cp.codepoint, @intCast(index));
+            }
+            self.shaper.rtl = rtl;
+            self.shaper.hb_buf.setDirection(if (rtl) .rtl else .ltr);
             self.shaper.hb_buf.guessSegmentProperties();
         }
     };
@@ -719,7 +751,7 @@ test "shape monaspace ligs" {
 // Ghostty doesn't currently support RTL and our renderers assume
 // that cells are in strict LTR order. This means that we need to
 // force RTL text to be LTR for rendering. This test ensures that
-// we are correctly forcing RTL text to be LTR.
+// we are correctly forcing RTL text to be LTR when no layout says otherwise.
 test "shape arabic forced LTR" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -758,6 +790,107 @@ test "shape arabic forced LTR" {
         }
     }
     try testing.expectEqual(@as(usize, 1), count);
+}
+
+/// Reverse the cells of a run while each cell keeps its own codepoints in
+/// order, so a base stays ahead of its marks.
+fn reverseClusters(codepoints: []Shaper.Codepoint) void {
+    std.mem.reverse(Shaper.Codepoint, codepoints);
+    var start: usize = 0;
+    for (codepoints, 0..) |cp, i| {
+        if (cp.cluster == codepoints[start].cluster) continue;
+        std.mem.reverse(Shaper.Codepoint, codepoints[start..i]);
+        start = i;
+    }
+    std.mem.reverse(Shaper.Codepoint, codepoints[start..]);
+}
+
+test "shape reverses clusters and keeps a base ahead of its marks" {
+    var codepoints = [_]Shaper.Codepoint{
+        .{ .cluster = 0, .codepoint = 'a' },
+        .{ .cluster = 1, .codepoint = 'b' },
+        .{ .cluster = 1, .codepoint = 'm' },
+        .{ .cluster = 2, .codepoint = 'c' },
+    };
+    reverseClusters(&codepoints);
+    const expected = [_]u32{ 'c', 'b', 'm', 'a' };
+    for (expected, codepoints) |want, got| try std.testing.expectEqual(want, got.codepoint);
+}
+
+/// Shape `text` through the layout the renderer uses, as a right-to-left line
+/// of 10 cells, and keep the glyphs at column `from` and past it. Returns how
+/// many, with `x` as a column.
+fn shapeRtlForTest(
+    alloc: Allocator,
+    testdata: *TestShaper,
+    text: []const u8,
+    from: u16,
+    out: []font.shape.Cell,
+) !usize {
+    var t = try terminal.Terminal.init(alloc, .{ .cols = 10, .rows = 3 });
+    defer t.deinit(alloc);
+    var s = t.vtStream();
+    defer s.deinit();
+    s.nextSlice(text);
+
+    var state: terminal.RenderState = .empty;
+    defer state.deinit(alloc);
+    try state.update(alloc, &t);
+
+    const row = state.row_data.get(0).cells;
+    var layout: renderer_bidi.Layout = .{};
+    defer layout.deinit(alloc);
+    try std.testing.expect(try layout.update(alloc, row.items(.raw), .rtl));
+
+    var visual: std.MultiArrayList(terminal.RenderState.Cell) = .empty;
+    defer visual.deinit(alloc);
+    try visual.resize(alloc, row.len);
+    for (layout.visual_to_logical.items, 0..) |logical, x| visual.set(x, row.get(logical));
+
+    var it = testdata.shaper.runIterator(.{
+        .grid = testdata.grid,
+        .cells = visual.slice(),
+        .rtl = layout.rtl.items,
+    });
+    var count: usize = 0;
+    while (try it.next(alloc)) |run| {
+        for (try testdata.shaper.shape(run)) |cell| {
+            const x = run.offset + cell.x;
+            if (x < from) continue;
+            out[count] = cell;
+            out[count].x = x;
+            count += 1;
+        }
+    }
+    return count;
+}
+
+test "shape joins right-to-left letters and keeps X increasing" {
+    const alloc = std.testing.allocator;
+    var testdata = try testShaperWithFont(alloc, .arabic);
+    defer testdata.deinit();
+
+    var buf: [16]font.shape.Cell = undefined;
+    // Two behs: the first written joins forward, so it draws on the right in
+    // its initial form, and the second, on its left, in its final form.
+    const len = try shapeRtlForTest(alloc, &testdata, "\u{0628}\u{0628}", 8, &buf);
+    try std.testing.expectEqual(@as(usize, 2), len);
+    try std.testing.expectEqual(@as(u16, 8), buf[0].x);
+    try std.testing.expectEqual(@as(u16, 9), buf[1].x);
+    try std.testing.expect(buf[0].glyph_index != buf[1].glyph_index);
+}
+
+test "shape starts a right-to-left ligature at its leftmost cell" {
+    const alloc = std.testing.allocator;
+    var testdata = try testShaperWithFont(alloc, .arabic);
+    defer testdata.deinit();
+
+    var buf: [16]font.shape.Cell = undefined;
+    // Lam and alef take two cells, as one glyph or two.
+    const len = try shapeRtlForTest(alloc, &testdata, "\u{0644}\u{0627}", 8, &buf);
+    try std.testing.expect(len >= 1);
+    try std.testing.expectEqual(@as(u16, 8), buf[0].x);
+    for (buf[1..len], 0..) |cell, i| try std.testing.expect(cell.x >= buf[i].x);
 }
 
 test "shape emoji width" {

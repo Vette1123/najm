@@ -17,6 +17,7 @@ pub const shadertoy = if (build_config.custom_shaders)
 else
     @import("renderer/shadertoy_stub.zig");
 pub const Backend = @import("renderer/backend.zig").Backend;
+pub const bidi = @import("renderer/bidi.zig");
 pub const GenericRenderer = @import("renderer/generic.zig").Renderer;
 pub const OpenGL = if (build_config.renderer == .opengl)
     @import("renderer/OpenGL.zig")
@@ -66,6 +67,7 @@ test {
     // Our comptime-chosen renderer
     _ = Renderer;
 
+    _ = bidi;
     _ = cursor;
     _ = message;
     _ = shadertoy;

@@ -91,6 +91,11 @@ pub const RunIterator = struct {
             const cluster = j - self.i;
             const cell: *const terminal.page.Cell = &cells[j];
 
+            // Direction splits a run before anything else can join across it.
+            if (self.opts.rtl) |cells_rtl| {
+                if (cells_rtl[j] != cells_rtl[self.i]) break;
+            }
+
             // If we have a selection and we're at a boundary point, then
             // we break the run here.
             if (self.opts.selection) |bounds| {
@@ -282,8 +287,14 @@ pub const RunIterator = struct {
             }
         }
 
-        // Finalize our buffer
-        self.hooks.finalize();
+        // Finalize our buffer. Special fonts draw by cell and never reach
+        // the shaper, so their cells stay in display order.
+        const rtl = if (self.opts.rtl) |cells_rtl|
+            cells_rtl[self.i] and current_font.special() == null
+        else
+            false;
+        self.hooks.finalize(rtl);
+        autoHash(&hasher, rtl);
 
         // Add our length to the hash as an additional mechanism to avoid collisions
         autoHash(&hasher, j - self.i);
