@@ -85,6 +85,16 @@ function schema(page) {
       url: `${SITE_URL}/`,
     });
   }
+  graph.push({
+    "@type": "WebPage",
+    "@id": `${pageUrl(page.slug)}#webpage`,
+    url: pageUrl(page.slug),
+    name: page.title,
+    description: page.description,
+    inLanguage: page.lang,
+    dateModified: page.updated,
+    isPartOf: { "@type": "WebSite", name: "Najm", url: `${SITE_URL}/` },
+  });
   if (page.software) graph.push(softwareSchema(page));
   if (page.slug !== "" && page.slug !== "ar/") {
     graph.push({
@@ -185,7 +195,8 @@ function shell(page, body, { indexable = true } = {}) {
     })
     .join("");
   const seo = indexable
-    ? `<link rel="canonical" href="${canonical}" />
+    ? `<meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="${canonical}" />
   ${hreflang(page)}
   <meta property="og:url" content="${canonical}" />
   ${schema(page)}`
@@ -212,8 +223,12 @@ function shell(page, body, { indexable = true } = {}) {
   <meta property="og:image" content="${SITE_URL}/assets/najm-social.png" />
   <meta property="og:image:width" content="1280" />
   <meta property="og:image:height" content="640" />
-  <meta property="og:image:alt" content="The Najm star mark and the line: a fast GPU terminal for Windows." />
+  <meta property="og:image:alt" content="${esc(t.socialAlt)}" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${esc(page.title)}" />
+  <meta name="twitter:description" content="${esc(page.description)}" />
+  <meta name="twitter:image" content="${SITE_URL}/assets/najm-social.png" />
+  <meta name="twitter:image:alt" content="${esc(t.socialAlt)}" />
   <link rel="icon" href="${BASE_PATH}/assets/najm-mark.svg" type="image/svg+xml" />
   <link rel="preload" as="font" type="font/woff2" href="${BASE_PATH}/assets/fonts/geist.woff2" crossorigin />
   ${preload}
@@ -264,6 +279,7 @@ function sitemap() {
         links.push(
           `<xhtml:link rel="alternate" hreflang="en" href="${pageUrl(en)}"/>`,
           `<xhtml:link rel="alternate" hreflang="ar" href="${pageUrl(ar)}"/>`,
+          `<xhtml:link rel="alternate" hreflang="x-default" href="${pageUrl(en)}"/>`,
         );
       }
       return `  <url><loc>${pageUrl(page.slug)}</loc><lastmod>${page.updated}</lastmod>${links.join("")}</url>`;
