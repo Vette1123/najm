@@ -957,9 +957,10 @@ forwarding). On the command line, `default-profile`, `command` and
 `config-file`, which is otherwise read after the command line. A command-line
 `command` or `initial-command` that is refused (`--command=direct:`) is
 reported and ignored, so the last value the command line gave that is
-accepted is the one that wins. The exception is `-e`: an `initial-command`
-line in a file included with `config-file` still replaces `-e` when the
-config is first loaded. A launch that names a
+accepted is the one that wins. `-e` wins over those lines too, with or
+without a theme: its command and the settings it implies are applied again
+once every config file has been read. An `-e` with nothing after it is
+refused and changes nothing. A launch that names a
 profile with `--default-profile` (a jump-list entry for a user profile)
 starts without the saved session, as `-e` does.
 
@@ -1770,6 +1771,26 @@ default over the file's value. Background blur and link
 previews, which Windows does not support, keep whatever the file says and
 offer no reset.
 
+A field's label also says, at its right end, where the saved value comes from
+when a line sets it: "Set in config.ghostty, line 4" for a line of a config file
+(the one Settings saves to, or a file `config-file` names, by its file name),
+"Set by the theme Nord, line 7" for a line of the theme's file, and "Set on
+the command line" for an argument Najm was started with. A field that no
+line sets says nothing there: its value is the default, or one Najm worked
+out when it read the config. MSAA reads the same in the field's description,
+after "Changed from the default" when that applies. The label describes the
+saved value in effect, not an edit waiting for Save, so a field whose value
+comes from an included file or the command line says so before you change it.
+Save writes the edit to the config file Settings saves to, and to no other
+file. When a file read after it (one that `config-file` names) or the command
+line sets the same key, that value still wins, and Settings says so, naming
+each such setting with the line that wins: "overrides font-size (line 2 of
+included.conf)". The theme is read before the config file, so a value the
+config file sets wins over the theme's. When Najm's command line names a
+Default profile (a jump-list entry does), that choice is for that process
+only: Settings shows and saves the config files' value, and its label names
+the file and line that set that value, if any.
+
 **Search settings** at the right of the Settings header (Ctrl+F from
 anywhere in the window) narrows every page to the settings whose name,
 description or keywords contain every word typed, ignoring the case of ASCII
@@ -1789,6 +1810,61 @@ is taken when the search runs: an edit, a reset, Discard changes or a reload
 leaves the rows where they are until the search changes or a page is shown
 again. A command palette jump to a setting the search hides clears the search,
 and so does Settings showing a field whose value it will not take.
+
+**All settings**, the last page on the left, lists every key the config file
+can hold, with the value in effect and the first sentence of what it does; a
+key that Windows accepts but does not honour (background blur, the GTK keys)
+says so instead. Up and Down select a key, which opens to its whole
+description and the line of the config file that sets it. A value set
+elsewhere names the file and line that set it (a file `config-file` names,
+the theme's file) or the command line, and says when a line of the config
+file sets the key too and does not take effect (for a key whose lines can add
+up, such as `font-family` or `keybind`, only that the file has a line for it
+too, since a later line can clear or replace it). Only a line Najm took when
+it read the file is said to set a key: a line whose value it refused, or one
+written since it last read the file, is said to mention the key and not to
+take effect. A command
+line's `command` or `initial-command` wins over a file read after it, and is
+named as the command line's. A command line's `default-profile` is for that
+process only: the page shows the config files' value, as the Shell page does,
+and names the file and line that set it. A value no line sets but
+Najm worked out when it read the config (`click-repeat-interval`, from
+Windows' double-click time) says that. The file is read
+for this only from a local drive, as UTF-8 or as UTF-16 with a byte order
+mark. It is never read through a symlink or junction, on the file or a folder
+above it, that leads anywhere else, such as a network share. Nor is it read
+when it or a folder above it is a cloud placeholder of OneDrive or another
+cloud-file provider, which a read would make the provider fetch first while
+the window waits. When it cannot be read, the page says so instead of a line.
+Enter, or double-clicking
+the key, opens the config file the way "Open in default editor" does (through
+the `.txt` association), which takes no line number, and the editor may put
+the cursor anywhere: go to the line shown. Ctrl+C copies the key's name. A key
+that has a control in Settings (font size, opacity, the clipboard policies and
+the rest) has an **Edit on _page_** action: F2, or clicking it, goes to that
+control on its own page, focused, so the edit is the control's own, previews
+or waits for Save as it does there, and Save patches only that key's line. A
+key with no control says it is changed in the config file; background blur and
+link previews, whose controls Windows does not support, have no Edit and say
+why. Shift+F10 or a
+right-click offers the row's actions. The value shown is the one in effect: a field you
+have changed on another page but not saved yet, even one whose change you can
+already see in the open windows, keeps its saved value here and is marked as
+changed and not saved yet. The search covers
+this page too, by each key's name, value and description, so its count counts
+every setting once: searching "padding" finds the three padding fields on
+Appearance and the four `window-padding-*` keys here, "4 settings match".
+
+**Keybindings** lists every key binding in effect: the defaults, with the
+config file's `keybind` lines applied, key tables and sequences included. Each
+row shows the keys (with a key table's name and `/` first, and flags such as
+`global:`), the action, and the first sentence of what the action does; Up and
+Down select a binding, which opens to the action's whole description and says
+whether it is one of Najm's defaults or the config file's own. The list is
+read-only: Enter opens the config file, where bindings are changed, and Ctrl+C
+copies the binding as `keybind = ...` lines to paste there. The search covers
+the bindings too, by keys, action and description, and counts each as one
+match on this page; `@modified` keeps the ones the defaults do not have.
 
 ## Running elevated
 
@@ -2127,6 +2203,8 @@ the response headers, and each body read. A stalled request is canceled before
 the worker finishes, so a later check can retry. A download that keeps making
 progress may take longer than 30 seconds. Requests use Windows' certificate
 trust with TLS 1.2 or later; checksum and publisher verification still apply.
+They accept only uncompressed responses, and a response that arrives
+compressed anyway is refused.
 
 Upstream Ghostty is leaving GitHub, so the maintainer periodically checks
 that the `upstream` remote and the release-feed host are still live and
@@ -2270,6 +2348,15 @@ terminal output. Alt-paste also runs the same classifier as the
 drag-and-drop path, so a match carrying shell metacharacters,
 environment-variable expansion, or control bytes raises the paste
 confirmation.
+
+A Ctrl+click (or Ctrl in quick select) opens an `http`, `https` or `mailto`
+link at once. A link with one of the other schemes Najm opens (`ftp`,
+`ssh`, `git`, `tel`, `magnet`, `ipfs`, `ipns`, `gemini`, `gopher`, `news`)
+asks first: the prompt shows the exact link and the app currently set to
+open it (or says no app is set), and starts on Cancel. Windows opens the
+link with whatever app is set when you accept. A Ctrl+click on a `file:`
+link to this machine follows the path rules below. Links with any other
+scheme are not opened.
 
 The same matcher finds paths for Ctrl+click links and double-click selection:
 `C:\dir\file`, `C:/dir/file`, `\\server\share\file`, `.\file` and

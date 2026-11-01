@@ -32,9 +32,6 @@ const Command = @import("Command.zig");
 const terminal = @import("terminal/main.zig");
 const configpkg = @import("config.zig");
 const configUrl = @import("config/url.zig");
-// The link opener's local-only lookup, used for the existence check of a link
-// so that a link into a share is never stat-ed (Windows only, see `existingPath`).
-const local_target = @import("apprt/win32/local_target.zig");
 const Duration = configpkg.Config.Duration;
 const input = @import("input.zig");
 const App = @import("App.zig");
@@ -408,8 +405,10 @@ test "Surface: ending a search does not wait for room in a full app mailbox" {
 
 /// Mouse state for the surface.
 const Mouse = struct {
-    /// The last tracked mouse button state by button.
-    click_state: [input.MouseButton.max]input.MouseButtonState = @splat(.release),
+    /// The last tracked mouse button state by button, indexed by the
+    /// button's enum value. `max` is the largest value, not a count, so
+    /// the array needs one more slot than that to hold every button.
+    click_state: [input.MouseButton.max + 1]input.MouseButtonState = @splat(.release),
 
     /// The last mods state when the last mouse button (whatever it was) was
     /// pressed or release.
@@ -698,6 +697,7 @@ const DerivedConfig = struct {
     title: ?[:0]const u8,
     title_report: bool,
     links: []DerivedConfig.Link,
+    link_osc8: bool,
     link_previews: configpkg.LinkPreviews,
     scroll_to_bottom: configpkg.Config.ScrollToBottom,
     progress_style: bool,
@@ -766,6 +766,7 @@ const DerivedConfig = struct {
             .title = if (config.title) |title| try alloc.dupeZ(u8, title) else null,
             .title_report = config.@"title-report",
             .links = links,
+            .link_osc8 = config.@"link-osc8",
             .link_previews = config.@"link-previews",
             .scroll_to_bottom = config.@"scroll-to-bottom",
             .progress_style = config.@"progress-style",
@@ -999,14 +1000,21 @@ pub fn init(
 
     // Create our terminal grid with the initial size
     const app_mailbox: App.Mailbox = .{ .rt_app = rt_app, .mailbox = &app.mailbox };
-    var renderer_impl = try Renderer.init(alloc, .{
-        .config = try .init(alloc, config),
-        .font_grid = font_grid,
-        .size = size,
-        .surface_mailbox = .{ .surface = self, .app = app_mailbox },
-        .rt_surface = rt_surface,
-        .thread = &self.renderer_thread,
-    });
+    var renderer_impl = renderer: {
+        // Renderer.init takes ownership of the config only on success, after
+        // which the errdefer below frees it, so this errdefer must end here.
+        var renderer_config = try Renderer.DerivedConfig.init(alloc, config);
+        errdefer renderer_config.deinit();
+
+        break :renderer try Renderer.init(alloc, .{
+            .config = renderer_config,
+            .font_grid = font_grid,
+            .size = size,
+            .surface_mailbox = .{ .surface = self, .app = app_mailbox },
+            .rt_surface = rt_surface,
+            .thread = &self.renderer_thread,
+        });
+    };
     // The renderer's GL objects belong to this surface's context, which a
     // later step (`finalizeSurfaceInit`, the renderer thread) can leave
     // un-current. Rebind it before deleting them, and abandon them if that
@@ -1164,14 +1172,18 @@ pub fn init(
         var io_mailbox = try termio.Mailbox.initSPSC(alloc);
         errdefer io_mailbox.deinit(alloc);
 
+        // Termio.init takes ownership of the config only on success.
+        var io_config = try termio.Termio.DerivedConfig.init(
+            alloc,
+            config,
+            app.config_conditional_state,
+        );
+        errdefer io_config.deinit();
+
         try termio.Termio.init(&self.io, alloc, .{
             .size = size,
             .full_config = config,
-            .config = try termio.Termio.DerivedConfig.init(
-                alloc,
-                config,
-                app.config_conditional_state,
-            ),
+            .config = io_config,
             .backend = .{ .exec = io_exec },
             .mailbox = io_mailbox,
             .renderer_state = &self.renderer_state,
@@ -1443,6 +1455,16 @@ test "queueIo frees allocated writes in readonly mode" {
         .alloc = testing.allocator,
         .data = data,
     } }, .unlocked);
+}
+
+test "Mouse.click_state holds every button" {
+    var mouse: Mouse = .{};
+    inline for (@typeInfo(input.MouseButton).@"enum".fields) |field| {
+        mouse.click_state[@intCast(field.value)] = .press;
+    }
+    for (mouse.click_state) |state| {
+        try std.testing.expectEqual(.press, state);
+    }
 }
 
 /// Whether a key event that wrote to the pty counts as typing for the
@@ -1768,9 +1790,10 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
         .pwd_change => |w| {
             defer w.deinit();
 
-            // We always allocate for this because we need to null-terminate.
-            const str = try self.alloc.dupeZ(u8, w.slice());
-            defer self.alloc.free(str);
+            var stack = std.heap.stackFallback(256, self.alloc);
+            const alloc = stack.get();
+            const str = try alloc.dupeZ(u8, w.slice());
+            defer alloc.free(str);
 
             _ = try self.rt_app.performAction(
                 .{ .surface = self },
@@ -3016,9 +3039,9 @@ pub fn openLinkText(self: *Surface, text: []const u8) !void {
     try self.openUrl(.{ .kind = .unknown, .url = resolved_path orelse text });
 }
 
-/// The path to open for link text, when that is not the text itself: see
-/// `resolveOpenPath`, and `resolveMsysOpenPath` in a pane that is not WSL.
-/// Takes the terminal's pwd for a relative path.
+/// The path to open for link text, when that is not the text itself
+/// (`internal_os.local_path.linkTarget` on Windows). Takes the terminal's pwd
+/// for a relative path.
 ///
 /// Must be called without the renderer state mutex held: it takes the mutex
 /// to copy the pwd, then checks the filesystem without it.
@@ -3031,9 +3054,19 @@ fn resolvePathForOpening(
     else
         try self.pwd(self.alloc) orelse return null;
     defer if (terminal_pwd) |p| self.alloc.free(p);
-    if (builtin.os.tag == .windows and !self.launchesWsl())
-        return resolveMsysOpenPath(self.alloc, terminal_pwd, path);
-    return resolveOpenPath(self.alloc, terminal_pwd, path);
+    if (comptime builtin.os.tag == .windows) return internal_os.local_path.linkTarget(
+        self.alloc,
+        path,
+        .{ .dir = terminal_pwd, .wsl = self.launchesWsl() },
+    );
+
+    const base = terminal_pwd orelse return null;
+    const resolved = try std.fs.path.resolve(self.alloc, &.{ base, path });
+    std.fs.accessAbsolute(resolved, .{}) catch {
+        self.alloc.free(resolved);
+        return null;
+    };
+    return resolved;
 }
 
 /// Whether this pane runs WSL, as its launch command says
@@ -3042,595 +3075,6 @@ pub fn launchesWsl(self: *const Surface) bool {
     return switch (self.io.backend) {
         .exec => |*exec| exec.launchesWsl(),
     };
-}
-
-/// `resolveOpenPath` for a pane that is not WSL, where an absolute MSYS2 or
-/// Cygwin drive path is a Windows path (`windows_shell.msysDrivePathToWindows`):
-/// `/c/Users/me` is `C:\Users\me`. Link text of that form is read as the
-/// Windows path, and so is a pane directory of that form (fish under MSYS2
-/// reports `/c/...` in its OSC 7, and `/c` for the drive's root) for a
-/// relative link. A drive's root as link text (`/c`, as in `cmd /c`) is not
-/// read: it is left to the opener as written, which refuses it.
-///
-/// Such text is never left to the opener as written, which cannot read it:
-/// the result is the Windows path even when nothing is there, and the opener
-/// then refuses it as it refuses that path typed with a drive letter (a
-/// missing file, a letter that is no local drive, a share behind a link).
-fn resolveMsysOpenPath(
-    alloc: Allocator,
-    dir: ?[]const u8,
-    text: []const u8,
-) Allocator.Error!?[]const u8 {
-    const windows_shell = configpkg.windows_shell;
-    if (try windows_shell.msysDrivePathToWindows(alloc, text)) |path| {
-        const found = resolveOpenPath(alloc, null, path) catch |err| {
-            alloc.free(path);
-            return err;
-        };
-        if (found == null) return path;
-        alloc.free(path);
-        return found;
-    }
-    const base = dir orelse return resolveOpenPath(alloc, null, text);
-    const windows_base = try windows_shell.msysDriveDirToWindows(alloc, base);
-    defer if (windows_base) |p| alloc.free(p);
-    return resolveOpenPath(alloc, windows_base orelse base, text);
-}
-
-/// What link text names on disk, as an owned path. Null leaves the text to
-/// the opener as written, which is right for a URL, for an absolute path with
-/// no location, and for text that names nothing (the opener refuses it).
-///
-/// A compiler's `file:12:5` or `file(12,5)` is not part of the name, but a
-/// name can end that way, so the whole text is tried first.
-///
-/// `dir` is null for an absolute path and the terminal's directory for a
-/// relative one.
-fn resolveOpenPath(
-    alloc: Allocator,
-    dir: ?[]const u8,
-    text: []const u8,
-) Allocator.Error!?[]const u8 {
-    const bare = configUrl.splitLocation(text);
-    if (dir == null) {
-        // The opener checks an absolute path itself; only a location needs us.
-        const stripped = bare orelse return null;
-        if (try existingPath(alloc, null, text)) |whole| {
-            alloc.free(whole);
-            return null;
-        }
-        return existingPath(alloc, null, stripped);
-    }
-    if (try existingPath(alloc, dir, text)) |whole| return whole;
-    return existingPath(alloc, dir, bare orelse return null);
-}
-
-/// `path` as an absolute path, if it exists. Relative to `dir` when that is
-/// set.
-fn existingPath(
-    alloc: Allocator,
-    dir: ?[]const u8,
-    path: []const u8,
-) Allocator.Error!?[]const u8 {
-    // Zig's `resolve` indexes an empty slice (a panic) when a drive-relative
-    // name such as `D:x` is joined onto a path (measured with `b:x`, `D:x`).
-    // No default pattern produces one, but a custom `link` regex can.
-    // Zig's parser takes any byte before the ':' as a drive (`1:x` panics too).
-    if (builtin.os.tag == .windows and path.len >= 2 and
-        path[1] == ':' and !std.fs.path.isAbsolute(path)) return null;
-
-    // A share or device path is never resolved either: `resolve` unwraps a null
-    // on a server whose share is a lone separator (`\\a\/`), and it is the
-    // opener's to refuse anyway.
-    if (builtin.os.tag == .windows and internal_os.path.isNetworkOrDevicePath(path)) return null;
-
-    // Always the output of `resolve`, which `windowsPathIsRepresentable`
-    // needs: it also folds `.`, `..` and mixed separators out of absolute text.
-    const resolved = if (dir) |base|
-        try std.fs.path.resolve(alloc, &.{ base, path })
-    else
-        try std.fs.path.resolve(alloc, &.{path});
-
-    // Link text is arbitrary, so resolution can produce a string Windows
-    // cannot represent as a path: "https://example.com" becomes
-    // "C:\Users\me\https:\example.com". `accessAbsolute` does not merely
-    // fail on such a path -- NT returns STATUS_OBJECT_NAME_INVALID and
-    // `std.posix.faccessatW` maps that status to `unreachable`, so the
-    // process aborts and the `catch` below cannot recover. Screen the
-    // result before handing it to the filesystem.
-    if (builtin.os.tag == .windows and !windowsPathIsRepresentable(resolved)) {
-        alloc.free(resolved);
-        return null;
-    }
-
-    // The opener's own bounded lookup answers whether it exists, not
-    // `accessAbsolute`. It refuses a path that is not on a local drive letter,
-    // a mapped network drive, and a symlink or junction that leads to a share
-    // (`C:\link\x.txt:12` into a share), all before anything touches the
-    // network; `accessAbsolute` follows such a link, and the UI thread would
-    // wait on the server first. It also answers with a status where
-    // `faccessatW` has an `unreachable`.
-    if (builtin.os.tag == .windows) {
-        const file = local_target.open(alloc, resolved, false) orelse {
-            alloc.free(resolved);
-            return null;
-        };
-        file.close();
-        return resolved;
-    }
-
-    std.fs.accessAbsolute(resolved, .{}) catch {
-        alloc.free(resolved);
-        return null;
-    };
-    return resolved;
-}
-
-/// Whether `path` is a local path Windows can address, which must be the output
-/// of `std.fs.path.resolve`.
-///
-/// Deliberately conservative. Anything this lets through that NT considers
-/// malformed does not merely fail: `std.posix.faccessatW` maps
-/// `STATUS_OBJECT_NAME_INVALID` to `unreachable`, so the process aborts and
-/// the caller cannot recover. Shapes we cannot cheaply prove safe are
-/// rejected, which only costs the link its file-path interpretation.
-fn windowsPathIsRepresentable(path: []const u8) bool {
-    // Also not for a network share or device path. The pwd can no longer be one
-    // (`reportPwd` refuses it), but `accessAbsolute` would contact the share
-    // before the opener's own refusal runs, so keep this the one gate.
-    if (internal_os.path.isNetworkOrDevicePath(path)) return false;
-
-    // `accessAbsolute` asserts that its argument is absolute, and `resolve` does
-    // not always return one: a pwd opening with `\/` comes back as
-    // `server\share\file`.
-    if (!std.fs.path.isAbsolute(path)) return false;
-
-    var rest = path;
-
-    if (rest.len >= 2 and rest[1] == ':' and std.ascii.isAlphabetic(rest[0])) {
-        rest = rest[2..];
-    }
-
-    const leaf_start = if (std.mem.lastIndexOfAny(u8, rest, "/\\")) |i| i + 1 else 0;
-    const dirs = rest[0..leaf_start];
-    const leaf = rest[leaf_start..];
-
-    // Outside the leaf a ':' names a directory Windows cannot address, which
-    // is the shape a URL takes once it is resolved against the terminal pwd.
-    if (std.mem.indexOfScalar(u8, dirs, ':') != null) return false;
-    if (!windowsNameIsAddressable(dirs)) return false;
-
-    // The leaf may carry one alternate-data-stream separator. NT accepts any
-    // character in a stream name, control characters included, but both sides
-    // of the ':' must be non-empty, and a second ':' introduces a stream
-    // *type* that NT validates against a fixed set ("$DATA" and friends).
-    // Rather than model that set we admit a single separator only.
-    const ads = std.mem.indexOfScalar(u8, leaf, ':') orelse
-        return !windowsNameIsDevice(leaf) and windowsNameIsAddressable(leaf);
-    const name = leaf[0..ads];
-    if (windowsNameIsDevice(name)) return false;
-    // `resolve` does not fold `.` or `..` when a stream follows (`C:\x\.:12`),
-    // and NT answers STATUS_OBJECT_NAME_INVALID for the name (found by a sweep
-    // of short strings; `...:x` and `a.:x` are fine).
-    if (std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) return false;
-    const stream = leaf[ads + 1 ..];
-    if (name.len == 0 or stream.len == 0) return false;
-    if (std.mem.indexOfScalar(u8, stream, ':') != null) return false;
-    // Windows drops trailing dots and spaces from a component, so a stream made
-    // of nothing else (`b:.`, `b: `) is empty by the time NT sees it, and NT
-    // answers STATUS_OBJECT_NAME_INVALID, which `faccessatW` also turns into
-    // `unreachable`. `b:x.` and `b: x` are fine (measured: not found).
-    if (std.mem.trimRight(u8, stream, ". ").len == 0) return false;
-    // A NUL would truncate in `faccessatW`, so the existence check would run
-    // against a shorter path than the one we hand back to be opened.
-    if (std.mem.indexOfScalar(u8, stream, 0) != null) return false;
-    return windowsNameIsAddressable(name);
-}
-
-/// Whether a final path component names a DOS device (`NUL`, `con.txt`,
-/// `COM1`, `CONOUT$`), however it is spelled: case, trailing spaces, and an
-/// extension (older Windows maps `NUL.txt` to NUL too).
-///
-/// `RtlGetFullPathName_U` turns such a final component into `\\.\nul`, Zig puts
-/// its own prefix in front of that, and NT rejects the result; `faccessatW`
-/// maps the rejection to `unreachable`. Measured with `C:\x\nul:12`, `./nul`,
-/// `nul.` and `nul ` (a process abort), while `con`, `aux`, `prn`, `com9`,
-/// `lpt1` and `nul.txt` were not mapped on Windows 11 build 26200. They are
-/// refused too: this is the one place that has to hold on every build.
-fn windowsNameIsDevice(name: []const u8) bool {
-    const stem = std.mem.trimRight(u8, name[0 .. std.mem.indexOfScalar(u8, name, '.') orelse name.len], " ");
-    for ([_][]const u8{ "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$" }) |device| {
-        if (std.ascii.eqlIgnoreCase(stem, device)) return true;
-    }
-    return stem.len == 4 and std.ascii.isDigit(stem[3]) and
-        (std.ascii.eqlIgnoreCase(stem[0..3], "COM") or std.ascii.eqlIgnoreCase(stem[0..3], "LPT"));
-}
-
-/// Whether `name` uses only characters NT accepts in a file name. It may
-/// contain path separators, but no drive prefix and no stream separator.
-///
-/// `<>"|?*` are never legal, and neither are the C0 controls. DEL is legal:
-/// NT treats 0x7f like any other byte, so `std.ascii.isControl` would be too
-/// broad here.
-fn windowsNameIsAddressable(name: []const u8) bool {
-    if (std.mem.indexOfAny(u8, name, "<>\"|?*") != null) return false;
-    for (name) |c| if (c < 0x20) return false;
-    return true;
-}
-
-test "windowsPathIsRepresentable" {
-    const testing = std.testing;
-
-    // Ordinary paths resolve as before.
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\Documents"));
-    // Drive-relative input ("C:foo") resolves to a plain path.
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\foo"));
-
-    // A URL resolved against the pwd puts ':' in a directory component.
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\https:\\example.com"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\foo\\bar:baz\\qux"));
-    // Wildcards are never legal in a directory or file name.
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\a*b"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\dir*x\\leaf"));
-
-    // Network shares and device paths are refused before anything touches them,
-    // in every spelling `resolve` can leave (it rewrites `//server/share`).
-    for ([_][]const u8{
-        "\\\\server\\share\\file",
-        "//server/share/file",
-        "\\\\?\\UNC\\server\\share\\file",
-        "\\\\?\\C:\\Users\\me\\Documents",
-        "\\\\.\\pipe\\x",
-        "\\\\.\\GLOBALROOT\\Device\\Mup\\server\\share\\file",
-    }) |p| try testing.expect(!windowsPathIsRepresentable(p));
-
-    // C0 aborts in a directory or file name, wherever it appears.
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\bad\x01name\\leaf"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\leaf\x1f"));
-    // DEL is legal in a Windows name, so it must keep resolving.
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\leaf\x7f"));
-
-    // One ':' in the leaf is an alternate data stream. NT accepts anything in
-    // the stream name, so the file-name screens must not reach into it.
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\file.txt:stream"));
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\file.txt:str\x01eam"));
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\file.txt:str?eam"));
-    // A scheme with no path separator after it lands here too, and resolves
-    // safely to a missing stream rather than aborting.
-    try testing.expect(windowsPathIsRepresentable("C:\\Users\\me\\magnet:?xt=urn"));
-
-    // Both sides of the separator must be non-empty, and a second ':' names a
-    // stream type NT validates against a fixed set.
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\a:"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\:stream"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\a:b:c"));
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\magnet:?xt=urn:btih:0000"));
-    // A NUL would truncate the existence check to a shorter path.
-    try testing.expect(!windowsPathIsRepresentable("C:\\Users\\me\\file.txt:str\x00eam"));
-
-    // A stream of only dots and spaces is empty once Windows trims it, and NT
-    // rejects the name (measured: `C:\Windows\b: ` is STATUS_OBJECT_NAME_INVALID,
-    // while `b:x `, `b:x.` and `b: x` are not found).
-    for ([_][]const u8{
-        "C:\\Users\\me\\b:.",
-        "C:\\Users\\me\\b: ",
-        "C:\\Users\\me\\b:..",
-        "C:\\Users\\me\\b:. .",
-    }) |p| try testing.expect(!windowsPathIsRepresentable(p));
-    for ([_][]const u8{
-        "C:\\Users\\me\\b:x.",
-        "C:\\Users\\me\\b: x",
-        "C:\\Users\\me\\b:x ",
-    }) |p| try testing.expect(windowsPathIsRepresentable(p));
-
-    // A final component that is a DOS device name aborts the same way
-    // (measured with `nul`, `nul:12`, `nul.` and `nul `).
-    for ([_][]const u8{
-        "C:\\x\\nul",
-        "C:\\x\\NUL",
-        "C:\\x\\nul.",
-        "C:\\x\\nul ",
-        "C:\\x\\nul:12",
-        "C:\\x\\nul.txt",
-        "C:\\x\\con",
-        "C:\\x\\Aux.log",
-        "C:\\x\\prn",
-        "C:\\x\\com1",
-        "C:\\x\\LPT9.txt",
-        "C:\\x\\conin$",
-        "C:\\x\\CONOUT$",
-    }) |p| try testing.expect(!windowsPathIsRepresentable(p));
-    // A stream on `.` or `..` is rejected by NT too (found by a sweep).
-    for ([_][]const u8{
-        "C:\\x\\.:12",
-        "C:\\.:12",
-        "C:\\x\\..:a",
-    }) |p| try testing.expect(!windowsPathIsRepresentable(p));
-    for ([_][]const u8{ "C:\\x\\...:x", "C:\\x\\a.:x", "C:\\x\\.a:x" }) |p| {
-        try testing.expect(windowsPathIsRepresentable(p));
-    }
-    // Near misses and device-like directory names are ordinary.
-    for ([_][]const u8{
-        "C:\\x\\nul1",
-        "C:\\x\\nulls.txt",
-        "C:\\x\\console",
-        "C:\\x\\com",
-        "C:\\x\\com10",
-        "C:\\x\\lpt",
-        "C:\\x\\aux1.txt",
-        "C:\\x\\nul\\a.txt",
-    }) |p| try testing.expect(windowsPathIsRepresentable(p));
-}
-
-test "link text resolves to the file it names, without its line and column" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const alloc = std.testing.allocator;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    try tmp.dir.writeFile(.{ .sub_path = "a.txt", .data = "" });
-    try tmp.dir.writeFile(.{ .sub_path = "weird(1)", .data = "" });
-    try tmp.dir.makePath("sub dir");
-    try tmp.dir.writeFile(.{ .sub_path = "sub dir/b.zig", .data = "" });
-    const dir = try tmp.dir.realpathAlloc(alloc, ".");
-    defer alloc.free(dir);
-
-    const Case = struct { text: []const u8, expect: ?[]const u8 };
-    const relative = [_]Case{
-        .{ .text = "a.txt", .expect = "a.txt" },
-        .{ .text = ".\\a.txt", .expect = "a.txt" },
-        .{ .text = "a.txt:12:5", .expect = "a.txt" },
-        .{ .text = "a.txt:12", .expect = "a.txt" },
-        .{ .text = "sub dir\\b.zig(3,4)", .expect = "sub dir\\b.zig" },
-        .{ .text = "sub dir/b.zig:7", .expect = "sub dir\\b.zig" },
-        // A name that ends like a location is tried whole first.
-        .{ .text = "weird(1)", .expect = "weird(1)" },
-        .{ .text = "missing.txt:1", .expect = null },
-        .{ .text = "missing(3,4)", .expect = null },
-        // A URL has no such file, and must not reach the filesystem as a path.
-        .{ .text = "https://example.com/a:1", .expect = null },
-    };
-    for (relative) |case| {
-        const got = try resolveOpenPath(alloc, dir, case.text);
-        defer if (got) |p| alloc.free(p);
-        if (case.expect) |name| {
-            const want = try std.fs.path.join(alloc, &.{ dir, name });
-            defer alloc.free(want);
-            try std.testing.expect(got != null);
-            try std.testing.expectEqualStrings(want, got.?);
-        } else {
-            std.testing.expect(got == null) catch |err| {
-                std.debug.print("text {s} resolved to {s}\n", .{ case.text, got.? });
-                return err;
-            };
-        }
-    }
-
-    // An absolute path is left to the opener unless a location has to go.
-    for ([_][]const u8{ "a.txt", "weird(1)", "sub dir\\b.zig" }) |name| {
-        const absolute = try std.fs.path.join(alloc, &.{ dir, name });
-        defer alloc.free(absolute);
-        try std.testing.expect(try resolveOpenPath(alloc, null, absolute) == null);
-    }
-    {
-        const whole = try std.fmt.allocPrint(alloc, "{s}\\weird(1)", .{dir});
-        defer alloc.free(whole);
-        try std.testing.expect(try resolveOpenPath(alloc, null, whole) == null);
-    }
-    for ([_]struct { name: []const u8, suffix: []const u8, file: []const u8 }{
-        .{ .name = "a.txt", .suffix = ":12:5", .file = "a.txt" },
-        .{ .name = "sub dir\\b.zig", .suffix = "(3,4)", .file = "sub dir\\b.zig" },
-    }) |case| {
-        const text = try std.fmt.allocPrint(alloc, "{s}\\{s}{s}", .{ dir, case.name, case.suffix });
-        defer alloc.free(text);
-        const want = try std.fmt.allocPrint(alloc, "{s}\\{s}", .{ dir, case.file });
-        defer alloc.free(want);
-        const got = try resolveOpenPath(alloc, null, text);
-        defer if (got) |p| alloc.free(p);
-        try std.testing.expect(got != null);
-        try std.testing.expectEqualStrings(want, got.?);
-    }
-    {
-        const missing = try std.fmt.allocPrint(alloc, "{s}\\missing.txt:12", .{dir});
-        defer alloc.free(missing);
-        try std.testing.expect(try resolveOpenPath(alloc, null, missing) == null);
-    }
-
-    // Text a program can print must never abort the process: a location can
-    // leave a stream of only dots and spaces (`b:.`), which `accessAbsolute`
-    // turns into `unreachable`. None of these needs a file on disk.
-    for ([_][]const u8{
-        "/pkg42-nowhere/b:.:1",
-        "C:\\pkg42-nowhere\\b: :12",
-        "C:\\pkg42-nowhere\\b: (1,2)",
-        "C:/pkg42-nowhere/./b:..:3",
-        // A DOS device name as the final component, with or without a location.
-        "C:\\pkg42-nowhere\\nul:12",
-        "C:\\pkg42-nowhere\\nul(1,2)",
-        "/pkg42-nowhere/nul:1",
-        "C:\\pkg42-nowhere\\NUL.",
-        // A path with no drive letter is the opener's to refuse; it is never
-        // looked at here (it would be stat-ed on the current drive).
-        "/pkg42-nowhere/a.txt:1",
-        // `resolve` unwraps a null on a server whose share is a lone separator,
-        // so a share is screened before it (and a share is never opened).
-        "\\\\a\\/",
-        "\\\\a\\/:12",
-        "\\\\a\\/:12:5",
-        "\\\\a\\/(3,4)",
-        "//C/\\:12",
-        "//./\\(3,4)",
-    }) |text| try std.testing.expect(try resolveOpenPath(alloc, null, text) == null);
-    // A stream on `.` or `..` is invalid to NT (and `resolve` keeps it), so the
-    // whole text is never looked at; its location-less form is the folder it
-    // names, which exists. Nothing may abort, and nothing may leak.
-    for ([_][]const u8{ "C:\\.:12", "C:/.:12", "C:\\\\.:12", "C:\\..:12" }) |text| {
-        const got = try resolveOpenPath(alloc, null, text);
-        defer if (got) |p| alloc.free(p);
-        if (got) |p| try std.testing.expectEqualStrings("C:\\", p);
-    }
-    // A drive-relative name has no sensible meaning against the pane's directory
-    // and used to reach Zig's `resolve`, which panics on it.
-    for ([_][]const u8{
-        "./b:.:1",
-        "./b:.",
-        "b: :12",
-        ".\\b: (1,2)",
-        "D:x",
-        "b:x:12",
-        "1:x",
-        "_:x:12",
-        "./nul",
-        ".\\nul:3",
-        "nul",
-    }) |text| {
-        try std.testing.expect(try resolveOpenPath(alloc, dir, text) == null);
-    }
-    // Same for a stream on `.` or `..`: it must not abort, and the folder the
-    // location-less text names is a fine answer.
-    for ([_][]const u8{ "./.:12", ".\\.:12", "..\\.:12", ".\\..:12" }) |text| {
-        const got = try resolveOpenPath(alloc, dir, text);
-        if (got) |p| alloc.free(p);
-    }
-
-    // A share or device path is never looked at, with or without a location.
-    for ([_][]const u8{
-        "\\\\server\\share\\a.txt:1",
-        "//server/share/a.txt:1",
-        "\\\\?\\UNC\\server\\share\\a.txt(1,2)",
-        "\\\\.\\pipe\\x:3",
-    }) |text| try std.testing.expect(try resolveOpenPath(alloc, null, text) == null);
-}
-
-/// `windows_path` as MSYS2 prints it (`/c/x/y`), after `prefix` (`/cygdrive`
-/// for Cygwin's form).
-fn testMsysPath(alloc: Allocator, prefix: []const u8, windows_path: []const u8) ![]u8 {
-    const path = try std.fmt.allocPrint(alloc, "{s}/{c}{s}", .{
-        prefix,
-        std.ascii.toLower(windows_path[0]),
-        windows_path[2..],
-    });
-    std.mem.replaceScalar(u8, path, '\\', '/');
-    return path;
-}
-
-test "an MSYS2 or Cygwin drive path in link text is the Windows path it names (#514)" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const alloc = std.testing.allocator;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    try tmp.dir.writeFile(.{ .sub_path = "a.txt", .data = "" });
-    try tmp.dir.makePath("conf.d");
-    try tmp.dir.writeFile(.{ .sub_path = "conf.d/b.zig", .data = "" });
-    const dir = try tmp.dir.realpathAlloc(alloc, ".");
-    defer alloc.free(dir);
-    if (!configpkg.windows_shell.isDriveAbsolutePath(dir)) return error.SkipZigTest;
-
-    const Case = struct { prefix: []const u8 = "", text: []const u8, expect: []const u8 };
-    for ([_]Case{
-        // The reporter's case: `pwd` printed a folder.
-        .{ .text = "conf.d", .expect = "conf.d" },
-        .{ .text = "a.txt", .expect = "a.txt" },
-        .{ .prefix = "/cygdrive", .text = "a.txt", .expect = "a.txt" },
-        // A location comes off, as for the same path with a drive letter.
-        .{ .text = "conf.d\\b.zig:12:5", .expect = "conf.d\\b.zig" },
-        .{ .prefix = "/cygdrive", .text = "conf.d\\b.zig(3,4)", .expect = "conf.d\\b.zig" },
-        // A missing file is still the Windows path, for the opener to refuse
-        // as it refuses that path typed with a drive letter.
-        .{ .text = "missing.txt", .expect = "missing.txt" },
-        .{ .text = "missing.txt:12", .expect = "missing.txt:12" },
-    }) |case| {
-        const windows_text = try std.fs.path.join(alloc, &.{ dir, case.text });
-        defer alloc.free(windows_text);
-        const text = try testMsysPath(alloc, case.prefix, windows_text);
-        defer alloc.free(text);
-        const want = try std.fs.path.join(alloc, &.{ dir, case.expect });
-        defer alloc.free(want);
-        want[0] = std.ascii.toUpper(want[0]);
-
-        const got = try resolveMsysOpenPath(alloc, null, text);
-        defer if (got) |p| alloc.free(p);
-        std.testing.expectEqualStrings(want, got orelse "(null)") catch |err| {
-            std.debug.print("text {s}\n", .{text});
-            return err;
-        };
-
-        // Before #514 (and still in a WSL pane, where `/c/x` is a Linux path)
-        // the text went to the opener as written, which refuses it.
-        try std.testing.expect(try resolveOpenPath(alloc, null, text) == null);
-    }
-
-    // A relative link in a pane whose directory is an MSYS2 path (fish under
-    // MSYS2 reports `/c/...` in its OSC 7) resolves against the Windows path.
-    {
-        const msys_dir = try testMsysPath(alloc, "", dir);
-        defer alloc.free(msys_dir);
-        const want = try std.fs.path.join(alloc, &.{ dir, "conf.d\\b.zig" });
-        defer alloc.free(want);
-        want[0] = std.ascii.toUpper(want[0]);
-        const got = try resolveMsysOpenPath(alloc, msys_dir, "conf.d/b.zig:7");
-        defer if (got) |p| alloc.free(p);
-        try std.testing.expectEqualStrings(want, got orelse "(null)");
-        try std.testing.expect(try resolveOpenPath(alloc, msys_dir, "conf.d/b.zig:7") == null);
-        // A Windows directory still works.
-        const plain = try resolveMsysOpenPath(alloc, dir, "a.txt");
-        defer if (plain) |p| alloc.free(p);
-        try std.testing.expect(plain != null);
-        // So does a drive's root as the pane directory (`cd /c` in fish).
-        const root = [_]u8{ '/', std.ascii.toLower(dir[0]) };
-        const below_root = try std.fs.path.join(alloc, &.{ dir[3..], "a.txt" });
-        defer alloc.free(below_root);
-        const from_root = try resolveMsysOpenPath(alloc, &root, below_root);
-        defer if (from_root) |p| alloc.free(p);
-        try std.testing.expect(from_root != null);
-        try std.testing.expect(std.ascii.eqlIgnoreCase(from_root.?[3..], below_root));
-    }
-
-    // A drive's root is not read from link text: a lone `/c` is nearly always
-    // a switch (`cmd /c "x"`, `findstr /c:x`, `xcopy /s /e`), and a `..` above
-    // the drive is MSYS2's own root. The opener gets the text as written and
-    // refuses it, as on main (#520 review).
-    for ([_][]const u8{ "/c", "/C", "/d", "/s", "/e", "/c/", "/cygdrive/c", "/c/x/..", "/c/..", "/c/..." }) |text| {
-        try std.testing.expect(try resolveMsysOpenPath(alloc, null, text) == null);
-    }
-
-    // A letter that is no drive here is the Windows path too, which the opener
-    // refuses (`localRoot`); nothing is looked up for it.
-    var free_letter: ?u8 = null;
-    for ("BHJKMNOPQRSTUVWY") |letter| {
-        if (internal_os.windows.driveTypeForLetter(letter) == internal_os.windows.DRIVE_NO_ROOT_DIR) {
-            free_letter = letter;
-            break;
-        }
-    }
-    if (free_letter) |letter| {
-        const text = try std.fmt.allocPrint(alloc, "/{c}/file.txt:3", .{std.ascii.toLower(letter)});
-        defer alloc.free(text);
-        const want = try std.fmt.allocPrint(alloc, "{c}:\\file.txt:3", .{letter});
-        defer alloc.free(want);
-        const got = try resolveMsysOpenPath(alloc, null, text);
-        defer if (got) |p| alloc.free(p);
-        try std.testing.expectEqualStrings(want, got orelse "(null)");
-    }
-
-    // Shares, devices and rooted paths that are not drives stay as they are:
-    // the resolver leaves them to the opener, which refuses them.
-    for ([_][]const u8{
-        "//server/share/a.txt",
-        "//server/share/a.txt:1",
-        "//c/share/a.txt",
-        "/\\server\\share\\a.txt",
-        "//?/UNC/server/share/a.txt",
-        "//./pipe/x",
-        "/home/me/a.txt",
-        "/cd/a.txt:1",
-        "/cygdrive/cd/a.txt",
-    }) |text| try std.testing.expect(try resolveMsysOpenPath(alloc, null, text) == null);
-    // And a share as the pane's directory never resolves a relative link.
-    for ([_][]const u8{ "//server/share", "/\\server\\share", "//c/share" }) |share| {
-        try std.testing.expect(try resolveMsysOpenPath(alloc, share, "a.txt") == null);
-    }
 }
 
 test "only a pane that is not WSL reads /c/x as C:\\x (#514)" {
@@ -3643,7 +3087,7 @@ test "only a pane that is not WSL reads /c/x as C:\\x (#514)" {
     const file = try tmp.dir.realpathAlloc(alloc, "a.txt");
     defer alloc.free(file);
     if (!configpkg.windows_shell.isDriveAbsolutePath(file)) return error.SkipZigTest;
-    const text = try testMsysPath(alloc, "", file);
+    const text = try internal_os.local_path.testMsysPath(alloc, "", file);
     defer alloc.free(text);
 
     // An absolute path never reads the pwd, so the surface needs only its
@@ -3662,96 +3106,6 @@ test "only a pane that is not WSL reads /c/x as C:\\x (#514)" {
     // In WSL `/c/x` is a Linux path: left to the opener as written, as before.
     surface.io.backend.exec.subprocess.wsl_launch = true;
     try std.testing.expect(try surface.resolvePathForOpening(text) == null);
-}
-
-test "a link through a symlink to a share is never stat-ed" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const alloc = std.testing.allocator;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    tmp.dir.symLink("\\\\pkg42-no-such-host\\share", "link", .{ .is_directory = true }) catch |err| switch (err) {
-        error.AccessDenied => return error.SkipZigTest, // no symlink privilege
-        else => return err,
-    };
-    const dir = try tmp.dir.realpathAlloc(alloc, ".");
-    defer alloc.free(dir);
-
-    // `accessAbsolute` follows the link and waits on the (here nonexistent)
-    // server on the calling thread; the opener's bounded lookup refuses it
-    // first, which is also why this has a bound.
-    var timer = try std.time.Timer.start();
-    for ([_][]const u8{ "link\\report.txt:12", "link/report.txt", "link\\sub\\a.cs(3,4)" }) |text| {
-        try std.testing.expect(try resolveOpenPath(alloc, dir, text) == null);
-        const absolute = try std.fs.path.join(alloc, &.{ dir, text });
-        defer alloc.free(absolute);
-        try std.testing.expect(try resolveOpenPath(alloc, null, absolute) == null);
-    }
-    try std.testing.expect(timer.read() < 2 * std.time.ns_per_s);
-}
-
-test "a relative link never resolves onto a network or device pwd" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const alloc = std.testing.allocator;
-    for ([_][]const u8{
-        "\\\\server\\share",
-        "//server/share",
-        "\\\\?\\UNC\\server\\share\\dir",
-        "\\\\.\\pipe",
-        "\\/server/share",
-        "/\\\\server/share",
-        // The NT namespace prefix is reachable from a reported pwd of
-        // `/??/UNC/server/share`, which `resolve` turns into `\??\UNC\...`.
-        "/??/UNC/server/share",
-        "\\??\\UNC\\server\\share",
-    }) |reported| {
-        const resolved = try std.fs.path.resolve(alloc, &.{ reported, "file.txt" });
-        defer alloc.free(resolved);
-        std.testing.expect(!windowsPathIsRepresentable(resolved)) catch |err| {
-            std.debug.print("pwd {s} resolved to {s}\n", .{ reported, resolved });
-            return err;
-        };
-    }
-
-    // A local pwd still resolves.
-    const local = try std.fs.path.resolve(alloc, &.{ "C:\\Users\\me", "file.txt" });
-    defer alloc.free(local);
-    try std.testing.expect(windowsPathIsRepresentable(local));
-}
-
-test "a relative resolution result is never handed to accessAbsolute" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    // `std.fs.accessAbsolute` asserts that its argument is absolute (a panic in
-    // safe builds, undefined behaviour in ReleaseFast). `resolve` does not
-    // always return one: a pwd that opens with `\/` is parsed as a drive-less
-    // UNC fragment and comes back as `server\share\file.txt`.
-    const alloc = std.testing.allocator;
-    const relative = try std.fs.path.resolve(alloc, &.{ "\\/server/share", "file.txt" });
-    defer alloc.free(relative);
-    try std.testing.expect(!std.fs.path.isAbsolute(relative));
-    try std.testing.expect(!windowsPathIsRepresentable(relative));
-
-    for ([_][]const u8{
-        "#x",
-        "relative",
-        "",
-        "/\\\\server/share",
-        "/home/me",
-        "kitty-shell-cwd:",
-        "\\/server/share",
-        "/\\server\\share",
-    }) |reported| {
-        const resolved = try std.fs.path.resolve(alloc, &.{ reported, "file.txt" });
-        defer alloc.free(resolved);
-        std.testing.expect(
-            std.fs.path.isAbsolute(resolved) or !windowsPathIsRepresentable(resolved),
-        ) catch |err| {
-            std.debug.print("pwd {s} resolved to {s}\n", .{ reported, resolved });
-            return err;
-        };
-    }
 }
 
 /// Returns the x/y coordinate of where the IME (Input Method Editor)
@@ -3964,13 +3318,14 @@ fn copySelectionToClipboards(
 
     const ScreenFormatter = terminal.formatter.ScreenFormatter;
     var aw: std.Io.Writer.Allocating = .init(alloc);
-    var contents: std.ArrayList(apprt.ClipboardContent) = .empty;
+    var contents_buf: [2]apprt.ClipboardContent = undefined;
+    var contents: std.ArrayList(apprt.ClipboardContent) = .initBuffer(&contents_buf);
     switch (format) {
         .plain => {
             var formatter: ScreenFormatter = .init(self.io.terminal.screens.active, opts);
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -3987,7 +3342,7 @@ fn copySelectionToClipboards(
 
             // Codepoint mappings affect terminal cell text; formatter-generated
             // VT escape sequences are preserved as-is.
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4003,7 +3358,7 @@ fn copySelectionToClipboards(
             try formatter.format(&aw.writer);
 
             // Codepoint mappings are applied before HTML encoding.
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/html",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4014,7 +3369,7 @@ fn copySelectionToClipboards(
             var formatter: ScreenFormatter = .init(self.io.terminal.screens.active, opts);
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/plain",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -4036,7 +3391,7 @@ fn copySelectionToClipboards(
             formatter.content = .{ .selection = sel };
             try formatter.format(&aw.writer);
 
-            try contents.append(alloc, .{
+            contents.appendAssumeCapacity(.{
                 .mime = "text/html",
                 .data = try aw.toOwnedSliceSentinel(0),
             });
@@ -5766,17 +5121,15 @@ fn encodeKey(
         );
         defer alloc_writer.deinit();
 
-        // This results in a double allocation but this is such an unlikely
-        // path the performance impact is unimportant.
         try input.key_encode.encode(
             &alloc_writer.writer,
             event,
             encoding_opts,
         );
-        break :req try termio.Message.WriteReq.init(
-            self.alloc,
-            alloc_writer.writer.buffered(),
-        );
+        break :req .{ .alloc = .{
+            .alloc = self.alloc,
+            .data = try alloc_writer.toOwnedSlice(),
+        } };
     };
 
     // Copy the encoded data into the inspector event if we have one.
@@ -6801,6 +6154,10 @@ fn maybePromptClick(self: *Surface) !bool {
     // prompt clicks because we can't move if we're not in a prompt!
     if (!t.cursorIsAtPrompt()) return false;
 
+    // A press reported under mouse tracking resets the click count, and its
+    // release must be reported too rather than moving the cursor.
+    if (self.mouse.left_click_count == 0) return false;
+
     // If we have a selection currently, then releasing the mouse
     // completes the selection and we don't do prompt moving. I don't
     // love this logic, I think it should be generalized to "if the
@@ -6855,20 +6212,27 @@ fn maybePromptClick(self: *Surface) !bool {
         // Guarded at the start of this function
         .none => unreachable,
 
-        .click_events => {
+        .click_events => |v| {
             // For the event, we always send a left-click press event.
             // This matches what Kitty sends.
+            const key: u8, const y: u32 = switch (v) {
+                .absolute => .{ 1, pos_vp.y +| 1 },
+                .relative => .{
+                    2,
+                    promptClickRelativeRow(&screen.pages, prompt_pin, click_pin),
+                },
+            };
             var data: termio.Message.WriteReq.Small.Array = undefined;
             const resp = try std.fmt.bufPrint(
                 &data,
                 "\x1B[<0;{d};{d}M",
-                .{ pos_vp.x + 1, pos_vp.y + 1 },
+                .{ pos_vp.x + 1, y },
             );
 
             // Not that noisy since this only happens on prompt clicks.
             log.debug(
-                "sending click_events=1 event=ESC{s}",
-                .{resp[1..]},
+                "sending click_events={} event=ESC{s}",
+                .{ key, resp[1..] },
             );
 
             // Ask our IO thread to write the data
@@ -6901,6 +6265,58 @@ fn maybePromptClick(self: *Surface) !bool {
     return true;
 }
 
+/// Returns the one-based SGR row for a click at or below the prompt.
+fn promptClickRelativeRow(
+    pages: *const terminal.PageList,
+    prompt_pin: terminal.Pin,
+    click_pin: terminal.Pin,
+) u32 {
+    const prompt_y = pages.pointFromPin(.screen, prompt_pin).?.screen.y;
+    const click_y = pages.pointFromPin(.screen, click_pin).?.screen.y;
+    return click_y - prompt_y + 1;
+}
+
+test "Surface: the release of a press reported to a program is not a prompt click" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var t: terminal.Terminal = try .init(alloc, .{ .cols = 20, .rows = 4 });
+    defer t.deinit(alloc);
+    {
+        var stream = t.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("\x1b]133;A;cl=line\x07> \x1b]133;B\x07hello");
+    }
+    var mutex: std.Thread.Mutex = .{};
+
+    // Only the fields a prompt click reads are set; the rest is zeroed.
+    const rt_surface = try alloc.create(apprt.runtime.Surface);
+    defer alloc.destroy(rt_surface);
+    @memset(std.mem.asBytes(rt_surface), 0);
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.rt_surface = rt_surface;
+    surface.renderer_state.mutex = &mutex;
+    surface.renderer_state.terminal = &t;
+    surface.config.cursor_click_to_move = true;
+    surface.size = .{
+        .screen = .{ .width = 200, .height = 80 },
+        .cell = .{ .width = 10, .height = 20 },
+        .padding = .{},
+    };
+    // A prompt click writes arrow keys; read-only drops them, so no IO
+    // thread is needed.
+    surface.readonly = true;
+
+    // Reporting a press zeroes the click count: its release is reported too.
+    try testing.expect(!try surface.maybePromptClick());
+
+    // An unreported click at the prompt moves the cursor.
+    surface.mouse.left_click_count = 1;
+    try testing.expect(try surface.maybePromptClick());
+}
+
 const Link = struct {
     action: input.Link.Action,
     selection: terminal.Selection,
@@ -6928,7 +6344,9 @@ fn linkAtPos(
     const mouse_mods = self.mouseModsWithCapture(self.mouse.mods);
 
     // If we have the proper modifiers set then we can check for OSC8 links.
-    if (mouse_mods.equal(input.ctrlOrSuper(.{}))) hyperlink: {
+    if (self.config.link_osc8 and
+        mouse_mods.equal(input.ctrlOrSuper(.{})))
+    hyperlink: {
         const rac = mouse_pin.rowAndCell();
         const cell = rac.cell;
         if (!cell.hyperlink) break :hyperlink;
@@ -6938,6 +6356,59 @@ fn linkAtPos(
 
     // Fall back to configured links
     return try self.linkAtPin(mouse_pin, mouse_mods);
+}
+
+test "Surface: link-osc8 = false finds no OSC 8 link, only the text's own" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    var derived = try DerivedConfig.init(alloc, &config);
+    defer derived.deinit();
+
+    // Only what linkAtPos reads is set. Hover, Ctrl+click, the context menu
+    // and copy_url_to_clipboard all find links through it.
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.alloc = alloc;
+    surface.config.links = derived.links;
+    surface.mouse.mods = input.ctrlOrSuper(.{});
+    surface.size = .{
+        .screen = .{ .width = 400, .height = 20 },
+        .cell = .{ .width = 10, .height = 10 },
+        .padding = .{},
+    };
+    surface.io.terminal = try .init(alloc, .{ .cols = 40, .rows = 2 });
+    defer surface.io.terminal.deinit(alloc);
+    surface.renderer_state.terminal = &surface.io.terminal;
+    {
+        var stream = surface.io.terminal.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("\x1b]8;;https://example.com/hidden\x1b\\click here\x1b]8;;\x1b\\\r\n");
+        stream.nextSlice("\x1b]8;;https://example.com/hidden\x1b\\https://example.com/shown\x1b]8;;\x1b\\");
+    }
+    const at = struct {
+        fn row(y: f32) apprt.CursorPos {
+            return .{ .x = 25, .y = y * 10 + 5 };
+        }
+    };
+
+    surface.config.link_osc8 = true;
+    for ([_]f32{ 0, 1 }) |y| {
+        const link = try surface.linkAtPos(at.row(y)) orelse return error.TestUnexpectedResult;
+        try testing.expectEqual(input.Link.Action._open_osc8, link.action);
+    }
+
+    surface.config.link_osc8 = false;
+    try testing.expect(try surface.linkAtPos(at.row(0)) == null);
+    // Text that is itself a URL is still that URL, never the hidden target.
+    const link = try surface.linkAtPos(at.row(1)) orelse return error.TestUnexpectedResult;
+    try testing.expectEqual(input.Link.Action.open, link.action);
+    const text = try surface.io.terminal.screens.active.selectionString(alloc, .{ .sel = link.selection, .trim = false });
+    defer alloc.free(text);
+    try testing.expectEqualStrings("https://example.com/shown", text);
 }
 
 /// Detects if a link is present at the given pin.
@@ -6957,7 +6428,9 @@ fn linkAtPin(
     const line = screen.selectLine(.{
         .pin = mouse_pin,
         .whitespace = null,
-        .semantic_prompt_boundary = false,
+        // Respect semantic prompt boundaries so link/path matching doesn't
+        // merge shell prompt content with the text beside it.
+        .semantic_prompt_boundary = true,
     }) orelse return null;
 
     var strmap: terminal.StringMap = undefined;
@@ -6989,6 +6462,54 @@ fn linkAtPin(
     }
 
     return null;
+}
+
+test "Surface: a link does not run from a prompt into the command after it" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    var derived = try DerivedConfig.init(alloc, &config);
+    defer derived.deinit();
+
+    // Only what linkAtPin reads is set.
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.alloc = alloc;
+    surface.config.links = derived.links;
+    surface.io.terminal = try .init(alloc, .{ .cols = 40, .rows = 3 });
+    defer surface.io.terminal.deinit(alloc);
+    surface.renderer_state.terminal = &surface.io.terminal;
+    {
+        // Ubuntu's default bash prompt ends in a path, which the URL regex
+        // continues across the space into the command typed after it. cmd
+        // sends no C mark, so what follows stays input, URLs included.
+        var stream = surface.io.terminal.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("\x1b]133;A\x1b\\me@host:~/src$ \x1b]133;B\x1b\\ls docs\r\nsee https://example.com/a");
+    }
+    const Probe = struct {
+        fn link(s: *Surface, x: u16, y: u16) !?[:0]const u8 {
+            const screen = s.io.terminal.screens.active;
+            const pin = screen.pages.pin(.{ .active = .{ .x = x, .y = y } }).?;
+            const found = try s.linkAtPin(pin, null) orelse return null;
+            return try screen.selectionString(testing.allocator, .{ .sel = found.selection, .trim = false });
+        }
+    };
+
+    const prompt = try Probe.link(surface, 8, 0) orelse return error.TestUnexpectedResult;
+    defer alloc.free(prompt);
+    try testing.expectEqualStrings("~/src$", prompt);
+
+    const command = try Probe.link(surface, 18, 0);
+    defer if (command) |text| alloc.free(text);
+    try testing.expectEqualStrings("", command orelse "");
+
+    const url = try Probe.link(surface, 10, 1) orelse return error.TestUnexpectedResult;
+    defer alloc.free(url);
+    try testing.expectEqualStrings("https://example.com/a", url);
 }
 
 /// This returns the mouse mods to consider for link highlighting or
@@ -7041,7 +6562,7 @@ fn processLinks(self: *Surface, pos: apprt.CursorPos) !bool {
 
     switch (action) {
         .open => try self.openLinkText(target),
-        ._open_osc8 => try self.openUrl(.{ .kind = .unknown, .url = target }),
+        ._open_osc8 => try self.openUrl(.{ .kind = .osc8, .url = target }),
     }
     return true;
 }
@@ -7072,7 +6593,7 @@ fn openUrl(
 /// if there is no hyperlink.
 fn osc8URI(self: *Surface, pin: terminal.Pin) ?[]const u8 {
     _ = self;
-    const page = &pin.node.data;
+    const page = pin.node.page();
     const cell = pin.rowAndCell().cell;
     const link_id = page.lookupHyperlink(cell) orelse return null;
     const entry = page.hyperlink_set.get(page.memory, link_id);
@@ -7715,10 +7236,10 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
         },
 
         .text => |data| {
-            // For text we always allocate just because its easier to
-            // handle all cases that way.
-            const buf = try self.alloc.alloc(u8, data.len);
-            defer self.alloc.free(buf);
+            var stack = std.heap.stackFallback(256, self.alloc);
+            const alloc = stack.get();
+            const buf = try alloc.alloc(u8, data.len);
+            defer alloc.free(buf);
             const text = configpkg.string.parse(buf, data) catch |err| {
                 log.warn(
                     "error parsing text binding text={s} err={}",
@@ -9218,8 +8739,8 @@ fn completeClipboardReadOSC52(
     // This must hold the base64 encoded data PLUS the OSC code surrounding it.
     const enc = std.base64.standard.Encoder;
     const size = enc.calcSize(data.len);
-    var buf = try self.alloc.alloc(u8, size + 9); // const for OSC
-    defer self.alloc.free(buf);
+    const buf = try self.alloc.alloc(u8, size + 9); // const for OSC
+    errdefer self.alloc.free(buf);
 
     const kind: u8 = switch (clipboard_type) {
         .standard => 'c',
@@ -9237,10 +8758,10 @@ fn completeClipboardReadOSC52(
     const encoded = enc.encode(buf[prefix.len..], data);
     assert(encoded.len == size);
 
-    self.queueIo(try termio.Message.writeReq(
-        self.alloc,
-        buf,
-    ), .unlocked);
+    self.queueIo(.{ .write_alloc = .{
+        .alloc = self.alloc,
+        .data = buf,
+    } }, .unlocked);
 }
 
 fn showDesktopNotification(self: *Surface, title: [:0]const u8, body: [:0]const u8) !void {
@@ -9854,4 +9375,42 @@ test "Surface: lock keys alone do not count as a mouse mods change" {
     try std.testing.expect(mouseModsChanged(stored, .{}));
     try std.testing.expect(mouseModsChanged(stored, .{ .ctrl = true, .shift = true }));
     try std.testing.expect(mouseModsChanged(.{}, .{ .super = true, .num_lock = true }));
+}
+
+test "promptClickRelativeRow" {
+    const testing = std.testing;
+    const Case = struct {
+        layout: enum { no_history, offset, cross_page, prompt_above_viewport },
+        click_y: u32,
+        expected: u32,
+    };
+    const cases = [_]Case{
+        .{ .layout = .no_history, .click_y = 1, .expected = 1 },
+        .{ .layout = .offset, .click_y = 3, .expected = 3 },
+        .{ .layout = .cross_page, .click_y = 3, .expected = 3 },
+        .{ .layout = .prompt_above_viewport, .click_y = 0, .expected = 3 },
+    };
+    for (cases) |case| {
+        var pages = try terminal.PageList.init(testing.allocator, 80, 5, null);
+        defer pages.deinit();
+        const scroll_rows: u32 = switch (case.layout) {
+            .no_history => 0,
+            .offset, .prompt_above_viewport => 10,
+            .cross_page => pages.pages.first.?.capacity().rows - 2,
+        };
+        for (0..scroll_rows) |_| _ = try pages.grow();
+
+        const prompt_y = if (case.layout == .prompt_above_viewport)
+            scroll_rows - 2
+        else
+            scroll_rows + 1;
+        const prompt = pages.pin(.{ .screen = .{ .y = prompt_y } }).?;
+        const click = pages.pin(.{ .viewport = .{ .x = 7, .y = case.click_y } }).?;
+        try testing.expectEqual(case.layout == .cross_page, prompt.node != click.node);
+        try testing.expectEqual(
+            case.layout == .prompt_above_viewport,
+            pages.pointFromPin(.viewport, prompt) == null,
+        );
+        try testing.expectEqual(case.expected, promptClickRelativeRow(&pages, prompt, click));
+    }
 }

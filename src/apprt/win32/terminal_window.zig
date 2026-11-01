@@ -58,6 +58,7 @@ const childRect = win32.childRect;
 const chromeSyncOrLog = win32.chromeSyncOrLog;
 const class_name = win32.class_name;
 const clipboardTextToUtf8 = win32.clipboardTextToUtf8;
+const clipboard_write = @import("clipboard_write.zig");
 const commitSplitSurfaceAttach = win32.commitSplitSurfaceAttach;
 const configpkg = @import("../../config.zig");
 const crlfLineEndings = win32.crlfLineEndings;
@@ -68,7 +69,6 @@ const drawRoundedRect = win32.drawRoundedRect;
 const fillSolidRect = win32.fillSolidRect;
 const first_frame = @import("first_frame.zig");
 const gl_startup = @import("gl_startup.zig");
-const highWord = win32.highWord;
 const hostChromeNeedsFocusRepaint = win32.hostChromeNeedsFocusRepaint;
 const imeWindowForms = win32.imeWindowForms;
 const initialDecorationsVisibleForSource = win32.initialDecorationsVisibleForSource;
@@ -555,6 +555,9 @@ pub const Surface = struct {
     /// and by `Surface.destroyWindow` so a close-while-pending doesn't
     /// leak.
     pending_clipboard_op: ?PendingClipboardOp = null,
+    /// The checked link target this pane's open prompt is asking about
+    /// (`App.askBeforeOpeningLink`), owned on the App allocator, the same way.
+    pending_link_open: ?[]u8 = null,
     terminal_accessibility: ?*win32_terminal_accessibility.TerminalAccessibilitySession = null,
     /// Close preflight ownership. Normal close paths build both candidates
     /// before HWND/core teardown; `windowDestroyed` consumes them without
@@ -3210,7 +3213,7 @@ pub const Surface = struct {
         }
 
         // Outside WSL, `/c/x` opens as `C:\x`, as a Ctrl+click on it does.
-        const action = win32_hints.resolveAction(payload, ctrl, alt, !self.core().launchesWsl());
+        const action = win32_hints.resolveAction(payload, ctrl, alt, self.core().launchesWsl());
 
         self.closeQuickSelect(true);
         if (action == .open) {
@@ -4557,12 +4560,7 @@ pub const Surface = struct {
     pub fn handleXMouseButton(self: *Surface, msg: UINT, wParam: WPARAM, lParam: LPARAM) void {
         if (!self.core_initialized) return;
 
-        const hi = highWord(@as(usize, @intCast(wParam)));
-        const button: input.MouseButton = switch (hi) {
-            c.XBUTTON1 => .four,
-            c.XBUTTON2 => .five,
-            else => return,
-        };
+        const button = win32_input.xMouseButton(wParam) orelse return;
         const state: input.MouseButtonState = switch (msg) {
             c.WM_XBUTTONDOWN => .press,
             c.WM_XBUTTONUP => .release,
@@ -4667,6 +4665,7 @@ pub const Surface = struct {
         // pending doesn't leak the duplicated payload bytes.
         if (self.pending_clipboard_op) |*op| op.deinit(self.app.core_app.alloc);
         self.pending_clipboard_op = null;
+        if (self.takePendingLinkOpen()) |link| self.app.core_app.alloc.free(link);
         self.render_trace.deinit(alloc);
 
         self.destroyGL();
@@ -5262,6 +5261,21 @@ pub const Surface = struct {
         );
     }
 
+    /// Keeps `link` (owned on the App allocator) for this pane's link
+    /// prompt, freeing the one an earlier prompt left.
+    pub fn setPendingLinkOpen(self: *Surface, link: []u8) void {
+        if (self.takePendingLinkOpen()) |old| self.app.core_app.alloc.free(old);
+        self.pending_link_open = link;
+    }
+
+    /// The link this pane's prompt was asking about, now the caller's to
+    /// free, or null when no prompt holds one.
+    pub fn takePendingLinkOpen(self: *Surface) ?[]u8 {
+        const link = self.pending_link_open orelse return null;
+        self.pending_link_open = null;
+        return link;
+    }
+
     /// What the clipboard holds: its text, else (for `include_files`) the
     /// paths of copied files, else nothing. An open failure is an error, never
     /// an empty clipboard.
@@ -5304,32 +5318,21 @@ pub const Surface = struct {
     }
 
     pub fn writeClipboardText(self: *const Surface, text: []const u8) !void {
-        const alloc = self.app.core_app.alloc;
+        writeClipboardTextWith(.{}, self.app.core_app.alloc, self.hwnd, text) catch |err| switch (err) {
+            // A Win32 failure is reported as `lastError()`, as it always was.
+            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return lastError(),
+            else => |other| return other,
+        };
+    }
+
+    /// `writeClipboardText` through `ops`, so a test can fail each native call
+    /// without reaching the real clipboard. The text is made ready before the
+    /// clipboard is opened and emptied (`clipboard_write.write`), so memory
+    /// that cannot be had no longer wipes what the clipboard held.
+    fn writeClipboardTextWith(ops: clipboard_write.Ops, alloc: std.mem.Allocator, owner: ?HWND, text: []const u8) !void {
         const text_w = try clipboardTextUtf16(alloc, text);
         defer alloc.free(text_w);
-
-        if (!openClipboard(self.hwnd)) return lastError();
-        defer _ = sys.CloseClipboard();
-
-        if (sys.EmptyClipboard() == 0) {
-            return lastError();
-        }
-
-        const bytes = (text_w.len + 1) * @sizeOf(u16);
-        const mem = sys.GlobalAlloc(c.GMEM_MOVEABLE | c.GMEM_ZEROINIT, bytes) orelse
-            return lastError();
-        errdefer _ = sys.GlobalFree(mem);
-
-        const locked = sys.GlobalLock(mem) orelse
-            return lastError();
-        defer _ = sys.GlobalUnlock(mem);
-
-        const dst: [*]u16 = @ptrCast(@alignCast(locked));
-        @memcpy(dst[0 .. text_w.len + 1], text_w[0 .. text_w.len + 1]);
-
-        if (sys.SetClipboardData(c.CF_UNICODETEXT, mem) == null) {
-            return lastError();
-        }
+        try clipboard_write.write(ops, owner, &.{clipboard_write.unicodeText(text_w)});
     }
 
     /// Write both CF_HTML (styled fragment) and CF_UNICODETEXT
@@ -5345,11 +5348,28 @@ pub const Surface = struct {
     /// we synthesize a plain fallback by stripping HTML tags so
     /// Notepad etc. get readable text instead of raw markup.
     pub fn writeClipboardHtml(self: *const Surface, html: []const u8, plain: ?[]const u8) !void {
-        const alloc = self.app.core_app.alloc;
-
         const cf_html = win32_ole.htmlFormat();
         if (cf_html == 0) return lastError();
+        writeClipboardHtmlWith(.{}, self.app.core_app.alloc, self.hwnd, cf_html, html, plain) catch |err| switch (err) {
+            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return lastError(),
+            else => |other| return other,
+        };
+    }
 
+    /// `writeClipboardHtml` through `ops`, with the CF_HTML format id already
+    /// registered. Both formats are made ready before the clipboard is opened
+    /// and emptied. A CF_UNICODETEXT that `SetClipboardData` refuses after
+    /// CF_HTML was taken leaves the clipboard emptied and holding the HTML
+    /// alone: no order avoids that, so the call reports the failure and frees
+    /// the memory the clipboard did not take.
+    fn writeClipboardHtmlWith(
+        ops: clipboard_write.Ops,
+        alloc: std.mem.Allocator,
+        owner: ?HWND,
+        cf_html: UINT,
+        html: []const u8,
+        plain: ?[]const u8,
+    ) !void {
         const wrapped = try win32_clipboard_html.wrapFragment(alloc, html);
         defer alloc.free(wrapped);
 
@@ -5371,52 +5391,10 @@ pub const Surface = struct {
         const plain_w = try clipboardTextUtf16(alloc, plain_src);
         defer alloc.free(plain_w);
 
-        if (!openClipboard(self.hwnd)) return lastError();
-        defer _ = sys.CloseClipboard();
-
-        if (sys.EmptyClipboard() == 0) {
-            return lastError();
-        }
-
-        // CF_HTML payload: the wrapped byte stream + a trailing
-        // null. `GMEM_MOVEABLE` is required for `SetClipboardData`;
-        // the clipboard takes ownership on success, so we skip the
-        // free on that path.
-        {
-            const bytes = wrapped.len + 1;
-            const mem = sys.GlobalAlloc(c.GMEM_MOVEABLE | c.GMEM_ZEROINIT, bytes) orelse
-                return lastError();
-            errdefer _ = sys.GlobalFree(mem);
-            const locked = sys.GlobalLock(mem) orelse
-                return lastError();
-            {
-                defer _ = sys.GlobalUnlock(mem);
-                const dst: [*]u8 = @ptrCast(locked);
-                @memcpy(dst[0..wrapped.len], wrapped);
-                dst[wrapped.len] = 0;
-            }
-            if (sys.SetClipboardData(cf_html, mem) == null) {
-                return lastError();
-            }
-        }
-
-        // CF_UNICODETEXT fallback.
-        {
-            const bytes = (plain_w.len + 1) * @sizeOf(u16);
-            const mem = sys.GlobalAlloc(c.GMEM_MOVEABLE | c.GMEM_ZEROINIT, bytes) orelse
-                return lastError();
-            errdefer _ = sys.GlobalFree(mem);
-            const locked = sys.GlobalLock(mem) orelse
-                return lastError();
-            {
-                defer _ = sys.GlobalUnlock(mem);
-                const dst: [*]u16 = @ptrCast(@alignCast(locked));
-                @memcpy(dst[0 .. plain_w.len + 1], plain_w[0 .. plain_w.len + 1]);
-            }
-            if (sys.SetClipboardData(c.CF_UNICODETEXT, mem) == null) {
-                return lastError();
-            }
-        }
+        try clipboard_write.write(ops, owner, &.{
+            .{ .id = cf_html, .data = wrapped, .nul_bytes = 1 },
+            clipboard_write.unicodeText(plain_w),
+        });
     }
 
     /// Release the surface's native GL resources. Also called when OpenGL
@@ -5471,6 +5449,121 @@ pub const Surface = struct {
         self.hwnd = null;
     }
 };
+
+test "win32 a terminal text copy prepares its data before it empties the clipboard" {
+    const Fake = clipboard_write.Fake;
+    const alloc = std.testing.allocator;
+
+    // Memory that cannot be had or locked: the clipboard is never opened, let
+    // alone emptied, and what was allocated is freed.
+    for ([_]Fake.Fail{ .alloc, .lock }) |how| {
+        Fake.reset(how, 0);
+        try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb"));
+        try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and !Fake.did(.set_data) and !Fake.did(.close));
+        try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+        try std.testing.expectEqual(@as(usize, 0), Fake.taken());
+    }
+
+    // A clipboard that will not open, empty or take the text: the memory is
+    // freed, and the clipboard closed only once it was opened.
+    for ([_]Fake.Fail{ .open, .empty, .set_data }) |how| {
+        Fake.reset(how, 0);
+        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb"));
+        try std.testing.expectEqual(how != .open, Fake.did(.close));
+        try std.testing.expectEqual(how == .set_data, Fake.did(.set_data));
+        try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+        try std.testing.expectEqual(@as(usize, 0), Fake.taken());
+        try std.testing.expectEqual(@as(usize, 1), Fake.freed());
+    }
+
+    // A copy that works: the text is ready before the clipboard is opened,
+    // with CRLF line endings, and the clipboard keeps the memory.
+    const owner: HWND = @ptrFromInt(0x2000);
+    Fake.reset(.none, 0);
+    try Surface.writeClipboardTextWith(Fake.ops, alloc, owner, "a\nb");
+    try std.testing.expectEqual(@as(?HWND, owner), Fake.openedFor());
+    try std.testing.expectEqualSlices(Fake.Step, &.{ .alloc, .lock, .unlock, .open, .empty, .set_data, .close }, Fake.recorded());
+    try std.testing.expectEqual(@as(usize, 1), Fake.taken());
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked() + Fake.freed());
+    try std.testing.expectEqual(@as(UINT, c.CF_UNICODETEXT), Fake.formatOf(0));
+    const expected = std.unicode.utf8ToUtf16LeStringLiteral("a\r\nb");
+    try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(expected[0 .. expected.len + 1]), Fake.payload(0));
+}
+
+test "win32 a terminal html copy prepares both formats before it empties the clipboard" {
+    const Fake = clipboard_write.Fake;
+    const alloc = std.testing.allocator;
+    const html = "<b>a</b>\nb";
+    const cf_html: UINT = 0xC0A0;
+
+    // Memory for either format that cannot be had or locked: the clipboard is
+    // never opened, let alone emptied, and what was allocated is freed.
+    for ([_]Fake.Fail{ .alloc, .lock }) |how| {
+        for (0..2) |nth| {
+            Fake.reset(how, nth);
+            try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+            try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and !Fake.did(.set_data) and !Fake.did(.close));
+            try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+            try std.testing.expectEqual(@as(usize, 0), Fake.taken());
+        }
+    }
+
+    // A clipboard that will not open, empty or take CF_HTML: both blocks are
+    // freed, and nothing was taken.
+    for ([_]Fake.Fail{ .open, .empty, .set_data }) |how| {
+        Fake.reset(how, 0);
+        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+        try std.testing.expectEqual(how != .open, Fake.did(.close));
+        try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+        try std.testing.expectEqual(@as(usize, 0), Fake.taken());
+        try std.testing.expectEqual(@as(usize, 2), Fake.freed());
+    }
+
+    // CF_HTML taken, CF_UNICODETEXT refused. The clipboard was already
+    // emptied, so it holds the HTML alone and the old contents are gone: no
+    // order avoids that. The call fails, and the block the clipboard did not
+    // take is freed.
+    Fake.reset(.set_data, 1);
+    try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+    try std.testing.expect(Fake.did(.empty) and Fake.did(.close));
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+    try std.testing.expectEqual(@as(usize, 1), Fake.taken());
+    try std.testing.expectEqual(@as(usize, 1), Fake.freed());
+    try std.testing.expectEqual(cf_html, Fake.formatOf(0));
+
+    // Copies that work, with the plain text derived from the HTML and
+    // supplied by the caller.
+    const wrapped = try win32_clipboard_html.wrapFragment(alloc, html);
+    defer alloc.free(wrapped);
+    const owner: HWND = @ptrFromInt(0x2000);
+    const Case = struct { plain: ?[]const u8, expected: [:0]const u16 };
+    const cases = [_]Case{
+        .{ .plain = null, .expected = std.unicode.utf8ToUtf16LeStringLiteral("a\r\nb") },
+        .{ .plain = "x\ny", .expected = std.unicode.utf8ToUtf16LeStringLiteral("x\r\ny") },
+    };
+    for (cases) |case| {
+        Fake.reset(.none, 0);
+        try Surface.writeClipboardHtmlWith(Fake.ops, alloc, owner, cf_html, html, case.plain);
+        try std.testing.expectEqual(@as(?HWND, owner), Fake.openedFor());
+        try std.testing.expectEqualSlices(Fake.Step, &.{
+            .alloc,    .lock,  .unlock,
+            .alloc,    .lock,  .unlock,
+            .open,     .empty, .set_data,
+            .set_data, .close,
+        }, Fake.recorded());
+        try std.testing.expectEqual(@as(usize, 2), Fake.taken());
+        try std.testing.expectEqual(@as(usize, 0), Fake.leaked() + Fake.freed());
+        // CF_HTML: the wrapped fragment verbatim, offsets untouched by CRLF,
+        // and a NUL.
+        try std.testing.expectEqual(cf_html, Fake.formatOf(0));
+        try std.testing.expectEqualSlices(u8, wrapped, Fake.payload(0)[0..wrapped.len]);
+        try std.testing.expectEqual(@as(usize, wrapped.len + 1), Fake.payload(0).len);
+        try std.testing.expectEqual(@as(u8, 0), Fake.payload(0)[wrapped.len]);
+        // CF_UNICODETEXT: the plain fallback with CRLF.
+        try std.testing.expectEqual(@as(UINT, c.CF_UNICODETEXT), Fake.formatOf(1));
+        try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(case.expected[0 .. case.expected.len + 1]), Fake.payload(1));
+    }
+}
 
 test "win32 scrollbar UIA range clamps value and exposes viewport bounds" {
     const range = Surface.scrollbarUiaRangeValue(.{

@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-01 | [Noctty sync to da8983d20](2026-11-01-noctty-sync.md) | A clean auto-merge can still clash: diff against the upstream parent, and scan equal values as well as names |
 | 2026-10-31 | [Tab strip redraw and motion](2026-10-31-tab-strip-redraw-and-motion.md) | `RoundRect` takes a diameter: read a GDI call before tuning its look by eye |
 | 2026-10-30 | [The najm command everywhere, four small UI fixes](2026-10-30-najm-name-and-small-ui-fixes.md) | A rename moves only display text; anything an install wrote or matches keeps its name |
 | 2026-10-30 | [UI polish, third round](2026-10-30-ui-polish-third-round.md) | A log rule that names a helper is checked by its production callers, not its tests |

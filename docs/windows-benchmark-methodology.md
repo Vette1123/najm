@@ -198,12 +198,17 @@ lists the slowest in the job summary.
 ### Scrollback search under streaming output
 
 `bench:search-stream` is a diagnostic, not a CI gate. It fills the scrollback
-with log lines that match the needle, then either drives the search thread's
-`Search` state the way the thread does (`--mode=feed`: the initial search, then
-one refresh per 32 KiB of output) or runs the real search thread while output
+with log lines that match the needle, then either steps a `QuerySearch` the way
+the search thread does (`--mode=feed`: the initial search, then one refresh per
+32 KiB of output) or runs the real search thread while output
 streams in 4 KiB writes under the terminal lock (`--mode=thread`;
 `--rate-mib-s` paces the output, and the writer's time waiting for the lock is
-reported). Recorded 2026-10-11 for PKG-36 on the Ryzen 9 9900X, Windows build
+reported). `--regex` and `--whole-word` search with those options, so every
+searcher matches through the query's compiled pattern. Matching lines carry
+`--match-text`, which defaults to the needle; give a regex a text it matches
+(`--regex --needle=req[a-z]+ --match-text=request`), or no line matches. A
+query that does not compile fails the bench. Recorded 2026-10-11
+for PKG-36 on the Ryzen 9 9900X, Windows build
 26300, `ReleaseFast`, with `--lines=100000` (118k matches over 358 pages, 45 x
 140, 200 MiB scrollback); medians:
 
@@ -212,6 +217,10 @@ reported). Recorded 2026-10-11 for PKG-36 on the Ryzen 9 9900X, Windows build
 | Initial search (`--mode=feed --stream-mib=4 --runs=5`)                         |      3,294 ms | 265 ms |
 | One refresh, `Search.feed` plus `notify` (same run, n = 640)                   |       27.7 ms | 3.8 ms |
 | Writer's lock wait, 8 MiB at 2 MiB/s (`--mode=thread --rate-mib-s=2 --runs=3`) |      2,668 ms | 565 ms |
+
+The refresh row predates `QuerySearch`: it timed the search thread's
+`Search.feed` plus `notify`, which a `QuerySearch.step` refresh replaced with
+the same feed and report (read from the code), so the numbers stay comparable.
 
 ```powershell
 zig build bench:search-stream -- --mode=feed --lines=100000 --stream-mib=4 --runs=5

@@ -664,6 +664,77 @@ test "win32 rich palette completion cycles duplicate display text by stable id" 
     try std.testing.expect(!first.id.eql(second.id));
 }
 
+/// palette-mru.txt holds one key per line, escaped as the contents of a Zig
+/// string (`std.zig.fmtString`). A key is the formatted action
+/// (`Command.cval`), which since upstream #13609 writes a string parameter
+/// raw, so a quoted `command-palette-entry` can put a CR, an LF or a tab in
+/// it that a raw line would split or trim. Before #13609 the action was
+/// formatted through the same escaping, so earlier builds wrote this form.
+fn writePaletteMruLine(writer: *std.Io.Writer, mru_key: []const u8) std.Io.Writer.Error!void {
+    try writer.print("{f}\n", .{std.zig.fmtString(mru_key)});
+}
+
+/// The key a palette-mru.txt line holds: the line's escapes decoded when
+/// escaping the result gives the line back, otherwise the line as it is.
+fn paletteMruKeyFromLine(alloc: std.mem.Allocator, line: []const u8) std.mem.Allocator.Error![:0]u8 {
+    // An odd run of trailing backslashes escapes the closing quote, and Zig
+    // 0.15.2's parseWrite then reads past the end of the literal.
+    if ((line.len - std.mem.trimEnd(u8, line, "\\").len) % 2 == 1) return alloc.dupeZ(u8, line);
+    const quoted = try std.mem.concat(alloc, u8, &.{ "\"", line, "\"" });
+    defer alloc.free(quoted);
+    const decoded = std.zig.string_literal.parseAlloc(alloc, quoted) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.InvalidLiteral => return alloc.dupeZ(u8, line),
+    };
+    defer alloc.free(decoded);
+    // parseAlloc stops at the first unescaped quote, so compare.
+    var escaped: std.Io.Writer.Allocating = .init(alloc);
+    defer escaped.deinit();
+    escaped.writer.print("{f}", .{std.zig.fmtString(decoded)}) catch return error.OutOfMemory;
+    return alloc.dupeZ(u8, if (std.mem.eql(u8, escaped.written(), line)) decoded else line);
+}
+
+/// Decodes palette-mru.txt into `mru`, newest first. A line is a whole key:
+/// spaces at its ends belong to the key (`text:make ` is not `text:make`).
+fn readPaletteMru(alloc: std.mem.Allocator, raw: []const u8, mru: []?[:0]const u8) void {
+    var it = std.mem.tokenizeAny(u8, raw, "\r\n");
+    var slot: usize = 0;
+    while (it.next()) |line| {
+        if (slot >= mru.len) break;
+        mru[slot] = paletteMruKeyFromLine(alloc, line) catch continue;
+        slot += 1;
+    }
+}
+
+test "win32 palette MRU lines keep keys with line breaks and tabs, and read earlier builds' lines" {
+    const alloc = std.testing.allocator;
+    var file: std.Io.Writer.Allocating = .init(alloc);
+    defer file.deinit();
+    // A quoted command-palette-entry decodes escapes, so its formatted
+    // action can hold a CR, an LF or a tab.
+    const keys = [_][]const u8{ "text:make\r", "text:a\nb", "text:x\t", "text:\\x15", "text:\"hi\" \xf0\x9f\x91\xbb", "text:hello ", "goto_tab:1" };
+    for (keys) |mru_key| try writePaletteMruLine(&file.writer, mru_key);
+    var read: [keys.len + 1]?[:0]const u8 = .{null} ** (keys.len + 1);
+    readPaletteMru(alloc, file.written(), &read);
+    defer for (read) |key| if (key) |k| alloc.free(k);
+    for (keys, read[0..keys.len]) |mru_key, key| {
+        try std.testing.expectEqualStrings(mru_key, key orelse return error.TestUnexpectedResult);
+    }
+    try std.testing.expect(read[keys.len] == null);
+    // Before upstream #13609 the action itself was escaped, so this is the
+    // line an earlier build wrote for text:\x15; it reads as today's key.
+    const earlier = try paletteMruKeyFromLine(alloc, "text:\\\\x15");
+    defer alloc.free(earlier);
+    try std.testing.expectEqualStrings("text:\\x15", earlier);
+    // A line that is not an escaped key is kept as it is, including one
+    // whose last backslash would escape the closing quote.
+    for ([_][]const u8{ "text:a\"b", "text:\\q", "text:C:\\", "text:\\\\\\" }) |line| {
+        const kept = try paletteMruKeyFromLine(alloc, line);
+        defer alloc.free(kept);
+        try std.testing.expectEqualStrings(line, kept);
+    }
+}
+
 pub const AppControls = struct {
     /// Resolve `%LOCALAPPDATA%\noctty\palette-mru.txt`. Caller frees
     /// with `core_app.alloc`.
@@ -671,10 +742,10 @@ pub const AppControls = struct {
         return self.localAppDataPath("palette-mru.txt");
     }
 
-    /// Populate `palette_mru` from the on-disk file, one action per line
-    /// (newest first). Missing file, I/O errors, and parse failures all
-    /// degrade to "start empty" — the MRU is a UX nicety, not a
-    /// correctness invariant.
+    /// Populate `palette_mru` from the on-disk file, one escaped action per
+    /// line (`writePaletteMruLine`), newest first. Missing file, I/O
+    /// errors, and parse failures all degrade to "start empty" — the MRU
+    /// is a UX nicety, not a correctness invariant.
     pub fn loadPaletteMru(self: *App) void {
         const path = self.paletteMruPath() orelse return;
         defer self.core_app.alloc.free(path);
@@ -687,16 +758,7 @@ pub const AppControls = struct {
         const raw = file.readToEndAlloc(self.core_app.alloc, 64 * 1024) catch return;
         defer self.core_app.alloc.free(raw);
 
-        var it = std.mem.tokenizeAny(u8, raw, "\r\n");
-        var slot: usize = 0;
-        while (it.next()) |line| {
-            if (slot >= self.palette_mru.len) break;
-            const trimmed = std.mem.trim(u8, line, " \t");
-            if (trimmed.len == 0) continue;
-            const duped = self.core_app.alloc.dupeZ(u8, trimmed) catch continue;
-            self.palette_mru[slot] = duped;
-            slot += 1;
-        }
+        readPaletteMru(self.core_app.alloc, raw, &self.palette_mru);
     }
 
     /// Write `palette_mru` to the on-disk file (newest first). Failure
@@ -729,7 +791,7 @@ pub const AppControls = struct {
         var fw = file.writer(&fbuf);
         for (self.palette_mru) |slot| {
             if (slot) |owned| {
-                fw.interface.print("{s}\n", .{owned}) catch return;
+                writePaletteMruLine(&fw.interface, owned) catch return;
             }
         }
         fw.interface.flush() catch {};

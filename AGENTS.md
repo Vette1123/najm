@@ -167,8 +167,13 @@ an entry calls load-bearing may have lost its callers since, so re-verify
 call sites before relying on it. You are done when you can name the entries
 that govern each symbol you change, or that none does.
 
-- [conpty.md](docs/agents/log/conpty.md): `src/pty.zig`, the pty reader and
-  write pool in `termio/Exec.zig`, `ResizePseudoConsole`, in-box conhost
+- [conpty.md](docs/agents/log/conpty.md): `src/pty.zig`, the pty reader (and
+  its stack size, `os.surfaceThreadSpawnConfig`, and how much of it code
+  uses, `stackUse` in `os/main.zig`, including the reparse walk the kitty
+  file open runs there: `os/local_path.zig` `walk`, `openRoot`,
+  `readLinkTarget`) and write pool in
+  `termio/Exec.zig`, `ResizePseudoConsole` and the renderer lock
+  `Termio.resize` holds across it, in-box conhost
   versus the bundled `conpty.dll`/`OpenConsole.exe`
   (`scripts/stage-conpty-redist.ps1`), what ConPTY's buffer holds after a
   resize, minimize, clear or undo and the column reflow that has to match it
@@ -179,31 +184,58 @@ that govern each symbol you change, or that none does.
   (`process_shared.enableGuiChildCtrlC` in `src/main_ghostty.zig`).
 - [shell-integration.md](docs/agents/log/shell-integration.md): scripts under
   `src/shell-integration/` (PowerShell `integration.ps1`, cmd/Clink, Git
-  Bash's `ghostty.bash`) and their injection (`termio/shell_integration.zig`
-  argv analysis, `windows_visual_studio.devShellPrelude`,
-  `win32_powershell_install.zig`): the OSC 133 and OSC 7 marks
-  a shell emits, PSReadLine hooks, execution policy, keyboard-mode recovery at
-  the prompt after a TUI leaves Kitty or modifyOtherKeys flags set
-  (`CSI <99u`, `CSI >4;0m`).
+  Bash's `ghostty.bash`, zsh's `ghostty-integration`, Nushell's `ghostty.nu`)
+  and their injection (`termio/shell_integration.zig` argv analysis,
+  `windows_visual_studio.devShellPrelude`, `win32_powershell_install.zig`):
+  the OSC 133 and OSC 7 marks a shell emits and the directory and host names
+  in them, Nushell's `@complete external` floor, PSReadLine hooks, execution
+  policy, keyboard-mode recovery at the prompt after a TUI leaves Kitty or
+  modifyOtherKeys flags set (`CSI <99u`, `CSI >4;0m`).
 - [terminal-core.md](docs/agents/log/terminal-core.md): `src/terminal/` (VT
-  parser limits, `PageList`, OSC parsers, OSC 133 exit codes, prompt typeahead
-  in `semantic_command.zig`, the scrollback search thread,
+  parser limits, `PageList` and its page serials (`page_serial_min`,
+  `nodeIsValid`, the source renewal in `PageList.split`), `PageList.Node`'s
+  accessors (`page()`, `rows()`, `cols()`, `capacity()`, `Node.Data`), the
+  owner inference in `destroyNodeExt`, and their callers in
+  `src/inspector/widgets/pagelist.zig`, OSC parsers,
+  OSC 133 exit codes, prompt typeahead
+  in `semantic_command.zig`, the scrollback search thread and its cached
+  results (`ScreenSearch.pruneHistory`, `LiveNodes`), what a search window
+  copies at append (`SlidingWindow.append`, `AppendResult`), the regex,
+  whole-word and case matcher and its run-time failure latch
+  (`search/pattern.zig`: `Pattern`), one query over a terminal and its
+  reports (`search/query_search.zig`: `QuerySearch.step`), the selection
+  and search-highlight rows of `RenderState` (`render.zig`),
   `TerminalFormatter`/`ScreenFormatter` output for undo snapshots and Copy as
-  HTML, Kitty graphics placements in `kitty/graphics_storage.zig` and
-  `kitty/graphics_exec.zig`), OSC 7 and OSC 9;9 cwd reports
-  (`termio/stream_handler.zig`, `os.hostname.isLocal`,
-  `windows_shell.conemuPathToLocal`), `src/Surface.zig` locking around links,
+  HTML, Kitty graphics commands, placements and deletes in
+  `kitty/graphics_command.zig`, `kitty/graphics_storage.zig` and
+  `kitty/graphics_exec.zig`, the file reads of `kitty/graphics_image.zig`
+  `readFile`, and tmux control mode in `tmux/`: `control.Parser`,
+  `Layout.max_depth`, the `Viewer`), `os/file.zig` `allocTmpDir` and
+  `os/TempDir.zig`, OSC 7 and OSC 9;9 cwd reports
+  (`termio/stream_handler.zig`, `os.hostname.isLocal`, `os/local_path.zig`
+  `pwd`, and the stored-pwd spellings in `os/path.zig`), `src/Surface.zig`
+  locking around links,
   and `ShellExecute*` calls queued for the message loop
   (`App.deferShellRequest`, `drainDeferredOpens`).
-- [renderer.md](docs/agents/log/renderer.md): `src/renderer/` (OpenGL/WGL,
-  the D3D11 beta and GL-to-D3D11 fallback, `Thread.zig` pacing and follow-up
-  timers, synchronized output, vsync, `RenderPass` viewport, cursor sprites,
+- [renderer.md](docs/agents/log/renderer.md): `src/renderer/` and
+  `src/renderer.zig` (OpenGL/WGL,
+  the D3D11 beta and GL-to-D3D11 fallback, who frees the config of a failed
+  `Renderer.init` in core `Surface.init`, frame pacing, the cursor blink
+  and their timers in `Pacer.zig` (`Pacer.turn`, `Pacer.Clock`, the port
+  `Thread.Frame`, the test adapter `pacer_sim.zig`),
+  `win32_power.renderer_clock` and the pacing timebase
+  `src/os/monotonic.zig` (also the wake-notify stamp
+  `State.last_render_wakeup_notify_ns`),
+  synchronized output, vsync, `RenderPass` viewport, cursor sprites,
   search highlights after a resize, the IME preedit and composition caret in
-  `rebuildCells` and `State.Preedit.layout`), the unfocused-split dim
+  `rebuildCells` and `State.Preedit.layout`, the glyph options `addGlyph` and
+  `addPreeditCell` pass), the unfocused-split dim
   (`split_dim`, `Host.syncSplitDim`), `win32/pixel_format.zig`, Windows font
   discovery (`src/font/discovery_windows.zig`: the registry scan, variable
   `wght` bounds, bold matching), font fallback and `font-thicken`, renderer
-  wakeups from `termio` and typing latency, repaint during live resize
+  wakeups from `termio` and typing latency, the libxev IOCP timers the
+  renderer arms (`Thread.timerCallback`, a `Canceled` run, the libxev pin in
+  `build.zig.zon`), repaint during live resize
   (`win32/surface_presentation.zig`), and which DLLs a CLI action or the D3D11
   backend loads (the OpenGL32 static import).
 - [window-frame.md](docs/agents/log/window-frame.md): the top-level window:
@@ -221,19 +253,24 @@ that govern each symbol you change, or that none does.
   window menu, the quick terminal (`win32_quick_terminal.zig`,
   `win32/quick_terminal_host.zig`).
 - [chrome-tabs-paint.md](docs/agents/log/chrome-tabs-paint.md): tab buttons
-  (`tabButtonProc`, `drawButton`, labels, tooltips, close X, underline,
-  `win32_tab_visual.zig`), `window-show-tab-bar`, chrome theme and system
-  accent (`win32_theme.zig`), focus cues (`win32/focus_cue.zig`),
-  `win32_icons.zig`, titlebar and tab-row icon fonts
+  (`tabButtonProc`, `drawButton`, labels, tooltips, close X, the active tab's
+  join to its terminal, `win32_tab_visual.zig`), `window-show-tab-bar`,
+  chrome theme and system accent (`win32_theme.zig`), focus cues
+  (`win32/focus_cue.zig`), `win32_icons.zig`, titlebar and tab-row icon fonts
   (`recreateTitlebarIconFonts`, `createIconFontWithGlyphs`,
   `fontGlyphCoverage`, `drawTitlebarGlyph`), chrome child z-order, host paint
   and invalidation scopes and text caches (`win32/chrome_scene.zig`:
   `paintChrome`, `invalidateChrome*`, `repaintTopChrome`; `appendOwnedString`),
   tweens.
 - [chrome-overlays.md](docs/agents/log/chrome-overlays.md): the command
-  palette (`win32_palette.zig`, `win32/palette_controller.zig`, ranking, MRU,
-  palette list), the confirm overlay (`win32/overlay_session.zig`:
-  `showConfirm`, `invokeConfirmAccept`/`Cancel` lifetime), the profile
+  palette (`win32_palette.zig`, `win32/palette_controller.zig`, ranking, MRU
+  and its `palette-mru.txt` lines: `writePaletteMruLine`, palette list, the
+  catalog's capacity and the installed themes that fit it:
+  `palette_catalog_capacity`, `appendInstalledThemesToPalette`, and the
+  bundled iTerm2 theme pin in `build.zig.zon` that sets their count), the confirm
+  overlay (`win32/overlay_session.zig`: `showConfirm`,
+  `invokeConfirmAccept`/`Cancel` lifetime; its paint text in
+  `labels.buildOverlayPaintLabelText`), the profile
   overlay, host banners and the update notice, overlay EDIT writes
   (`setOverlayEditText`).
 - [search-scrollbar.md](docs/agents/log/search-scrollbar.md): the docked
@@ -252,10 +289,13 @@ that govern each symbol you change, or that none does.
 - [input.md](docs/agents/log/input.md): `win32/input.zig` and key messages,
   Ctrl+Backspace in the app's text fields (`win32/edit_keys.zig`)
   (`WM_KEYDOWN`/`WM_CHAR`/`WM_SYSCHAR`, dead keys, `ToUnicode`, non-Latin
-  layouts), default Windows keybindings, Win32 input mode (DEC 9001), IME
+  layouts), default Windows keybindings, Win32 input mode (DEC 9001), the
+  bytes ConPTY's input parser gets with 9001 off (`windows_legacy` in
+  `src/input/key_encode.zig`, the `function_keys.zig` rows it reads), IME
   (the composition string, its caret and target clause:
-  `win32_input.imeTargetCodepointRange`, `Surface.imePosAt`), mouse buttons,
-  wheel and context-menu input.
+  `win32_input.imeTargetCodepointRange`, `Surface.imePosAt`), mouse buttons
+  (the X buttons: `win32_input.xMouseButton`, and the button codes
+  `src/input/mouse_encode.zig` writes), wheel and context-menu input.
 - [launch-and-paths.md](docs/agents/log/launch-and-paths.md): which process a
   terminal starts and with what environment: the default `command`, profile
   discovery and user-defined profiles (`src/config/windows_shell.zig`: the
@@ -270,10 +310,26 @@ that govern each symbol you change, or that none does.
   `os/color_scheme.zig`), what a log line may print of a command, an
   argument, an environment value or a directory (`os/redact.zig`,
   `Command.redacted()`); path safety (`os.path.isNetworkOrDevicePath`,
-  `OBJ_DONT_REPARSE`) for every program-reported path before it is opened
-  (OSC 7/9;9/1337 pwd, kitty graphics `t=f`/`t=t` files in
-  `terminal/kitty/graphics_image.zig`); link and quick-select path detection
-  and opening.
+  `OBJ_DONT_REPARSE` opens: the bounded local open `os/local_path.zig`
+  (`open` and its link walk, `Found.storedName`, `test_links`,
+  `test_cloud`) and
+  `windows_shell.ntOpenDontReparse`, and the length of a path before either
+  converts it) for every program-reported path before it is opened
+  (OSC 7/9;9/1337 pwd), and for kitty graphics `t=f`/`t=t` files, which on
+  Windows open through `os/local_path.zig` `open` (no share contacted, a
+  path that is not drive-absolute refused) and check the opened handle's
+  canonical path afterwards (`terminal/kitty/graphics_image.zig` and
+  `terminal/kitty/windows.zig`, the `t=t` delete through the opened handle
+  in `os/windows.zig` `deleteOpenedFile`, and the length of a path before
+  Zig converts it);
+  link and quick-select path detection and opening (`os/local_path.zig`
+  `linkTarget` and `isLocalShape`; the opener's gate:
+  `prepareWin32OpenTarget`, `prepareWin32LocalFile`, `isSafeLinkText`,
+  `local_path.Found.storedName`, and its hidden-desktop probe
+  `test/windows/link-opener-pathext-probe.ps1`; the link prompt:
+  `App.openLink`, `askBeforeOpeningLink`, `confirmedLinkScheme`,
+  `linkHandlerName`, `labels.linkPromptBody`,
+  `Surface.setPendingLinkOpen`/`takePendingLinkOpen`).
 - [clipboard.md](docs/agents/log/clipboard.md): clipboard reads and writes,
   CF_HTML (`win32_clipboard_html.zig`), open retries, what a copy puts on the
   clipboard (formats and owner, as Remote Desktop's redirection sees them),
@@ -293,9 +349,13 @@ that govern each symbol you change, or that none does.
   (`field_model.Kind.profile`, `AppHandle.profileChoices`), the
   changed-from-default marks, Reset buttons and row menu (`syncDefaultMarks`,
   `takeResetButton`, `releaseResetButton`, `resetDraftRow`, `showRowMenu`,
-  `field_model.effectiveSettingValue`), and the save path
-  (`settingsSaveAndReload`, `patchOrAppendEdits`, save target, masked
-  values).
+  `field_model.effectiveSettingValue`), Settings search (`formItems`,
+  `runSearch`, `suspendViewportRedraw`, `keepFocusShown`, `searchFinds`,
+  `revealControl`, `showKeyboardCues`, `placeDiscardButton`, `SearchQuery`),
+  where each shown value comes from (`config.origin`,
+  `win32_settings_reference.savedOrigin`), the opacity trackbar and the number
+  up-downs, and the save path (`settingsSaveAndReload`, `patchOrAppendEdits`, save
+  target, masked values).
 - [accessibility.md](docs/agents/log/accessibility.md): new widgets and UI
   events (adding a native widget, or changing its focus, children or
   notifiable properties); UIA providers under `src/apprt/win32_uia/` (COM
@@ -328,12 +388,14 @@ that govern each symbol you change, or that none does.
   progress and icon, crash minidumps and Sentry, the COM apartment,
   default-terminal handoff, the CLI and the `noctty.com` wrapper.
 - [build-release-ci.md](docs/agents/log/build-release-ci.md): `build.zig`
+  (including the `bench:*` steps' `addBenchCoreImport`)
   and resources, the Windows target floor (`src/build/Config.zig`,
   `-Dtarget` `win10`/`win10_rs5`, and the std APIs it gates), packaging
   (`scripts/package-windows.ps1`, `dist/windows/noctty.iss`, what Setup's
   `CloseApplications` closes), signing, the updater (including
   `RegisterApplicationRestart` while an installer closes noctty, with
-  `stagedInstallerRunning`), release workflows
+  `stagedInstallerRunning`; `pkg/wuffs/src/deflate.zig`, the raw DEFLATE
+  decoder for update payloads), release workflows
   and package managers (WinGet, Scoop,
   Chocolatey), GitHub Actions CI (path filter, caching, runners), CRLF and
   `.gitattributes` in shipped files.
@@ -346,14 +408,21 @@ that govern each symbol you change, or that none does.
 - [test-harnesses.md](docs/agents/log/test-harnesses.md): writing or running
   `test/windows/` harnesses (hidden desktops, the foreground, sandboxes, the
   interactive composite, the flagship contracts, the renderer parity harness
-  `test/windows/renderer/Invoke-RendererParity.ps1`), CI test steps, the Zig
+  `test/windows/renderer/Invoke-RendererParity.ps1`, `bench-windows.ps1`'s
+  `ForceForeground` and render-trace snapshots, transient captures (a banner,
+  the overlay scrollbar) in the visible check `Invoke-VisibleD3D11Check.ps1`,
+  the PKG-37, LAT-01 and LAT-02 measurement harnesses on the
+  `origin/*-measurement-harness` branches), CI test steps (the raw
+  `zig test src/apprt/win32_compositor_native.zig` step, which confines
+  `win32/sys.zig`'s imports to `src/apprt`), the Zig
   test runner's probe children and thread tests (`src/pty_transport_probe.zig`,
   `std.Progress.lockStdErr`, the search-thread tests in
   `src/terminal/search/Thread.zig`), the shared Win32 test fixtures
   (`win32/test_support.zig`, `TestSession`), PSReadLine history isolation
-  (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a suite
-  that seems hung (`scripts/zig-test-stacks.ps1`, the `PageList` test helper
-  `growRows`), and a test count or result that contradicts the code.
+  (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a bash
+  probe's `HISTFILE`, a suite that seems hung (`scripts/zig-test-stacks.ps1`,
+  the `PageList` test helper `growRows`), and a test count or result that
+  contradicts the code.
 - [tooling.md](docs/agents/log/tooling.md): declaring `extern` functions or
   structs, casting Win32 handles and `LPARAM`/`LRESULT` (`@intCast`,
   `@bitCast`, `@ptrFromInt`), passing `[:0]u16` to text APIs, renaming or moving

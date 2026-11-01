@@ -819,12 +819,12 @@ foreground: Color = .{ .r = 0xFF, .g = 0xFF, .b = 0xFF },
 /// The null character (U+0000) is always treated as a boundary and does not
 /// need to be included in this configuration.
 ///
-/// Default: `` \t'"│`|:;,()[]{}<>$ ``
+/// Default: ``\t '"│`|:;,()[]{}<>$``
 ///
 /// To add or remove specific characters, you can set this to a custom value.
 /// For example, to treat semicolons as part of words:
 ///
-///     selection-word-chars = " \t'\"│`|:,()[]{}<>$"
+///     selection-word-chars = "\t '\"│`|:,()[]{}<>$"
 ///
 /// Available since: 1.3.0
 @"selection-word-chars": SelectionWordChars = .{},
@@ -971,10 +971,10 @@ palette: Palette = .{},
 /// Enables the ability to move the cursor at prompts by clicking on a
 /// location in the prompt text.
 ///
-/// This feature requires shell integration, specifically prompt marking
-/// via `OSC 133`. Some shells like Fish (v4) and Nu (0.111+) natively
-/// support this while others may require additional configuration or
-/// Ghostty's shell integration features to be enabled.
+/// This feature requires prompt marking via `OSC 133`. Some shells like Fish
+/// (v4.1+) and Nu (0.111+) natively support this while others may require
+/// additional configuration or Ghostty's shell integration features to be
+/// enabled.
 ///
 /// Depending on the shell, this works either by translating your click
 /// position into a series of synthetic arrow key movements or by sending
@@ -1265,6 +1265,11 @@ command: ?Command = null,
 ///     shell integration with a `-e`-executed command, you must either
 ///     name your binary appropriately or source the shell integration script
 ///     manually.
+///
+/// `-e` wins over a file `config-file` names, which is read after the
+/// command line: the command and the settings above are applied again once
+/// every config file has been read, with or without a theme. An `-e` with
+/// nothing after it is refused and changes nothing.
 @"initial-command": ?Command = null,
 
 /// Controls when command finished notifications are sent. There are
@@ -1454,6 +1459,13 @@ input: RepeatableReadableIO = .{},
 /// This can be changed at runtime but will only affect new terminal surfaces.
 @"scrollback-limit": usize = 10_000_000, // 10MB
 
+/// Compatibility setting from upstream Ghostty, which uses it to compress
+/// scrollback pages while the terminal is idle.
+///
+/// This has no effect in the Windows-only fork, which does not compress
+/// scrollback.
+@"scrollback-compression": bool = true,
+
 /// Control when the scrollbar is shown to scroll the scrollback buffer.
 ///
 /// The default value is `system`.
@@ -1507,6 +1519,22 @@ link: RepeatableLink = .{},
 /// The URL matcher is always lowest priority of any configured links (see
 /// `link`). If you want to customize URL matching, use `link` and disable this.
 @"link-url": bool = true,
+
+/// Enable hyperlinks created with the OSC 8 escape sequence. When disabled,
+/// noctty does not use the target a program puts behind OSC 8 link text:
+/// Ctrl+hover, Ctrl+click, the context menu's link selection and
+/// `copy_url_to_clipboard` see only what `link` and `link-url` match in the
+/// text itself.
+///
+/// Two things still show OSC 8 hyperlinks when disabled. A copy that
+/// includes HTML, as the default copy bindings do, keeps a web, mail or ftp
+/// target as a link. The Ctrl+hover highlight can still light an OSC 8
+/// hyperlink when the hovered text is itself a matched URL.
+///
+/// This does not affect URL matching controlled by `link-url`.
+///
+/// Available since: 1.4.0
+@"link-osc8": bool = true,
 
 /// Show link previews for a matched URL.
 ///
@@ -2616,6 +2644,13 @@ keybind: Keybinds = .{},
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 @"window-titlebar-foreground": ?Color = null,
 
+/// Compatibility setting from upstream Ghostty's macOS and GTK apps, where it
+/// controls when drag handles are shown over splits. Valid values are
+/// `always`, `auto` and `never`.
+///
+/// This has no effect in the Windows-only fork.
+@"drag-handle": DragHandle = .auto,
+
 /// This controls when resize overlays are shown. Resize overlays are a
 /// transient popup that shows the size of the terminal while the surfaces are
 /// being resized. The possible options are:
@@ -3200,9 +3235,16 @@ keybind: Keybinds = .{},
 /// command-palette-entry = title:"Najm",description:"Add a little Najm to your terminal.",action:"text:\xf0\x9f\x91\xbb"
 /// ```
 ///
+/// There are some additional special values that can be specified for
+/// command-palette-entry:
+///
+///   * `command-palette-entry=clear` will clear all command entries. Warning: this
+///     removes ALL entries up to this point, including the default
+///     entries. Available since: 1.4.0
+///
 /// By default, the command palette is preloaded with most actions that might
 /// be useful in an interactive setting yet do not have easily accessible or
-/// memorizable shortcuts. The default entries can be cleared by setting this
+/// memorizable shortcuts. The default entries can be restored by setting this
 /// setting to an empty value:
 ///
 /// ```ini
@@ -3569,6 +3611,11 @@ keybind: Keybinds = .{},
 /// Retained compatibility setting from the removed GTK runtime.
 ///
 /// This has no effect in the Windows-only fork.
+@"gtk-tabs-inverted": bool = false,
+
+/// Retained compatibility setting from the removed GTK runtime.
+///
+/// This has no effect in the Windows-only fork.
 @"gtk-titlebar-hide-when-maximized": bool = false,
 
 /// Retained compatibility setting from the removed GTK runtime.
@@ -3585,6 +3632,11 @@ keybind: Keybinds = .{},
 ///
 /// This has no effect in the Windows-only fork.
 @"gtk-wide-tabs": bool = true,
+
+/// Retained compatibility setting from the removed GTK runtime.
+///
+/// This has no effect in the Windows-only fork.
+@"gtk-horizontal-tab-scroll": bool = true,
 
 /// Retained compatibility setting from the removed GTK runtime.
 ///
@@ -3773,6 +3825,13 @@ _default_profile_file: ?[:0]const u8 = null,
 /// (`--command=direct:`) leaves the earlier one in force.
 _command_cli: ?[:0]const u8 = null,
 _initial_command_cli: ?[:0]const u8 = null,
+
+/// The command `-e` was given on the command line, word by word, when the
+/// parse took it: `finalize` applies it and the settings `-e` implies again
+/// (`finalizeECommand`), so `-e` wins over a file `config-file` names (read
+/// after the command line) whether or not a theme replays the log. Null for
+/// no `-e`, and for an `-e` refused for want of a command.
+_e_command: ?[]const [:0]const u8 = null,
 
 /// `--elevated-profile-env=KEY=VALUE` on the command line, which
 /// `new_window_elevated:user:<id>` passes for each of the profile's
@@ -5439,6 +5498,32 @@ fn finalizeCliLaunch(self: *Config) Allocator.Error!void {
         }
     }
     if (self._initial_command_cli) |value| _ = try self.applyCliValue("initial-command", value);
+    self.finalizeECommand();
+}
+
+/// Apply `-e`'s command (`_e_command`) again, over the files read after the
+/// command line. A replay with `-e` last (a theme's, a new conditional
+/// state's) has already given these values, and this gives them again.
+fn finalizeECommand(self: *Config) void {
+    const command = self._e_command orelse return;
+    self.applyECommand(command);
+}
+
+/// What `-e` with `command` sets: the command, and the settings it implies
+/// (see `initial-command`). This is the one place those settings are
+/// written: the parse calls it when `-e` has a command, and
+/// `finalizeECommand` calls it to apply `-e` again over the files read after
+/// the command line, so both give the same values. Public so that
+/// `finalizeECommand` can move out of this file as it is.
+pub fn applyECommand(self: *Config, command: []const [:0]const u8) void {
+    self.@"initial-command" = .{ .direct = command };
+    self.@"single-instance" = .false;
+    self.@"gtk-single-instance" = .false;
+    self.@"quit-after-last-window-closed" = true;
+    self.@"quit-after-last-window-closed-delay" = null;
+    if (self.@"shell-integration" != .none) {
+        self.@"shell-integration" = .detect;
+    }
 }
 
 /// The value of `arg` when it is `--<key>=<value>` and the field parse takes
@@ -5966,6 +6051,89 @@ test "a refused --command= does not claim a config file's command as the command
         try testing.expectEqualStrings("other.exe", cfg.command.?.shell);
         try testing.expectEqual(@as(usize, 1), testDefaultProfileProblems(&cfg));
     }
+}
+
+/// `command` when it is a shell command, or a test failure (not a panic) for
+/// none or a direct one.
+fn testShellCommand(command: ?Command) ![:0]const u8 {
+    const value = command orelse return error.TestUnexpectedResult;
+    if (value != .shell) return error.TestUnexpectedResult;
+    return value.shell;
+}
+
+/// `command`'s words when it is a direct command, or a test failure (not a
+/// panic) for none or a shell one.
+fn testDirectCommand(command: ?Command) ![]const [:0]const u8 {
+    const value = command orelse return error.TestUnexpectedResult;
+    if (value != .direct) return error.TestUnexpectedResult;
+    return value.direct;
+}
+
+test "-e wins over a file read after the command line, as a replay with -e last does" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    // `testLoadDefaultProfile` reads the include after the command line, as
+    // a file `config-file` names is read, and sets no theme, so nothing
+    // replays the log.
+    const Case = struct { include: []const u8, shell_integration: ShellIntegration };
+    for ([_]Case{
+        .{
+            .include = "initial-command = pwsh.exe\nquit-after-last-window-closed = false\n" ++
+                "quit-after-last-window-closed-delay = 5s\nshell-integration = fish\n",
+            .shell_integration = .detect,
+        },
+        // `-e` leaves `none` as it is, as it does when it comes last.
+        .{ .include = "shell-integration = none\n", .shell_integration = .none },
+    }) |case| {
+        var cfg = try testLoadDefaultProfile(alloc, "", &.{ "-e", "cmd.exe" }, case.include);
+        defer cfg.deinit();
+        try testing.expectEqualStrings("cmd.exe", (try testDirectCommand(cfg.@"initial-command"))[0]);
+        try testing.expect(cfg.@"quit-after-last-window-closed");
+        try testing.expect(cfg.@"quit-after-last-window-closed-delay" == null);
+        try testing.expectEqual(case.shell_integration, cfg.@"shell-integration");
+    }
+    // An `-e` refused for want of a command changes nothing: the file's
+    // values stand.
+    {
+        var cfg = try testLoadDefaultProfile(alloc, "", &.{"-e"}, "initial-command = pwsh.exe\nquit-after-last-window-closed = false\n");
+        defer cfg.deinit();
+        try testing.expect(cfg._e_command == null);
+        try testing.expectEqualStrings("pwsh.exe", try testShellCommand(cfg.@"initial-command"));
+        try testing.expect(!cfg.@"quit-after-last-window-closed");
+    }
+}
+
+test "-e still wins in a copy of the config, finalized again" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var cfg = try testLoadDefaultProfile(alloc, "", &.{ "-e", "cmd.exe" }, "");
+    defer cfg.deinit();
+    // A deep copy keeps the command `-e` was given, and finalized again over
+    // a later value, as a reload's would be, `-e` wins again.
+    var copy = try cfg.clone(alloc);
+    defer copy.deinit();
+    try testing.expectEqualStrings("cmd.exe", (copy._e_command orelse return error.TestUnexpectedResult)[0]);
+    copy.@"quit-after-last-window-closed" = false;
+    copy.@"initial-command" = null;
+    try copy.finalize();
+    try testing.expect(copy.@"quit-after-last-window-closed");
+    try testing.expectEqualStrings("cmd.exe", (try testDirectCommand(copy.@"initial-command"))[0]);
+    // A shallow copy, as a new window's (`apprt.surface.newConfig`), holds
+    // `-e`'s values and its command.
+    var shallow = cfg.shallowClone(alloc);
+    defer shallow.deinit();
+    try testing.expect(shallow.@"quit-after-last-window-closed");
+    try testing.expectEqualStrings("cmd.exe", (try testDirectCommand(shallow.@"initial-command"))[0]);
+    try testing.expectEqualStrings("cmd.exe", (shallow._e_command orelse return error.TestUnexpectedResult)[0]);
+}
+
+test "a refused -e leaves an accepted --initial-command= before it in force" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var cfg = try testLoadDefaultProfile(alloc, "", &.{ "--initial-command=cmd.exe", "-e" }, "initial-command = pwsh.exe\n");
+    defer cfg.deinit();
+    try testing.expectEqualStrings("cmd.exe", cfg._initial_command_cli orelse return error.TestUnexpectedResult);
+    try testing.expectEqualStrings("cmd.exe", try testShellCommand(cfg.@"initial-command"));
 }
 
 test "a refused --initial-command= leaves -e its place" {
@@ -7215,9 +7383,6 @@ pub fn parseManuallyHook(
     }
 
     if (std.mem.eql(u8, arg, "-e")) {
-        // `-e` comes after any `--initial-command=` and wins over it.
-        self._initial_command_cli = null;
-
         // Add the special -e marker. This prevents:
         // (1) config-file from adding args to the end (see #2908)
         // (2) dark/light theme from making this conditional
@@ -7251,15 +7416,13 @@ pub fn parseManuallyHook(
             return false;
         }
 
-        // See "command" docs for the implied configurations and why.
-        self.@"initial-command" = .{ .direct = command.items };
-        self.@"single-instance" = .false;
-        self.@"gtk-single-instance" = .false;
-        self.@"quit-after-last-window-closed" = true;
-        self.@"quit-after-last-window-closed-delay" = null;
-        if (self.@"shell-integration" != .none) {
-            self.@"shell-integration" = .detect;
-        }
+        // `-e` comes after any `--initial-command=` and wins over it, when it
+        // has a command: a refused `-e` changes nothing.
+        self._initial_command_cli = null;
+
+        // See "initial-command" docs for the implied configurations and why.
+        self._e_command = command.items;
+        self.applyECommand(command.items);
 
         // Do not continue, we consumed everything.
         return false;
@@ -7495,6 +7658,11 @@ pub fn clone(
     if (self._default_profile_file) |value| result._default_profile_file = try alloc_arena.dupeZ(u8, value);
     if (self._command_cli) |value| result._command_cli = try alloc_arena.dupeZ(u8, value);
     if (self._initial_command_cli) |value| result._initial_command_cli = try alloc_arena.dupeZ(u8, value);
+    if (self._e_command) |words| {
+        const copy = try alloc_arena.alloc([:0]const u8, words.len);
+        for (words, copy) |word, *slot| slot.* = try alloc_arena.dupeZ(u8, word);
+        result._e_command = copy;
+    }
     if (self._default_profile) |profile| result._default_profile = try profile.clone(alloc_arena);
     result._default_profile_failure = self._default_profile_failure;
     if (self._undecodable_file) |skipped| result._undecodable_file = try alloc_arena.dupeZ(u8, skipped);
@@ -12052,9 +12220,16 @@ pub const RepeatableCommand = struct {
         alloc: Allocator,
         input_: ?[]const u8,
     ) !void {
-        // Unset or empty input clears the list
+        // Unset or empty input restores the default entries
         const input = input_ orelse "";
         if (input.len == 0) {
+            log.info("config has 'command-palette-entry =', using default entries", .{});
+            try self.init(alloc);
+            return;
+        }
+
+        if (std.mem.eql(u8, input, "clear")) {
+            log.info("config has 'command-palette-entry = clear', all command entries cleared", .{});
             self.value.clearRetainingCapacity();
             self.value_c.clearRetainingCapacity();
             return;
@@ -12160,7 +12335,16 @@ pub const RepeatableCommand = struct {
                 ) catch return error.OutOfMemory;
             }
 
-            writer.print(",action:\"{f}\"", .{item.action}) catch return error.OutOfMemory;
+            // Action.format writes string parameters as they are; quoted,
+            // they need the Zig escapes parseAutoStruct decodes, as the
+            // title and description get.
+            var action_buf: [4096]u8 = undefined;
+            var action: std.Io.Writer = .fixed(&action_buf);
+            action.print("{f}", .{item.action}) catch return error.OutOfMemory;
+            writer.print(
+                ",action:\"{f}\"",
+                .{std.zig.fmtString(action.buffered())},
+            ) catch return error.OutOfMemory;
 
             try formatter.formatEntry([]const u8, writer.buffered());
         }
@@ -12202,8 +12386,11 @@ pub const RepeatableCommand = struct {
         try testing.expectEqualStrings("Baz", list.value.items[3].title);
         try testing.expectEqualStrings("Raspberry Pie", list.value.items[3].description);
 
-        try list.parseCLI(alloc, "");
+        try list.parseCLI(alloc, "clear");
         try testing.expectEqual(@as(usize, 0), list.value.items.len);
+
+        try list.parseCLI(alloc, "");
+        try testing.expectEqual(inputpkg.command.defaults.len, list.value.items.len);
     }
 
     test "RepeatableCommand formatConfig empty" {
@@ -12245,6 +12432,26 @@ pub const RepeatableCommand = struct {
         try list.parseCLI(alloc, "title:Ja,   description: pierdole,  action:text:jakie bydle");
         try list.formatEntry(formatterpkg.entryFormatter("a", &buf.writer));
         try std.testing.expectEqualSlices(u8, "a = title:\"Bobr\",action:\"text:kurwa\"\na = title:\"Ja\",description:\"pierdole\",action:\"text:jakie bydle\"\n", buf.written());
+    }
+
+    test "RepeatableCommand formatConfig escapes a quoted action's string parameter" {
+        const testing = std.testing;
+        var buf: std.Io.Writer.Allocating = .init(testing.allocator);
+        defer buf.deinit();
+
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        var list: RepeatableCommand = .{};
+        try list.parseCLI(alloc, "title:Bobr,action:\"text:\\\"hi\\\" \\\\x15\"");
+        try testing.expectEqualStrings("\"hi\" \\x15", list.value.items[0].action.text);
+        try list.formatEntry(formatterpkg.entryFormatter("a", &buf.writer));
+        try testing.expectEqualStrings("a = title:\"Bobr\",action:\"text:\\\"hi\\\" \\\\x15\"\n", buf.written());
+
+        var parsed: RepeatableCommand = .{};
+        try parsed.parseCLI(alloc, buf.written()["a = ".len .. buf.written().len - 1]);
+        try testing.expect(list.equal(parsed));
     }
 
     test "RepeatableCommand parseCLI commas" {
@@ -12318,7 +12525,7 @@ pub const RepeatableCommand = struct {
         try list.parseCLI(alloc, "title:Foo,action:ignore");
         try testing.expectEqual(@as(usize, 1), list.cval().len);
 
-        try list.parseCLI(alloc, "");
+        try list.parseCLI(alloc, "clear");
         try testing.expectEqual(@as(usize, 0), list.cval().len);
     }
 };
@@ -12592,6 +12799,13 @@ pub const WindowNewTabPosition = enum {
 
 /// See window-show-tab-bar
 pub const WindowShowTabBar = enum {
+    always,
+    auto,
+    never,
+};
+
+/// See drag-handle
+pub const DragHandle = enum {
     always,
     auto,
     never,
@@ -13816,10 +14030,52 @@ test "clone command C view survives source config deinit" {
     try testing.expectEqualStrings("", std.mem.span(custom.description));
 
     // Clearing the palette must stay empty through another complete clone.
-    try copy.@"command-palette-entry".parseCLI(copy._arena.?.allocator(), "");
+    try copy.@"command-palette-entry".parseCLI(copy._arena.?.allocator(), "clear");
     var empty = try copy.clone(testing.allocator);
     defer empty.deinit();
     try testing.expectEqual(@as(usize, 0), empty.@"command-palette-entry".cval().len);
+}
+
+test "command-palette-entry in a config file: clear empties the palette, an empty value restores the defaults" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var cleared = try Config.default(alloc);
+    defer cleared.deinit();
+    var clear_reader: std.Io.Reader = .fixed(
+        "command-palette-entry = clear\ncommand-palette-entry = title:Custom,action:open_config\n",
+    );
+    try cleared.loadReader(alloc, &clear_reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(cleared._diagnostics.empty());
+    try testing.expectEqual(@as(usize, 1), cleared.@"command-palette-entry".cval().len);
+    try testing.expectEqualStrings("Custom", cleared.@"command-palette-entry".value.items[0].title);
+
+    var restored = try Config.default(alloc);
+    defer restored.deinit();
+    var restore_reader: std.Io.Reader = .fixed(
+        "command-palette-entry = clear\ncommand-palette-entry =\n",
+    );
+    try restored.loadReader(alloc, &restore_reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(restored._diagnostics.empty());
+    try testing.expectEqual(inputpkg.command.defaults.len, restored.@"command-palette-entry".cval().len);
+}
+
+test "a config shared with upstream 1.4 on macOS or Linux loads its platform keys without a problem" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var cfg = try Config.default(alloc);
+    defer cfg.deinit();
+    var reader: std.Io.Reader = .fixed(
+        "drag-handle = never\n" ++
+            "scrollback-compression = false\n" ++
+            "gtk-tabs-inverted = true\n" ++
+            "gtk-horizontal-tab-scroll = false\n",
+    );
+    try cfg.loadReader(alloc, &reader, "C:\\noctty-test\\config.ghostty");
+    try testing.expect(cfg._diagnostics.empty());
+    try testing.expectEqual(DragHandle.never, cfg.@"drag-handle");
+    try testing.expect(!cfg.@"scrollback-compression");
 }
 
 test "default quit-after-last-window-closed is enabled in the Windows fork" {

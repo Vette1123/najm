@@ -92,6 +92,7 @@ const confirm_prompt_text_format = win32.confirm_prompt_text_format;
 const createIconFontWithGlyphs = win32.createIconFontWithGlyphs;
 const cycleProfileOpenTarget = win32.cycleProfileOpenTarget;
 const decorationVisibilityForChromeValue = win32.decorationVisibilityForChromeValue;
+const default_title = win32.default_title;
 const desiredTabIndex = win32.desiredTabIndex;
 const destroyChildWindow = win32.destroyChildWindow;
 const destroySubclassedWindow = win32.destroySubclassedWindow;
@@ -431,6 +432,8 @@ pub const Host = struct {
     hidden_by_toggle: bool = false,
     tabs: std.ArrayListUnmanaged(Tab) = .empty,
     active_tab: usize = 0,
+    /// Retry failed label syncs even after layout has committed button placements.
+    tab_buttons_dirty: bool = false,
     next_tab_id: u32 = 1,
     /// True while THIS host is drag-resizing (between its own
     /// `WM_ENTERSIZEMOVE` and `WM_EXITSIZEMOVE`). Surfaces owned by
@@ -10244,6 +10247,7 @@ pub const Host = struct {
     }
 
     fn syncTabButtonsWithLayout(self: *Host, relayout: bool) !bool {
+        self.tab_buttons_dirty = true;
         const hwnd = self.hwnd orelse return false;
         try self.ensureChromeButtons();
         // Same rect `layout` uses, so a title change while minimized does not
@@ -10343,9 +10347,9 @@ pub const Host = struct {
                 tab.uia_provider = self.createChromeUiaProvider(tab.button_hwnd.?, self.tabItemUiaState(tab.id));
                 button_created = true;
             } else if (label_changed) {
-                try appendOwnedString(self.app.core_app.alloc, &tab.cached_button_label, label);
                 const label_w = try std.unicode.utf8ToUtf16LeAllocZ(self.app.core_app.alloc, label);
                 defer self.app.core_app.alloc.free(label_w);
+                try appendOwnedString(self.app.core_app.alloc, &tab.cached_button_label, label);
                 _ = sys.SetWindowTextW(tab.button_hwnd.?, label_w.ptr);
             }
             // Commit the cached name inputs BEFORE raising NameChanged.
@@ -10390,6 +10394,7 @@ pub const Host = struct {
         // pointer and takes the popup down when either moved; a refresh that
         // changes nothing it shows is a no-op.
         if (self.tab_tooltip_tab_id != null) self.refreshTabTooltip(tooltip_title_changed);
+        self.tab_buttons_dirty = false;
         return chrome_changed;
     }
 
@@ -10992,7 +10997,7 @@ pub const Host = struct {
         var chrome_layout_changed = false;
         if (!self.layoutChromeForRect(rect, &chrome_layout_changed)) return;
         // Resize and DPI changes also change label truncation and tooltip policy.
-        if (chrome_layout_changed) _ = chromeSyncOrLog("layout tab label sync failed", self.syncTabButtonsWithLayout(false));
+        if (chrome_layout_changed or self.tab_buttons_dirty) _ = chromeSyncOrLog("layout tab label sync failed", self.syncTabButtonsWithLayout(false));
 
         const content_rect = self.contentRectFromClient(rect);
         const layout_content_rect: win32_layout.Rect = .{
@@ -11619,4 +11624,138 @@ test "win32 titlebar hover fade decays linearly and snaps at zero duration" {
     fade.start(2_000, 0);
     try std.testing.expectApproxEqAbs(@as(f32, 0.0), fade.alphaAt(2_000), 0.001);
     try std.testing.expect(!fade.animating(2_000));
+}
+
+test "win32 moveTab immediately lays out focused tabs and updates numbered labels and UIA names" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.host_test_runtime.runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: win32.host_test_runtime.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            app.use_integrated_titlebar = true;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const host = first.host.?;
+            try std.testing.expect(host.usingIntegratedTitlebar());
+            const second = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+            try appendOwnedString(std.testing.allocator, &first.title, "alpha");
+            try appendOwnedString(std.testing.allocator, &second.title, "beta");
+            try std.testing.expect(host.activateTabIndex(1));
+            const first_button = host.tabs.items[0].button_hwnd.?;
+            const second_button = host.tabs.items[1].button_hwnd.?;
+
+            // The activation fast path requires a visible host and focused pane.
+            try std.testing.expect(sys.IsWindowVisible(host.hwnd.?) != 0);
+            try std.testing.expect(second.window_visible and second.window_focused);
+            const original_dpi = host.current_dpi;
+            defer host.current_dpi = original_dpi;
+            for ([_]u32{ 96, 144, 192 }) |dpi| {
+                host.current_dpi = dpi;
+                for ([_]i32{ 640, 200 }, [_]usize{ 2, 1 }) |width_dip, visible_count| {
+                    try std.testing.expect(sys.SetWindowPos(host.hwnd.?, null, 0, 0, host.scaled(width_dip), host.scaled(480), c.SWP_NOMOVE | c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
+                    try host.layout();
+                    var client: RECT = undefined;
+                    try std.testing.expect(sys.GetClientRect(host.hwnd.?, &client) != 0);
+                    try std.testing.expectEqual(dpi, host.current_dpi);
+                    try std.testing.expectEqual(visible_count, host.tabStripGeometry(client.right).count);
+                    for ([_]isize{ -1, 1, 1, -1 }) |amount| {
+                        const before_events = win32_uia.events.testing_property_changes;
+                        try std.testing.expect(try app.moveTab(.{ .surface = &second.core_surface }, .{ .amount = amount }));
+                        try std.testing.expect(win32_uia.events.testing_property_changes > before_events);
+                        try std.testing.expect(host.tabs.items[host.active_tab].focusedSurface() == second);
+                        try std.testing.expect(second.window_visible and second.window_focused);
+                        var left: RECT = undefined;
+                        var right: RECT = undefined;
+                        try std.testing.expect(sys.GetWindowRect(host.tabs.items[0].button_hwnd.?, &left) != 0);
+                        try std.testing.expect(sys.GetWindowRect(host.tabs.items[1].button_hwnd.?, &right) != 0);
+                        if (visible_count == 2) try std.testing.expect(left.left < right.left);
+                        for (host.tabs.items, 0..) |*tab, index| {
+                            try std.testing.expect(tab.button_hwnd == if (tab.focusedSurface() == first) first_button else second_button);
+                            var label: [256]u16 = undefined;
+                            const len = sys.GetWindowTextW(tab.button_hwnd.?, &label, label.len);
+                            try std.testing.expect(len > 0);
+                            const prefix = if (index == host.active_tab) @as(usize, 2) else 0;
+                            try std.testing.expectEqual(@as(u16, @intCast('1' + index)), label[prefix]);
+                            var name: [256]u8 = undefined;
+                            const uia_name = Host.tabItemUiaName(host, tab.id, &name);
+                            const title = if (tab.focusedSurface() == first) "alpha" else "beta";
+                            var expected_buf: [32]u8 = undefined;
+                            const expected_name = try std.fmt.bufPrint(&expected_buf, "{d}: {s}", .{ index + 1, title });
+                            try std.testing.expectEqualStrings(expected_name, uia_name);
+                            try std.testing.expectEqual(index == host.active_tab, Host.tabItemUiaSelected(host, tab.id));
+                            var bounds: win32_uia.UiaRect = undefined;
+                            const provider = tab.uia_provider.?;
+                            try std.testing.expectEqual(@as(i32, 0), provider.fragment.vtbl.get_BoundingRectangle(&provider.fragment, &bounds));
+                            const rect = if (index == 0) left else right;
+                            try std.testing.expectEqual(@as(f64, @floatFromInt(rect.left)), bounds.left);
+                            try std.testing.expectEqual(@as(f64, @floatFromInt(rect.top)), bounds.top);
+                            try std.testing.expectEqual(@as(f64, @floatFromInt(rect.right - rect.left)), bounds.width);
+                            try std.testing.expectEqual(@as(f64, @floatFromInt(rect.bottom - rect.top)), bounds.height);
+                        }
+                    }
+                }
+            }
+        }
+    }.body);
+}
+
+test "win32 moveTab label sync retries every allocation failure after placements are committed" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.host_test_runtime.runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fail_index: usize = 0;
+            while (true) : (fail_index += 1) {
+                var fixture: win32.host_test_runtime.WindowStartTestApp = .{};
+                try fixture.init();
+                defer fixture.deinit();
+                const app = &fixture.app;
+                try app.createWindow(default_title);
+                const first = fixture.newest();
+                const host = first.host.?;
+                const second = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+                try appendOwnedString(std.testing.allocator, &first.title, "alpha");
+                try appendOwnedString(std.testing.allocator, &second.title, "beta");
+                try std.testing.expect(host.activateTabIndex(1));
+
+                // Isolate the label sync after a committed reorder and placement.
+                std.mem.swap(Tab, &host.tabs.items[0], &host.tabs.items[1]);
+                host.active_tab = 0;
+                const rect = (try host.layoutClientRect()).?;
+                var changed = false;
+                try std.testing.expect(host.layoutChromeForRect(rect, &changed));
+                const alloc = fixture.core_app.alloc;
+                var failing = std.testing.FailingAllocator.init(alloc, .{ .fail_index = fail_index });
+                fixture.core_app.alloc = failing.allocator();
+                defer fixture.core_app.alloc = alloc;
+                const result = host.syncTabButtonsWithLayout(false);
+                fixture.core_app.alloc = alloc;
+                if (result) |_| {
+                    try std.testing.expect(!failing.has_induced_failure);
+                    try std.testing.expect(fail_index > 0);
+                    break;
+                } else |err| {
+                    try std.testing.expectEqual(error.OutOfMemory, err);
+                    try std.testing.expect(failing.has_induced_failure);
+                }
+
+                changed = false;
+                try std.testing.expect(host.layoutChromeForRect(rect, &changed));
+                try std.testing.expect(!changed);
+                try host.layout();
+                try std.testing.expect(!host.tab_buttons_dirty);
+                for (host.tabs.items, 0..) |*tab, index| {
+                    var text: [64]u16 = undefined;
+                    const len = sys.GetWindowTextW(tab.button_hwnd.?, &text, text.len);
+                    try std.testing.expect(len > 0);
+                    const actual = try std.unicode.utf16LeToUtf8Alloc(alloc, text[0..@intCast(len)]);
+                    defer alloc.free(actual);
+                    try std.testing.expectEqualStrings(if (index == 0) "* 1: beta" else "2: alpha", actual);
+                    var name: [64]u8 = undefined;
+                    try std.testing.expectEqualStrings(if (index == 0) "1: beta" else "2: alpha", Host.tabItemUiaName(host, tab.id, &name));
+                }
+            }
+        }
+    }.body);
 }

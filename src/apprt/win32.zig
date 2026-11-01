@@ -121,6 +121,7 @@ const app_delivery = @import("win32/app_delivery.zig");
 const save_target = @import("win32/save_target.zig");
 const focus_region = @import("win32/focus_region.zig");
 const first_frame = @import("win32/first_frame.zig");
+const clipboard_write = @import("win32/clipboard_write.zig");
 const win32_config_problems = @import("win32/config_problems.zig");
 
 // Explicit dependencies of the extracted runtime modules.
@@ -481,6 +482,10 @@ pub const window_state_test_runtime = if (builtin.is_test) .{
     .win32_quick_terminal = win32_quick_terminal,
     .win32_terminal_handoff = win32_terminal_handoff,
 } else .{};
+pub const host_test_runtime = if (builtin.is_test) .{
+    .WindowStartTestApp = WindowStartTestApp,
+    .runOnHiddenDesktop = runOnHiddenDesktop,
+} else .{};
 pub const surface_presentation_runtime = .{
     .App = App,
     .Host = Host,
@@ -693,6 +698,7 @@ test {
     _ = @import("win32/focus_cue.zig");
     _ = @import("win32/edit_keys.zig");
     _ = @import("win32/first_frame.zig");
+    _ = clipboard_write;
     _ = @import("win32_aumid.zig");
     _ = @import("win32_toast_activator.zig");
     _ = @import("win32_program_status.zig");
@@ -3677,6 +3683,7 @@ fn updateStageFailureMessage(alloc: Allocator, err: anyerror) ![]u8 {
         error.UnsafePortableArchiveEntry => "the portable ZIP contains an unsafe path",
         error.DuplicatePortableArchiveEntry => "the portable ZIP contains duplicate paths",
         error.InvalidPortableArchive, error.InvalidPortableArchiveRoot => "the portable ZIP layout is invalid",
+        error.PortableArchiveChecksumMismatch => "a portable ZIP entry failed its CRC-32 check",
         error.UnsupportedPortableArchive => "the portable ZIP uses an unsupported format",
         error.PortableArchiveTooLarge => "the portable ZIP exceeds safe extraction limits",
         error.IncompletePortablePayload => "the portable ZIP payload is incomplete",
@@ -3689,6 +3696,7 @@ fn updateStageFailureMessage(alloc: Allocator, err: anyerror) ![]u8 {
         error.UpdateHttpNotFound => "a required release asset was not found",
         error.UpdateHttpRateLimited => "GitHub rate limited the update download",
         error.UnexpectedHttpStatus => "GitHub returned an unexpected HTTP status",
+        error.UnsupportedContentEncoding => "the download was sent compressed although only identity was accepted",
         else => null,
     };
 
@@ -4857,7 +4865,7 @@ test "win32 terminal undo keeps nonzero live rows, wrap and snapshot margins" {
         try std.testing.expect(t.screens.active.cursor.pending_wrap);
         try std.testing.expectEqual(region, t.scrolling_region);
         const row = t.screens.active.cursor.page_row;
-        const cells = t.screens.active.cursor.page_pin.node.data.getCells(row);
+        const cells = t.screens.active.cursor.page_pin.node.page().getCells(row);
         try std.testing.expectEqual(@as(u21, 'f'), cells[0].codepoint());
     }
 }
@@ -4895,7 +4903,7 @@ test "win32 terminal undo anchors a cursor above or below the last text row" {
         t.fullReset();
         _ = restoreTerminalUndoState(&t, snapshot, true);
         const row = t.screens.active.cursor.page_row;
-        const cells = t.screens.active.cursor.page_pin.node.data.getCells(row);
+        const cells = t.screens.active.cursor.page_pin.node.page().getCells(row);
         try std.testing.expectEqual(@as(u21, if (saved_y == 1) 't' else 0), cells[0].codepoint());
         try std.testing.expectEqual(@as(terminal.size.CellCountInt, 0), t.screens.active.cursor.y);
     }
@@ -4907,7 +4915,7 @@ test "win32 terminal undo aligns content after replay prunes history" {
     defer t.deinit(alloc);
     var stream = t.vtStream();
     defer stream.deinit();
-    const history_lines = @as(usize, t.screens.active.pages.pages.first.?.data.capacity.rows) * 4;
+    const history_lines = @as(usize, t.screens.active.pages.pages.first.?.capacity().rows) * 4;
     for (0..history_lines) |_| stream.nextSlice("history\r\n");
     stream.nextSlice("\x1b[4;1H\x1b[Jprompt");
     const captured_rows = t.screens.active.pages.total_rows;
@@ -4922,7 +4930,7 @@ test "win32 terminal undo aligns content after replay prunes history" {
     _ = restoreTerminalUndoState(&t, snapshot, true);
     try std.testing.expect(t.screens.active.pages.total_rows < captured_rows);
     const row = t.screens.active.cursor.page_row;
-    const cells = t.screens.active.cursor.page_pin.node.data.getCells(row);
+    const cells = t.screens.active.cursor.page_pin.node.page().getCells(row);
     try std.testing.expectEqual(@as(u21, 'p'), cells[0].codepoint());
     try std.testing.expectEqual(@as(terminal.size.CellCountInt, 0), t.screens.active.cursor.y);
 }
@@ -4940,7 +4948,7 @@ test "win32 terminal undo aligns content with scrollback and trailing blank rows
     _ = restoreTerminalUndoState(&t, snapshot, true);
     try std.testing.expectEqual(@as(terminal.size.CellCountInt, 0), t.screens.active.cursor.y);
     const row = t.screens.active.cursor.page_row;
-    const cells = t.screens.active.cursor.page_pin.node.data.getCells(row);
+    const cells = t.screens.active.cursor.page_pin.node.page().getCells(row);
     try std.testing.expectEqual(@as(u21, 'p'), cells[0].codepoint());
     const all = try t.screens.active.dumpStringAlloc(alloc, .{ .screen = .{} });
     defer alloc.free(all);
@@ -6342,6 +6350,79 @@ pub fn settingsOpenInEditorThunk(ctx: *anyopaque) void {
         app.settings_window.editorOpenFailed();
     };
 }
+/// The All settings page's "Copy name": `text` on the clipboard as plain text,
+/// with the settings window as its owner. False when the clipboard would not
+/// open or take it; the page says so.
+pub fn settingsCopyTextThunk(ctx: *anyopaque, text: []const u8) bool {
+    const app: *App = @ptrCast(@alignCast(ctx));
+    writeClipboardPlainText(app.core_app.alloc, app.settings_window.hwnd, text) catch |err| {
+        std.log.warn("settings: copying a setting's name failed err={}", .{err});
+        return false;
+    };
+    return true;
+}
+
+/// Replace the clipboard with `text` (UTF-8, no line breaks) as
+/// CF_UNICODETEXT.
+fn writeClipboardPlainText(alloc: std.mem.Allocator, owner: ?HWND, text: []const u8) !void {
+    return writeClipboardPlainTextWith(.{}, alloc, owner, text);
+}
+
+/// `writeClipboardPlainText` through `ops`, so a test can fail each native
+/// call without reaching the real clipboard. The text is made ready in memory
+/// of its own before the clipboard is opened (`clipboard_write.write`), so a
+/// failure to allocate or lock it leaves what the clipboard held alone; only
+/// `SetClipboardData` failing after `EmptyClipboard` can still lose it.
+fn writeClipboardPlainTextWith(ops: clipboard_write.Ops, alloc: std.mem.Allocator, owner: ?HWND, text: []const u8) !void {
+    const text_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, text);
+    defer alloc.free(text_w);
+    clipboard_write.write(ops, owner, &.{clipboard_write.unicodeText(text_w)}) catch |err| return switch (err) {
+        // What Settings reported for memory it could not get before this
+        // shared the clipboard writer with the terminal.
+        error.GlobalMemoryUnavailable => error.OutOfMemory,
+        error.ClipboardUnavailable => error.ClipboardUnavailable,
+    };
+}
+
+test "win32 a copy that cannot make its text leaves the clipboard as it was" {
+    const Fake = clipboard_write.Fake;
+    const ops = Fake.ops;
+    const alloc = std.testing.allocator;
+
+    // Memory that cannot be had or locked: the clipboard is never opened, let
+    // alone emptied, and what was allocated is freed.
+    Fake.reset(.alloc, 0);
+    try std.testing.expectError(error.OutOfMemory, writeClipboardPlainTextWith(ops, alloc, null, "font-size"));
+    try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and !Fake.did(.free));
+    Fake.reset(.lock, 0);
+    try std.testing.expectError(error.OutOfMemory, writeClipboardPlainTextWith(ops, alloc, null, "font-size"));
+    try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and Fake.did(.free));
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+    // A clipboard that will not open or empty: ours is freed, and the
+    // clipboard closed when it was opened.
+    Fake.reset(.open, 0);
+    try std.testing.expectError(error.ClipboardUnavailable, writeClipboardPlainTextWith(ops, alloc, null, "font-size"));
+    try std.testing.expect(!Fake.did(.empty) and !Fake.did(.close) and Fake.did(.free));
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+    Fake.reset(.empty, 0);
+    try std.testing.expectError(error.ClipboardUnavailable, writeClipboardPlainTextWith(ops, alloc, null, "font-size"));
+    try std.testing.expect(!Fake.did(.set_data) and Fake.did(.close) and Fake.did(.free));
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+    Fake.reset(.set_data, 0);
+    try std.testing.expectError(error.ClipboardUnavailable, writeClipboardPlainTextWith(ops, alloc, null, "font-size"));
+    try std.testing.expect(Fake.did(.close) and Fake.did(.free));
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
+
+    // A copy that works: the text is ready before the clipboard is opened,
+    // and the clipboard keeps the memory.
+    Fake.reset(.none, 0);
+    try writeClipboardPlainTextWith(ops, alloc, null, "font-size");
+    try std.testing.expectEqualSlices(Fake.Step, &.{ .alloc, .lock, .unlock, .open, .empty, .set_data, .close }, Fake.recorded());
+    try std.testing.expectEqual(@as(usize, 1), Fake.taken());
+    try std.testing.expectEqual(@as(usize, 0), Fake.leaked() + Fake.freed());
+    const expected = std.unicode.utf8ToUtf16LeStringLiteral("font-size");
+    try std.testing.expectEqualSlices(u8, std.mem.sliceAsBytes(expected[0 .. expected.len + 1]), Fake.payload(0));
+}
 pub fn settingsCurrentConfigThunk(ctx: *anyopaque) *const configpkg.Config {
     const app: *const App = @ptrCast(@alignCast(ctx));
     return &app.config;
@@ -6516,6 +6597,34 @@ pub fn settingsSaveTargetThunk(ctx: *anyopaque, buf: []u8) ?[]const u8 {
     defer alloc.free(path);
     return win32_config_problems.pathTail(buf, path, settings_save_target_bytes);
 }
+/// The All settings page's config file: the file a save writes, by its whole
+/// path (`settingsSaveTargetThunk` shortens it for display), read through
+/// `readConfigSource`, which opens nothing it cannot show to be local.
+pub fn settingsConfigSourceThunk(ctx: *anyopaque, alloc: Allocator) win32_settings.ConfigSource {
+    const app: *App = @ptrCast(@alignCast(ctx));
+    return win32_settings.readConfigSource(alloc, app.cli_config_override_path);
+}
+
+test "settings the All settings page reads the config file by its whole path, however long" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    // A folder name of 205 UTF-8 bytes ("é" is two), so the whole path is
+    // over the 240 bytes the Advanced page's line shows.
+    const folder = "long-" ++ "\u{e9}" ** 100;
+    try tmp.dir.makePath(folder);
+    try tmp.dir.writeFile(.{ .sub_path = folder ++ "\\config.ghostty", .data = "font-size = 15\n" });
+    const path = try tmp.dir.realpathAlloc(alloc, folder ++ "\\config.ghostty");
+    defer alloc.free(path);
+    try std.testing.expect(path.len > settings_save_target_bytes);
+    var app: App = undefined;
+    app.cli_config_override_path = path;
+    var source = settingsConfigSourceThunk(&app, alloc);
+    defer source.deinit(alloc);
+    try std.testing.expectEqualStrings(path, source.path.?);
+    try std.testing.expectEqualStrings("font-size = 15\n", source.file.bytes);
+}
+
 pub fn settingsConfigProblemsThunk(ctx: *anyopaque, buf: []u8) []const u8 {
     const app: *App = @ptrCast(@alignCast(ctx));
     return app.config_problems.listText(buf);

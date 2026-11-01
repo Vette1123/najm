@@ -112,6 +112,8 @@ pub const ConfirmPrompt = struct {
     /// read, so the user's next key lands on the prompt: such a prompt
     /// opens on Cancel, ignores Allow for its first
     /// `program_confirm_arming_ms`, and never replaces an open prompt.
+    /// A link prompt (`App.askBeforeOpeningLink`) sets it too, but the
+    /// user's click raises it, so it replaces an open prompt.
     program_request: bool = false,
 };
 
