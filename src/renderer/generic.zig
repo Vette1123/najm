@@ -3245,10 +3245,12 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
                 // We want to do font shaping as long as the cursor is
                 // visible on this viewport.
+                // Not on a reordered row: a break at the cursor would pull the
+                // letters around it out of their joined forms as it moves.
                 .cursor_x = cursor_x: {
+                    if (reordered) break :cursor_x null;
                     const vp = state.cursor.viewport orelse break :cursor_x null;
                     if (vp.y != y) break :cursor_x null;
-                    if (reordered) break :cursor_x self.bidi.logical_to_visual.items[vp.x];
                     break :cursor_x vp.x;
                 },
             };
