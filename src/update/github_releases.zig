@@ -4466,16 +4466,16 @@ test "portable update ZIP extraction inflates fixed Huffman blocks past 64 KiB (
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try writeTestPortableZip(alloc, tmp.dir, "fixed.zip", &.{
-        .{ .name = "noctty/", .data = "", .contents = "" },
-        .{ .name = "noctty/themes/fixed", .method = .deflate, .data = fixed_huffman_deflate, .contents = frame },
-        .{ .name = "noctty/LICENSE", .data = "stored", .contents = "stored" },
+        .{ .name = "najm/", .data = "", .contents = "" },
+        .{ .name = "najm/themes/fixed", .method = .deflate, .data = fixed_huffman_deflate, .contents = frame },
+        .{ .name = "najm/LICENSE", .data = "stored", .contents = "stored" },
     });
     var out = try extractTestPortableZip(alloc, tmp.dir, "fixed.zip");
     defer out.close();
-    const inflated = try out.readFileAlloc(alloc, "noctty/themes/fixed", 1 << 20);
+    const inflated = try out.readFileAlloc(alloc, "najm/themes/fixed", 1 << 20);
     defer alloc.free(inflated);
     try std.testing.expectEqualSlices(u8, frame, inflated);
-    const stored = try out.readFileAlloc(alloc, "noctty/LICENSE", 64);
+    const stored = try out.readFileAlloc(alloc, "najm/LICENSE", 64);
     defer alloc.free(stored);
     try std.testing.expectEqualStrings("stored", stored);
 }
@@ -4508,13 +4508,13 @@ test "portable update ZIP extraction checks each entry's CRC-32 and sizes" {
     defer tmp.cleanup();
     // std.zip.extract wrote every one of these without an error.
     for ([_]struct { entry: TestZipEntry, err: anyerror }{
-        .{ .entry = .{ .name = "noctty/stored", .data = hello, .contents = hello, .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
-        .{ .entry = .{ .name = "noctty/inflated", .method = .deflate, .data = hello_deflate, .contents = hello, .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
-        .{ .entry = .{ .name = "noctty/directory/", .data = "", .contents = "", .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
+        .{ .entry = .{ .name = "najm/stored", .data = hello, .contents = hello, .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
+        .{ .entry = .{ .name = "najm/inflated", .method = .deflate, .data = hello_deflate, .contents = hello, .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
+        .{ .entry = .{ .name = "najm/directory/", .data = "", .contents = "", .crc32 = 0x12345678 }, .err = error.PortableArchiveChecksumMismatch },
         // Decodes past its declared size: std stopped there and kept the rest out.
-        .{ .entry = .{ .name = "noctty/longer", .method = .deflate, .data = hello_deflate, .contents = hello[0 .. hello.len - 1] }, .err = error.InvalidPortableArchive },
+        .{ .entry = .{ .name = "najm/longer", .method = .deflate, .data = hello_deflate, .contents = hello[0 .. hello.len - 1] }, .err = error.InvalidPortableArchive },
         // Ends past its compressed size: std read on into the next record.
-        .{ .entry = .{ .name = "noctty/overrun", .method = .deflate, .data = hello_deflate, .contents = hello, .compressed_size = hello_deflate.len - 3 }, .err = error.InvalidPortableArchive },
+        .{ .entry = .{ .name = "najm/overrun", .method = .deflate, .data = hello_deflate, .contents = hello, .compressed_size = hello_deflate.len - 3 }, .err = error.InvalidPortableArchive },
     }) |case| {
         try writeTestPortableZip(alloc, tmp.dir, "case.zip", &.{case.entry});
         try std.testing.expectError(case.err, extractTestPortableZip(alloc, tmp.dir, "case.zip"));
@@ -4529,13 +4529,13 @@ test "portable update ZIP extraction refuses a local extra field that runs past 
     // three stray bytes, which std also ignored.
     const framed = "\x55\x54\x05\x00\x01\x00\x00\x00\x00" ++ "\x00\x00\x00";
     try writeTestPortableZip(alloc, tmp.dir, "framed.zip", &.{
-        .{ .name = "noctty/framed", .data = "framed", .contents = "framed", .local_extra = framed },
+        .{ .name = "najm/framed", .data = "framed", .contents = "framed", .local_extra = framed },
     });
     var out = try extractTestPortableZip(alloc, tmp.dir, "framed.zip");
     out.close();
     // The same field claiming eight data bytes overruns the nine-byte area.
     try writeTestPortableZip(alloc, tmp.dir, "overrun.zip", &.{
-        .{ .name = "noctty/overrun", .data = "overrun", .contents = "overrun", .local_extra = "\x55\x54\x08\x00\x01\x00\x00\x00\x00" },
+        .{ .name = "najm/overrun", .data = "overrun", .contents = "overrun", .local_extra = "\x55\x54\x08\x00\x01\x00\x00\x00\x00" },
     });
     try std.testing.expectError(error.InvalidPortableArchive, extractTestPortableZip(alloc, tmp.dir, "overrun.zip"));
 }
@@ -4550,7 +4550,7 @@ test "portable update ZIP extraction refuses a local header cut off by the end o
     // a directory's local header, which declares three extra bytes the file
     // does not have; in the second case its name is cut short too, where
     // skipping it with discardAll looped forever.
-    const entry: TestZipEntry = .{ .name = "noctty/directory/", .data = "", .contents = "" };
+    const entry: TestZipEntry = .{ .name = "najm/directory/", .data = "", .contents = "" };
     var local = testZipLocalHeader(entry);
     local.extra_len = 3;
     const directory_len = @sizeOf(std.zip.CentralDirectoryFileHeader) + entry.name.len;
@@ -4588,12 +4588,12 @@ test "portable update ZIP extraction fails cleanly on corrupt deflate data" {
             data[random.uintLessThan(usize, data.len)] ^= random.int(u8) | 1;
         }
         try writeTestPortableZip(alloc, tmp.dir, "fuzz.zip", &.{
-            .{ .name = "noctty/fuzz", .method = .deflate, .data = data[0..len], .contents = frame },
+            .{ .name = "najm/fuzz", .method = .deflate, .data = data[0..len], .contents = frame },
         });
         if (extractTestPortableZip(alloc, tmp.dir, "fuzz.zip")) |out_dir| {
             var out = out_dir;
             defer out.close();
-            const inflated = try out.readFileAlloc(alloc, "noctty/fuzz", 1 << 20);
+            const inflated = try out.readFileAlloc(alloc, "najm/fuzz", 1 << 20);
             defer alloc.free(inflated);
             try std.testing.expectEqualSlices(u8, frame, inflated);
         } else |err| switch (err) {

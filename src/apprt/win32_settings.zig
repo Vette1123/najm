@@ -9548,7 +9548,7 @@ test "settings sections shown in any order leave the window as one made whole at
             // Every window in the same z-order, with the same styles, place,
             // client area, check, dropdown heights, text and font, and every
             // field and text with its UIA provider.
-            try std.testing.expectEqual(@as(usize, 76), states[0].len);
+            try std.testing.expectEqual(@as(usize, 80), states[0].len);
             try State.expectSame(&states[0], &states[1]);
             try std.testing.expectEqual(providers[0], providers[1]);
             for (providers[1]) |provided| try std.testing.expect(provided);
