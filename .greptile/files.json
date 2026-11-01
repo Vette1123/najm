@@ -244,8 +244,11 @@
       "scope": [
         "src/apprt/win32_settings*.zig",
         "src/apprt/win32/save_target.zig",
+        "src/config/Config.zig",
+        "src/config/origin.zig",
         "src/os/local_path.zig",
         "test/windows/settings-uia-*.ps1",
+        "test/windows/settings-open-readiness.psm1",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
         "src/apprt/win32/chrome_scene.zig",
