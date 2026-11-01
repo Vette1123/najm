@@ -134,12 +134,14 @@ pub const Shaper = struct {
     pub fn shape(self: *Shaper, run: font.shape.TextRun) ![]const font.shape.Cell {
         // We only do shaping if the font is not a special-case. For special-case
         // fonts, the codepoint == glyph_index so we don't need to run any shaping.
+        var cell_width: u32 = 1;
         if (run.font_index.special() == null) {
             // We have to lock the grid to get the face and unfortunately
             // freetype faces (typically used with harfbuzz) are not thread
             // safe so this has to be an exclusive lock.
             run.grid.lock.lock();
             defer run.grid.lock.unlock();
+            cell_width = run.grid.metrics.cell_width;
 
             const face = try run.grid.resolver.collection.getFace(run.font_index);
             const i = if (!face.quirks_disable_default_font_features) 0 else i: {
@@ -170,15 +172,13 @@ pub const Shaper = struct {
         var cell_offset: CellOffset = .{};
 
         // Right to left, the codepoints not yet drawn. The last of them holds
-        // the leftmost cell still to fill. A ligature's cluster is its first
-        // letter, the rightmost of its cells, so it starts at this cell
-        // instead, or it would draw over the cell to its right.
+        // the leftmost cell still to fill, see `rtlCell`.
         var rtl_remaining: usize = self.codepoints.items.len;
         var rtl_started = false;
 
         // Convert all our info/pos to cells and set it.
         self.cell_buf.clearRetainingCapacity();
-        for (info, pos) |info_v, pos_v| {
+        for (info, pos, 0..) |info_v, pos_v, glyph| {
             // info_v.cluster is the index into our codepoints array. We use it
             // to get the original cluster.
             const index = info_v.cluster;
@@ -192,12 +192,18 @@ pub const Shaper = struct {
                 // they arrive in.
                 if (!rtl_started or cluster > run_offset.cluster) {
                     rtl_started = true;
-                    cell_offset = .{
-                        .cluster = self.codepoints.items[rtl_remaining - 1].cluster,
-                        .x = run_offset.x,
-                    };
+                    const cell = rtlCell(
+                        self.codepoints.items,
+                        info,
+                        pos,
+                        glyph,
+                        self.codepoints.items[rtl_remaining - 1].cluster,
+                        cell_width,
+                    );
+                    cell_offset = .{ .cluster = cell.start, .x = run_offset.x };
+                    run_offset.cluster = cell.last;
                     while (rtl_remaining > 0 and
-                        self.codepoints.items[rtl_remaining - 1].cluster <= cluster)
+                        self.codepoints.items[rtl_remaining - 1].cluster <= cell.last)
                     {
                         rtl_remaining -= 1;
                     }
@@ -794,6 +800,76 @@ test "shape arabic forced LTR" {
 
 /// Reverse the cells of a run while each cell keeps its own codepoints in
 /// order, so a base stays ahead of its marks.
+const RtlCell = struct {
+    /// The cell the glyphs draw in.
+    start: u32,
+    /// The rightmost cell they account for.
+    last: u32,
+};
+
+/// Where the glyph at `glyph`, which starts a new cell in a right-to-left run,
+/// draws. `leftmost` is the leftmost cell not yet filled.
+///
+/// A glyph with no advance shares its pen with the glyph after it: Cascadia
+/// draws lam-alef as an alef of advance 0 over a lam. Lam-alef is two letters
+/// in two cells that can be one advance wide (Cascadia and Kawkab both are), so
+/// it sits in its right cell, where lam joins the letter before it. Alef never
+/// joins the letter after it, so the blank cell falls at a break in the script.
+/// A ligature as wide as its cells fills them from the left, as usual.
+fn rtlCell(
+    codepoints: []const Shaper.Codepoint,
+    info: anytype,
+    pos: anytype,
+    glyph: usize,
+    leftmost: u32,
+    cell_width: u32,
+) RtlCell {
+    var last = codepoints[info[glyph].cluster].cluster;
+    var advance: i32 = pos[glyph].x_advance;
+    var next = glyph;
+    while (advance == 0 and next + 1 < info.len) {
+        next += 1;
+        last = @max(last, codepoints[info[next].cluster].cluster);
+        advance += pos[next].x_advance;
+    }
+
+    const width: i32 = @intCast(cell_width);
+    const pixels = (advance + 0b100_000) >> 6;
+    const cells = @divFloor(pixels + @divFloor(width, 2), width);
+    const spanned: i32 = @intCast(last + 1 - leftmost);
+    const drawn: u32 = @intCast(std.math.clamp(cells, 1, spanned));
+    return .{ .start = last + 1 - drawn, .last = last };
+}
+
+test "rtlCell keeps a zero-advance alef on its lam, in the right cell" {
+    const Info = struct { cluster: u32 };
+    const Pos = struct { x_advance: i32 };
+    // Cascadia's lam-alef in cells 3 and 4, 16 pixels wide: alef then lam.
+    const codepoints = [_]Shaper.Codepoint{
+        .{ .cluster = 4, .codepoint = 0x0644 },
+        .{ .cluster = 3, .codepoint = 0x0627 },
+    };
+    const info = [_]Info{ .{ .cluster = 1 }, .{ .cluster = 0 } };
+    const pos = [_]Pos{ .{ .x_advance = 0 }, .{ .x_advance = 16 << 6 } };
+    const cell = rtlCell(&codepoints, &info, &pos, 0, 3, 16);
+    try std.testing.expectEqual(@as(u32, 4), cell.start);
+    try std.testing.expectEqual(@as(u32, 4), cell.last);
+}
+
+test "rtlCell starts a ligature as wide as its cells at the leftmost" {
+    const Info = struct { cluster: u32 };
+    const Pos = struct { x_advance: i32 };
+    const codepoints = [_]Shaper.Codepoint{
+        .{ .cluster = 4, .codepoint = 0x0644 },
+        .{ .cluster = 3, .codepoint = 0x0627 },
+    };
+    const info = [_]Info{.{ .cluster = 0 }};
+    const pos = [_]Pos{.{ .x_advance = 32 << 6 }};
+    const cell = rtlCell(&codepoints, &info, &pos, 0, 3, 16);
+    try std.testing.expectEqual(@as(u32, 3), cell.start);
+    try std.testing.expectEqual(@as(u32, 4), cell.last);
+}
+
 fn reverseClusters(codepoints: []Shaper.Codepoint) void {
     std.mem.reverse(Shaper.Codepoint, codepoints);
     var start: usize = 0;
@@ -880,17 +956,17 @@ test "shape joins right-to-left letters and keeps X increasing" {
     try std.testing.expect(buf[0].glyph_index != buf[1].glyph_index);
 }
 
-test "shape starts a right-to-left ligature at its leftmost cell" {
+test "shape keeps a one-cell lam-alef in lam's cell, joined to its right" {
     const alloc = std.testing.allocator;
     var testdata = try testShaperWithFont(alloc, .arabic);
     defer testdata.deinit();
 
     var buf: [16]font.shape.Cell = undefined;
-    // Lam and alef take two cells, as one glyph or two.
+    // Kawkab draws lam-alef as one glyph one cell wide, so of the two cells
+    // the right one, where lam joins, has it.
     const len = try shapeRtlForTest(alloc, &testdata, "\u{0644}\u{0627}", 8, &buf);
-    try std.testing.expect(len >= 1);
-    try std.testing.expectEqual(@as(u16, 8), buf[0].x);
-    for (buf[1..len], 0..) |cell, i| try std.testing.expect(cell.x >= buf[i].x);
+    try std.testing.expectEqual(@as(usize, 1), len);
+    try std.testing.expectEqual(@as(u16, 9), buf[0].x);
 }
 
 test "shape emoji width" {
