@@ -11,6 +11,7 @@
         "src/pty.zig",
         "src/pty_transport_probe.zig",
         "src/termio/**",
+        "src/os/main.zig",
         "src/build/ConptyRedist.zig",
         "scripts/stage-conpty-redist.ps1",
         "src/apprt/win32.zig",
@@ -22,7 +23,8 @@
         "src/main_ghostty.zig",
         "src/terminal/Screen.zig",
         "src/terminal/resize_replay.zig",
-        "test/windows/interactive-win11-conpty-sync.ps1"
+        "test/windows/interactive-win11-conpty-sync.ps1",
+        "src/os/local_path.zig"
       ]
     },
     {
@@ -42,9 +44,15 @@
       "description": "Self-Correction Log: terminal core (VT parser, PageList, OSC parsers, search thread, core Surface).",
       "scope": [
         "src/terminal/**",
+        "src/inspector/widgets/pagelist.zig",
+        "pkg/wuffs/**",
         "src/Surface.zig",
         "src/termio/stream_handler.zig",
         "src/os/hostname.zig",
+        "src/os/file.zig",
+        "src/os/TempDir.zig",
+        "src/os/local_path.zig",
+        "src/os/path.zig",
         "src/config/windows_shell.zig",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
@@ -58,6 +66,7 @@
       "description": "Self-Correction Log: renderer, GPU, pacing and fonts.",
       "scope": [
         "src/renderer/**",
+        "src/renderer.zig",
         "src/font/**",
         "src/apprt/win32/pixel_format.zig",
         "src/apprt/win32/wgl.zig",
@@ -69,7 +78,11 @@
         "src/apprt/win32/host.zig",
         "src/apprt/win32/surface_presentation.zig",
         "src/apprt/win32/terminal_window.zig",
-        "src/termio/Thread.zig"
+        "src/apprt/win32_power.zig",
+        "src/os/monotonic.zig",
+        "build.zig.zon",
+        "src/termio/Thread.zig",
+        "src/Surface.zig"
       ]
     },
     {
@@ -128,7 +141,8 @@
         "src/apprt/win32/terminal_window.zig",
         "src/apprt/win32_palette*.zig",
         "src/apprt/win32_universal_palette.zig",
-        "src/apprt/win32/labels.zig"
+        "src/apprt/win32/labels.zig",
+        "build.zig.zon"
       ]
     },
     {
@@ -193,18 +207,20 @@
         "src/apprt/win32_link_preview.zig",
         "src/Surface.zig",
         "src/config/url.zig",
-        "src/apprt/win32/local_target.zig",
+        "test/windows/link-opener-pathext-probe.ps1",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
         "src/apprt/win32/host.zig",
         "src/apprt/win32/session.zig",
         "src/apprt/win32/terminal_window.zig",
         "src/terminal/kitty/graphics_image.zig",
+        "src/terminal/kitty/windows.zig",
         "src/config/Config.zig",
         "src/config/windows_visual_studio.zig",
         "src/apprt/win32_elevation.zig",
         "src/cli/list_profiles.zig",
-        "src/config/command.zig"
+        "src/config/command.zig",
+        "src/apprt/win32/labels.zig"
       ]
     },
     {
@@ -229,7 +245,11 @@
       "scope": [
         "src/apprt/win32_settings*.zig",
         "src/apprt/win32/save_target.zig",
+        "src/config/Config.zig",
+        "src/config/origin.zig",
+        "src/os/local_path.zig",
         "test/windows/settings-uia-*.ps1",
+        "test/windows/settings-open-readiness.psm1",
         "src/apprt/win32.zig",
         "src/apprt/win32/app.zig",
         "src/apprt/win32/chrome_scene.zig",
@@ -304,6 +324,7 @@
         "build.zig.zon",
         "src/build/**",
         "src/update/**",
+        "pkg/wuffs/**",
         "scripts/**",
         "dist/**",
         ".github/**"
@@ -335,7 +356,9 @@
         "scripts/zig-test-stacks.ps1",
         "src/terminal/PageList.zig",
         "src/apprt/win32/test_support.zig",
-        "src/apprt/win32/registry.zig"
+        "src/apprt/win32/registry.zig",
+        "src/apprt/win32_compositor_native.zig",
+        "src/apprt/win32/sys.zig"
       ]
     },
     {

@@ -2357,6 +2357,9 @@ pub fn ntOpenDontReparse(
     options: windows.ULONG,
     handle: *windows.HANDLE,
 ) ?windows.NTSTATUS {
+    // Zig 0.15.2's `sliceToPrefixedFileW` writes past its fixed buffer for a
+    // longer path; a WTF-8 byte is at most one unit, so this always fits.
+    if (path.len > windows.PATH_MAX_WIDE) return null;
     var wide = windows.sliceToPrefixedFileW(null, path) catch return null;
     // Older Windows also treats the DOS drive-letter mapping as a reparse.
     // Resolve just that mapping without opening a filesystem target, and accept
@@ -2899,27 +2902,7 @@ pub fn isWslArgv(argv: []const []const u8) bool {
     return isExecutableName(argv[0], "wsl") or isExecutableName(argv[0], "wsl.exe");
 }
 
-pub fn isWslPath(path: []const u8) bool {
-    return std.mem.startsWith(u8, path, "/") or
-        std.mem.startsWith(u8, path, "\\\\wsl.localhost\\") or
-        std.mem.startsWith(u8, path, "\\\\wsl$\\");
-}
-
-/// Convert a local path coming from OSC 7 into a Windows-local path string.
-/// WSL paths stay WSL-style so they can be inherited into later WSL shells.
-pub fn osc7PathToLocal(alloc: Allocator, path: []const u8) ![]const u8 {
-    if (isWindowsUriPath(path)) return try uriPathToWindows(alloc, path);
-    // A UNC path carried in a URI keeps the URI's leading `/`. Strip it before
-    // the WSL check below, which would otherwise treat the whole string as a
-    // POSIX path and hand back an unusable `/\\server\share` cwd.
-    if (isUncUriPath(path)) {
-        const unc = path[1..];
-        if (isWslPath(unc)) return try normalizeWslPath(alloc, unc);
-        return try alloc.dupe(u8, unc);
-    }
-    if (isWslPath(path)) return try normalizeWslPath(alloc, path);
-    return try alloc.dupe(u8, path);
-}
+pub const isWslPath = internal_os.path.isWslPath;
 
 /// Translate a Windows or WSL-style path into a WSL path. Returns `null` for
 /// paths we can't confidently map.
@@ -4645,49 +4628,9 @@ fn isCdFlag(arg: []const u8) bool {
     return std.mem.eql(u8, arg, "--cd") or std.mem.startsWith(u8, arg, "--cd=");
 }
 
-fn isWindowsUriPath(path: []const u8) bool {
-    return path.len >= 4 and
-        path[0] == '/' and
-        std.ascii.isAlphabetic(path[1]) and
-        path[2] == ':' and
-        isSeparator(path[3]);
-}
-
-/// True for a UNC path that still carries the leading `/` of the URI it came
-/// from, e.g. `/\\server\share\dir`. cmd's `$P` expands to a raw UNC path, so
-/// `kitty-shell-cwd://localhost/$P` yields exactly this shape.
-/// A `kitty-shell-cwd` path whose body is a Windows UNC path, i.e. the URI
-/// separator followed by `\\server\share...`.
-///
-/// The remainder must be backslash-separated. Backslashes are legal in POSIX
-/// filenames, so a WSL or POSIX shell could in principle report a directory
-/// such as `/\\server/share`; requiring that no forward slash appears after
-/// the URI separator keeps that case on the WSL path where it belongs, while
-/// still matching everything cmd's `$P` can produce (cmd always emits
-/// backslashes).
-fn isUncUriPath(path: []const u8) bool {
-    if (path.len < 4) return false;
-    if (path[0] != '/' or path[1] != '\\' or path[2] != '\\') return false;
-    if (isSeparator(path[3])) return false;
-
-    // Must be backslash-separated throughout: a forward slash proves this is a
-    // POSIX path that merely begins with backslashes, not the form cmd's `$P`
-    // produces.
-    if (std.mem.indexOfScalar(u8, path[3..], '/') != null) return false;
-
-    // A UNC path needs both a host and a non-empty share (`\\server\share`).
-    // `/\\server` alone is a legal POSIX filename, never a usable UNC path.
-    const host = path[3..];
-    const sep = std.mem.indexOfScalar(u8, host, '\\') orelse return false;
-    return sep + 1 < host.len;
-}
-
-pub fn isDriveAbsolutePath(path: []const u8) bool {
-    return path.len >= 3 and
-        std.ascii.isAlphabetic(path[0]) and
-        path[1] == ':' and
-        isSeparator(path[2]);
-}
+const isWindowsUriPath = internal_os.path.isWindowsUriPath;
+const isUncUriPath = internal_os.path.isUncUriPath;
+pub const isDriveAbsolutePath = internal_os.path.isDriveAbsolutePath;
 
 /// A drive-absolute path that is not a network or device path and not on a
 /// network drive, so a metadata query cannot wait on a network timeout.
@@ -4709,14 +4652,7 @@ fn isExeOrCom(extension: []const u8) bool {
         std.ascii.eqlIgnoreCase(extension, ".com");
 }
 
-/// Return true when a Windows path contains no bytes that can terminate or
-/// split a CreateProcess environment/current-directory value or a window title.
-pub fn isSafeWindowsPath(path: []const u8) bool {
-    for (path) |byte| {
-        if (std.ascii.isControl(byte)) return false;
-    }
-    return true;
-}
+pub const isSafeWindowsPath = internal_os.path.isSafeWindowsPath;
 
 fn isObviouslyInvalidWindowsCurrentDirectory(path: []const u8) bool {
     return path.len == 0 or
@@ -4735,122 +4671,8 @@ fn trimLeadingSeparators(path: []const u8) []const u8 {
     return std.mem.trimLeft(u8, path, "/\\");
 }
 
-fn normalizeWslPath(alloc: Allocator, path: []const u8) ![]const u8 {
-    if (std.mem.startsWith(u8, path, "/")) return try alloc.dupe(u8, path);
-
-    for ([_][]const u8{
-        "\\\\wsl.localhost\\",
-        "\\\\wsl$\\",
-    }) |prefix| {
-        if (!std.mem.startsWith(u8, path, prefix)) continue;
-
-        const rest = path[prefix.len..];
-        const distro_sep = std.mem.indexOfAny(u8, rest, "/\\") orelse return try alloc.dupe(u8, "/");
-        const distro_rest = trimLeadingSeparators(rest[distro_sep..]);
-        if (distro_rest.len == 0) return try alloc.dupe(u8, "/");
-
-        var buf: std.ArrayList(u8) = .empty;
-        defer buf.deinit(alloc);
-        try buf.append(alloc, '/');
-        try appendNormalizedPath(&buf, alloc, distro_rest);
-        return try buf.toOwnedSlice(alloc);
-    }
-
-    return try alloc.dupe(u8, path);
-}
-
-fn uriPathToWindows(alloc: Allocator, path: []const u8) ![]const u8 {
-    return try drivePathToWindows(alloc, path[1], path[3..]);
-}
-
-/// `rest` is what follows the `X:` and its first separator.
-fn drivePathToWindows(alloc: Allocator, drive: u8, rest: []const u8) ![]const u8 {
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(alloc);
-
-    try buf.append(alloc, drive);
-    try buf.appendSlice(alloc, ":\\");
-    try appendWindowsPath(&buf, alloc, trimLeadingSeparators(rest));
-    return try buf.toOwnedSlice(alloc);
-}
-
-/// The Windows path in the plain form of ConEmu's OSC 9;9: `C:\Users\me`,
-/// `C:/Users/me`, or either in one pair of double quotes, as oh-my-posh's
-/// `osc99` and nushell send it. Returns null for anything else, which the
-/// caller then reads as a URL (noctty's cmd integration sends
-/// `kitty-shell-cwd://localhost/%P`).
-///
-/// Only a drive-absolute path qualifies, plus the WSL form: `wslpath -w`, the
-/// recipe Windows Terminal documents for WSL, prints `\\wsl.localhost\Ubuntu\home\me`,
-/// which maps to the distro's own `/home/me` exactly as it does in an OSC 7
-/// URL (`osc7PathToLocal`). Any other UNC path, a device path and a relative
-/// path are not taken. The result is not checked for control bytes or a
-/// network shape; `isSafeWindowsPath` and `os.path.isNetworkOrDevicePath` do
-/// that.
-pub fn conemuPathToLocal(alloc: Allocator, value: []const u8) !?[]const u8 {
-    const path = stripOuterQuotes(value);
-    // A quote left over is not part of any Windows path.
-    if (std.mem.indexOfScalar(u8, path, '"') != null) return null;
-    if (isDriveAbsolutePath(path)) return try drivePathToWindows(alloc, path[0], path[3..]);
-    if (std.mem.startsWith(u8, path, "\\\\wsl.localhost\\") or
-        std.mem.startsWith(u8, path, "\\\\wsl$\\")) return try normalizeWslPath(alloc, path);
-    return null;
-}
-
-/// The Windows path an MSYS2 or Cygwin program means by an absolute path on a
-/// drive: MSYS2 (Git Bash included) prints `C:\Users\me` as `/c/Users/me`, and
-/// Cygwin as `/cygdrive/c/Users/me`. Returns null for anything else:
-/// - a drive's root (`/c`, `/c/`, `/c/x/..`): in text a lone `/c` is nearly
-///   always a switch (`cmd /c`, `findstr /c:x`), and a drive root is never a
-///   link (`url.regex` does not match `C:\`). A shell's directory, where `/c`
-///   is meant, takes `msysDriveDirToWindows`;
-/// - a `..` above the drive, which MSYS2 reads as its own root (`/c/..` is `/`);
-/// - a first segment of more than one letter (`/cd/x`), a rooted path that is
-///   not a drive (`/home/me`, `/usr/bin`), and every network or device shape,
-///   since `//server/share` and `/\server` never start with a letter.
-///
-/// Only for a pane that is not WSL: there `/c/x` is a Linux path. The drive is
-/// not checked; whatever opens the result must refuse a letter that is not a
-/// local drive, as it does for the same text written `C:\x`.
-pub fn msysDrivePathToWindows(alloc: Allocator, path: []const u8) Allocator.Error!?[]const u8 {
-    return msysToWindows(alloc, path, 1);
-}
-
-/// `msysDrivePathToWindows` for a directory a shell reports (`pwd`, OSC 7),
-/// where `/c` is `C:\`.
-pub fn msysDriveDirToWindows(alloc: Allocator, path: []const u8) Allocator.Error!?[]const u8 {
-    return msysToWindows(alloc, path, 0);
-}
-
-/// Whether `msysDrivePathToWindows` reads `path` as a drive path.
-pub fn isMsysDrivePath(path: []const u8) bool {
-    return msysDriveRoot(path, 1) != null;
-}
-
-fn msysToWindows(alloc: Allocator, path: []const u8, min_depth: usize) Allocator.Error!?[]const u8 {
-    const rooted = msysDriveRoot(path, min_depth) orelse return null;
-    return try drivePathToWindows(alloc, std.ascii.toUpper(rooted[1]), rooted[2..]);
-}
-
-/// `path` from its `/<letter>` on, without the `/cygdrive` prefix, when it
-/// names something at least `min_depth` levels below the drive's root and no
-/// `..` leaves the drive. A name of only dots and spaces adds no level:
-/// Windows drops a final one (`C:\...` is `C:\`).
-fn msysDriveRoot(path: []const u8, min_depth: usize) ?[]const u8 {
-    const rooted = if (std.mem.startsWith(u8, path, "/cygdrive/")) path["/cygdrive".len..] else path;
-    if (rooted.len < 2 or rooted[0] != '/' or !std.ascii.isAlphabetic(rooted[1])) return null;
-    if (rooted.len > 2 and rooted[2] != '/') return null;
-    var depth: usize = 0;
-    var names = std.mem.tokenizeAny(u8, rooted[2..], "/\\");
-    while (names.next()) |name| {
-        if (std.mem.eql(u8, name, "..")) {
-            depth = std.math.sub(usize, depth, 1) catch return null;
-        } else if (std.mem.trim(u8, name, ". ").len > 0) {
-            depth += 1;
-        }
-    }
-    return if (depth >= min_depth) rooted else null;
-}
+const normalizeWslPath = internal_os.path.normalizeWslPath;
+const uriPathToWindows = internal_os.path.uriPathToWindows;
 
 fn appendNormalizedPath(
     buf: *std.ArrayList(u8),
@@ -4858,14 +4680,6 @@ fn appendNormalizedPath(
     path: []const u8,
 ) !void {
     for (path) |c| try buf.append(alloc, if (c == '\\') '/' else c);
-}
-
-fn appendWindowsPath(
-    buf: *std.ArrayList(u8),
-    alloc: Allocator,
-    path: []const u8,
-) !void {
-    for (path) |c| try buf.append(alloc, if (c == '/') '\\' else c);
 }
 
 /// A machine for `defaultCommandWithHost`: the `pwsh.exe` on `PATH` (null when
@@ -5098,6 +4912,21 @@ test "appExecLinkTarget reads the third string and rejects a cut, foreign or odd
     var zeroed = [_]u8{0} ** 512;
     @memcpy(zeroed[0..40], record[0..40]);
     try std.testing.expect(appExecLinkTarget(&zeroed, &out) == null);
+}
+
+test "ntOpenDontReparse refuses a path past PATH_MAX_WIDE before converting it" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const alloc = std.testing.allocator;
+    // Zig 0.15.2 converts a path into a fixed buffer of PATH_MAX_WIDE units
+    // without checking that it fits, and a panic there ends the process.
+    for ([_]usize{ windows.PATH_MAX_WIDE + 1, 40000 }) |len| {
+        const path = try alloc.alloc(u8, len);
+        defer alloc.free(path);
+        @memset(path, 'a');
+        @memcpy(path[0..3], "C:\\");
+        var handle: windows.HANDLE = undefined;
+        try std.testing.expectEqual(@as(?windows.NTSTATUS, null), ntOpenDontReparse(path, windows.FILE_READ_ATTRIBUTES, 0, &handle));
+    }
 }
 
 test "shell discovery refuses reparse ancestors before reading the target" {
@@ -5882,220 +5711,6 @@ test "pathToWsl converts wsl unc path" {
     defer alloc.free(result);
 
     try testing.expectEqualStrings("/home/aman/src", result);
-}
-
-test "osc7PathToLocal converts windows file uri path" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const result = try osc7PathToLocal(alloc, "/C:/Users/aman/src");
-    defer alloc.free(result);
-
-    try testing.expectEqualStrings("C:\\Users\\aman\\src", result);
-}
-
-test "conemuPathToLocal reads the plain path of OSC 9;9" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const cases = [_]struct { []const u8, []const u8 }{
-        .{ "C:\\Users\\aman\\src", "C:\\Users\\aman\\src" },
-        // oh-my-posh quotes the path.
-        .{ "\"C:\\Users\\aman\\src\"", "C:\\Users\\aman\\src" },
-        // A path with spaces needs no quotes of its own.
-        .{ "C:\\Program Files\\Git", "C:\\Program Files\\Git" },
-        // A forward slash is the other separator, and the letter keeps its case.
-        .{ "d:/work/noctty", "d:\\work\\noctty" },
-        .{ "C:\\", "C:\\" },
-        .{ "C:/", "C:\\" },
-    };
-    for (cases) |case| {
-        const result = (try conemuPathToLocal(alloc, case[0])).?;
-        defer alloc.free(result);
-        try testing.expectEqualStrings(case[1], result);
-    }
-}
-
-test "conemuPathToLocal maps the UNC form wslpath prints to the distro's own path" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const cases = [_]struct { []const u8, []const u8 }{
-        .{ "\\\\wsl.localhost\\Ubuntu\\home\\aman\\src", "/home/aman/src" },
-        .{ "\\\\wsl$\\Ubuntu\\home\\aman", "/home/aman" },
-        .{ "\"\\\\wsl.localhost\\Ubuntu-24.04\\mnt\\data\"", "/mnt/data" },
-        .{ "\\\\wsl.localhost\\Ubuntu", "/" },
-    };
-    for (cases) |case| {
-        const result = (try conemuPathToLocal(alloc, case[0])).?;
-        defer alloc.free(result);
-        try testing.expectEqualStrings(case[1], result);
-    }
-}
-
-test "conemuPathToLocal leaves everything but a drive-absolute path to the caller" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    for ([_][]const u8{
-        // The URL forms, including the one noctty's cmd integration sends.
-        "kitty-shell-cwd://localhost/C:\\Users\\aman",
-        "file://localhost/C:/Users/aman",
-        // Not drive-absolute, and not WSL's own UNC form.
-        "",
-        "\"\"",
-        "C:",
-        "C:Users",
-        "Users\\aman",
-        "\\Users\\aman",
-        "/mnt/c/Users",
-        "\\\\server\\share",
-        "\\\\server\\wsl.localhost\\share",
-        "\\\\?\\UNC\\server\\share",
-        "\\\\.\\pipe\\x",
-        "\\\\wsl",
-        // One pair of quotes only, and both of them.
-        "\"\"C:\\Users\"\"",
-        "\"C:\\Users",
-        "C:\\Users\"",
-    }) |value| {
-        try testing.expect(try conemuPathToLocal(alloc, value) == null);
-    }
-}
-
-test "msysDrivePathToWindows reads the drive paths MSYS2 and Cygwin print" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const cases = [_]struct { []const u8, []const u8 }{
-        // The reporter's `pwd` in an MSYS2 fish (#514).
-        .{ "/c/Users/FengYu/.config/fish/conf.d", "C:\\Users\\FengYu\\.config\\fish\\conf.d" },
-        .{ "/cygdrive/c/Users/me", "C:\\Users\\me" },
-        .{ "/D/work", "D:\\work" },
-        // A location stays on for the resolver to take off.
-        .{ "/c/src/main.zig:12:5", "C:\\src\\main.zig:12:5" },
-        // A doubled separator never makes a share out of the rest.
-        .{ "/c//server/share", "C:\\server\\share" },
-        // `..` is fine while it stays below the drive's root.
-        .{ "/c/x/../y", "C:\\x\\..\\y" },
-        .{ "/c/.../x", "C:\\...\\x" },
-    };
-    for (cases) |case| {
-        const result = try msysDrivePathToWindows(alloc, case[0]) orelse return error.TestUnexpectedResult;
-        defer alloc.free(result);
-        try testing.expectEqualStrings(case[1], result);
-        try testing.expect(isMsysDrivePath(case[0]));
-        const dir = try msysDriveDirToWindows(alloc, case[0]) orelse return error.TestUnexpectedResult;
-        defer alloc.free(dir);
-        try testing.expectEqualStrings(case[1], dir);
-    }
-
-    // A drive's root is a directory a shell can report (`cd /c; pwd`), but
-    // never link text: `cmd /c "x"`, `findstr /c:x` and `xcopy /s /e` would
-    // open the root of C:, S: and E: (#520 review).
-    for ([_]struct { []const u8, []const u8 }{
-        .{ "/c", "C:\\" },
-        .{ "/C", "C:\\" },
-        .{ "/c/", "C:\\" },
-        .{ "/cygdrive/c", "C:\\" },
-        .{ "/cygdrive/c/", "C:\\" },
-        .{ "/c/.", "C:\\." },
-        .{ "/c/x/..", "C:\\x\\.." },
-        // Windows drops a final name of dots and spaces.
-        .{ "/c/...", "C:\\..." },
-        .{ "/c/ .", "C:\\ ." },
-    }) |case| {
-        try testing.expect(try msysDrivePathToWindows(alloc, case[0]) == null);
-        try testing.expect(!isMsysDrivePath(case[0]));
-        const dir = try msysDriveDirToWindows(alloc, case[0]) orelse return error.TestUnexpectedResult;
-        defer alloc.free(dir);
-        try testing.expectEqualStrings(case[1], dir);
-    }
-
-    for ([_][]const u8{
-        // A `..` above the drive is MSYS2's own root (`/c/..` is `/`).
-        "/c/..",
-        "/c/x/../..",
-        "/c/x/../../y",
-        "/cygdrive/c/..",
-        "",
-        "/",
-        "c/Users",
-        "C:\\Users",
-        "C:/Users",
-        // noctty's Git Bash integration sends this form, a Windows path.
-        "/C:/Users",
-        "/cd/x",
-        "/home/me",
-        "/usr/bin",
-        "/cygdrive",
-        "/cygdrive/",
-        "/cygdrive/cd/x",
-        "/1/x",
-        "/_/x",
-        "\\c\\Users",
-        // Shares and devices are never drives.
-        "//server/share",
-        "//c/share",
-        "/\\server\\share",
-        "\\\\server\\share",
-        "//?/UNC/server/share",
-        "\\\\.\\pipe\\x",
-    }) |path| {
-        try testing.expect(try msysDrivePathToWindows(alloc, path) == null);
-        try testing.expect(!isMsysDrivePath(path));
-        try testing.expect(try msysDriveDirToWindows(alloc, path) == null);
-    }
-}
-
-test "osc7PathToLocal strips the uri slash from a unc path" {
-    const testing = std.testing;
-    const alloc = testing.allocator;
-
-    const share = try osc7PathToLocal(alloc, "/\\\\server\\share\\dir");
-    defer alloc.free(share);
-    try testing.expectEqualStrings("\\\\server\\share\\dir", share);
-
-    const root = try osc7PathToLocal(alloc, "/\\\\server\\share");
-    defer alloc.free(root);
-    try testing.expectEqualStrings("\\\\server\\share", root);
-
-    // A UNC path pointing back into WSL is still normalized to a WSL path.
-    const wsl = try osc7PathToLocal(alloc, "/\\\\wsl.localhost\\Ubuntu\\home\\aman");
-    defer alloc.free(wsl);
-    try testing.expectEqualStrings("/home/aman", wsl);
-
-    // Real POSIX paths must not be mistaken for UNC.
-    const posix = try osc7PathToLocal(alloc, "/home/aman/src");
-    defer alloc.free(posix);
-    try testing.expectEqualStrings("/home/aman/src", posix);
-
-    // Backslashes are legal in POSIX filenames, so a POSIX cwd can start with
-    // two of them. A forward slash later in the path proves it is not the
-    // backslash-separated UNC form cmd's `$P` produces, so it stays POSIX.
-    const posix_backslashes = try osc7PathToLocal(alloc, "/\\\\server/share");
-    defer alloc.free(posix_backslashes);
-    try testing.expectEqualStrings("/\\\\server/share", posix_backslashes);
-
-    // A host with no share is not a usable UNC path, so it is a POSIX name.
-    for ([_][]const u8{ "/\\\\server", "/\\\\server\\" }) |path| {
-        const kept = try osc7PathToLocal(alloc, path);
-        defer alloc.free(kept);
-        try testing.expectEqualStrings(path, kept);
-    }
-}
-
-test "isUncUriPath only matches uri-carried unc paths" {
-    const testing = std.testing;
-
-    try testing.expect(isUncUriPath("/\\\\server\\share"));
-    try testing.expect(isUncUriPath("/\\\\s\\a"));
-    try testing.expect(!isUncUriPath("/home/aman"));
-    try testing.expect(!isUncUriPath("//server/share"));
-    try testing.expect(!isUncUriPath("\\\\server\\share"));
-    try testing.expect(!isUncUriPath("/\\\\"));
-    try testing.expect(!isUncUriPath("/\\\\\\share"));
-    try testing.expect(!isUncUriPath("/C:/Users"));
 }
 
 test "pathToWsl rejects a uri-carried unc path" {
