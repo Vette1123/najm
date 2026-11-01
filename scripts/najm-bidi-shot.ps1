@@ -69,10 +69,12 @@ $directory = Split-Path $Exe
 New-Item -ItemType File -Force (Join-Path $directory 'najm.portable') | Out-Null
 @"
 font-family = Cascadia Mono NF
+font-size = 20
+cursor-style-blink = false
 command = pwsh -NoLogo -NoProfile -NoExit -File $demo
 window-save-state = never
-window-width = 100
-window-height = 22
+window-width = 60
+window-height = 14
 auto-update = off
 "@ | Set-Content (Join-Path $directory 'config.ghostty')
 
@@ -90,12 +92,15 @@ Save-Shot $window 'bidi-text'
 [System.Windows.Forms.SendKeys]::SendWait('سلام')
 Start-Sleep -Seconds 2
 Save-Shot $window 'bidi-typed'
+[System.Windows.Forms.SendKeys]::SendWait('{LEFT}{LEFT}')
+Start-Sleep -Seconds 1
+Save-Shot $window 'bidi-cursor-moved'
 
-# Double-click near the right edge of the first line: the word under the mouse,
-# the rightmost one, is the first word written, and that is what must highlight.
+# Double-click on the rightmost letters of the first line: the word under the
+# mouse, the first word written, is what must highlight.
 $rect = New-Object Win+RECT
 [void][Win]::GetWindowRect($window, [ref]$rect)
-[void][Win]::SetCursorPos($rect.R - 60, $rect.T + 56)
+[void][Win]::SetCursorPos($rect.R - 40, $rect.T + 62)
 Start-Sleep -Milliseconds 300
 foreach ($click in 1, 2) {
     [Win]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
@@ -106,3 +111,20 @@ Start-Sleep -Seconds 1
 Save-Shot $window 'bidi-selected'
 
 Stop-Process $process -Force
+
+# The oracle: the same words and font drawn by Windows' own text engine, to
+# tell a font's design from a shaping bug.
+$collection = New-Object System.Drawing.Text.PrivateFontCollection
+$collection.AddFontFile((Join-Path $userFonts $font.Name))
+$reference = New-Object System.Drawing.Bitmap 900, 240
+$canvas = [System.Drawing.Graphics]::FromImage($reference)
+$canvas.Clear([System.Drawing.Color]::FromArgb(40, 44, 52))
+$canvas.TextRenderingHint = 'AntiAliasGridFit'
+$face = New-Object System.Drawing.Font $collection.Families[0], 20
+$format = New-Object System.Drawing.StringFormat ([System.Drawing.StringFormatFlags]::DirectionRightToLeft)
+$lines = 'سلام', 'الآن', 'لا إله، الألف واللام معا', 'مرحبا بالعالم'
+foreach ($i in 0..($lines.Count - 1)) {
+    $area = New-Object System.Drawing.RectangleF 0, (8 + 56 * $i), 880, 56
+    $canvas.DrawString($lines[$i], $face, [System.Drawing.Brushes]::White, $area, $format)
+}
+$reference.Save((Join-Path $OutputDirectory 'bidi-reference.png'), [System.Drawing.Imaging.ImageFormat]::Png)
