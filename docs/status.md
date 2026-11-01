@@ -57,8 +57,9 @@ noctty is based on post-`v1.3.1` upstream main (`1.3.2-dev`, `ba398dfff`,
   OSC 52 selectors target the single native Windows clipboard).
 - Combining marks and grapheme cluster rendering. Display-only bidi for Arabic
   and Hebrew (`bidi`, on by default): the screen keeps logical order and the
-  renderer draws each row in visual order. The alternate screen and a row
-  holding IME composition stay logical.
+  renderer draws each row in visual order. The alternate screen keeps every
+  column where the program put it and still joins the letters; a row holding
+  IME composition stays logical.
 - Kitty graphics protocol and inline image display. Sixel is passed through
   by the bundled ConPTY but not decoded or drawn; see
   [inline graphics](windows.md#inline-graphics-replies-sixel-and-memory).

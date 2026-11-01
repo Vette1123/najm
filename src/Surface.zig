@@ -7133,14 +7133,15 @@ fn cellAtViewport(self: *Surface, point: terminal.point.Coordinate) terminal.poi
     // The renderer's `bidiRow` finds the same row from its snapshot.
     var head = pin;
     while (head.rowAndCell().row.wrap_continuation) head = head.up(1) orelse break;
-    const paragraph = rendererpkg.bidi.direction(
-        head.cells(.all),
-        t.screens.active_key == .alternate,
-    );
 
     var layout: rendererpkg.bidi.Layout = .{};
     defer layout.deinit(self.alloc);
-    const laid_out = layout.update(self.alloc, cells, paragraph) catch return point;
+    const laid_out = layout.layOut(
+        self.alloc,
+        cells,
+        head.cells(.all),
+        t.screens.active_key == .alternate,
+    ) catch return point;
     if (!laid_out or point.x >= layout.visual_to_logical.items.len) return point;
     return .{ .x = layout.visual_to_logical.items[point.x], .y = point.y };
 }

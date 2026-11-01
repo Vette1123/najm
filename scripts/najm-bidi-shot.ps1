@@ -112,6 +112,29 @@ Save-Shot $window 'bidi-selected'
 
 Stop-Process $process -Force
 
+# A full-screen program that reverses its own Arabic, as Claude Code does on
+# Windows. These lines must match the reference below: right order, joined.
+$fullscreen = Join-Path $env:RUNNER_TEMP 'bidi-fullscreen.ps1'
+@'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+function Reversed($text) { $chars = $text.ToCharArray(); [Array]::Reverse($chars); -join $chars }
+[Console]::Write("$([char]27)[?1049h$([char]27)[H")
+foreach ($line in 'سلام', 'الآن', 'لا إله، الألف واللام معا', 'مرحبا بالعالم') {
+    [Console]::WriteLine((Reversed $line))
+}
+[Console]::WriteLine('Najm ' + (Reversed 'يدعم العربية') + ' English')
+'@ | Set-Content $fullscreen -Encoding utf8
+$process = Start-Process $Exe -PassThru -ArgumentList "--command=`"pwsh -NoLogo -NoProfile -NoExit -File $fullscreen`""
+for ($i = 0; $i -lt 60 -and $process.Refresh() -eq $null -and $process.MainWindowHandle -eq 0; $i++) {
+    Start-Sleep -Milliseconds 500
+}
+$window = $process.MainWindowHandle
+if ($window -eq 0) { throw 'Najm never opened a second window' }
+[void][Win]::SetForegroundWindow($window)
+Start-Sleep -Seconds 8
+Save-Shot $window 'bidi-fullscreen'
+Stop-Process $process -Force
+
 # The oracle: the same words and font drawn by Windows' own text engine, to
 # tell a font's design from a shaping bug.
 $collection = New-Object System.Drawing.Text.PrivateFontCollection

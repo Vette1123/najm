@@ -6,6 +6,12 @@
 //! logical cell each column shows. The renderer and the mouse both go through
 //! it, so what is drawn and what a click hits cannot disagree.
 //!
+//! The alternate screen is the exception: a full-screen program places every
+//! cell itself, so its columns never move. Claude Code on Windows goes further
+//! and writes its right-to-left text already reversed for terminals without
+//! bidi, so moving those cells would turn its text backwards. Letters there
+//! are only marked right-to-left, so the shaper still joins them.
+//!
 //! The bidirectional algorithm is Windows' own, Uniscribe's `ScriptItemize`.
 //! usp10.dll loads on the first row that has right-to-left text, so a session
 //! without any never pays for it (see the 2026-10-17 OpenGL32 entry in
@@ -46,11 +52,8 @@ pub fn hasRtl(cells: []const Cell) bool {
 /// Right-to-left only when the first thing on the line is right-to-left text,
 /// so plain Arabic output reads from the right edge, while a shell prompt, a
 /// bullet or a box border holds its place on the left with the Arabic after
-/// it reordered in place. The alternate screen is always left-to-right: a
-/// full-screen program has placed every cell itself, and mirroring its
-/// columns would scramble them.
-pub fn direction(head: []const Cell, alternate_screen: bool) Direction {
-    if (alternate_screen) return .ltr;
+/// it reordered in place.
+pub fn direction(head: []const Cell) Direction {
     for (head) |*cell| {
         const cp = cell.codepoint();
         if (cp == 0 or cp == ' ') continue;
@@ -91,8 +94,46 @@ pub const Layout = struct {
         self.items.deinit(alloc);
     }
 
-    /// Lay out `cells`. False leaves the row in logical order: it has no
-    /// right-to-left text, or Uniscribe is missing or refused it.
+    /// Lay out `cells`, a row of the active screen whose line starts on the
+    /// row `head`. The renderer and the mouse both come through here. False
+    /// leaves the row as it is stored.
+    pub fn layOut(
+        self: *Layout,
+        alloc: Allocator,
+        cells: []const Cell,
+        head: []const Cell,
+        alternate_screen: bool,
+    ) Allocator.Error!bool {
+        if (alternate_screen) return self.keepPlaced(alloc, cells);
+        return self.update(alloc, cells, direction(head));
+    }
+
+    /// Every cell stays in its column, and each right-to-left letter is marked
+    /// so the shaper joins it. Letters only: Uniscribe's levels would also
+    /// mark punctuation between words, and HarfBuzz would mirror a bracket the
+    /// program already mirrored.
+    fn keepPlaced(self: *Layout, alloc: Allocator, cells: []const Cell) Allocator.Error!bool {
+        if (!hasRtl(cells)) return false;
+        try self.resetColumns(alloc, cells.len);
+        for (self.rtl.items, cells) |*rtl, *cell| rtl.* = isRtl(cell.codepoint());
+        return true;
+    }
+
+    /// Every column shows the cell stored there, and none is right-to-left.
+    fn resetColumns(self: *Layout, alloc: Allocator, len: usize) Allocator.Error!void {
+        try self.visual_to_logical.resize(alloc, len);
+        try self.logical_to_visual.resize(alloc, len);
+        try self.rtl.resize(alloc, len);
+        for (self.visual_to_logical.items, self.logical_to_visual.items, 0..) |*logical, *visual, x| {
+            logical.* = @intCast(x);
+            visual.* = @intCast(x);
+        }
+        @memset(self.rtl.items, false);
+    }
+
+    /// Lay out `cells` in reading order. False leaves the row in logical
+    /// order: it has no right-to-left text, or Uniscribe is missing or refused
+    /// it.
     pub fn update(
         self: *Layout,
         alloc: Allocator,
@@ -172,14 +213,7 @@ pub const Layout = struct {
         try self.order.resize(alloc, self.units.items.len);
         reorder(self.levels.items, self.order.items);
 
-        try self.visual_to_logical.resize(alloc, cells.len);
-        try self.logical_to_visual.resize(alloc, cells.len);
-        try self.rtl.resize(alloc, cells.len);
-        for (self.visual_to_logical.items, self.logical_to_visual.items, 0..) |*logical, *visual, x| {
-            logical.* = @intCast(x);
-            visual.* = @intCast(x);
-        }
-        @memset(self.rtl.items, false);
+        try self.resetColumns(alloc, cells.len);
 
         var x: usize = 0;
         for (self.order.items) |unit_index| {
@@ -321,19 +355,18 @@ test "bidi leaves a row with no right-to-left text alone" {
 }
 
 test "bidi paragraph direction comes from the first thing on the line" {
-    const cases = [_]struct { text: []const u8, alternate: bool, expected: Direction }{
-        .{ .text = "\u{0633}\u{0644}\u{0627}\u{0645}", .alternate = false, .expected = .rtl },
-        .{ .text = "  \u{0633}\u{0644}", .alternate = false, .expected = .rtl },
-        .{ .text = "\u{0633}\u{0644}", .alternate = true, .expected = .ltr },
-        .{ .text = "C:\\> \u{0633}\u{0644}", .alternate = false, .expected = .ltr },
-        .{ .text = "\u{2502} \u{0633}\u{0644}", .alternate = false, .expected = .ltr },
-        .{ .text = "- \u{0633}\u{0644}", .alternate = false, .expected = .ltr },
-        .{ .text = "", .alternate = false, .expected = .ltr },
+    const cases = [_]struct { text: []const u8, expected: Direction }{
+        .{ .text = "\u{0633}\u{0644}\u{0627}\u{0645}", .expected = .rtl },
+        .{ .text = "  \u{0633}\u{0644}", .expected = .rtl },
+        .{ .text = "C:\\> \u{0633}\u{0644}", .expected = .ltr },
+        .{ .text = "\u{2502} \u{0633}\u{0644}", .expected = .ltr },
+        .{ .text = "- \u{0633}\u{0644}", .expected = .ltr },
+        .{ .text = "", .expected = .ltr },
     };
     for (cases) |case| {
         const cells = try testRow(12, case.text);
         defer testing.allocator.free(cells);
-        try testing.expectEqual(case.expected, direction(cells, case.alternate));
+        try testing.expectEqual(case.expected, direction(cells));
     }
 }
 
@@ -396,6 +429,41 @@ test "bidi moves a wide cell with its tail" {
     try testing.expectEqual(visual[2] + 1, visual[3]);
     try testing.expectEqual(@as(u16, 5), visual[0]);
     try testing.expectEqual(@as(u16, 0), visual[5]);
+}
+
+test "bidi keeps a full-screen program's columns and marks only its letters" {
+    // The bytes Claude Code sends for a line: its Arabic already reversed.
+    const text = "ab \u{0645}\u{0644}(\u{0633}) 12";
+    const cells = try testRow(12, text);
+    defer testing.allocator.free(cells);
+    var layout: Layout = .{};
+    defer layout.deinit(testing.allocator);
+    try testing.expect(try layout.layOut(testing.allocator, cells, cells, true));
+    for (layout.visual_to_logical.items, layout.logical_to_visual.items, 0..) |logical, visual, x| {
+        try testing.expectEqual(x, logical);
+        try testing.expectEqual(x, visual);
+    }
+    const letters = [_]bool{
+        false, false, false, true, true, false, true, false, false, false, false, false,
+    };
+    try testing.expectEqualSlices(bool, &letters, layout.rtl.items);
+}
+
+test "bidi lays out a primary-screen row in reading order" {
+    const cells = try testRow(4, "\u{0633}\u{0644}");
+    defer testing.allocator.free(cells);
+    var layout: Layout = .{};
+    defer layout.deinit(testing.allocator);
+    try testing.expect(try layout.layOut(testing.allocator, cells, cells, false));
+    try expectShown(&layout, cells, "  \u{0644}\u{0633}");
+}
+
+test "bidi leaves a full-screen row with no right-to-left text alone" {
+    const cells = try testRow(8, "hello");
+    defer testing.allocator.free(cells);
+    var layout: Layout = .{};
+    defer layout.deinit(testing.allocator);
+    try testing.expect(!try layout.layOut(testing.allocator, cells, cells, true));
 }
 
 test "bidi reorder follows rule L2 across nested levels" {

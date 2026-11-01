@@ -3161,11 +3161,12 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const row_raws = state.row_data.items(.raw);
             var head = y;
             while (head > 0 and row_raws[head].wrap_continuation) head -= 1;
-            const paragraph = renderer.bidi.direction(
+            return self.bidi.layOut(
+                self.alloc,
+                raw,
                 row_cells[head].items(.raw),
                 state.screen == .alternate,
-            );
-            return self.bidi.update(self.alloc, raw, paragraph) catch |err| {
+            ) catch |err| {
                 log.warn("error laying out row y={} err={}", .{ y, err });
                 return false;
             };
