@@ -360,7 +360,7 @@ test "bidi keeps Latin and numbers reading forwards inside Arabic" {
         12,
         "\u{0633}\u{0644} abc 123 \u{0645}",
         .rtl,
-        "\u{0645} 123 abc \u{0644}\u{0633}",
+        "\u{0645} abc 123 \u{0644}\u{0633}",
     );
 }
 
