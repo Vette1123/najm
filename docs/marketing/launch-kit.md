@@ -71,7 +71,7 @@ What it adds for me: Ctrl+V that pastes images into tools like Claude Code, and 
 
 The rough edge is signing. Builds use my own certificate, so SmartScreen warns on first install. The download page shows how to check the SHA-256 and the signature first.
 
-What doesn't work yet: Arabic letters join, but lines aren't reordered right to left, so plain output reads backwards.
+New in 1.0.9: Arabic and Hebrew read right to left in command output. Full-screen apps such as vim stay left to right.
 
 Tell me what breaks.
 ```
@@ -120,7 +120,7 @@ Hsoub I/O (`io.hsoub.com`).
 ```text
 طرفية ويندوز مجانية مبنية على Ghostty
 
-بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد. لا تعرض العربية من اليمين إلى اليسار بعد.
+بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد. وتعرض العربية من اليمين إلى اليسار في مخرجات الأوامر.
 
 جرّبها وأخبرني بما يحتاج إلى تحسين:
 https://vette1123.github.io/najm/ar/

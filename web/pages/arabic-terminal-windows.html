@@ -1,12 +1,14 @@
   <article class="prose">
     <div class="frame">
       <h1>Arabic text in a Windows terminal</h1>
-      <p class="lede">Terminals are built on a grid of equal cells, which suits Latin text and fights Arabic. Najm can draw Arabic in a monospace font with one config line, but it does not reorder lines right to left yet.</p>
+      <p class="lede">Terminals are built on a grid of equal cells, which suits Latin text and fights Arabic. Najm shows Arabic and Hebrew right to left on that grid, and one config line gives them a monospace font.</p>
 
       <h2>What works today</h2>
       <ul>
-        <li><strong>Works:</strong> Arabic letters take their joined forms, and the font line below keeps them on the cell grid.</li>
-        <li><strong>Does not work yet:</strong> a line stays in left-to-right cell order, so Arabic in plain command output reads backwards. Some pairs, such as lam-alef, also draw badly. Najm has no bidirectional layout today.</li>
+        <li><strong>Works:</strong> Arabic and Hebrew read right to left in command output and at the prompt, with joined letters. Numbers and Latin words inside a line keep their own order. The cursor, selection, search and links follow what you see.</li>
+        <li><strong>Line direction:</strong> a line that starts with Arabic or Hebrew aligns right. One that starts with Latin, such as a prompt, stays left, and any Arabic inside it still reads correctly.</li>
+        <li><strong>Limits:</strong> full-screen apps such as vim stay left to right, because they place every cell themselves. The line you are composing with an IME stays in typing order until you commit it. Lam-alef is one form in two cells, so a blank cell sits on its left.</li>
+        <li><strong>Turn it off:</strong> set <code>bidi = false</code>.</li>
       </ul>
 
       <h2>Set the font in three steps</h2>

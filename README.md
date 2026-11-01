@@ -130,10 +130,17 @@ Press `Ctrl+Shift+,` to reload. `najm +show-config --default --docs` lists every
 
 ## Arabic text
 
-Najm draws Arabic letters in their joined forms but does not reorder a line right to left yet, so
-Arabic in plain command output reads backwards. The default terminal fonts have no Arabic, so
-Windows draws it in Segoe UI, a proportional font that sits unevenly in the cell grid. Map the
-Arabic blocks to a monospace font that has them:
+Arabic and Hebrew read right to left in command output and at the prompt, with joined letters, and
+the cursor, selection, search and links follow what you see. A line that starts with Arabic or
+Hebrew aligns right; one that starts with Latin stays left, and any Arabic inside it still reads
+correctly. Set `bidi = false` to turn this off.
+
+Limits: full-screen apps such as vim stay left to right, because they place every cell themselves.
+The line you are composing with an IME stays in typing order until you commit it. Lam-alef is one
+form in two cells, so a blank cell sits on its left.
+
+The default terminal fonts have no Arabic, so Windows draws it in Segoe UI, a proportional font
+that sits unevenly in the cell grid. Map the Arabic blocks to a monospace font that has them:
 
 ```ini
 font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF

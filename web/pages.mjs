@@ -44,7 +44,7 @@ const faqAr = [
   ],
   [
     "هل يعرض نجم العربية من اليمين إلى اليسار؟",
-    "ليس بعد. يرسم نجم الحروف العربية بأشكالها الموصولة، لكنه لا يعيد ترتيب السطر، فتظهر الكلمات في مخرجات الأوامر بترتيب معكوس. أضف سطرا واحدا إلى الإعدادات ليستخدم خطا أحادي المسافة يحتوي على العربية.",
+    "نعم. يعرض نجم العربية من اليمين إلى اليسار في مخرجات الأوامر وعند سطر الأوامر، بحروف موصولة. البرامج التي تملأ الشاشة، مثل vim، تبقى من اليسار إلى اليمين. أضف سطرا واحدا إلى الإعدادات ليستخدم خطا أحادي المسافة يحتوي على العربية.",
   ],
   [
     "هل نجم مجاني؟",
@@ -120,14 +120,14 @@ export const pages = [
     source: "arabic-terminal-windows",
     lang: "en",
     nav: "Arabic text",
-    title: "Arabic text in a Windows terminal: fonts and limits | Najm",
+    title: "Arabic in a Windows terminal: right to left, fonts | Najm",
     description:
-      "How to give Arabic a monospace font in Najm on Windows with one config line, and what does not work yet: lines are not reordered right to left.",
-    updated: "2026-10-31",
+      "Najm shows Arabic and Hebrew right to left on Windows, letters joined. Set a monospace font with one config line, and see where the limits are.",
+    updated: "2026-11-01",
     faq: [
       [
         "Does Najm display Arabic right to left?",
-        "Not yet. Najm draws Arabic letters in their joined forms, but it keeps a line in left-to-right cell order, so Arabic in plain command output reads backwards. There is no bidirectional layout in the renderer today.",
+        "Yes, in command output and at the prompt, with joined letters. Full-screen apps such as vim stay left to right, because they place every cell themselves.",
       ],
       [
         "Why does Arabic look uneven in my terminal?",

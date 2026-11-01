@@ -218,7 +218,9 @@ that govern each symbol you change, or that none does.
   and `ShellExecute*` calls queued for the message loop
   (`App.deferShellRequest`, `drainDeferredOpens`).
 - [renderer.md](docs/agents/log/renderer.md): `src/renderer/` and
-  `src/renderer.zig` (OpenGL/WGL,
+  `src/renderer.zig` (right-to-left display: `renderer/bidi.zig`, `bidiRow`,
+  `font/shaper/harfbuzz.zig` `rtlCell` and `reverseClusters`,
+  `Surface.posToCell`; OpenGL/WGL,
   the D3D11 beta and GL-to-D3D11 fallback, who frees the config of a failed
   `Renderer.init` in core `Surface.init`, frame pacing, the cursor blink
   and their timers in `Pacer.zig` (`Pacer.turn`, `Pacer.Clock`, the port
