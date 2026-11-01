@@ -124,14 +124,12 @@ test("Pages and IndexNow files exist", () => {
   assert.match(read("llms.txt"), /not affiliated/);
 });
 
-// A capture of v1.0.6 showed Arabic in cell order, reading backwards: the shaper
-// forces LTR and nothing reorders a line. These claims stay out until that changes.
-test("nothing claims right-to-left Arabic the renderer does not do", () => {
-  const banned = [
-    /reads? right to left|lays (it|out)|right-to-left Arabic/i,
-    /joined letters|letters join|full Arabic support|Arabic that/i,
-    /بأحرف متصلة|ويصل الأحرف|تدعم العربية|تتحدث العربية/,
-  ];
+// Right to left stops at the alternate screen and at IME composition, so "full"
+// is false, and the page that covers Arabic has to name the limit.
+test("nothing claims more Arabic support than the renderer has", () => {
+  const banned = [/full Arabic support/i, /تدعم العربية بالكامل/];
+  const arabic = built.find(({ page }) => page.slug === "arabic-terminal-windows/");
+  assert.match(arabic.html, /stay left to right/);
   const readme = readFileSync(join(out, "..", "..", "README.md"), "utf8");
   const sources = built.map(({ page, html }) => [page.slug || "home", html]);
   sources.push(["README.md", readme], ["llms.txt", read("llms.txt")]);

@@ -68,6 +68,7 @@
         "src/renderer/**",
         "src/renderer.zig",
         "src/font/**",
+        "src/Surface.zig",
         "src/apprt/win32/pixel_format.zig",
         "src/apprt/win32/wgl.zig",
         "src/apprt/win32/gl_startup.zig",
