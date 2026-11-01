@@ -214,7 +214,6 @@ const TPM_RIGHTBUTTON: UINT = 0x0002;
 const TPM_RETURNCMD: UINT = 0x0100;
 const WM_MENUCHAR: UINT = 0x0120;
 const WM_MEASUREITEM: UINT = 0x002C;
-const WM_DRAWITEM_MENU: UINT = 0x002B;
 /// `WM_MENUCHAR` reply: close the active menu without a beep.
 const MNC_CLOSE: u32 = 1;
 const WM_LBUTTONDOWN: UINT = 0x0201;
@@ -19373,7 +19372,7 @@ fn wndProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.wina
             if (fancy_menu.measureItem(lParam)) |result| return result;
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
-        WM_DRAWITEM_MENU => {
+        WM_DRAWITEM => {
             if (fancy_menu.drawItem(lParam)) |result| return result;
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
@@ -22231,7 +22230,6 @@ fn viewportProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(
         // field shows its own Cut/Copy/Paste menu and sends nothing here. What
         // is no row's (the scroll bar) keeps DefWindowProc's menu.
         WM_CONTEXTMENU => if (wParam != 0 and owner.showRowMenu(@ptrFromInt(wParam), lParam)) return 0,
-        WM_DRAWITEM_MENU => if (owner.drawAccentItem(lParam)) return 1,
         WM_COMMAND,
         WM_CTLCOLORMSGBOX,
         WM_CTLCOLOREDIT,
@@ -22252,6 +22250,7 @@ fn viewportProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(
         },
         WM_NOTIFY => if (owner.companionNotify(lParam)) |result| return result,
         WM_DRAWITEM => if (lParam != 0) {
+            if (owner.drawAccentItem(lParam)) return 1;
             const draw: *const sys.DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
             if (std.mem.indexOfScalar(?HWND, &owner.field_labels, draw.hwndItem) != null) {
                 owner.paintFieldLabel(draw);

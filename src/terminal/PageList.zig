@@ -5446,18 +5446,18 @@ fn growRows(self: *PageList, n: usize) Allocator.Error!void {
     errdefer self.pauseIntegrityChecks(false);
     for (0..n) |_| {
         const last = self.pages.last.?;
-        last.data.pauseIntegrityChecks(true);
+        last.page().pauseIntegrityChecks(true);
         const grown = self.grow();
         // A prune may have recycled the page, which resets its count.
         if (comptime build_options.slow_runtime_safety) {
-            if (last.data.pause_integrity_checks > 0) last.data.pause_integrity_checks -= 1;
+            if (last.page().pause_integrity_checks > 0) last.page().pause_integrity_checks -= 1;
         }
         _ = try grown;
     }
     self.pauseIntegrityChecks(false);
     self.assertIntegrity();
     var node = self.pages.first;
-    while (node) |page| : (node = page.next) page.data.assertIntegrity();
+    while (node) |page| : (node = page.next) page.page().assertIntegrity();
 }
 
 /// Clear all dirty bits on all pages. This is not efficient since it
