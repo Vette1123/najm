@@ -205,6 +205,7 @@ export const ui = {
     copy: "Copy",
     copied: "Copied",
     logoAlt: "Najm home",
+    socialAlt: "The Najm star mark and the line: a fast GPU terminal for Windows.",
   },
   ar: {
     dir: "rtl",
@@ -226,5 +227,6 @@ export const ui = {
     copy: "نسخ",
     copied: "تم النسخ",
     logoAlt: "الصفحة الرئيسية لنجم",
+    socialAlt: "شعار نجم على شكل نجمة، مع العبارة: طرفية سريعة لويندوز.",
   },
 };

@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-01 | [Site SEO pass](2026-11-01-site-seo.md) | Twitter cards, WebPage JSON-LD, x-default in the sitemap and Arabic social alt, each pinned by a built-HTML test |
 | 2026-11-01 | [Claude Code's Arabic read backwards](2026-11-01-claude-arabic-double-reversal.md) | Read the bytes the program really sends before trusting a fix: Claude Code reverses its own Arabic, so bidi flipped it twice |
 | 2026-11-01 | [Right-to-left Arabic and Hebrew](2026-11-01-arabic-bidi.md) | Compare a capture with another engine drawing the same font: it tells a font's design from your bug |
 | 2026-11-01 | [Noctty sync to da8983d20](2026-11-01-noctty-sync.md) | A clean auto-merge can still clash: diff against the upstream parent, and scan equal values as well as names |

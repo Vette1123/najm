@@ -69,6 +69,20 @@ for (const { page, html } of built) {
     }
   });
 
+  test(`${name} has Twitter cards, robots and a WebPage entry`, () => {
+    for (const key of ["title", "description", "image", "image:alt"]) {
+      assert.ok(attr(html, new RegExp(`twitter:${key}" content="([^"]+)"`)), key);
+    }
+    assert.equal(
+      attr(html, /twitter:title" content="([^"]+)"/),
+      attr(html, /og:title" content="([^"]+)"/),
+    );
+    assert.match(html, /name="robots" content="index, follow, max-image-preview:large"/);
+    const web = jsonLd(html).find((item) => item["@type"] === "WebPage");
+    assert.equal(web.inLanguage, page.lang);
+    assert.equal(web.dateModified, page.updated);
+  });
+
   test(`${name} has no broken internal links`, () => {
     const hrefs = [...html.matchAll(/(?:href|src)="(\/najm[^"#]*)/g)];
     assert.ok(hrefs.length > 3);
@@ -111,6 +125,12 @@ test("the sitemap lists exactly the pages, with dates", () => {
   const expected = pages.map((page) => `${SITE_URL}/${page.slug}`).sort();
   assert.deepEqual(locs, expected);
   assert.equal(sitemap.match(/<lastmod>\d{4}-\d{2}-\d{2}</g).length, pages.length);
+});
+
+test("sitemap pairs carry x-default and the image alt follows the page language", () => {
+  assert.ok(read("sitemap.xml").match(/hreflang="x-default"/g).length >= 2);
+  const ar = built.find(({ page }) => page.lang === "ar").html;
+  assert.match(attr(ar, /og:image:alt" content="([^"]+)"/), /[\u0600-\u06FF]/);
 });
 
 test("the 404 page stays out of the index", () => {
