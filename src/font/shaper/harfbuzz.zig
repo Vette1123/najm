@@ -969,6 +969,46 @@ test "shape keeps a one-cell lam-alef in lam's cell, joined to its right" {
     try std.testing.expectEqual(@as(u16, 9), buf[0].x);
 }
 
+test "shape joins a full-screen program's reversed letters where it put them" {
+    const alloc = std.testing.allocator;
+    var testdata = try testShaperWithFont(alloc, .arabic);
+    defer testdata.deinit();
+
+    // Beh then noon, as a right-to-left line draws it: noon left, beh right.
+    var drawn: [16]font.shape.Cell = undefined;
+    const drawn_len = try shapeRtlForTest(alloc, &testdata, "\u{0628}\u{0646}", 8, &drawn);
+    try std.testing.expectEqual(@as(usize, 2), drawn_len);
+
+    // The same word as Claude Code writes it: already noon then beh.
+    var t = try terminal.Terminal.init(alloc, .{ .cols = 10, .rows = 3 });
+    defer t.deinit(alloc);
+    var s = t.vtStream();
+    defer s.deinit();
+    s.nextSlice("\u{0646}\u{0628}");
+
+    var state: terminal.RenderState = .empty;
+    defer state.deinit(alloc);
+    try state.update(alloc, &t);
+    const row = state.row_data.get(0).cells;
+
+    var layout: renderer_bidi.Layout = .{};
+    defer layout.deinit(alloc);
+    try std.testing.expect(try layout.layOut(alloc, row.items(.raw), row.items(.raw), true));
+
+    var it = testdata.shaper.runIterator(.{
+        .grid = testdata.grid,
+        .cells = row.slice(),
+        .rtl = layout.rtl.items,
+    });
+    const run = (try it.next(alloc)).?;
+    const placed = try testdata.shaper.shape(run);
+    try std.testing.expectEqual(@as(u16, 0), run.offset);
+    try std.testing.expectEqual(@as(u16, 0), placed[0].x);
+    try std.testing.expectEqual(@as(u16, 1), placed[1].x);
+    try std.testing.expectEqual(drawn[0].glyph_index, placed[0].glyph_index);
+    try std.testing.expectEqual(drawn[1].glyph_index, placed[1].glyph_index);
+}
+
 test "shape emoji width" {
     const testing = std.testing;
     const alloc = testing.allocator;

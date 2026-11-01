@@ -135,7 +135,9 @@ the cursor, selection, search and links follow what you see. A line that starts 
 Hebrew aligns right; one that starts with Latin stays left, and any Arabic inside it still reads
 correctly. Set `bidi = false` to turn this off.
 
-Limits: full-screen apps such as vim stay left to right, because they place every cell themselves.
+Limits: full-screen apps keep every column where they put it, because they place every cell
+themselves. Claude Code on Windows reverses its own Arabic for this, so it reads correctly with
+joined letters; an app that writes Arabic in typing order, such as vim, reads backwards.
 The line you are composing with an IME stays in typing order until you commit it. Lam-alef is one
 form in two cells, so a blank cell sits on its left.
 

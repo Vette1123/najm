@@ -453,7 +453,7 @@ renderer: RendererBackend = .opengl,
 /// A line that starts with right-to-left text is set against the right edge.
 /// On any other line, such as one after a shell prompt, only the right-to-left
 /// words reverse in place. Full-screen programs keep every column where they
-/// put it. Only the display changes: copying, searching and what programs read
+/// put it, and their letters still join. Only the display changes: copying, searching and what programs read
 /// use the text in the order it was written, and clicking a letter selects
 /// that letter.
 ///
