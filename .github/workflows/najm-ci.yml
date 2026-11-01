@@ -38,3 +38,21 @@ jobs:
           foreach ($f in "zig-out/bin/najm.exe", "zig-out/bin/najm.com") {
             if (-not (Test-Path $f)) { throw "Build did not produce $f" }
           }
+
+      # Evidence for a person to look at, not a pass/fail: a capture cannot
+      # fail a tested change, and it runs on PRs only.
+      - name: Capture right-to-left text
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/najm-bidi-shot.ps1 -Exe "$PWD/zig-out/bin/najm.exe" -OutputDirectory "$env:RUNNER_TEMP/bidi-shots"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'pull_request'
+        with:
+          name: bidi-shots
+          path: ${{ runner.temp }}/bidi-shots
+          if-no-files-found: warn
