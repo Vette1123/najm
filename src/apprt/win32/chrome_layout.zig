@@ -10,7 +10,7 @@ const builtin = @import("builtin");
 const win32_layout = @import("../win32_layout.zig");
 const win32_chrome_state = @import("../win32_chrome_state.zig");
 const win32_theme = @import("../win32_theme.zig");
-const labels = @import("labels.zig");
+const overlay_view = @import("overlay_view.zig");
 const sys = @import("sys.zig");
 
 const HostOverlayMode = win32_theme.HostOverlayMode;
@@ -47,6 +47,33 @@ pub fn childRect(x: i32, y: i32, width: i32, height: i32) RECT {
         .top = y,
         .right = x + width,
         .bottom = y + height,
+    };
+}
+
+pub fn rectInset(rect: RECT, inset_x: i32, inset_y: i32) RECT {
+    return .{
+        .left = rect.left + inset_x,
+        .top = rect.top + inset_y,
+        .right = rect.right - inset_x,
+        .bottom = rect.bottom - inset_y,
+    };
+}
+
+pub fn rectUnion(a: RECT, b: RECT) RECT {
+    return .{
+        .left = @min(a.left, b.left),
+        .top = @min(a.top, b.top),
+        .right = @max(a.right, b.right),
+        .bottom = @max(a.bottom, b.bottom),
+    };
+}
+
+pub fn rectOffset(rect: RECT, dx: i32, dy: i32) RECT {
+    return .{
+        .left = rect.left + dx,
+        .top = rect.top + dy,
+        .right = rect.right + dx,
+        .bottom = rect.bottom + dy,
     };
 }
 
@@ -409,7 +436,7 @@ pub fn overlayActionLayoutForWidth(
         bounded_padding,
         cancel_button_w,
         accept_button_w,
-        labels.overlayAcceptButtonVisible(mode),
+        overlay_view.shape(mode).accept_visible,
         dpi,
     );
     const compact_cancel = mode == .confirm and !visibility.cancel and width > 0;

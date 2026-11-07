@@ -4,13 +4,11 @@ const Allocator = win32.Allocator;
 const App = win32.App;
 const BYTE = win32.BYTE;
 const BenchmarkMemoryStage = win32.BenchmarkMemoryStage;
-const ChildPlacement = win32.ChildPlacement;
+const ChildPlacement = child_window.ChildPlacement;
 const ClipboardContents = win32.ClipboardContents;
 const ClipboardSource = win32.ClipboardSource;
-const ConfirmPrompt = win32.ConfirmPrompt;
 const CoreSurface = @import("../../Surface.zig");
 const DeferredCharState = win32.DeferredCharState;
-const FullscreenMonitor = win32.FullscreenMonitor;
 const HDC = win32.HDC;
 const HGDIOBJ = win32.HGDIOBJ;
 const HGLRC = win32.HGLRC;
@@ -37,33 +35,30 @@ const SurfaceInitOptions = win32.SurfaceInitOptions;
 const TRACKMOUSEEVENT = win32.TRACKMOUSEEVENT;
 const Tab = win32.Tab;
 const UINT = win32.UINT;
-const WINDOWPLACEMENT = win32.WINDOWPLACEMENT;
 const WPARAM = win32.WPARAM;
 const WheelNormalizationContext = win32.WheelNormalizationContext;
-const WindowKeeps = win32.WindowKeeps;
-const WindowStart = win32.WindowStart;
 const adjustColor = win32.adjustColor;
-const alphaByteForOpacity = win32.alphaByteForOpacity;
 const anyVirtualKeyPressed = win32.anyVirtualKeyPressed;
-const appendOwnedString = win32.appendOwnedString;
+const appendOwnedString = paint_text.appendOwnedString;
 const appendSanitizedTitle = win32.appendSanitizedTitle;
-const applyChildRect = win32.applyChildRect;
-const applyChildVisibility = win32.applyChildVisibility;
+const applyChildRect = child_window.applyChildRect;
+const applyChildVisibility = child_window.applyChildVisibility;
 const apprt = @import("../../apprt.zig");
 const blendColorRGB = win32.blendColorRGB;
 const build_config = @import("../../build_config.zig");
 const c = @import("consts.zig");
 const captureTerminalUndoStateBytes = win32.captureTerminalUndoStateBytes;
 const childRect = win32.childRect;
+const child_window = @import("child_window.zig");
 const chromeSyncOrLog = win32.chromeSyncOrLog;
 const class_name = win32.class_name;
 const clipboardTextToUtf8 = win32.clipboardTextToUtf8;
 const clipboard_write = @import("clipboard_write.zig");
 const commitSplitSurfaceAttach = win32.commitSplitSurfaceAttach;
 const configpkg = @import("../../config.zig");
+const confirm_text = @import("confirm_text.zig");
 const crlfLineEndings = win32.crlfLineEndings;
 const cursorPosFromLParam = win32.cursorPosFromLParam;
-const decorationsVisibleForConfig = win32.decorationsVisibleForConfig;
 const detachChromeControlProvider = win32.detachChromeControlProvider;
 const drawRoundedRect = win32.drawRoundedRect;
 const fillSolidRect = win32.fillSolidRect;
@@ -71,27 +66,24 @@ const first_frame = @import("first_frame.zig");
 const gl_startup = @import("gl_startup.zig");
 const hostChromeNeedsFocusRepaint = win32.hostChromeNeedsFocusRepaint;
 const imeWindowForms = win32.imeWindowForms;
-const initialDecorationsVisibleForSource = win32.initialDecorationsVisibleForSource;
 const input = @import("../../input.zig");
-const inspectorBannerStateChanged = win32.inspectorBannerStateChanged;
 const inspectorChromeVisible = win32.inspectorChromeVisible;
-const inspectorVisibilityChangeNeedsHostRelayout = win32.inspectorVisibilityChangeNeedsHostRelayout;
 const internal_os = @import("../../os/main.zig");
 const isAutomaticSshCommandTitle = win32.isAutomaticSshCommandTitle;
 const isHighContrastActive = win32.isHighContrastActive;
 const lParamBits = win32.lParamBits;
-const labels = @import("labels.zig");
-const lastError = win32.lastError;
+const lastError = child_window.lastError;
 const layoutRectToWin32 = win32.layoutRectToWin32;
 const lfLineEndings = win32.lfLineEndings;
 const log = win32.log;
 const mouseButtonFromMessage = win32.mouseButtonFromMessage;
 const mouseButtonStateFromMessage = win32.mouseButtonStateFromMessage;
 const mouseModsFromWParam = win32.mouseModsFromWParam;
-const normalizedBackgroundOpacity = win32.normalizedBackgroundOpacity;
 const openClipboard = win32.openClipboard;
-const optionalOwnedStringEquals = win32.optionalOwnedStringEquals;
-const ownedStringEquals = win32.ownedStringEquals;
+const optionalOwnedStringEquals = paint_text.optionalOwnedStringEquals;
+const overlay_view = @import("overlay_view.zig");
+const ownedStringEquals = paint_text.ownedStringEquals;
+const paint_text = @import("text.zig");
 const paletteDisconnectThunk = win32.paletteDisconnectThunk;
 const paletteReleaseThunk = win32.paletteReleaseThunk;
 const pasteFilePayload = win32.pasteFilePayload;
@@ -116,8 +108,6 @@ const recordOpenGLStartupWin32Failure = win32.recordOpenGLStartupWin32Failure;
 const render_trace = @import("render_trace.zig");
 const rendererpkg = @import("../../renderer.zig");
 const requestedTabInsertIndex = win32.requestedTabInsertIndex;
-const resizeSplitFallbackDelta = win32.resizeSplitFallbackDelta;
-const resolveWindowBaseTitle = win32.resolveWindowBaseTitle;
 const restoreTerminalUndoState = win32.restoreTerminalUndoState;
 const rollbackFailedSurfaceAttach = win32.rollbackFailedSurfaceAttach;
 const runUiActionOrLog = win32.runUiActionOrLog;
@@ -128,18 +118,11 @@ const scrollbarPaintKeyChanged = win32.scrollbarPaintKeyChanged;
 const scrollbarProxyPointFromSurfaceCoords = win32.scrollbarProxyPointFromSurfaceCoords;
 const scrollbarProxyPointFromSurfaceCursor = win32.scrollbarProxyPointFromSurfaceCursor;
 const scrollbar_class_name = win32.scrollbar_class_name;
-const searchBarDisplayStateChanged = win32.searchBarDisplayStateChanged;
-const searchBarSearchedStateForSelected = win32.searchBarSearchedStateForSelected;
-const searchBarSearchedStateForTotal = win32.searchBarSearchedStateForTotal;
-const searchSelectedDisplayFromRaw = win32.searchSelectedDisplayFromRaw;
-const searchSelectedRawFromCoreDisplay = win32.searchSelectedRawFromCoreDisplay;
+const docked_search = @import("docked_search.zig");
 const search_controls = @import("search_controls.zig");
 const selectClipboardContents = win32.selectClipboardContents;
 const session_module = @import("session.zig");
-const setWindowData = win32.setWindowData;
-const sharesHostWindowState = win32.sharesHostWindowState;
-const shouldAcceptCoreSearchUpdates = win32.shouldAcceptCoreSearchUpdates;
-const shouldApplyConfigDecorations = win32.shouldApplyConfigDecorations;
+const setWindowData = child_window.setWindowData;
 const shouldDispatchOcclusion = win32.shouldDispatchOcclusion;
 const shouldShowSurfaceImmediately = win32.shouldShowSurfaceImmediately;
 const signedHighWord = win32.signedHighWord;
@@ -154,7 +137,6 @@ const surfaceConfirmPasteCancel = win32.surfaceConfirmPasteCancel;
 const surfaceConfirmWriteAccept = win32.surfaceConfirmWriteAccept;
 const surfaceConfirmWriteCancel = win32.surfaceConfirmWriteCancel;
 const surfaceDropPayloadCallback = win32.surfaceDropPayloadCallback;
-const surfaceLaunchSnapshot = win32.surfaceLaunchSnapshot;
 const surfaceWindowStyle = win32.surfaceWindowStyle;
 const surface_presentation = @import("surface_presentation.zig");
 const sys = @import("sys.zig");
@@ -174,7 +156,6 @@ const win32_ole = @import("../win32_ole.zig");
 const win32_paste_protection = @import("../win32_paste_protection.zig");
 const win32_program_status = @import("../win32_program_status.zig");
 const win32_scrollbar_geometry = @import("../win32_scrollbar_geometry.zig");
-const win32_search_bar = @import("../win32_search_bar.zig");
 const win32_shell = @import("../win32_shell.zig");
 const win32_surface_drop_target = @import("../win32_surface_drop_target.zig");
 const win32_taskbar_progress = @import("../win32_taskbar_progress.zig");
@@ -201,18 +182,17 @@ const WindowStartTestApp = win32.WindowStartTestApp;
 const builtin = @import("builtin");
 const createTestChromeChild = win32.createTestChromeChild;
 const default_title = win32.default_title;
-const expectedToastRemoval = win32.expectedToastRemoval;
 const host_class_name = win32.host_class_name;
 const palette_list_class_name = win32.palette_list_class_name;
-const prompt_button_class = win32.prompt_button_class;
-const prompt_label_class = win32.prompt_label_class;
+const prompt_button_class = child_window.prompt_button_class;
+const prompt_label_class = child_window.prompt_label_class;
 const runOnHiddenDesktop = win32.runOnHiddenDesktop;
 const toastTestSplit = win32.toastTestSplit;
 const uninitializedInertStorage = win32.uninitializedInertStorage;
 
 const scrollbar_transparent_key = win32_theme.rgb(0xFF, 0x00, 0xFF);
 
-const host_banner_inspector_inactive = labels.host_banner_inspector_inactive;
+const host_banner_inspector_inactive = "Inspector hidden. Terminal view is active.";
 
 /// Deep-copy of one `apprt.ClipboardContent` entry so it can survive an
 /// async confirm-overlay roundtrip. Freed via `PendingClipboardOp.deinit`.
@@ -352,6 +332,52 @@ test "quick select label placement stops at its comparison budget" {
     ) == null);
 }
 
+fn resolveWindowBaseTitle(
+    terminal_title: ?[:0]const u8,
+    surface_override: ?[:0]const u8,
+    tab_override: ?[:0]const u8,
+) ?[:0]const u8 {
+    return tab_override orelse surface_override orelse terminal_title;
+}
+
+test "win32 resolveWindowBaseTitle prefers tab then surface override" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqualStrings(
+        "tab",
+        resolveWindowBaseTitle("terminal", "surface", "tab").?,
+    );
+    try std.testing.expectEqualStrings(
+        "surface",
+        resolveWindowBaseTitle("terminal", "surface", null).?,
+    );
+    try std.testing.expectEqualStrings(
+        "terminal",
+        resolveWindowBaseTitle("terminal", null, null).?,
+    );
+}
+
+fn inspectorBannerStateChanged(
+    overlay_mode: HostOverlayMode,
+    banner_kind: overlay_view.BannerKind,
+    banner_text: ?[:0]const u8,
+    visible: bool,
+) bool {
+    if (overlay_mode != .none) return false;
+    if (visible) return banner_kind != .none or banner_text != null;
+    return banner_kind != .info or !ownedStringEquals(banner_text, host_banner_inspector_inactive);
+}
+
+test "win32 inspectorBannerStateChanged only trips on actual banner deltas" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expect(!inspectorBannerStateChanged(.none, .none, null, true));
+    try std.testing.expect(inspectorBannerStateChanged(.none, .none, null, false));
+    try std.testing.expect(!inspectorBannerStateChanged(.none, .info, host_banner_inspector_inactive, false));
+    try std.testing.expect(inspectorBannerStateChanged(.none, .err, "error", false));
+    try std.testing.expect(!inspectorBannerStateChanged(.search, .none, null, true));
+}
+
 /// A config color as a GDI COLORREF.
 fn colorRefFromConfig(color: configpkg.Config.Color) u32 {
     return win32_theme.rgb(color.r, color.g, color.b);
@@ -396,7 +422,7 @@ pub const Surface = struct {
     launched_ssh: bool = false,
     launch_command: ?configpkg.Command = null,
     /// The user profile's command line and environment entries this surface
-    /// was launched with (`Config._profile_launch`), kept with
+    /// was launched with (`pane_launch.Stamp.user`), kept with
     /// `launch_command` so an inheriting tab or split runs the same launch.
     launch_user: ?windows_shell.UserLaunch = null,
     mouse_shape: terminal.MouseShape = .text,
@@ -408,23 +434,18 @@ pub const Surface = struct {
     /// renderer starts undimmed.
     split_dimmed: bool = false,
     split_dimmed_sent: bool = false,
+    /// What this pane's renderer draws its background at, set by its
+    /// window (`window_state`, `TopLevel.Shows.pane_opacity`); null for its
+    /// config's `background-opacity`. `_sent` is what the renderer was last
+    /// told, which starts at its config's too.
+    background_opacity: ?f64 = null,
+    background_opacity_sent: ?f64 = null,
     /// The bell rang here while the user was not looking; the tab label and
     /// the window caption carry the glyph until `clearBell`.
     bell_ringing: bool = false,
-    decorations_visible: bool = true,
-    decorations_visible_overridden: bool = false,
-    fullscreen: bool = false,
-    topmost: bool = false,
-    /// What `leaveFullscreen` returns the window to, captured by
-    /// `enterFullscreen`: the window rect, and the placement for a window
-    /// that was maximized.
-    restore_rect: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 },
-    restore_placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT),
-    restore_monitor: ?FullscreenMonitor = null,
-    default_client_size: ?apprt.SurfaceSize = null,
-    cell_size_pixels: apprt.action.CellSize = .{ .width = 0, .height = 0 },
-    background_opacity_default: f64 = 1.0,
-    background_opacity_force_opaque: bool = false,
+    /// This pane's metrics, from its own font; its window keeps the rest of
+    /// the window state (`Host.top_level`).
+    metrics: window_state.PaneMetrics = .{},
     /// The configured terminal background (`background`, which a `theme`
     /// sets), as a COLORREF. The active tab takes it so it reads as the top
     /// of this terminal (`Host.tabBackground`). Only this terminal's own
@@ -432,24 +453,12 @@ pub const Surface = struct {
     /// at run time (OSC 11) are not followed.
     tab_background: u32 = colorRefFromConfig(std.meta.fieldInfo(configpkg.Config, .background).defaultValue().?),
     scrollbar_config: configpkg.Config.Scrollbar = .system,
-    size_limit: apprt.action.SizeLimit = .{
-        .min_width = 0,
-        .min_height = 0,
-        .max_width = 0,
-        .max_height = 0,
-    },
     secure_input: bool = false,
     secure_input_ever_engaged: bool = false,
     key_sequence_active: bool = false,
     key_sequence_since_ms: ?u64 = null,
     key_table_name: ?[:0]const u8 = null,
     key_table_copy_mode: bool = false,
-    search_active: bool = false,
-    search_needle: ?[:0]const u8 = null,
-    search_total: ?usize = null,
-    search_selected_raw: ?usize = null,
-    search_selected: ?usize = null,
-    search_match_rows: []const u32 = &.{},
     scrollbar: terminal.Scrollbar = .zero,
     scrollbar_state: win32_scrollbar_geometry.ScrollbarState = .{},
     scrollbar_hwnd: ?HWND = null,
@@ -477,11 +486,6 @@ pub const Surface = struct {
     /// A notification the rate limit held back is waiting; see
     /// `App.flushProgramStatusNotifications`.
     program_status_notify_pending: bool = false,
-    /// The tag (this pane's core surface id) of a toast this pane showed
-    /// that may still be in Action Center; `null` once its removal is
-    /// queued. Kept as the id itself because `windowDestroyed` runs after
-    /// the core is gone. See `App.queueToastRemoval`.
-    toast_outstanding: ?u64 = null,
     inspector_visible: bool = false,
     paint_pending: bool = false,
     live_resize_repaint_deferred: bool = false,
@@ -507,17 +511,17 @@ pub const Surface = struct {
     /// retains live tabs/surfaces lives on `Host` because it crosses
     /// pane boundaries and outlives the triggering surface.
     undo_stack: win32_undo.UndoStack = undefined,
-    /// Per-pane docked search bar state. The pure state machine
-    /// lives in `win32_search_bar.zig`; HWNDs below are the live
-    /// child controls docked above the pane content.
-    search_bar: win32_search_bar.SearchBar = undefined,
+    /// Per-pane docked search state (`docked_search.zig`); HWNDs below
+    /// are the live child controls docked above the pane content. `init`
+    /// gives it the app's allocator; until then it is empty, which is what
+    /// a test's bare Surface reads (its match rows, for the scrollbar).
+    docked_search: docked_search.DockedSearch = .{ .alloc = undefined },
     search_bar_frame_rect: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 },
     search_bar_frame_visible: bool = false,
     search_bar_bg_hwnd: ?HWND = null,
     search_bar_bg_uia_provider: ?*win32_uia.ChromeControlProvider = null,
     search_bar_bg_placement: ChildPlacement = .{},
     search_bar_edit_hwnd: ?HWND = null,
-    search_toggle_keys: labels.SearchToggleKeys = .{},
     search_bar_edit_prev_proc: ?*const anyopaque = null,
     search_bar_edit_uia_provider: ?*win32_uia.TerminalProvider = null,
     search_bar_edit_uia_selection: ?[2]u32 = null,
@@ -629,11 +633,6 @@ pub const Surface = struct {
 
     pub const searchBarButtonPrevProc = search_controls.SurfaceControls.searchBarButtonPrevProc;
 
-    pub fn initialDecorationsVisible(config: *const configpkg.Config, opts: SurfaceInitOptions) bool {
-        const keeps = WindowKeeps.forNewSurface(config, opts);
-        return initialDecorationsVisibleForSource(config, if (keeps.decoration) null else opts.clone_state_from);
-    }
-
     /// The `Surface.init` steps `App.test_surface_init_stage` stands in for.
     pub const InitStage = enum { gl_context, core_surface };
 
@@ -645,6 +644,8 @@ pub const Surface = struct {
         opts: SurfaceInitOptions,
     ) !void {
         log.debug("surface.init begin", .{});
+        // A tab or split opens in a window that has already started.
+        std.debug.assert(opts.host_id == null or opts.window == .fresh);
         const existing_host = if (opts.host_id) |host_id|
             app.registry.findHostById(host_id) orelse return error.InvalidHost
         else
@@ -652,7 +653,7 @@ pub const Surface = struct {
         var shell_prepared = try app.prepareShellSurfaceCreate(existing_host, opts);
         defer if (shell_prepared) |*prepared| prepared.deinit();
 
-        const host = existing_host orelse try app.createHost(title, config, opts);
+        const host = existing_host orelse try app.createHost(title, config, opts.window);
         const created_host = existing_host == null;
         errdefer if (created_host) {
             // Its shell window was never committed. Clear it, or the focus
@@ -674,7 +675,6 @@ pub const Surface = struct {
             .host_id = host.id,
             .host_active = true,
             .window_visible = false,
-            .decorations_visible = initialDecorationsVisible(config, opts),
             .scrollbar_config = config.scrollbar,
             .render_trace = RenderTrace.init(app.core_app.alloc),
             // Unlike the render trace there is no single-claimant rule here:
@@ -683,7 +683,7 @@ pub const Surface = struct {
             // process-wide mutex in `bench_trace`.
             .memory_stage_trace = MemoryStageTrace.init(app.core_app.alloc),
             .undo_stack = win32_undo.UndoStack.init(app.core_app.alloc),
-            .search_bar = win32_search_bar.SearchBar.init(app.core_app.alloc),
+            .docked_search = docked_search.DockedSearch.init(app.core_app.alloc),
         };
         // `destroy` never runs for a Surface whose init fails, so free here
         // what it would: the strings, among them the launch command cloned
@@ -698,9 +698,15 @@ pub const Surface = struct {
             _ = windows.CloseHandle(session.client_process);
             self.adopted_session = null;
         };
-        const launch = surfaceLaunchSnapshot(app.core_app.first, config);
-        if (launch.command) |command| self.launch_command = try command.clone(app.core_app.alloc);
-        if (launch.user) |user| self.launch_user = try user.clone(app.core_app.alloc);
+        // The launch it runs, for the tabs and splits that repeat it. The
+        // process's first surface with `initial-command` (`-e`) runs that
+        // command, which is no profile's, so it records no profile line or
+        // variables.
+        const e_command = if (app.core_app.first) config.@"initial-command" else null;
+        if (e_command orelse config.command) |command| self.launch_command = try command.clone(app.core_app.alloc);
+        if (e_command == null) {
+            if (opts.launch.user) |user| self.launch_user = try user.clone(app.core_app.alloc);
+        }
         self.drop_target = try win32_surface_drop_target.DropTarget.create(
             app.core_app.alloc,
             @ptrCast(self),
@@ -710,7 +716,6 @@ pub const Surface = struct {
             self.drop_target.?.deinit();
             self.drop_target = null;
         }
-        self.background_opacity_default = normalizedBackgroundOpacity(config.@"background-opacity");
         self.tab_background = colorRefFromConfig(config.background);
         // First memory-stage sample. Every later stage's private-bytes delta
         // is measured against this one, so it has to be the first thing that
@@ -869,6 +874,8 @@ pub const Surface = struct {
             // A layout during init may have dimmed the pane this split
             // came from, which is alone in its tab again.
             if (!created_host) host.syncSplitDim();
+            // Its renderer's start may have made the window fade whole.
+            if (!created_host) window_state.refreshBackgroundOpacity(host);
         }
 
         // The core opens the pty at the size read below. Give a new split its
@@ -900,10 +907,10 @@ pub const Surface = struct {
             .y = @as(f32, @floatFromInt(host.current_dpi)) / 96.0,
         };
 
+        // A tab or split starts with the metrics of the pane it is opened
+        // from; its core init then sends its own cell size and limit.
         if (opts.clone_state_from) |source| {
-            if (sharesHostWindowState(self.host_id, source.host_id)) {
-                self.copySharedWindowStateFrom(source, .{});
-            }
+            if (source.host_id == self.host_id) self.metrics = source.metrics;
         }
 
         if (app.test_surface_init_stage) |stage| try stage(self, .core_surface) else {
@@ -929,6 +936,10 @@ pub const Surface = struct {
                 log.err("win32 size callback failed err={}", .{err});
             };
         }
+        // Its renderer runs now: its window shows its opacity as the
+        // renderers of its panes can (a D3D11 pane fades it whole) and tells
+        // this one what to draw its background at.
+        window_state.refreshBackgroundOpacity(host);
         // Stop the core if a later step fails. This runs first, while the GL
         // context and the window its threads draw to are still alive.
         errdefer self.deinitCore();
@@ -947,8 +958,6 @@ pub const Surface = struct {
         // need an initial occlusion sync so hidden child GL surfaces stop
         // rendering before activation ordering runs.
         const activate_during_init = shouldShowSurfaceImmediately(opts.host_id);
-        const window_start = WindowStart.forNewSurface(config, opts);
-        const keeps = WindowKeeps.forNewSurface(config, opts);
         self.setVisible(activate_during_init);
         sys.DragAcceptFiles(hwnd, 1);
 
@@ -961,31 +970,10 @@ pub const Surface = struct {
         // unchanged for a surface that started unfocused.
         self.focusChanged(self.window_focused);
         if (activate_during_init) {
-            // Must stay ahead of every path below that can show the host
-            // window (`SW_SHOWNOACTIVATE` / `presentWindow`): applying the
-            // layered style to an already-visible window is what produces an
-            // opaque-then-fade flash. No unit test observes that ordering
-            // — see the doc comment on `applyInitialBackgroundOpacity`.
-            self.applyInitialBackgroundOpacity(if (keeps.background_opacity) null else opts.clone_state_from);
-            try host.refreshChrome();
-            try host.layout();
-            // `maximize` and `fullscreen` (#496), before the first show, so
-            // the window first appears in that state. Core init has already
-            // given it `window-width`/`window-height`, so that is the normal
-            // rect it returns to. A clone takes them once it has the
-            // source's state, below.
-            if (opts.clone_state_from == null) self.applyWindowStart(window_start);
-            // The top-level host was created hidden and stays hidden until GL
-            // and core initialization have succeeded, so a startup failure
-            // reaches the fatal dialog without first presenting a blank host
-            // window. Same-host tabs and splits never take this path.
-            if (opts.show.showCommand()) |show_command| {
-                if (host.hwnd) |host_hwnd| {
-                    _ = sys.ShowWindow(host_hwnd, show_command);
-                    _ = sys.UpdateWindow(host_hwnd);
-                }
-            }
-            if (opts.show.takesFocus()) self.presentWindow();
+            // The window this init created, hidden until now, is shown as
+            // its start says (`window_state.begin`). Same-host tabs and
+            // splits never take this path.
+            if (try window_state.advance(host, .before_show)) self.presentWindow();
             if (app.update_startup_ready) {
                 // The first window of a start that opened none (initial-window
                 // off) is where the failed-install banner can first show.
@@ -993,14 +981,7 @@ pub const Surface = struct {
                 app.maybeScheduleAutomaticUpdateCheck();
             }
             try self.requestRepaint();
-        }
-
-        if (opts.clone_state_from) |source| {
-            if (!sharesHostWindowState(self.host_id, source.host_id)) {
-                try self.inheritWindowStateFrom(source, keeps);
-                // After it: a normal source ends in SW_RESTORE.
-                self.applyWindowStart(window_start);
-            }
+            try window_state.advance(host, .after_show);
         }
         if (shell_prepared) |*prepared| {
             try prepared.commit(&app.shell_runtime);
@@ -1288,17 +1269,13 @@ pub const Surface = struct {
             // Not always the key that closed a terminal in front: a read-only
             // terminal whose program exits closes itself and asks, in
             // whichever tab it is.
-            var title_buf: [32]u8 = undefined;
-            var prompt: ConfirmPrompt = .{
-                .title = "Close this terminal?",
-                .body = "A process is still running. Closing this surface will terminate it.",
-                .accept_label = "Close",
-                .cancel_label = "Cancel",
-                // Nothing to preview: this prompt is about a running
-                // process, not about a payload.
-            };
-            const named_body = host.nameBackgroundTerminal(&prompt, mutable, &title_buf);
-            defer if (named_body) |text| mutable.app.core_app.alloc.free(text);
+            const alloc = mutable.app.core_app.alloc;
+            var words: confirm_text.Words = .{};
+            defer words.deinit(alloc);
+            const prompt = words.close(alloc, .{ .terminal = .{
+                .program_exited = mutable.core_initialized and mutable.core_surface.child_exited,
+                .behind = host.backgroundTabRef(mutable),
+            } });
             host.showConfirm(
                 prompt,
                 &surfaceConfirmCloseAccept,
@@ -2127,7 +2104,7 @@ pub const Surface = struct {
     ///
     /// The native actions taken are identical to the unchecked wrapper; only
     /// the outcome is reported.
-    pub fn clearGLContextCurrentChecked(self: *Surface) bool {
+    fn clearGLContextCurrentChecked(self: *Surface) bool {
         // Without a context of our own, nothing of ours can be current.
         const hglrc = self.hglrc orelse return true;
         if (sys.wglGetCurrentContext() != hglrc) return true;
@@ -2521,6 +2498,10 @@ pub const Surface = struct {
         }
         const initial = host.overlayInitialText(.tab_overview);
         defer if (initial) |value| self.app.core_app.alloc.free(value);
+        // What is open ends first, as every other overlay's open ends it: a
+        // palette reverts its theme preview and lets go of its catalog's
+        // config, a confirm prompt releases its pending operation.
+        host.hideOverlay();
         try host.showOverlay(.tab_overview, initial);
         return true;
     }
@@ -2619,7 +2600,7 @@ pub const Surface = struct {
         };
     }
 
-    fn clearScrollbarMarkers(self: *Surface) void {
+    pub fn clearScrollbarMarkers(self: *Surface) void {
         if (self.scrollbar_markers.len > 0) {
             self.app.core_app.alloc.free(self.scrollbar_markers);
             self.scrollbar_markers = &.{};
@@ -2630,14 +2611,15 @@ pub const Surface = struct {
 
     fn rebuildScrollbarMarkers(self: *Surface, marker_budget: usize) !void {
         self.clearScrollbarMarkers();
-        if (marker_budget == 0 or self.search_match_rows.len == 0 or self.scrollbar.total == 0) return;
+        const match_rows = self.docked_search.view().match_rows;
+        if (marker_budget == 0 or match_rows.len == 0 or self.scrollbar.total == 0) return;
 
         const alloc = self.app.core_app.alloc;
-        const rows = try alloc.alloc(usize, self.search_match_rows.len);
+        const rows = try alloc.alloc(usize, match_rows.len);
         defer alloc.free(rows);
-        for (self.search_match_rows, 0..) |row, i| rows[i] = @intCast(row);
+        for (match_rows, 0..) |row, i| rows[i] = @intCast(row);
 
-        self.scrollbar_markers = try win32_search_bar.downsampleMarkers(
+        self.scrollbar_markers = try win32_scrollbar_geometry.downsampleMarkers(
             alloc,
             rows,
             self.scrollbar.total,
@@ -2899,7 +2881,7 @@ pub const Surface = struct {
         errdefer scan.deinit(alloc);
         if (scan.matches.len == 0) {
             scan.deinit(alloc);
-            self.showQuickSelectNotice(labels.quick_select_no_targets_banner);
+            self.showQuickSelectNotice(quick_select_no_targets_banner);
             return true;
         }
 
@@ -2948,7 +2930,7 @@ pub const Surface = struct {
         if (!self.ensureQuickSelectLabelRects(client, metrics, host.current_dpi)) {
             log.warn("quick select has more visible labels than fit without overlap", .{});
             self.closeQuickSelect(false);
-            self.showQuickSelectNotice(labels.quick_select_too_many_banner);
+            self.showQuickSelectNotice(quick_select_too_many_banner);
             return true;
         }
 
@@ -2965,6 +2947,9 @@ pub const Surface = struct {
         _ = sys.InvalidateRect(hwnd, null, 0);
         return true;
     }
+
+    pub const quick_select_no_targets_banner = "No quick-select targets in view.";
+    pub const quick_select_too_many_banner = "Too many quick-select targets in view to label. Clear or narrow the screen.";
 
     /// Say why the key press did nothing. Call with no session open: the
     /// banner does not touch focus, and a closed overlay has nothing to free.
@@ -3529,7 +3514,7 @@ pub const Surface = struct {
         }
 
         // Without animations the settled state is fully shown or hidden.
-        const alpha = alphaByteForOpacity(self.scrollbar_state.alpha(now_ms));
+        const alpha: BYTE = @intFromFloat(@round(@as(f64, self.scrollbar_state.alpha(now_ms)) * 255.0));
         const paint_key = self.scrollbarPaintKey(child_rect);
         const paint_changed = scrollbarPaintKeyChanged(self.scrollbar_paint_cache, paint_key);
         if (alpha != self.scrollbar_alpha_cache) {
@@ -3559,8 +3544,17 @@ pub const Surface = struct {
     }
 
     pub fn refreshScrollbarWindow(self: *Surface) !void {
+        if (builtin.is_test and test_scrollbar_refresh_fails == self) return error.TestScrollbarRefreshFailed;
         try self.syncScrollbarWindowNow(sys.GetTickCount64());
+        if (builtin.is_test and test_scrollbar_refreshes_of == self) test_scrollbar_refreshes += 1;
     }
+
+    /// The pane whose `refreshScrollbarWindow` fails in a test.
+    pub var test_scrollbar_refresh_fails: ?*const Surface = null;
+    /// The pane whose `refreshScrollbarWindow` calls that succeed a test
+    /// counts, in `test_scrollbar_refreshes`.
+    pub var test_scrollbar_refreshes_of: ?*const Surface = null;
+    pub var test_scrollbar_refreshes: usize = 0;
 
     pub fn scrollbarNeedsHeartbeat(self: *const Surface) bool {
         return scrollbarNeedsHeartbeatForState(
@@ -3795,8 +3789,6 @@ pub const Surface = struct {
         drawRoundedRect(hdc, thumb, thumb_bg, thumb_border, radius);
     }
 
-    pub const searchQueryOptions = search_controls.SurfaceControls.searchQueryOptions;
-
     pub const applySearchBarFont = search_controls.SurfaceControls.applySearchBarFont;
 
     pub const invalidateSearchButtons = search_controls.SurfaceControls.invalidateSearchButtons;
@@ -3825,92 +3817,13 @@ pub const Surface = struct {
 
     pub const layoutSearchBarControls = search_controls.SurfaceControls.layoutSearchBarControls;
 
-    const setSearchBarEditText = search_controls.SurfaceControls.setSearchBarEditText;
-
     pub const readSearchBarEditText = search_controls.SurfaceControls.readSearchBarEditText;
 
     pub const syncSearchBarResultsText = search_controls.SurfaceControls.syncSearchBarResultsText;
 
-    pub const issueSearchNow = search_controls.SurfaceControls.issueSearchNow;
-
-    pub const runPendingSearchNow = search_controls.SurfaceControls.runPendingSearchNow;
-
-    pub const rerunSearchNow = search_controls.SurfaceControls.rerunSearchNow;
-
     pub const handleSearchBarEditChanged = search_controls.SurfaceControls.handleSearchBarEditChanged;
 
-    pub const navigateDockedSearch = search_controls.SurfaceControls.navigateDockedSearch;
-
-    pub const handleSearchToggleClick = search_controls.SurfaceControls.handleSearchToggleClick;
-
-    pub fn closeDockedSearchBar(self: *Surface, stop_search: bool, refocus_terminal: bool) anyerror!void {
-        if (stop_search) {
-            _ = try self.core_surface.endSearch();
-            if (refocus_terminal) {
-                if (self.hwnd) |hwnd| _ = sys.SetFocus(hwnd);
-            }
-            return;
-        }
-
-        const host = self.host orelse return;
-        self.search_bar.close();
-        self.search_bar.total = null;
-        self.search_bar.selected = null;
-        try self.setSearchActive(false, "");
-        _ = self.hideSearchBarControls();
-        host.refreshSearchTimerState();
-        try host.layout();
-        host.forceHostCompositionPaint();
-        if (refocus_terminal) {
-            if (self.hwnd) |hwnd| _ = sys.SetFocus(hwnd);
-        }
-    }
-
-    pub fn showSearchOverlay(self: *Surface, needle: []const u8) !void {
-        const host = self.host orelse return;
-        if (host.overlay_mode != .none) host.hideOverlay();
-
-        try self.ensureSearchBarControls();
-        self.search_bar.open();
-
-        const initial = if (needle.len > 0)
-            needle
-        else if (self.search_bar.query.len > 0)
-            self.search_bar.query
-        else if (self.search_needle) |value|
-            value
-        else
-            "";
-        const same_query = if (self.search_needle) |value|
-            std.mem.eql(u8, value, initial)
-        else
-            false;
-        const restore_live_results = initial.len > 0 and self.search_active and same_query;
-        if (!std.mem.eql(u8, self.search_bar.query, initial)) {
-            try self.search_bar.setQuery(initial, 0);
-        }
-        if (!restore_live_results) {
-            self.search_bar.total = null;
-            self.search_bar.selected = null;
-        }
-        self.search_bar.searched = initial.len == 0 or restore_live_results;
-        self.search_bar.last_edit_ms = 0;
-
-        _ = try self.setSearchBarEditText(initial);
-        _ = try self.syncSearchBarResultsText();
-        try host.layout();
-        host.refreshSearchTimerState();
-        host.forceHostCompositionPaint();
-
-        if (self.search_bar_edit_hwnd) |edit_hwnd| {
-            _ = sys.SetFocus(edit_hwnd);
-            _ = sys.SendMessageW(edit_hwnd, c.EM_SETSEL, 0, -1);
-        }
-
-        if (initial.len > 0 and (!self.search_active or !same_query)) {
-            _ = try self.rerunSearchNow();
-        }
-    }
+    pub const dockedSearch = search_controls.SurfaceControls.dockedSearch;
 
     pub fn setInspectorVisible(self: *Surface, visible: bool) !bool {
         if (visible == self.inspector_visible) return false;
@@ -3945,7 +3858,7 @@ pub const Surface = struct {
             if (!chrome_invalidated and inspectorChromeVisible(h.overlay_mode)) {
                 h.invalidateTopChromeText();
             }
-            if (inspectorVisibilityChangeNeedsHostRelayout(panel_was_visible != panel_now_visible)) {
+            if (panel_was_visible != panel_now_visible) {
                 h.invalidateActiveSearchBarLayoutCaches();
                 try h.layout();
                 h.forceHostCompositionPaint();
@@ -3983,22 +3896,18 @@ pub const Surface = struct {
         if (caption_changed or tabs_changed) host.invalidateTopChromeText();
     }
 
-    pub const toggleMaximize = window_state.toggleMaximize;
-
+    /// The pane half of a config change; its window takes the rest
+    /// (`window_state.applyConfig`). `takeRuntimeConfig` stores it, which
+    /// cannot fail, and `refreshScrollbarWindow` carries it out, which can, so
+    /// a config change stores every value before the first fallible step.
     pub fn applyRuntimeConfig(self: *Surface, config: *const configpkg.Config) !void {
-        self.applyBellFeatures(config.@"bell-features");
-        if (shouldApplyConfigDecorations(self.decorations_visible_overridden)) {
-            self.setDecorationsVisible(decorationsVisibleForConfig(config.@"window-decoration")) catch |err| {
-                log.warn("win32 decoration update failed during config reload err={}", .{err});
-            };
-        }
-        self.background_opacity_default = normalizedBackgroundOpacity(self.app.shownBackgroundOpacity(config));
-        self.scrollbar_config = config.scrollbar;
-        if (self.background_opacity_default >= 0.999) {
-            self.background_opacity_force_opaque = false;
-        }
-        try self.applyBackgroundOpacity();
+        self.takeRuntimeConfig(config);
         try self.refreshScrollbarWindow();
+    }
+
+    pub fn takeRuntimeConfig(self: *Surface, config: *const configpkg.Config) void {
+        self.applyBellFeatures(config.@"bell-features");
+        self.scrollbar_config = config.scrollbar;
     }
 
     /// Take `color`, from this terminal's own config (its `config_change`),
@@ -4012,85 +3921,6 @@ pub const Surface = struct {
         self.tab_background = value;
         if (self.host) |host| host.syncTabJoin();
     }
-
-    pub const toggleBackgroundOpacity = window_state.toggleBackgroundOpacity;
-
-    fn resizeSplitFallback(self: *Surface, value: apprt.action.ResizeSplit) !bool {
-        const hwnd = self.hwnd orelse return false;
-        var client_rect: RECT = undefined;
-        if (sys.GetClientRect(hwnd, &client_rect) == 0) {
-            return lastError();
-        }
-
-        const delta = resizeSplitFallbackDelta(value);
-        const current_width = client_rect.right - client_rect.left;
-        const current_height = client_rect.bottom - client_rect.top;
-        const next_width = @max(1, current_width + delta.width);
-        const next_height = @max(1, current_height + delta.height);
-
-        try self.resizeClientArea(@intCast(next_width), @intCast(next_height));
-        return true;
-    }
-
-    pub const toggleFullscreen = window_state.toggleFullscreen;
-
-    pub const toggleDecorations = window_state.toggleDecorations;
-
-    pub const setInitialSize = window_state.setInitialSize;
-
-    pub const hostSurfaceCount = window_state.hostSurfaceCount;
-
-    pub const resetWindowSize = window_state.resetWindowSize;
-
-    pub const setSizeLimit = window_state.setSizeLimit;
-
-    pub fn setCellSize(self: *Surface, size: apprt.action.CellSize) void {
-        self.cell_size_pixels = size;
-    }
-
-    pub const setFloatWindow = window_state.setFloatWindow;
-
-    pub const applyWindowStart = window_state.applyWindowStart;
-
-    pub const enterFullscreen = window_state.enterFullscreen;
-
-    pub const FullscreenReturn = window_state.FullscreenReturn;
-
-    pub const fullscreenReturn = window_state.fullscreenReturn;
-
-    pub const leaveFullscreen = window_state.leaveFullscreen;
-
-    pub const windowMonitor = window_state.windowMonitor;
-
-    pub const screenRectToWorkspace = window_state.screenRectToWorkspace;
-
-    pub const setDecorationsVisible = window_state.setDecorationsVisible;
-
-    pub const rollbackDecorationsVisible = window_state.rollbackDecorationsVisible;
-
-    pub const resizeClientArea = window_state.resizeClientArea;
-
-    pub const copySharedWindowStateFrom = window_state.copySharedWindowStateFrom;
-
-    pub const activeSharedHostWindowHwnd = window_state.activeSharedHostWindowHwnd;
-
-    pub const syncSharedHostWindowState = window_state.syncSharedHostWindowState;
-
-    pub const refreshSharedWindowFrame = window_state.refreshSharedWindowFrame;
-
-    pub const inheritWindowStateFrom = window_state.inheritWindowStateFrom;
-
-    pub const updateMinMaxInfo = window_state.updateMinMaxInfo;
-
-    pub const keepsFrameUndecorated = window_state.keepsFrameUndecorated;
-
-    pub const applyWindowStyle = window_state.applyWindowStyle;
-
-    pub const applyInitialBackgroundOpacity = window_state.applyInitialBackgroundOpacity;
-
-    pub const applyBackgroundOpacity = window_state.applyBackgroundOpacity;
-
-    pub const applyTopmost = window_state.applyTopmost;
 
     pub const syncCoreSizeFromClientRect = surface_presentation.syncCoreSizeFromClientRect;
 
@@ -4115,6 +3945,24 @@ pub const Surface = struct {
         if (!self.core_initialized or self.split_dimmed_sent == self.split_dimmed) return;
         self.split_dimmed_sent = self.split_dimmed;
         self.core_surface.renderer_thread.send(.{ .split_dimmed = self.split_dimmed });
+    }
+
+    pub fn setBackgroundOpacity(self: *Surface, opacity: ?f64) void {
+        self.background_opacity = opacity;
+        // A surface whose core has not started has no renderer yet; `init`
+        // asks its window again once it has.
+        if (!self.core_initialized or std.meta.eql(self.background_opacity_sent, opacity)) return;
+        self.background_opacity_sent = opacity;
+        self.core_surface.renderer_thread.send(.{ .background_opacity = opacity });
+    }
+
+    /// The renderer replaced its D3D11 backend with OpenGL, inside this
+    /// pane's paint and holding its own lock: the window asks again from its
+    /// message loop.
+    pub fn rendererSwitchedToOpenGL(self: *Surface) void {
+        const host = self.host orelse return;
+        const hwnd = host.hwnd orelse return;
+        _ = sys.PostMessageW(hwnd, c.WM_WINHOSTTY_RENDERER_SWITCHED, 0, 0);
     }
 
     pub fn focusChanged(self: *Surface, focused: bool) void {
@@ -4590,7 +4438,7 @@ pub const Surface = struct {
     pub fn wheelNormalizationContext(self: *const Surface) WheelNormalizationContext {
         return .{
             .settings = self.app.wheel_settings,
-            .cell_size = self.cell_size_pixels,
+            .cell_size = self.metrics.cell_size_pixels,
             .viewport = self.size,
         };
     }
@@ -4651,8 +4499,8 @@ pub const Surface = struct {
         self.program_status.deinit(self.app.core_app.alloc);
         self.destroyScrollbarWindow();
         self.destroySearchBarControls();
-        // Drain the search bar's query allocation.
-        self.search_bar.deinit();
+        // Drain the search state's query and match rows.
+        self.docked_search.deinit();
         // Tear down any confirm overlay whose userdata points at
         // this Surface BEFORE we drain our own pending state. If we
         // skipped this, a user click on Accept / Cancel after the
@@ -4735,14 +4583,6 @@ pub const Surface = struct {
         if (self.key_table_name) |value| {
             alloc.free(value);
             self.key_table_name = null;
-        }
-        if (self.search_needle) |value| {
-            alloc.free(value);
-            self.search_needle = null;
-        }
-        if (self.search_match_rows.len > 0) {
-            alloc.free(self.search_match_rows);
-            self.search_match_rows = &.{};
         }
         if (self.pwd) |value| {
             alloc.free(value);
@@ -4917,102 +4757,6 @@ pub const Surface = struct {
         try std.testing.expect(!host.bannerShown());
     }
 
-    pub fn setSearchActive(self: *Surface, active: bool, needle: []const u8) !void {
-        const alloc = self.app.core_app.alloc;
-        self.search_active = active;
-        self.search_total = null;
-        self.search_selected_raw = null;
-        self.search_selected = null;
-        self.search_bar.total = null;
-        self.search_bar.selected = null;
-        self.search_bar.invalid = false;
-        if (!active) {
-            self.search_bar.searched = self.search_bar.query.len == 0;
-            self.search_bar.last_edit_ms = 0;
-        } else if (needle.len > 0 and !std.mem.eql(u8, self.search_bar.query, needle)) {
-            try self.search_bar.setQuery(needle, 0);
-            self.search_bar.searched = true;
-            self.search_bar.last_edit_ms = 0;
-        }
-        if (self.search_match_rows.len > 0) {
-            alloc.free(self.search_match_rows);
-            self.search_match_rows = &.{};
-        }
-        self.clearScrollbarMarkers();
-        if (active and needle.len > 0) {
-            try appendOwnedString(alloc, &self.search_needle, needle);
-        } else if (!active) {
-            try appendOwnedString(alloc, &self.search_needle, null);
-        }
-        _ = try self.syncSearchBarResultsText();
-        try self.refreshScrollbarWindow();
-    }
-
-    pub fn setSearchTotal(self: *Surface, total: ?usize, invalid: bool) !void {
-        if (!shouldAcceptCoreSearchUpdates(&self.search_bar)) return;
-        const selected = searchSelectedDisplayFromRaw(self.search_selected_raw, total);
-        const searched = searchBarSearchedStateForTotal(total);
-        if (self.search_total == total and
-            self.search_selected == selected and
-            self.search_bar.invalid == invalid and
-            !searchBarDisplayStateChanged(&self.search_bar, searched, total, selected))
-        {
-            return;
-        }
-        self.search_total = total;
-        self.search_bar.searched = searched;
-        self.search_bar.total = total;
-        self.search_bar.invalid = invalid;
-        self.search_selected = selected;
-        self.search_bar.selected = selected;
-        _ = try self.syncSearchBarResultsText();
-    }
-
-    pub fn setSearchSelected(self: *Surface, selected: ?usize) !void {
-        if (!shouldAcceptCoreSearchUpdates(&self.search_bar)) return;
-        const raw = searchSelectedRawFromCoreDisplay(selected);
-        const display = searchSelectedDisplayFromRaw(raw, self.search_total);
-        const searched = searchBarSearchedStateForSelected(display, self.search_total);
-        if (self.search_selected_raw == raw and
-            self.search_selected == display and
-            !searchBarDisplayStateChanged(&self.search_bar, searched, self.search_total, display))
-        {
-            return;
-        }
-        self.search_selected_raw = raw;
-        self.search_selected = display;
-        self.search_bar.searched = searched;
-        self.search_bar.selected = display;
-        _ = try self.syncSearchBarResultsText();
-    }
-
-    pub fn setSearchSelectedDisplay(self: *Surface, selected: ?usize) !void {
-        const searched = searchBarSearchedStateForSelected(selected, self.search_total);
-        if (self.search_selected == selected and
-            !searchBarDisplayStateChanged(&self.search_bar, searched, self.search_total, selected))
-        {
-            return;
-        }
-        self.search_selected = selected;
-        self.search_bar.searched = searched;
-        self.search_bar.selected = selected;
-        _ = try self.syncSearchBarResultsText();
-    }
-
-    pub fn setSearchMatchRows(self: *Surface, rows: []const u32) !void {
-        if (!shouldAcceptCoreSearchUpdates(&self.search_bar)) return;
-        if (std.mem.eql(u32, self.search_match_rows, rows)) return;
-
-        const alloc = self.app.core_app.alloc;
-        if (self.search_match_rows.len > 0) alloc.free(self.search_match_rows);
-        self.search_match_rows = if (rows.len == 0)
-            &.{}
-        else
-            try alloc.dupe(u32, rows);
-        self.clearScrollbarMarkers();
-        try self.refreshScrollbarWindow();
-    }
-
     pub fn setScrollbar(self: *Surface, value: terminal.Scrollbar) !void {
         if (self.scrollbar.eql(value)) return;
         const old = self.scrollbar;
@@ -5121,24 +4865,17 @@ pub const Surface = struct {
         // committed successfully and a later setup step failed.
         errdefer alloc.free(data_copy);
 
-        const program_body = if (program_request) try self.programClipboardPromptBody(.read) else null;
-        defer if (program_body) |body| alloc.free(body);
-        try host.showConfirm(
-            .{
-                .title = if (program_request) labels.programClipboardPromptTitle(.read) else "Allow clipboard paste?",
-                .body = program_body orelse win32_paste_protection.promptBody(data),
-                .accept_label = "Allow",
-                .cancel_label = "Cancel",
-                // Preview the exact bytes the gate stopped. `data_copy`
-                // is what Accept delivers; the preview is built from the
-                // same bytes and capped for display only.
-                .contents = data,
-                .program_request = program_request,
-            },
-            surfaceConfirmPasteAccept,
-            surfaceConfirmPasteCancel,
-            self,
-        );
+        var words: confirm_text.Words = .{};
+        defer words.deinit(alloc);
+        // Preview the exact bytes the gate stopped. `data_copy` is what
+        // Accept delivers; the preview is built from the same bytes and
+        // capped for display only.
+        const asked: confirm_text.Clipboard = if (program_request)
+            .{ .program = .{ .request = .read, .contents = data, .asked_by = self.tabRef() } }
+        else
+            .{ .user_paste = data };
+        const prompt = try words.clipboard(alloc, asked);
+        try host.showConfirm(prompt, surfaceConfirmPasteAccept, surfaceConfirmPasteCancel, self);
 
         // showConfirm succeeded — the callback is registered and
         // fires async on user action (Enter / Esc / click), never
@@ -5211,21 +4948,10 @@ pub const Surface = struct {
             break :preview contents[0].data;
         };
 
-        const body = try self.programClipboardPromptBody(.write);
-        defer alloc.free(body);
-        try host.showConfirm(
-            .{
-                .title = labels.programClipboardPromptTitle(.write),
-                .body = body,
-                .accept_label = "Allow",
-                .cancel_label = "Cancel",
-                .contents = preview_contents,
-                .program_request = true,
-            },
-            surfaceConfirmWriteAccept,
-            surfaceConfirmWriteCancel,
-            self,
-        );
+        var words: confirm_text.Words = .{};
+        defer words.deinit(alloc);
+        const prompt = try words.clipboard(alloc, .{ .program = .{ .request = .write, .contents = preview_contents, .asked_by = self.tabRef() } });
+        try host.showConfirm(prompt, surfaceConfirmWriteAccept, surfaceConfirmWriteCancel, self);
 
         // showConfirm succeeded — commit the pending op. The async
         // accept callback picks it up; same race-free rationale as
@@ -5252,13 +4978,10 @@ pub const Surface = struct {
         if (Host.findTabForSurface(self) == null) return error.NotInATab;
     }
 
-    fn programClipboardPromptBody(self: *Surface, request: labels.ProgramClipboardRequest) ![]u8 {
-        return labels.buildProgramClipboardPromptBody(
-            self.app.core_app.alloc,
-            request,
-            self.app.hostTabStatus(self).index + 1,
-            self.effectiveTitle(),
-        );
+    /// This pane's tab as a program's prompt names it: its number and
+    /// title as the tab strip shows them.
+    fn tabRef(self: *Surface) confirm_text.TabRef {
+        return .{ .number = self.app.hostTabStatus(self).index + 1, .title = self.effectiveTitle() };
     }
 
     /// Keeps `link` (owned on the App allocator) for this pane's link
@@ -5318,9 +5041,11 @@ pub const Surface = struct {
     }
 
     pub fn writeClipboardText(self: *const Surface, text: []const u8) !void {
-        writeClipboardTextWith(.{}, self.app.core_app.alloc, self.hwnd, text) catch |err| switch (err) {
-            // A Win32 failure is reported as `lastError()`, as it always was.
-            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return lastError(),
+        var native: windows.Win32Error = .SUCCESS;
+        writeClipboardTextWith(.{}, self.app.core_app.alloc, self.hwnd, text, &native) catch |err| switch (err) {
+            // A Win32 failure is reported with the error its own call left,
+            // not whatever the cleanup after it left.
+            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return windows.unexpectedError(native),
             else => |other| return other,
         };
     }
@@ -5328,11 +5053,18 @@ pub const Surface = struct {
     /// `writeClipboardText` through `ops`, so a test can fail each native call
     /// without reaching the real clipboard. The text is made ready before the
     /// clipboard is opened and emptied (`clipboard_write.write`), so memory
-    /// that cannot be had no longer wipes what the clipboard held.
-    fn writeClipboardTextWith(ops: clipboard_write.Ops, alloc: std.mem.Allocator, owner: ?HWND, text: []const u8) !void {
+    /// that cannot be had no longer wipes what the clipboard held. `native`
+    /// receives the failing call's error.
+    fn writeClipboardTextWith(
+        ops: clipboard_write.Ops,
+        alloc: std.mem.Allocator,
+        owner: ?HWND,
+        text: []const u8,
+        native: *windows.Win32Error,
+    ) !void {
         const text_w = try clipboardTextUtf16(alloc, text);
         defer alloc.free(text_w);
-        try clipboard_write.write(ops, owner, &.{clipboard_write.unicodeText(text_w)});
+        try clipboard_write.writeCapturing(ops, owner, &.{clipboard_write.unicodeText(text_w)}, native);
     }
 
     /// Write both CF_HTML (styled fragment) and CF_UNICODETEXT
@@ -5350,8 +5082,9 @@ pub const Surface = struct {
     pub fn writeClipboardHtml(self: *const Surface, html: []const u8, plain: ?[]const u8) !void {
         const cf_html = win32_ole.htmlFormat();
         if (cf_html == 0) return lastError();
-        writeClipboardHtmlWith(.{}, self.app.core_app.alloc, self.hwnd, cf_html, html, plain) catch |err| switch (err) {
-            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return lastError(),
+        var native: windows.Win32Error = .SUCCESS;
+        writeClipboardHtmlWith(.{}, self.app.core_app.alloc, self.hwnd, cf_html, html, plain, &native) catch |err| switch (err) {
+            error.GlobalMemoryUnavailable, error.ClipboardUnavailable => return windows.unexpectedError(native),
             else => |other| return other,
         };
     }
@@ -5369,6 +5102,7 @@ pub const Surface = struct {
         cf_html: UINT,
         html: []const u8,
         plain: ?[]const u8,
+        native: *windows.Win32Error,
     ) !void {
         const wrapped = try win32_clipboard_html.wrapFragment(alloc, html);
         defer alloc.free(wrapped);
@@ -5391,10 +5125,10 @@ pub const Surface = struct {
         const plain_w = try clipboardTextUtf16(alloc, plain_src);
         defer alloc.free(plain_w);
 
-        try clipboard_write.write(ops, owner, &.{
+        try clipboard_write.writeCapturing(ops, owner, &.{
             .{ .id = cf_html, .data = wrapped, .nul_bytes = 1 },
             clipboard_write.unicodeText(plain_w),
-        });
+        }, native);
     }
 
     /// Release the surface's native GL resources. Also called when OpenGL
@@ -5453,12 +5187,16 @@ pub const Surface = struct {
 test "win32 a terminal text copy prepares its data before it empties the clipboard" {
     const Fake = clipboard_write.Fake;
     const alloc = std.testing.allocator;
+    var native: windows.Win32Error = .SUCCESS;
 
     // Memory that cannot be had or locked: the clipboard is never opened, let
     // alone emptied, and what was allocated is freed.
     for ([_]Fake.Fail{ .alloc, .lock }) |how| {
         Fake.reset(how, 0);
-        try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb"));
+        try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb", &native));
+        // The failing call's own code: the free after a failed lock has
+        // already overwritten what the thread would report.
+        try std.testing.expectEqual(Fake.failureCode(how), native);
         try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and !Fake.did(.set_data) and !Fake.did(.close));
         try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
         try std.testing.expectEqual(@as(usize, 0), Fake.taken());
@@ -5468,7 +5206,9 @@ test "win32 a terminal text copy prepares its data before it empties the clipboa
     // freed, and the clipboard closed only once it was opened.
     for ([_]Fake.Fail{ .open, .empty, .set_data }) |how| {
         Fake.reset(how, 0);
-        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb"));
+        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardTextWith(Fake.ops, alloc, null, "a\nb", &native));
+        try std.testing.expectEqual(Fake.failureCode(how), native);
+        try std.testing.expect(Fake.lastErrorNow() != native);
         try std.testing.expectEqual(how != .open, Fake.did(.close));
         try std.testing.expectEqual(how == .set_data, Fake.did(.set_data));
         try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
@@ -5480,7 +5220,7 @@ test "win32 a terminal text copy prepares its data before it empties the clipboa
     // with CRLF line endings, and the clipboard keeps the memory.
     const owner: HWND = @ptrFromInt(0x2000);
     Fake.reset(.none, 0);
-    try Surface.writeClipboardTextWith(Fake.ops, alloc, owner, "a\nb");
+    try Surface.writeClipboardTextWith(Fake.ops, alloc, owner, "a\nb", &native);
     try std.testing.expectEqual(@as(?HWND, owner), Fake.openedFor());
     try std.testing.expectEqualSlices(Fake.Step, &.{ .alloc, .lock, .unlock, .open, .empty, .set_data, .close }, Fake.recorded());
     try std.testing.expectEqual(@as(usize, 1), Fake.taken());
@@ -5493,6 +5233,7 @@ test "win32 a terminal text copy prepares its data before it empties the clipboa
 test "win32 a terminal html copy prepares both formats before it empties the clipboard" {
     const Fake = clipboard_write.Fake;
     const alloc = std.testing.allocator;
+    var native: windows.Win32Error = .SUCCESS;
     const html = "<b>a</b>\nb";
     const cf_html: UINT = 0xC0A0;
 
@@ -5501,7 +5242,9 @@ test "win32 a terminal html copy prepares both formats before it empties the cli
     for ([_]Fake.Fail{ .alloc, .lock }) |how| {
         for (0..2) |nth| {
             Fake.reset(how, nth);
-            try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+            native = .SUCCESS;
+            try std.testing.expectError(error.GlobalMemoryUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null, &native));
+            try std.testing.expectEqual(Fake.failureCode(how), native);
             try std.testing.expect(!Fake.did(.open) and !Fake.did(.empty) and !Fake.did(.set_data) and !Fake.did(.close));
             try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
             try std.testing.expectEqual(@as(usize, 0), Fake.taken());
@@ -5512,7 +5255,9 @@ test "win32 a terminal html copy prepares both formats before it empties the cli
     // freed, and nothing was taken.
     for ([_]Fake.Fail{ .open, .empty, .set_data }) |how| {
         Fake.reset(how, 0);
-        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+        native = .SUCCESS;
+        try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null, &native));
+        try std.testing.expectEqual(Fake.failureCode(how), native);
         try std.testing.expectEqual(how != .open, Fake.did(.close));
         try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
         try std.testing.expectEqual(@as(usize, 0), Fake.taken());
@@ -5524,7 +5269,9 @@ test "win32 a terminal html copy prepares both formats before it empties the cli
     // order avoids that. The call fails, and the block the clipboard did not
     // take is freed.
     Fake.reset(.set_data, 1);
-    try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null));
+    native = .SUCCESS;
+    try std.testing.expectError(error.ClipboardUnavailable, Surface.writeClipboardHtmlWith(Fake.ops, alloc, null, cf_html, html, null, &native));
+    try std.testing.expectEqual(Fake.failureCode(.set_data), native);
     try std.testing.expect(Fake.did(.empty) and Fake.did(.close));
     try std.testing.expectEqual(@as(usize, 0), Fake.leaked());
     try std.testing.expectEqual(@as(usize, 1), Fake.taken());
@@ -5543,7 +5290,7 @@ test "win32 a terminal html copy prepares both formats before it empties the cli
     };
     for (cases) |case| {
         Fake.reset(.none, 0);
-        try Surface.writeClipboardHtmlWith(Fake.ops, alloc, owner, cf_html, html, case.plain);
+        try Surface.writeClipboardHtmlWith(Fake.ops, alloc, owner, cf_html, html, case.plain, &native);
         try std.testing.expectEqual(@as(?HWND, owner), Fake.openedFor());
         try std.testing.expectEqualSlices(Fake.Step, &.{
             .alloc,    .lock,  .unlock,
@@ -5623,6 +5370,42 @@ test "win32 a committed Restart Manager close keeps every window through WM_CLOS
     }.body);
 }
 
+test "win32 a surface keeps its launch's line unless it is the first one and runs initial-command" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const cmd_argv = [_][:0]const u8{ "cmd.exe", "/k", "x" };
+            const e_argv = [_][:0]const u8{"vim.exe"};
+            app.config.command = .{ .direct = &cmd_argv };
+            const launch: configpkg.pane_launch.Stamp = .{ .user = .{ .command_line = "cmd.exe /k x" } };
+
+            // A profile launch keeps its line with the command, the first
+            // surface or a later one.
+            for ([_]bool{ true, false }) |first| {
+                fixture.core_app.first = first;
+                const surface = try app.createWindowSurface(&app.config, default_title, .{ .launch = launch });
+                try std.testing.expectEqualStrings("cmd.exe", (surface.launch_command orelse return error.TestUnexpectedResult).direct[0]);
+                try std.testing.expectEqualStrings("cmd.exe /k x", (surface.launch_user orelse return error.TestUnexpectedResult).command_line);
+            }
+
+            // `-e` runs on the first surface only, and is no profile's launch.
+            app.config.@"initial-command" = .{ .direct = &e_argv };
+            fixture.core_app.first = true;
+            const first = try app.createWindowSurface(&app.config, default_title, .{ .launch = launch });
+            try std.testing.expectEqualStrings("vim.exe", (first.launch_command orelse return error.TestUnexpectedResult).direct[0]);
+            try std.testing.expect(first.launch_user == null);
+            fixture.core_app.first = false;
+            const later = try app.createWindowSurface(&app.config, default_title, .{ .launch = launch });
+            try std.testing.expectEqualStrings("cmd.exe", (later.launch_command orelse return error.TestUnexpectedResult).direct[0]);
+            try std.testing.expect(later.launch_user != null);
+        }
+    }.body);
+}
+
 test "win32 taskbar follows the program status root record once a program reports" {
     const alloc = std.testing.allocator;
     var surface: Surface = undefined;
@@ -5660,65 +5443,6 @@ test "win32 taskbar follows the program status root record once a program report
     try std.testing.expectEqual(@as(?u8, 30), surface.effectiveTaskbarProgress().?.progress);
 }
 
-test "win32 untitled OSC 9 toast is titled by its tab" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-
-    try w.osc(&w.p, "", "tests passed");
-    try w.recorder.expect(.title, "cargo build");
-
-    // A title is shown without its bidi overrides and invisible
-    // characters, with controls as spaces, and cut to 64 bytes on a
-    // code point.
-    w.p.title = "a\u{202E}<b>&\u{200B}\x07c";
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.title, "a<b>& c");
-    try w.recorder.expect(.attribution, "Tab 2: a<b>& c");
-
-    // U+FFFE and U+FFFF, which XML 1.0 cannot carry, so Windows would
-    // refuse the toast.
-    w.p.title = "x\u{FFFE}y\u{FFFF}z";
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.title, "x y z");
-    try w.recorder.expect(.attribution, "Tab 2: x y z");
-
-    w.p.title = "安" ** 30;
-    try w.osc(&w.p, "", "x");
-    // Cut on a code point: 21 three-byte characters fit in 64 bytes.
-    try w.recorder.expect(.title, "安" ** 21 ++ "\u{2026}");
-    try w.recorder.expect(.attribution, "Tab 2: " ++ "安" ** 21 ++ "\u{2026}");
-
-    // A tab with no title at all.
-    w.p.title = null;
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.title, "Najm");
-    try w.recorder.expect(.attribution, "Tab 2: Najm");
-
-    // The tab is known by its focused pane's title, also when another of
-    // its panes sends the toast. That pane is still the one a click
-    // focuses.
-    w.p.title = "cargo build";
-    w.q.title = "vim";
-    const inserted = try SplitTreeSurface.init(std.testing.allocator, &w.q);
-    defer {
-        var cleanup = inserted;
-        cleanup.deinit();
-    }
-    const tab = &w.host.tabs.items[1];
-    var prev_tree = tab.tree;
-    tab.tree = try prev_tree.split(std.testing.allocator, tab.focused, .right, 0.5, &inserted);
-    prev_tree.deinit();
-    // The split moved `p` behind the new split node and `q`.
-    tab.focused = @enumFromInt(2);
-    try std.testing.expectEqual(@as(?*Surface, &w.p), tab.focusedSurface());
-    try w.osc(&w.q, "", "x");
-    try w.recorder.expect(.title, "cargo build");
-    try w.recorder.expect(.attribution, "Tab 2: cargo build");
-    try w.recorder.expectLaunchFor(&w.q, 2);
-}
-
 test "win32 seeing a tab removes its panes' toasts" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var w: ToastTestWindow = .{};
@@ -5739,27 +5463,20 @@ test "win32 seeing a tab removes its panes' toasts" {
     // The window is in front with the first tab active: the second tab is
     // not seen yet.
     w.app.acknowledgeTabWithForeground(&w.host, 1, hwnd);
-    try std.testing.expectEqual(@as(usize, 0), w.app.toast_removals.items.len);
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{});
 
     w.host.active_tab = 1;
     // A window that is not in front is not seen either.
     w.app.acknowledgeTabWithForeground(&w.host, 1, null);
-    try std.testing.expectEqual(@as(usize, 0), w.app.toast_removals.items.len);
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{});
 
+    // In the order the toasts were shown. The other tab's pane and the
+    // other window's keep theirs.
     w.app.acknowledgeTabWithForeground(&w.host, 1, hwnd);
-    w.app.flushToastRemovals();
-    var p_buf: [64]u8 = undefined;
-    var q_buf: [64]u8 = undefined;
-    // In the split tree's order.
-    try w.recorder.expectRemovals(&.{
-        try expectedToastRemoval(&q_buf, 0x2003),
-        try expectedToastRemoval(&p_buf, 0x2002),
-    });
-    try std.testing.expectEqual(@as(?u64, null), w.p.toast_outstanding);
-    try std.testing.expectEqual(@as(?u64, null), w.q.toast_outstanding);
-    // The other tab's pane and the other window's keep theirs.
-    try std.testing.expectEqual(@as(?u64, 0x1001), w.front.toast_outstanding);
-    try std.testing.expectEqual(@as(?u64, 0x3003), w.other.toast_outstanding);
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{ 0x2002, 0x2003 });
 }
 
 test "win32 rollbackFailedSurfaceAttach removes failed tab and restores active index" {
@@ -5872,7 +5589,7 @@ test "win32 output starts the scrollbar's heartbeat, and a hidden bar hides its 
     // The dynamic policy whatever this machine's "Always show scrollbars".
     app.system_dynamic_scrollbars = true;
     // The host stays hidden, so the test never touches the foreground.
-    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{});
+    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .fresh);
     var surface: Surface = .{
         .app = app,
         .host = host,

@@ -77,10 +77,12 @@ pub const WA_INACTIVE = 0;
 pub const WM_COMMAND = 0x0111;
 pub const WM_CAPTURECHANGED = 0x0215;
 pub const WM_CLOSE = 0x0010;
+pub const WM_CREATE = 0x0001;
 pub const WM_DESTROY = 0x0002;
 pub const WM_NCDESTROY = 0x0082;
 pub const WM_DRAWITEM = 0x002B;
 pub const WM_MEASUREITEM = 0x002C;
+pub const WM_PARENTNOTIFY = 0x0210;
 pub const WM_ERASEBKGND = 0x0014;
 pub const WM_GETMINMAXINFO = 0x0024;
 pub const WM_CHAR = 0x0102;
@@ -203,8 +205,12 @@ pub const WM_WINHOSTTY_CONSOLE_VISIBILITY = WM_APP + 13;
 pub const WM_WINHOSTTY_PROFILES = WM_APP + 14;
 /// A jump-list commit that ran off the UI thread finished (`App.startJumpListRebuild`).
 pub const WM_WINHOSTTY_JUMP_LIST = WM_APP + 15;
-/// Remove queued panes' toasts from Action Center (`App.flushToastRemovals`).
+/// Take seen or out-of-reach panes' toasts out of Action Center (`Notifications.flush`).
 pub const WM_WINHOSTTY_TOAST_REMOVALS = WM_APP + 16;
+/// A pane's renderer switched from D3D11 to OpenGL, so its window may show
+/// its opacity another way (`window_state.refreshBackgroundOpacity`). Posted:
+/// the switch runs inside the pane's paint, holding the renderer's lock.
+pub const WM_WINHOSTTY_RENDERER_SWITCHED = WM_APP + 17;
 
 pub const PM_NOREMOVE: UINT = 0x0000;
 pub const PM_REMOVE: UINT = 0x0001;
@@ -460,6 +466,7 @@ pub const VK_LWIN = 0x5B;
 pub const VK_RWIN = 0x5C;
 pub const VK_APPS = 0x5D;
 pub const VK_NUMPAD0 = 0x60;
+pub const VK_NUMPAD1 = 0x61;
 pub const VK_NUMPAD9 = 0x69;
 pub const VK_MULTIPLY = 0x6A;
 pub const VK_ADD = 0x6B;

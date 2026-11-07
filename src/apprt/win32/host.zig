@@ -6,12 +6,11 @@ const BOOL = win32.BOOL;
 const BannerButton = win32.BannerButton;
 const ButtonTooltipAction = win32.ButtonTooltipAction;
 const CaptionButton = win32.CaptionButton;
-const ChildPlacement = win32.ChildPlacement;
+const ChildPlacement = child_window.ChildPlacement;
 const ChromeRepaintMask = win32.ChromeRepaintMask;
 const ChromeTextDirty = win32.ChromeTextDirty;
-const CloseScope = win32.CloseScope;
+const CloseScope = confirm_text.CloseScope;
 const ConfirmPayload = win32.ConfirmPayload;
-const ConfirmPrompt = win32.ConfirmPrompt;
 const ConfirmTextPlacement = win32.ConfirmTextPlacement;
 const DRAWITEMSTRUCT = win32.DRAWITEMSTRUCT;
 const DWORD = win32.DWORD;
@@ -29,6 +28,7 @@ const LPCWSTR = win32.LPCWSTR;
 const LRESULT = win32.LRESULT;
 const NCCALCSIZE_PARAMS = win32.NCCALCSIZE_PARAMS;
 const NONCLIENTMETRICSW = win32.NONCLIENTMETRICSW;
+const OpenTarget = profile_pick.OpenTarget;
 const PAINTSTRUCT = win32.PAINTSTRUCT;
 const POINT = win32.POINT;
 const PaletteCatalog = win32.PaletteCatalog;
@@ -36,7 +36,6 @@ const PaletteItem = win32.PaletteItem;
 const PalettePayload = win32.PalettePayload;
 const PaletteRanked = win32.PaletteRanked;
 const PaletteStableId = win32.PaletteStableId;
-const ProfileOpenTarget = win32.ProfileOpenTarget;
 const QuickTerminalAnimation = win32.QuickTerminalAnimation;
 const RECT = win32.RECT;
 const SplitTreeSurface = win32.SplitTreeSurface;
@@ -52,21 +51,16 @@ const WPARAM = win32.WPARAM;
 const activeTabAfterRemoval = win32.activeTabAfterRemoval;
 const activeTabTheme = win32.activeTabTheme;
 const adjustColor = win32.adjustColor;
-const appendOwnedString = win32.appendOwnedString;
-const applyChildRect = win32.applyChildRect;
-const applyChildVisibility = win32.applyChildVisibility;
-const applyChromeChildRect = win32.applyChromeChildRect;
+const appendOwnedString = paint_text.appendOwnedString;
+const applyChildRect = child_window.applyChildRect;
+const applyChildVisibility = child_window.applyChildVisibility;
+const applyChromeChildRect = child_window.applyChromeChildRect;
 const applyProfileChromeAccent = win32.applyProfileChromeAccent;
 const apprt = @import("../../apprt.zig");
 const bannerButtonKey = win32.bannerButtonKey;
 const bannerMessageDurationMs = win32.bannerMessageDurationMs;
 const blendColorRGB = win32.blendColorRGB;
-const buildDropdownProfileLabel = win32.buildDropdownProfileLabel;
-const buildHostAwareBaseTitle = win32.buildHostAwareBaseTitle;
-const buildHostBannerText = win32.buildHostBannerText;
-const builtin = @import("builtin");
 const buttonColorsFromTheme = win32.buttonColorsFromTheme;
-const buttonLabelRightInset = win32.buttonLabelRightInset;
 const c = @import("consts.zig");
 const fancy_menu = @import("fancy_menu.zig");
 const captionButtonBoundsThunk = win32.captionButtonBoundsThunk;
@@ -74,13 +68,13 @@ const captionButtonInvokeThunk = win32.captionButtonInvokeThunk;
 const captionButtonZoomedThunk = win32.captionButtonZoomedThunk;
 const captionButtonsPaintedThunk = win32.captionButtonsPaintedThunk;
 const childRect = win32.childRect;
+const child_window = @import("child_window.zig");
 const chromeSyncOrLog = win32.chromeSyncOrLog;
 const chrome_layout = @import("chrome_layout.zig");
 const chrome_scene = @import("chrome_scene.zig");
 const clampPaletteViewport = win32.clampPaletteViewport;
 const clampTabInsertIndex = win32.clampTabInsertIndex;
 const clientTitlebarTheme = win32.clientTitlebarTheme;
-const closeScopePrompt = win32.closeScopePrompt;
 const configpkg = @import("../../config.zig");
 const confirmBodyPaintRect = win32.confirmBodyPaintRect;
 const confirmPreviewRect = win32.confirmPreviewRect;
@@ -89,10 +83,8 @@ const confirmPromptLineOwnedByChild = win32.confirmPromptLineOwnedByChild;
 const confirmTextPlacement = win32.confirmTextPlacement;
 const confirmTitlePaintRect = win32.confirmTitlePaintRect;
 const confirm_prompt_text_format = win32.confirm_prompt_text_format;
+const confirm_text = @import("confirm_text.zig");
 const createIconFontWithGlyphs = win32.createIconFontWithGlyphs;
-const cycleProfileOpenTarget = win32.cycleProfileOpenTarget;
-const decorationVisibilityForChromeValue = win32.decorationVisibilityForChromeValue;
-const default_title = win32.default_title;
 const desiredTabIndex = win32.desiredTabIndex;
 const destroyChildWindow = win32.destroyChildWindow;
 const destroySubclassedWindow = win32.destroySubclassedWindow;
@@ -111,7 +103,6 @@ const hostCloseConfirmAccept = win32.hostCloseConfirmAccept;
 const hostCompositionRedrawFlags = win32.hostCompositionRedrawFlags;
 const hostLayoutClientRect = win32.hostLayoutClientRect;
 const hostPresentShowCommand = win32.hostPresentShowCommand;
-const hostTabLabelMaxWidth = win32.hostTabLabelMaxWidth;
 const host_caption_button_h = win32.host_caption_button_h;
 const host_inspector_panel_height = win32.host_inspector_panel_height;
 const host_overlay_accept_width = win32.host_overlay_accept_width;
@@ -127,37 +118,30 @@ const host_tab_max_button_width = win32.host_tab_max_button_width;
 const host_titlebar_action_button_size = win32.host_titlebar_action_button_size;
 const infoBannersExpire = win32.infoBannersExpire;
 const input = @import("../../input.zig");
-const inspectorPanelVisibleForState = win32.inspectorPanelVisibleForState;
 const internal_os = @import("../../os/main.zig");
 const isHighContrastActive = win32.isHighContrastActive;
-const keepProfileSources = win32.keepProfileSources;
 const keyEventFromWin32Message = win32.keyEventFromWin32Message;
-const keyEventTogglesCommandPalette = win32.keyEventTogglesCommandPalette;
 const keyPressed = win32.keyPressed;
 const lParamBits = win32.lParamBits;
-const labels = @import("labels.zig");
-const lastError = win32.lastError;
-const layoutChildPaintPlan = win32.layoutChildPaintPlan;
+const lastError = child_window.lastError;
 const layoutRectToWin32 = win32.layoutRectToWin32;
 const log = win32.log;
 const logUiActionError = win32.logUiActionError;
 const movedIndexAfterReorder = win32.movedIndexAfterReorder;
 const nativeSplitDirection = win32.nativeSplitDirection;
 const ncRectToWin32 = win32.ncRectToWin32;
-const nextTabOverviewSelection = win32.nextTabOverviewSelection;
-const optionalOwnedStringEquals = win32.optionalOwnedStringEquals;
+const optionalOwnedStringEquals = paint_text.optionalOwnedStringEquals;
 const overlayActionLayoutForWidth = win32.overlayActionLayoutForWidth;
 const overlayButtonDisconnectThunk = win32.overlayButtonDisconnectThunk;
 const overlayButtonReleaseThunk = win32.overlayButtonReleaseThunk;
 const overlayEditChildRectFromFrame = win32.overlayEditChildRectFromFrame;
 const overlayEditFrameRect = win32.overlayEditFrameRect;
 const overlayEditText = win32.overlayEditText;
-const overlayEmptySubmitDismisses = win32.overlayEmptySubmitDismisses;
 const overlayLabelReservation = win32.overlayLabelReservation;
 const overlayPanelInterior = win32.overlayPanelInterior;
-const overlayTextNeedsRefill = win32.overlayTextNeedsRefill;
 const overlay_session = @import("overlay_session.zig");
-const ownedStringEquals = win32.ownedStringEquals;
+const overlay_view = @import("overlay_view.zig");
+const ownedStringEquals = paint_text.ownedStringEquals;
 const paintPinnedSlotBadge = win32.paintPinnedSlotBadge;
 const paintTargetButtonBadge = win32.paintTargetButtonBadge;
 const paint_text = @import("text.zig");
@@ -170,36 +154,30 @@ const paletteVisibleRowCapacity = win32.paletteVisibleRowCapacity;
 const palette_catalog_label_bytes = win32.palette_catalog_label_bytes;
 const palette_controller = @import("palette_controller.zig");
 const palette_row_height = win32.palette_row_height;
-const pinnedSlotBadgeDigit = win32.pinnedSlotBadgeDigit;
-const preferredProfileIndex = win32.preferredProfileIndex;
 const profileChromeStripeColor = win32.profileChromeStripeColor;
 const profileChromeVisible = win32.profileChromeVisible;
-const profileIndexByKey = win32.profileIndexByKey;
 const profileKindFocusRingColor = win32.profileKindFocusRingColor;
 const profileKindLabelColor = win32.profileKindLabelColor;
-const profileOpenTargetBadgeGlyph = win32.profileOpenTargetBadgeGlyph;
-const profileOpenTargetMarkerColor = win32.profileOpenTargetMarkerColor;
-const prompt_button_class = win32.prompt_button_class;
-const prompt_label_class = win32.prompt_label_class;
+const profile_pick = @import("profile_pick.zig");
+const prompt_button_class = child_window.prompt_button_class;
+const prompt_label_class = child_window.prompt_label_class;
 const quick_terminal_host = @import("quick_terminal_host.zig");
 const raiseChildToTop = win32.raiseChildToTop;
-const rectInset = win32.rectInset;
+const rectInset = chrome_layout.rectInset;
 const refocusActiveSurface = win32.refocusActiveSurface;
 const refocusHostAfterActivation = win32.refocusHostAfterActivation;
-const remapWin32KeyEvent = win32.remapWin32KeyEvent;
-const resolveProfileSelection = win32.resolveProfileSelection;
+const rgb = win32_theme.rgb;
 const rootDisconnectThunk = win32.rootDisconnectThunk;
 const rootReleaseThunk = win32.rootReleaseThunk;
 const runUiActionOrLog = win32.runUiActionOrLog;
 const scheduleDeferredUiaDisconnect = win32.scheduleDeferredUiaDisconnect;
-const searchFocusStopAvailable = win32.searchFocusStopAvailable;
-const searchFocusStopHwnd = win32.searchFocusStopHwnd;
+const searchFocusStopAvailable = search_controls.searchFocusStopAvailable;
+const searchFocusStopHwnd = search_controls.searchFocusStopHwnd;
 const search_controls = @import("search_controls.zig");
 const selectedProfileSelectionNeedsChange = win32.selectedProfileSelectionNeedsChange;
 const setQuickTerminalRect = win32.setQuickTerminalRect;
-const setWindowData = win32.setWindowData;
+const setWindowData = child_window.setWindowData;
 const shellSplitDirection = win32.shellSplitDirection;
-const shouldShowPaneCount = win32.shouldShowPaneCount;
 const std = @import("std");
 const surfaceLayoutRuntimeSync = win32.surfaceLayoutRuntimeSync;
 const surface_presentation = @import("surface_presentation.zig");
@@ -208,13 +186,13 @@ const tabBarVisibleForConfig = win32.tabBarVisibleForConfig;
 const tabButtonProc = win32.tabButtonProc;
 const tabCloseAction = win32.tabCloseAction;
 const tabContainerProc = win32.tabContainerProc;
-const tabDirectionFromWheelDelta = win32.tabDirectionFromWheelDelta;
 const tabStatusBadgeColor = win32.tabStatusBadgeColor;
 const tabHoverSurface = win32.tabHoverSurface;
 const tabPressedSurface = win32.tabPressedSurface;
 const tabStatusHeadline = win32.tabStatusHeadline;
 const tabStatusKey = win32.tabStatusKey;
 const tabStripChildVisible = win32.tabStripChildVisible;
+const tab_label = @import("tab_label.zig");
 const tab_tooltip_class_name = win32.tab_tooltip_class_name;
 const tabsCloseConfirmCount = win32.tabsCloseConfirmCount;
 const takeOverlayButtonUiaProviders = win32.takeOverlayButtonUiaProviders;
@@ -229,11 +207,11 @@ const titlebar_icon_faces = win32.titlebar_icon_faces;
 const titlebar_icon_glyphs = win32.titlebar_icon_glyphs;
 const undecoratedKeepsFrame = win32.undecoratedKeepsFrame;
 const usesIntegratedTitlebar = win32.usesIntegratedTitlebar;
-const utf8BoundedPrefix = win32.utf8BoundedPrefix;
-const visibleTabRange = win32.visibleTabRange;
+const utf8BoundedPrefix = paint_text.utf8BoundedPrefix;
 const win32RectToNc = win32.win32RectToNc;
 const win32_bell = @import("../win32_bell.zig");
 const win32_chrome_state = @import("../win32_chrome_state.zig");
+const win32_elevation = @import("../win32_elevation.zig");
 const win32_icons = @import("../win32_icons.zig");
 const win32_input = @import("input.zig");
 const win32_layout = @import("../win32_layout.zig");
@@ -252,10 +230,12 @@ const win32_theme = @import("../win32_theme.zig");
 const win32_tween = @import("../win32_tween.zig");
 const win32_uia = @import("../win32_uia/mod.zig");
 const win32_undo = @import("../win32_undo.zig");
-const windowTitleSyncChanged = win32.windowTitleSyncChanged;
+const window_state = @import("window_state.zig");
 const windows_shell = @import("../../config/windows_shell.zig");
 
 // Test dependencies.
+const builtin = @import("builtin");
+const default_title = win32.default_title;
 const windows = win32.windows;
 const GlyphCoverage = win32.GlyphCoverage;
 const fontGlyphCoverage = win32.fontGlyphCoverage;
@@ -272,14 +252,11 @@ const fontIsFaceForTest = win32.fontIsFaceForTest;
 const icon_font_test_missing_face = win32.icon_font_test_missing_face;
 const installedTitlebarIconFaceForTest = win32.installedTitlebarIconFaceForTest;
 const ToastTestWindow = win32.ToastTestWindow;
-const applyDefaultProfileConfig = win32.applyDefaultProfileConfig;
 const buttonTooltipAction = win32.buttonTooltipAction;
 const cli_args = @import("../../cli/args.zig");
 const detachHostReference = win32.detachHostReference;
-const expectedToastRemoval = win32.expectedToastRemoval;
 const highContrastThemeFromSysColors = win32.highContrastThemeFromSysColors;
 const patchOrAppendEdits = win32.patchOrAppendEdits;
-const rgb = win32.rgb;
 const tabSeenWithForeground = win32.tabSeenWithForeground;
 const testExpectNoLaunchLayout = win32.testExpectNoLaunchLayout;
 const toastTestSplit = win32.toastTestSplit;
@@ -309,8 +286,6 @@ const tab_status_badge_size: i32 = 10;
 const tab_icon_size: i32 = 16;
 
 const tab_icon_slot: i32 = tab_icon_size + 4;
-
-const tab_icon_cells: usize = 2;
 
 /// A tab keeps its icon down to this many DIPs of content width; below it
 /// the title has the room.
@@ -412,6 +387,187 @@ const CaptionButtonRects = struct {
     }
 };
 
+fn buildHostAwareBaseTitle(
+    alloc: Allocator,
+    base_title: ?[]const u8,
+    host: tab_label.TabStatus,
+    elevated: bool,
+) ![]u8 {
+    const normalized_title = if (base_title) |value|
+        if (elevated and std.mem.startsWith(u8, value, win32_elevation.title_prefix))
+            value[win32_elevation.title_prefix.len..]
+        else
+            value
+    else
+        null;
+    const composed = if (host.total <= 1)
+        try alloc.dupe(u8, normalized_title orelse "Najm")
+    else
+        try std.fmt.allocPrint(
+            alloc,
+            "[{d}/{d}] {s}",
+            .{ host.index + 1, host.total, normalized_title orelse "Najm" },
+        );
+    defer alloc.free(composed);
+    return try win32_elevation.allocPrefixedTitle(alloc, composed, elevated);
+}
+
+/// Whether a prompt that `follows_active_surface` has to refill: there is an
+/// active surface and its text was not filled from it. Identity only.
+fn overlayTextNeedsRefill(
+    mode: HostOverlayMode,
+    filled_from: ?*const anyopaque,
+    active: ?*const anyopaque,
+) bool {
+    if (!overlay_view.shape(mode).follows_active_surface) return false;
+    const surface = active orelse return false;
+    return filled_from != surface;
+}
+
+/// What Enter and Tab do on a tab-strip action button ([+], [v]) or a docked
+/// search button. Space is not here: the BUTTON class clicks on its key-up.
+const ChromeButtonKeyAction = enum {
+    click,
+    focus_next,
+    focus_previous,
+};
+
+fn chromeButtonKeyAction(vk: WPARAM, mods: win32_input.KeyMods) ?ChromeButtonKeyAction {
+    if (mods.ctrl or mods.alt) return null;
+    if (win32_input.tabFocusStep(vk, mods)) |step| return switch (step) {
+        .next => .focus_next,
+        .previous => .focus_previous,
+    };
+    return if (vk == c.VK_RETURN) .click else null;
+}
+
+/// The first stop after `current` that `available` accepts, in the direction
+/// of `reverse` and wrapping, or null when no other stop is available. A stop
+/// is any focusable thing in one region; the caller owns what they are.
+fn nextFocusStop(
+    count: usize,
+    current: usize,
+    reverse: bool,
+    ctx: anytype,
+    comptime available: fn (@TypeOf(ctx), usize) bool,
+) ?usize {
+    if (count < 2 or current >= count) return null;
+    var step: usize = 1;
+    while (step < count) : (step += 1) {
+        const candidate = if (reverse) (current + count - step) % count else (current + step) % count;
+        if (available(ctx, candidate)) return candidate;
+    }
+    return null;
+}
+
+/// What the tab strip's action buttons are called to UIA and in their hover
+/// tooltips, so the two always agree.
+const TabStripAction = enum { new_tab, more_tabs, command_palette, settings };
+
+fn tabStripActionName(action: TabStripAction) []const u8 {
+    return switch (action) {
+        .new_tab => "New tab",
+        .more_tabs => "More tabs",
+        .command_palette => "Command palette",
+        .settings => "Settings",
+    };
+}
+
+fn bindingActionsToggleCommandPalette(actions: []const input.Binding.Action) bool {
+    for (actions) |action| switch (action) {
+        .toggle_command_palette => return true,
+        else => {},
+    };
+    return false;
+}
+
+/// Apply `key-remap` to a key event the same way `Surface.keyCallback` does.
+/// Two Win32 paths hand events to the core without going through a surface:
+/// the empty-host app-input path and the command-palette toggle lookup. Both
+/// must see remapped modifiers or a remapped chord silently misses there.
+fn remapWin32KeyEvent(
+    event_orig: input.KeyEvent,
+    remaps: *const input.KeyRemapSet,
+) input.KeyEvent {
+    var event = event_orig;
+    event.mods = remaps.apply(event_orig.mods);
+    if (event_orig.binding_mods) |binding_mods| {
+        event.binding_mods = remaps.apply(binding_mods);
+    }
+    return event;
+}
+
+fn keyEventTogglesCommandPalette(
+    event_orig: input.KeyEvent,
+    keybinds: *const input.Binding.Set,
+    remaps: *const input.KeyRemapSet,
+) bool {
+    const event = remapWin32KeyEvent(event_orig, remaps);
+    const entry = keybinds.getEvent(event) orelse return false;
+    const actions: []const input.Binding.Action = switch (entry.value_ptr.*) {
+        .leader => return false,
+        inline .leaf, .leaf_chained => |leaf| leaf.generic().actionsSlice(),
+    };
+    return bindingActionsToggleCommandPalette(actions);
+}
+
+/// A menu item's text: the label, then the shortcut after a tab. In a menu
+/// `&` marks the next character as the mnemonic and a tab starts the
+/// shortcut column, and a `profile-name` may contain either, so the label
+/// doubles `&` and turns a tab into a space.
+fn buildDropdownProfileLabel(
+    alloc: Allocator,
+    profile: *const windows_shell.Profile,
+    index: usize,
+) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(alloc);
+    for (profile.label) |byte| switch (byte) {
+        '&' => try out.appendSlice(alloc, "&&"),
+        '\t' => try out.append(alloc, ' '),
+        else => try out.append(alloc, byte),
+    };
+    if (index < 9) try out.print(alloc, "\tCtrl+Shift+{d}", .{index + 1});
+    return try out.toOwnedSlice(alloc);
+}
+
+fn buttonLabelRightInset(pinned_slot_ordinal: ?usize, target: ?OpenTarget) i32 {
+    const target_inset: i32 = if (target != null) 12 else 0;
+    const slot_inset: i32 = if (pinnedSlotBadgeDigit(pinned_slot_ordinal) != null) 16 else 0;
+    return @max(target_inset, slot_inset);
+}
+
+fn pinnedSlotBadgeDigit(pinned_slot_ordinal: ?usize) ?u8 {
+    const ordinal = pinned_slot_ordinal orelse return null;
+    if (ordinal >= 9) return null;
+    return @as(u8, @intCast('1' + ordinal));
+}
+
+fn profileOpenTargetMarkerColor(target: OpenTarget) u32 {
+    return switch (target) {
+        .tab => rgb(132, 172, 238),
+        .window => rgb(236, 182, 118),
+        .split => rgb(126, 204, 148),
+    };
+}
+
+fn profileOpenTargetBadgeGlyph(target: OpenTarget) u8 {
+    return switch (target) {
+        .tab => 'T',
+        .window => 'W',
+        .split => 'S',
+    };
+}
+
+fn nextTabOverviewSelection(current: usize, total: usize, reverse: bool) usize {
+    if (total == 0) return 0;
+    const clamped = std.math.clamp(current, @as(usize, 1), total);
+    if (reverse) {
+        return if (clamped <= 1) total else clamped - 1;
+    }
+    return if (clamped >= total) 1 else clamped + 1;
+}
+
 pub const Host = struct {
     app: *App,
     id: u32,
@@ -420,7 +576,16 @@ pub const Host = struct {
     power_notifications: win32_power.Notifications = .{},
     surfaces_visible: bool = true,
     dwm_cloaked: bool = false,
-    cached_decorations_visible: bool = true,
+    /// The state of this top-level window, whichever of its panes acts on
+    /// it (`window_state.perform`, `window_state.applyConfig`).
+    top_level: window_state.TopLevel = .{},
+    /// How this new window starts, from `window_state.begin` until its
+    /// first show is done.
+    pending_start: ?window_state.Pending = null,
+    /// `closeConfirmed` is closing every pane of this window, which goes
+    /// with its last one: the panes' teardown leaves its opacity as it is
+    /// (`App.windowDestroyed`).
+    closing: bool = false,
     /// This host is the quick terminal. Its tabs and splits are all part of
     /// it, so this, not a flag on one surface, says what the window is.
     quick_terminal: bool = false,
@@ -449,10 +614,10 @@ pub const Host = struct {
     defer_surface_repaints_until_flush: bool = false,
     overlay_mode: HostOverlayMode = .none,
     /// Surface a title prompt's text was last filled from, while
-    /// `overlayTextFollowsActiveSurface(overlay_mode)`, so the text refills
-    /// when the active surface changes (a tab switch or focus moving to
-    /// another split pane). Only compared with `activeSurface()`, never
-    /// dereferenced.
+    /// `overlay_view.shape(overlay_mode).follows_active_surface`, so the
+    /// text refills when the active surface changes (a tab switch or focus
+    /// moving to another split pane). Only compared with `activeSurface()`,
+    /// never dereferenced.
     overlay_text_surface: ?*const Surface = null,
     /// Active confirm overlay payload when `overlay_mode == .confirm`.
     /// Owned byte slices (`title`, `body`, `accept_label`,
@@ -554,6 +719,19 @@ pub const Host = struct {
     // Cached chrome paint strings — rebuilt only when their per-zone
     // dirty bits are set, so WM_PAINT can skip unrelated UTF-16 churn.
     chrome_repaint_dirty: bool = true,
+    /// While the window's background alone is translucent (blur-behind on:
+    /// `window_state`, `TopLevel.Shows.background`), the alpha it shows at;
+    /// null otherwise. GDI leaves alpha 0, which DWM shows through, so the
+    /// chrome paints through `chrome_scene.AlphaPaint`: its background in the
+    /// terminal lane takes this alpha and everything else is solid. Set only
+    /// once blur-behind and `BufferedPaintInit` succeeded; `deinit` ends the
+    /// buffered paint.
+    chrome_alpha: ?u8 = null,
+    /// `DwmEnableBlurBehindWindow` failed on this window: it fades whole
+    /// (`TopLevel.shows`) and tries again only at a system theme change
+    /// (`window_state.retryBackgroundOpacity`), so a machine where it keeps
+    /// failing does not flicker opaque and faded, and warn, on every apply.
+    blur_behind_failed: bool = false,
     chrome_paint_pending: bool = false,
     chrome_paint_mask: ChromeRepaintMask = .{},
     chrome_text_dirty: ChromeTextDirty = .{},
@@ -602,7 +780,7 @@ pub const Host = struct {
     /// Native window activation, independent of the selected terminal tab.
     window_active: bool = false,
     /// `App.activations` when this window was last activated, 0 if never:
-    /// which window a forwarded launch copies (`App.newWindowSource`).
+    /// which window a forwarded launch copies (`Registry.newWindowSource`).
     activated: u64 = 0,
     /// Fade state for the tab the user is currently hovering. Paint
     /// reads `alphaAt(now)` + pre-composites the glyph colour against
@@ -1245,9 +1423,10 @@ pub const Host = struct {
         }
         // Its panes live on in undo history, where a click on their toasts
         // has nothing to show, and an undo does not bring the toasts back.
-        self.app.forgetTabToasts(&removed);
+        self.app.notifications.panesChanged();
 
         self.active_tab = activeTabAfterRemoval(self.active_tab, index, self.tabs.items.len);
+        window_state.refreshBackgroundOpacity(self);
         self.notifyActiveTabUiaSelectionChanged(previous_tab_id);
 
         return .{
@@ -1279,6 +1458,13 @@ pub const Host = struct {
         }
         // Its programs may have ended while the tab waited in undo history.
         self.refreshTabStatus(insert_index);
+        // A pane of it may wait out a search debounce, which no tick reached
+        // while the tab was in undo history (the tick walks this window's
+        // tabs: the 2026-11-07 background-tab debounce entry in
+        // search-scrollbar.md).
+        self.refreshSearchTimerState();
+        // A D3D11 pane coming back fades the window whole again.
+        window_state.refreshBackgroundOpacity(self);
         return self.activeSurface() != null;
     }
 
@@ -1303,6 +1489,7 @@ pub const Host = struct {
         if (shell_prepared) |*prepared| prepared.commit(&self.app.shell_runtime) catch |err| {
             value.tab = self.tabs.orderedRemove(insert_index);
             self.active_tab = previous_active;
+            window_state.refreshBackgroundOpacity(self);
             return err;
         };
         if (shell_prepared) |*prepared| self.app.applyShellEffects(prepared.effects(), .{});
@@ -1373,7 +1560,8 @@ pub const Host = struct {
         };
         if (shell_prepared) |*prepared| self.app.applyShellEffects(prepared.effects(), .{});
         // As the close it redoes (`detachTabForUndo`).
-        if (value.tab) |*tab| self.app.forgetTabToasts(tab);
+        self.app.notifications.panesChanged();
+        window_state.refreshBackgroundOpacity(self);
         self.notifyActiveTabUiaSelectionChanged(previous_tab_id);
         self.notifyTabListUiaChanged();
         return true;
@@ -1413,7 +1601,7 @@ pub const Host = struct {
         }
         value.detached = true;
         // The pane waits in redo history now, like a closed tab's panes.
-        self.app.forgetSurfaceToast(value.created_surface);
+        self.app.notifications.panesChanged();
         // The neighbours take the removed pane's space now: activating a pane
         // that is already focused and shown takes a fast path with no layout.
         self.layout() catch |err| log.warn("split-create undo layout failed err={}", .{err});
@@ -1451,6 +1639,8 @@ pub const Host = struct {
             self.active_tab = edit.tab_index;
         }
         value.detached = false;
+        // The pane back may wait out a search debounce, as a restored tab's.
+        self.refreshSearchTimerState();
         self.notifyActiveTabUiaSelectionChanged(previous_tab_id);
         return true;
     }
@@ -1647,6 +1837,8 @@ pub const Host = struct {
             .attach => tab.findHandle(surface).?,
             .detach => (if (focused) |kept| tab.findHandle(kept) else null) orelse first.next().?.handle,
         };
+        // The window's panes changed, so may how it shows its opacity.
+        window_state.refreshBackgroundOpacity(self);
     }
 
     /// A pane taken out of its tab waits hidden in redo history. It keeps
@@ -2383,7 +2575,7 @@ pub const Host = struct {
     /// the `.app` `config_change` that drops the request, so it is dropped
     /// here; left in, a `new_window` while the preview is live would open
     /// the layout. For the same reason it keeps the `running` config's
-    /// profile sources (`keepProfileSources`).
+    /// profile sources (`pane_launch.keepSources`).
     pub fn finishPaletteThemeConfig(
         preview: *configpkg.Config,
         running: *const configpkg.Config,
@@ -2393,7 +2585,7 @@ pub const Host = struct {
         try setConfigTheme(preview, name);
         try preview.finalize();
         App.forgetLaunchLayout(preview);
-        try keepProfileSources(preview, running);
+        try configpkg.pane_launch.keepSources(preview, running);
     }
 
     pub fn swapRuntimeConfigFromPalette(self: *Host, new_config: configpkg.Config) configpkg.Config {
@@ -2407,26 +2599,45 @@ pub const Host = struct {
     pub const PaletteSwap = enum { full, accent };
 
     fn swapRuntimeConfigFromPaletteScoped(self: *Host, new_config: configpkg.Config, scope: PaletteSwap) configpkg.Config {
+        const old = self.installRuntimeConfigFromPalette(new_config);
+        self.app.reconfigureThemeWith(.caller_applies, .{ .fonts = scope == .full });
+        {
+            // Every pane, then every window: an app-wide change, whose
+            // panes leave the window half to the host loop below, so each
+            // window applies it once.
+            const outer = self.app.app_wide_config_change;
+            self.app.app_wide_config_change = true;
+            defer self.app.app_wide_config_change = outer;
+            for (self.app.registry.windows.items) |surface| {
+                if (scope == .full) self.app.updatePaneCoreConfig(surface, &self.app.config) catch |err| {
+                    log.warn("palette theme core apply failed err={}", .{err});
+                };
+                surface.applyRuntimeConfig(&self.app.config) catch |err| {
+                    log.warn("palette theme runtime apply failed err={}", .{err});
+                };
+            }
+        }
+        for (self.app.registry.hosts.items) |host| {
+            window_state.applyConfig(host, &self.app.config) catch |err| {
+                log.warn("palette theme runtime apply failed err={}", .{err});
+            };
+            host.refreshChrome() catch |err| {
+                log.warn("palette theme chrome refresh failed err={}", .{err});
+            };
+        }
+        return old;
+    }
+
+    /// `swapRuntimeConfigFromPalette` without showing `new_config`: no
+    /// theme, pane or window takes it. Only for a config equal to the one it
+    /// replaces, or one a reload replaces before it shows anything.
+    fn installRuntimeConfigFromPalette(self: *Host, new_config: configpkg.Config) configpkg.Config {
         const old = self.app.config;
         self.app.config = new_config;
         // A Settings preview stays shown over the palette's theme.
         self.app.restoreSettingsPreview();
         self.app.config_revision +%= 1;
         if (self.app.config_revision == 0) self.app.config_revision = 1;
-        self.app.reconfigureThemeWith(.{ .fonts = scope == .full });
-        for (self.app.registry.windows.items) |surface| {
-            if (scope == .full) surface.core().updateConfig(&self.app.config) catch |err| {
-                log.warn("palette theme core apply failed err={}", .{err});
-            };
-            surface.applyRuntimeConfig(&self.app.config) catch |err| {
-                log.warn("palette theme runtime apply failed err={}", .{err});
-            };
-        }
-        for (self.app.registry.hosts.items) |host| {
-            host.refreshChrome() catch |err| {
-                log.warn("palette theme chrome refresh failed err={}", .{err});
-            };
-        }
         return old;
     }
 
@@ -2453,7 +2664,9 @@ pub const Host = struct {
         if (self.palette_catalog_config_source != .live) return;
         var clone = try self.app.config.clone(self.app.core_app.alloc);
         errdefer clone.deinit();
-        const old = self.swapRuntimeConfigFromPalette(clone);
+        // The clone shows what is shown already, and the save's reload
+        // replaces it: nothing applies it.
+        const old = self.installRuntimeConfigFromPalette(clone);
         std.debug.assert(self.palette_catalog_retained_config == null);
         self.palette_catalog_retained_config = old;
         self.palette_catalog_config_source = .retained;
@@ -2481,7 +2694,7 @@ pub const Host = struct {
             return;
         };
         self.previewPaletteTheme(name) catch |err| {
-            log.warn("palette theme preview failed theme={s} err={}", .{ name, err });
+            log.warn("palette theme preview failed theme={f} err={}", .{ internal_os.redact.bytes(name), err });
             self.revertPaletteThemePreview();
             runUiActionOrLog(
                 "palette theme preview banner failed",
@@ -2498,7 +2711,8 @@ pub const Host = struct {
             if (std.mem.eql(u8, current.light, name) and std.mem.eql(u8, current.dark, name)) return;
         }
 
-        self.installPalettePreview(try self.loadPaletteThemeConfig(name), false);
+        const preview = try self.loadPaletteThemeConfig(name);
+        self.showPaletteThemePreview(preview);
     }
 
     /// Show the chrome in accent `accent` while its palette row is selected:
@@ -2523,15 +2737,39 @@ pub const Host = struct {
         self.installPalettePreview(preview, true);
     }
 
-    /// Make `preview` the running config, keeping the config from before the
-    /// first preview to revert or commit against. Takes ownership.
-    /// `accent_only`: `preview` is the original with only its accent changed.
+    /// Shows `preview` as this palette's live theme preview, taking it over.
+    /// One window's preview at a time. The overlay code keeps that already:
+    /// a palette opening closes every other window's (`showOverlay`), and
+    /// every other overlay's open closes the window's own first, each
+    /// reverting its preview. Another window's preview still live here is a
+    /// regression there: it is logged as an error, and ends first, unshown,
+    /// as a reload ends it (`supersedePaletteThemePreview`), so this
+    /// preview's own swap shows it once. Started over another's, its
+    /// original would be that unsaved preview, and ending both would free
+    /// the config the other palette's catalog borrows.
+    /// Tests start a preview here: `previewPaletteTheme` reads the user's
+    /// config files.
+    pub fn showPaletteThemePreview(self: *Host, preview: configpkg.Config) void {
+        self.installPalettePreview(preview, false);
+    }
+
+    /// `showPaletteThemePreview`, told whether `preview` is the original
+    /// with only its accent changed (`accent_only`), which keeps the chrome
+    /// fonts and the terminals' config when the swap is accent to accent.
     fn installPalettePreview(self: *Host, preview: configpkg.Config, accent_only: bool) void {
         // Light only when the config being left also differs from the
         // original in its accent alone: accent row to accent row.
         const live_accent_only = self.palette_theme_preview_original == null or self.palette_preview_accent_only;
         const scope: PaletteSwap = if (accent_only and live_accent_only) .accent else .full;
         if (self.palette_theme_preview_original == null) {
+            for (self.app.registry.hosts.items) |other| {
+                if (other == self or other.palette_theme_preview_original == null) continue;
+                // An error log, not an assert: it fails any test that gets
+                // here (Zig's test runner fails a test that logs an error)
+                // and costs a release build nothing it could turn into UB.
+                log.err("palette theme preview started while another window's is live; ending that one", .{});
+                other.supersedePaletteThemePreview();
+            }
             const original = self.swapRuntimeConfigFromPaletteScoped(preview, scope);
             self.palette_theme_preview_original = original;
             if (self.palette_catalog_config_source == .live) {
@@ -2544,10 +2782,29 @@ pub const Host = struct {
     }
 
     pub fn revertPaletteThemePreview(self: *Host) void {
+        self.endPaletteThemePreview(.revert);
+    }
+
+    /// A reload supersedes a live theme preview. The config the preview
+    /// replaced goes back as the app config without being shown, so a
+    /// reload of the app config (a light/dark change) starts from it, and
+    /// the reload alone shows its config, once, in every pane and window.
+    /// Restored and shown, it would put every window at the pre-preview
+    /// opacity first and give every pane the pre-preview config after the
+    /// reload's. The screen still shows it until something shows the app
+    /// config.
+    pub fn supersedePaletteThemePreview(self: *Host) void {
+        self.endPaletteThemePreview(.superseded);
+    }
+
+    fn endPaletteThemePreview(self: *Host, how: enum { revert, superseded }) void {
         const original = self.palette_theme_preview_original orelse return;
         self.palette_theme_preview_original = null;
         const scope: PaletteSwap = if (self.palette_preview_accent_only) .accent else .full;
-        const old = self.swapRuntimeConfigFromPaletteScoped(original, scope);
+        const old = switch (how) {
+            .revert => self.swapRuntimeConfigFromPaletteScoped(original, scope),
+            .superseded => self.installRuntimeConfigFromPalette(original),
+        };
         switch (self.palette_catalog_config_source) {
             .live => {
                 std.debug.assert(self.palette_catalog_retained_config == null);
@@ -2577,15 +2834,61 @@ pub const Host = struct {
             applied: []const u8,
             masked: []const u8,
             restart: []const u8,
+            unread: []const u8,
+            not_applied: []const u8,
+            partly: []const u8,
+            partly_masked: []const u8,
             masked_banner: []const u8,
             restart_banner: []const u8,
+            unread_banner: []const u8,
+            not_applied_banner: []const u8,
+            partly_banner: []const u8,
+            partly_masked_banner: []const u8,
 
-            /// The screen-reader notice for a save that `masked` or that
-            /// waits for a restart (`safe_mode`).
-            pub fn notice(self: Words, masked: bool, safe_mode: bool) []const u8 {
-                if (masked) return self.masked;
+            /// How a save that completed went.
+            pub const Saved = struct {
+                /// A later config layer masks the pick.
+                masked: bool = false,
+                /// The reload could not read a config file whole.
+                unread: bool = false,
+                /// The reload could not be applied.
+                not_applied: bool = false,
+                /// The reload was applied only partly, and `partly_masked`:
+                /// a later layer masks the pick as well.
+                partly: bool = false,
+                partly_masked: bool = false,
+            };
+
+            /// The screen-reader notice for a save that went as `saved`, or
+            /// that waits for a restart (`safe_mode`).
+            pub fn notice(self: Words, saved: Saved, safe_mode: bool) []const u8 {
+                if (saved.masked) return self.masked;
+                if (saved.unread) return self.unread;
+                if (saved.not_applied) return self.not_applied;
+                if (saved.partly and saved.partly_masked) return self.partly_masked;
+                if (saved.partly) return self.partly;
                 if (safe_mode) return self.restart;
                 return self.applied;
+            }
+
+            /// Every outcome's words for a pick called `noun` in a sentence's
+            /// first place and `object` after a verb.
+            fn of(comptime noun: []const u8, comptime object: []const u8) Words {
+                return .{
+                    .applied = noun ++ " applied",
+                    .masked = noun ++ " saved; a later config layer masks it",
+                    .restart = noun ++ " saved; restart Najm to apply it",
+                    .unread = noun ++ " saved; a config file could not be read whole",
+                    .not_applied = noun ++ " saved; the saved settings could not be applied",
+                    .partly = noun ++ " saved; the saved settings may be only partly applied",
+                    .partly_masked = noun ++ " saved; the saved settings may be only partly applied, and a later config layer masks " ++ object,
+                    .masked_banner = noun ++ " saved, but a later config layer masks it.",
+                    .restart_banner = noun ++ " saved; restart Najm to apply it.",
+                    .unread_banner = noun ++ " saved, but a config file could not be read whole. Reload the configuration once it can be read.",
+                    .not_applied_banner = noun ++ " saved, but the saved settings could not be applied. Reload the configuration to use them.",
+                    .partly_banner = noun ++ " saved, but the saved settings may be only partly applied. Reload the configuration to apply all of them.",
+                    .partly_masked_banner = noun ++ " saved, but the saved settings may be only partly applied, and a later config layer masks " ++ object ++ ", so a reload does not apply it.",
+                };
             }
         };
 
@@ -2605,20 +2908,8 @@ pub const Host = struct {
 
         pub fn words(self: PalettePick) Words {
             return switch (self) {
-                .theme => .{
-                    .applied = "Theme applied",
-                    .masked = "Theme saved; a later config layer masks it",
-                    .restart = "Theme saved; restart Najm to apply it",
-                    .masked_banner = "Theme saved, but a later config layer masks it.",
-                    .restart_banner = "Theme saved; restart Najm to apply it.",
-                },
-                .accent => .{
-                    .applied = "Accent color applied",
-                    .masked = "Accent color saved; a later config layer masks it",
-                    .restart = "Accent color saved; restart Najm to apply it",
-                    .masked_banner = "Accent color saved, but a later config layer masks it.",
-                    .restart_banner = "Accent color saved; restart Najm to apply it.",
-                },
+                .theme => comptime Words.of("Theme", "the theme"),
+                .accent => comptime Words.of("Accent color", "the accent color"),
             };
         }
 
@@ -2692,9 +2983,20 @@ pub const Host = struct {
             break :blk self.app.settingsSaveAndReload(&pending, &original);
         });
         switch (save_outcome) {
-            .completed, .completed_masked => {},
+            .completed, .completed_masked, .completed_lists_unchecked => {},
+            // Saved, with a reload the save does not apply, or that failed:
+            // the running config stays as it is (the preview, when one ran;
+            // else the config from before the pick, which a terminal's step
+            // that fails puts back, or the reload, where a later step of the
+            // app's failed). Nothing is rolled back: the file holds the
+            // pick. An open Settings window hears of the running config, as
+            // it would of a reload.
+            .completed_unread,
+            .completed_not_applied,
+            .completed_partly_applied,
+            => self.app.settings_window.externalConfigChanged(&self.app.config, self.app.config_revision),
             .failed => |err| {
-                log.warn("palette {s} save failed value={s} err={}", .{ @tagName(pick), pick.value(), err });
+                log.warn("palette {s} save failed value={f} err={}", .{ @tagName(pick), internal_os.redact.bytes(pick.value()), err });
                 // Roll back without another allocation: `original` is already
                 // an owned deep clone of the pre-preview baseline. Transfer it
                 // into the runtime config and suppress the local deferred deinit.
@@ -2707,12 +3009,26 @@ pub const Host = struct {
             },
         }
         const saved_but_masked = std.meta.activeTag(save_outcome) == .completed_masked;
+        const saved_but_unread = std.meta.activeTag(save_outcome) == .completed_unread;
+        // Saved, with a reload that could not be applied (no memory), or was
+        // applied only partly.
+        const saved_not_applied = std.meta.activeTag(save_outcome) == .completed_not_applied;
+        const saved_partly_applied = std.meta.activeTag(save_outcome) == .completed_partly_applied;
+        // A later layer masks the pick as well: a reload does not apply it
+        // either (the App's masked keys, set before it applied the reload).
+        const partly_masked = saved_partly_applied and self.app.settings_masked_keys.text != null;
 
         if (self.palette_list_uia_provider) |provider| {
             win32_uia.events.raiseNotification(
                 &provider.base,
                 .action_completed,
-                words.notice(saved_but_masked, self.app.safe_mode),
+                words.notice(.{
+                    .masked = saved_but_masked,
+                    .unread = saved_but_unread,
+                    .not_applied = saved_not_applied,
+                    .partly = saved_partly_applied,
+                    .partly_masked = partly_masked,
+                }, self.app.safe_mode),
             );
         }
         self.hideOverlay();
@@ -2723,10 +3039,31 @@ pub const Host = struct {
             );
         }
         if (saved_but_masked) {
-            log.warn("palette {s} saved but masked by a later config layer value={s}", .{ @tagName(pick), pick.value() });
+            log.warn("palette {s} saved but masked by a later config layer value={f}", .{ @tagName(pick), internal_os.redact.bytes(pick.value()) });
             runUiActionOrLog(
                 "palette masked pick banner failed",
                 self.setBanner(.err, words.masked_banner),
+            );
+        }
+        if (saved_but_unread) {
+            log.warn("palette {s} saved, but the reload could not read a config file whole value={f}", .{ @tagName(pick), internal_os.redact.bytes(pick.value()) });
+            runUiActionOrLog(
+                "palette unread pick banner failed",
+                self.setBanner(.err, words.unread_banner),
+            );
+        }
+        if (saved_not_applied) {
+            log.warn("palette {s} saved, but the reload could not be applied value={f}", .{ @tagName(pick), internal_os.redact.bytes(pick.value()) });
+            runUiActionOrLog(
+                "palette unapplied pick banner failed",
+                self.setBanner(.err, words.not_applied_banner),
+            );
+        }
+        if (saved_partly_applied) {
+            log.warn("palette {s} saved, but applying the reload failed; the running settings are the previous ones, or partly updated after a late failure value={f}", .{ @tagName(pick), internal_os.redact.bytes(pick.value()) });
+            runUiActionOrLog(
+                "palette partly applied pick banner failed",
+                self.setBanner(.err, if (partly_masked) words.partly_masked_banner else words.partly_banner),
             );
         }
         self.layout() catch |err| {
@@ -2799,6 +3136,7 @@ pub const Host = struct {
             self.mode_timer_active = false;
         }
         self.tween_sched.deinit();
+        window_state.releaseBackgroundOpacity(self);
 
         self.revertPaletteThemePreview();
         if (self.palette_catalog) |*catalog| catalog.reset();
@@ -3195,9 +3533,9 @@ pub const Host = struct {
     /// search bar's six buttons and the tab strip's action buttons. It is the
     /// button's UIA name, from the same tables, so the two always agree.
     pub fn chromeButtonTooltipName(self: *const Host, button: HWND) ?[]const u8 {
-        if (self.tabStripActionOf(button)) |action| return labels.tabStripActionName(action);
+        if (self.tabStripActionOf(button)) |action| return tabStripActionName(action);
         const role = self.searchBarButtonRole(button) orelse return null;
-        return labels.searchBarButtonName(role);
+        return search_controls.searchBarButtonName(role);
     }
 
     /// Name an icon-only chrome button in a tooltip under it. The icons
@@ -3251,32 +3589,15 @@ pub const Host = struct {
         if (self.hwnd == null) return;
         const tab = &self.tabs.items[index];
         const button = tab.button_hwnd orelse return self.hideTabTooltip();
-        const title = tab.cached_button_title orelse return self.hideTabTooltip();
-        // Measure the title against the budget the title was actually
-        // compacted to, not the drawn label against the button's own budget.
-        // The label also carries the tab index, the active marker and the pane
-        // count; `buildTabButtonLabel` charges those to the button budget
-        // first, so comparing the whole label against that budget asked
-        // whether a label that is built to fit fits. It also answered
-        // differently for an active tab than for its inactive neighbour
-        // showing the same title.
-        const budget = labels.tabButtonTitleBudget(
-            tab.cached_button_index,
-            tab.cached_button_active,
-            tab.cached_button_pane_count,
-            win32_bell.tabTextWidth(tab.cached_button_label_max_width, tab.cached_button_bell),
-            tab.cached_button_show_pane_count,
-        );
-        if (!labels.hostLabelIsCompacted(title, budget)) {
-            return self.hideTabTooltip();
-        }
-
         const alloc = self.app.core_app.alloc;
-        const text = labels.buildTabTooltipText(alloc, title) catch return;
+        // From the inputs the label was drawn with, so the tooltip and the
+        // label agree on whether the title had to be cut.
+        const text = (tab_label.tooltip(alloc, tab.cachedKey()) catch return) orelse
+            return self.hideTabTooltip();
         defer alloc.free(text);
 
         // The strip's own visibility record is consulted, not the rect: a
-        // button that scrolled out of `visibleTabRange` (or a strip turned
+        // button that scrolled out of `tab_label.visible` (or a strip turned
         // off by config) is hidden with `ShowWindow` alone and keeps its last
         // rect, which now describes some other tab's slot.
         const button_visible = self.shouldShowTabBar() and
@@ -3399,7 +3720,7 @@ pub const Host = struct {
         // does not repaint; it is still re-placed below, since the button's
         // rect may have moved. That is a paint decision only: the UIA name
         // is the FULL title (`tabTooltipUiaName`), while `text` is bounded
-        // by `tab_tooltip_max_width`, so a title that changed past that
+        // by `tab_label.tooltip_max_width`, so a title that changed past that
         // bound renders identically and must still announce -- `name_changed`
         // is computed on the full title by the caller for exactly that
         // reason.
@@ -3486,7 +3807,7 @@ pub const Host = struct {
         );
 
         if (self.chrome_font) |font| _ = sys.SelectObject(hdc, font);
-        var text_buf: [labels.tab_tooltip_max_width * 2 + 1]u16 = undefined;
+        var text_buf: [tab_label.tooltip_max_width * 2 + 1]u16 = undefined;
         const text_len = sys.GetWindowTextW(hwnd, &text_buf, text_buf.len);
         _ = sys.SetBkMode(hdc, c.TRANSPARENT);
         _ = sys.SetTextColor(hdc, theme.overlay_label_fg);
@@ -3949,7 +4270,7 @@ pub const Host = struct {
         // The stops the walk has to visit, read from live visibility.
         var stops: [8]HWND = undefined;
         var count: usize = 0;
-        for (0..host.tabs.items.len + std.enums.values(labels.TabStripAction).len) |stop| {
+        for (0..host.tabs.items.len + std.enums.values(TabStripAction).len) |stop| {
             if (host.tabStripStopHwnd(stop)) |stop_hwnd| {
                 stops[count] = stop_hwnd;
                 count += 1;
@@ -4068,7 +4389,7 @@ pub const Host = struct {
         defer if (host.cached_window_title) |value| std.testing.allocator.free(value);
         try host.refreshChrome();
 
-        const glyph = win32_bell.title_glyph;
+        const glyph = tab_label.title_glyph;
         var status_buf: [64]u8 = undefined;
         var caption: [128]u16 = undefined;
         var utf8: [256]u8 = undefined;
@@ -4733,15 +5054,8 @@ pub const Host = struct {
         const steps = self.tab_wheel_steps.add(normalized, sys.GetTickCount64());
         // Keep the existing next/previous wrap convention, once per complete
         // notch rather than once per precision-wheel message.
-        const direction = tabDirectionFromWheelDelta(if (steps > 0) 120 else -120);
+        const direction: apprt.action.GotoTab = if (steps > 0) .previous else .next;
         for (0..@abs(steps)) |_| _ = self.activateTabByDirection(direction);
-    }
-
-    pub fn dismissActiveSearch(self: *Host) bool {
-        const surface = self.activeSurface() orelse return false;
-        if (!surface.search_active and !surface.search_bar.visible) return false;
-        surface.closeDockedSearchBar(true, true) catch return false;
-        return true;
     }
 
     fn toggleCommandPaletteFromButton(self: *Host) bool {
@@ -4833,32 +5147,25 @@ pub const Host = struct {
         try self.selectPreferredProfile(profiles);
     }
 
-    /// Select the profile `preferredProfileIndex` picks, else the default
+    /// Select the profile `profile_pick.preferred` picks, else the default
     /// shell's, else the one at the current index (the first when that is
     /// past the end). `profiles` is not empty. Only a profile chosen in the
     /// picker, the palette or a quick slot is stored as the selection: one
     /// picked here is picked again for each new list, so after a reload that
     /// changes `default-profile` the picker starts on the new one.
     fn selectPreferredProfile(self: *Host, profiles: []const windows_shell.Profile) !void {
-        if (preferredProfileIndex(
-            profiles,
-            self.selected_profile_key,
-            self.app.launcher_profile_key,
-            null,
-            null,
-            self.selected_profile,
-        )) |chosen| {
+        if (profile_pick.preferred(profiles, .{
+            .window_key = self.selected_profile_key,
+            .app_key = self.app.launcher_profile_key,
+        })) |chosen| {
             _ = try self.setSelectedProfileIndex(chosen);
             return;
         }
-        self.selected_profile = preferredProfileIndex(
-            profiles,
-            null,
-            null,
-            if (self.app.config._default_profile) |profile| profile.key else null,
-            self.app.launcher_profile_hint,
-            self.selected_profile,
-        ) orelse self.app.defaultShellProfileIndex(profiles) orelse
+        self.selected_profile = profile_pick.preferred(profiles, .{
+            .default_key = if (configpkg.pane_launch.defaultProfile(&self.app.config)) |profile| profile.key else null,
+            .hint = self.app.launcher_profile_hint,
+            .fallback = self.selected_profile,
+        }) orelse self.app.defaultShellProfileIndex(profiles) orelse
             if (self.selected_profile < profiles.len) self.selected_profile else 0;
     }
 
@@ -4967,7 +5274,7 @@ pub const Host = struct {
         // False when no profile is shown; a hidden one can still match.
         _ = try self.ensureProfiles();
         const profiles = self.profiles orelse return null;
-        const index = profileIndexByKey(profiles, key) orelse return null;
+        const index = profile_pick.byKey(profiles, key) orelse return null;
         return &profiles[index];
     }
 
@@ -4989,7 +5296,7 @@ pub const Host = struct {
         return true;
     }
 
-    fn setLauncherProfileTarget(self: *Host, target: ProfileOpenTarget) void {
+    fn setLauncherProfileTarget(self: *Host, target: OpenTarget) void {
         if (self.app.launcher_profile_target == target) return;
         self.app.launcher_profile_target = target;
         self.refreshProfileChrome();
@@ -5006,7 +5313,7 @@ pub const Host = struct {
     }
 
     fn cycleLauncherProfileTarget(self: *Host, reverse: bool) bool {
-        self.setLauncherProfileTarget(cycleProfileOpenTarget(self.app.launcher_profile_target, reverse));
+        self.setLauncherProfileTarget(self.app.launcher_profile_target.cycle(reverse));
         return true;
     }
 
@@ -5038,7 +5345,7 @@ pub const Host = struct {
         const edit_hwnd = self.overlay_edit_hwnd orelse return false;
         const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
         const fallback = self.selectedProfileIndex() orelse 0;
-        const current_index = switch (resolveProfileSelection(profiles, text, fallback)) {
+        const current_index = switch (profile_pick.byTyped(profiles, text, fallback)) {
             .exact => |index| index,
             .ambiguous, .invalid => fallback,
         };
@@ -5050,7 +5357,7 @@ pub const Host = struct {
         return true;
     }
 
-    pub fn openSelectedProfile(self: *Host, open_target: ProfileOpenTarget) bool {
+    pub fn openSelectedProfile(self: *Host, open_target: OpenTarget) bool {
         const profiles_ready = self.ensureProfiles() catch |err| {
             logUiActionError("selected profile load failed", err);
             return false;
@@ -5068,7 +5375,7 @@ pub const Host = struct {
         return true;
     }
 
-    pub fn quickOpenProfileIndex(self: *Host, index: usize, open_target: ProfileOpenTarget) bool {
+    pub fn quickOpenProfileIndex(self: *Host, index: usize, open_target: OpenTarget) bool {
         const profiles_ready = self.ensureProfiles() catch |err| {
             logUiActionError("quick profile load failed", err);
             return false;
@@ -5082,7 +5389,7 @@ pub const Host = struct {
         return self.openSelectedProfile(open_target);
     }
 
-    pub fn openSelectedProfileOrFallback(self: *Host, open_target: ProfileOpenTarget) bool {
+    pub fn openSelectedProfileOrFallback(self: *Host, open_target: OpenTarget) bool {
         if (self.openSelectedProfile(open_target)) return true;
         const surface = self.activeSurface() orelse return false;
         switch (open_target) {
@@ -5093,7 +5400,7 @@ pub const Host = struct {
         return true;
     }
 
-    pub fn submitProfileOverlay(self: *Host, open_target: ProfileOpenTarget) !bool {
+    pub fn submitProfileOverlay(self: *Host, open_target: OpenTarget) !bool {
         if (!self.profilesForChrome()) {
             if (self.profiles_requested) return false;
             try self.setBanner(.err, "No supported Windows profiles detected.");
@@ -5101,7 +5408,7 @@ pub const Host = struct {
         }
         _ = self.overlay_edit_hwnd orelse return false;
         const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
-        const selection = resolveProfileSelection(self.shownProfiles().?, text, self.selectedProfileIndex() orelse 0);
+        const selection = profile_pick.byTyped(self.shownProfiles().?, text, self.selectedProfileIndex() orelse 0);
         switch (selection) {
             .exact => |index| {
                 _ = try self.setSelectedProfileIndex(index);
@@ -5126,7 +5433,7 @@ pub const Host = struct {
     }
 
     pub fn inspectorPanelVisible(self: *Host) bool {
-        return inspectorPanelVisibleForState(self.overlay_mode, self.activeTabHasInspector());
+        return win32_chrome_state.inspectorVisible(self.overlay_mode) and self.activeTabHasInspector();
     }
 
     fn activeTabHasInspector(self: *Host) bool {
@@ -6021,7 +6328,7 @@ pub const Host = struct {
         var bytes: [1024]u8 = undefined;
         var fixed = std.heap.FixedBufferAllocator.init(&bytes);
         const text: []const u8 = if (self.banner_text) |message|
-            buildHostBannerText(fixed.allocator(), self.banner_kind, message) catch message
+            overlay_view.bannerLine(fixed.allocator(), self.banner_kind, message) catch message
         else if (self.mode_indicator_text) |mode|
             mode
         else if (self.app.update_notice) |notice|
@@ -6489,7 +6796,17 @@ pub const Host = struct {
             extern "user32" fn SetThreadDesktop(desktop: *anyopaque) callconv(.winapi) BOOL;
             extern "user32" fn CloseDesktop(desktop: *anyopaque) callconv(.winapi) BOOL;
             fn run(desktop: *anyopaque, result: *anyerror!void) void {
-                result.* = if (SetThreadDesktop(desktop) == 0) lastError() else body();
+                if (SetThreadDesktop(desktop) == 0) {
+                    result.* = lastError();
+                    return;
+                }
+                // A new thread's key table starts as a copy of the real
+                // keyboard's (SETTINGS-F2-TEST-FLAKE), so the body runs with
+                // an empty keyboard instead of the keys the person running
+                // the suite holds.
+                const keyboard = win32_input.TestingKeyboard.pinNone();
+                defer keyboard.release();
+                result.* = body();
             }
         };
         var name_buf: [64]u8 = undefined;
@@ -6693,8 +7010,9 @@ pub const Host = struct {
         for (self.tabs.items, 0..) |*tab, index| {
             if (tab.id != tab_id) continue;
             const fallback: []const u8 = if (tab.cached_button_label) |label| label else "Tab";
-            const title = tab.cached_button_title orelse return fallback;
-            return labels.buildTabItemUiaName(buf, index, title, tab.leafCount()) orelse fallback;
+            // The title the label was drawn with, at the tab's place and
+            // pane count now.
+            return tab_label.uiaName(buf, tab.cached_button_title, index, tab.leafCount()) orelse fallback;
         }
         return "Tab";
     }
@@ -7100,7 +7418,7 @@ pub const Host = struct {
     }
 
     fn hostActionUiaName(_: *anyopaque, tag: usize, _: []u8) []const u8 {
-        return labels.tabStripActionName(std.enums.fromInt(labels.TabStripAction, tag) orelse .new_tab);
+        return tabStripActionName(std.enums.fromInt(TabStripAction, tag) orelse .new_tab);
     }
 
     pub fn bannerUiaName(ctx: *anyopaque, _: usize, buf: []u8) []const u8 {
@@ -7415,7 +7733,7 @@ pub const Host = struct {
 
     pub const syncOverlayButtons = overlay_session.HostControls.syncOverlayButtons;
 
-    pub const confirmText = overlay_session.HostControls.confirmText;
+    pub const overlayFacts = overlay_session.HostControls.overlayFacts;
 
     const confirmHasPreview = overlay_session.HostControls.confirmHasPreview;
 
@@ -7516,7 +7834,7 @@ pub const Host = struct {
         if (self.search_icon_font) |old| _ = sys.DeleteObject(old);
         const caption = self.createTitlebarIconFont(faces, 10);
         const action = self.createTitlebarIconFont(faces, 12);
-        self.tab_symbol_font = win32.createTabSymbolFont(self.scaled(tab_symbol_font_px));
+        self.tab_symbol_font = gdi.createIconFontForFace(std.unicode.utf8ToUtf16LeStringLiteral("Segoe UI Symbol"), self.scaled(tab_symbol_font_px));
         self.titlebar_caption_icon_font = caption.font;
         self.titlebar_action_icon_font = action.font;
         self.titlebar_icons_geometric = caption.geometric and action.geometric;
@@ -7564,34 +7882,28 @@ pub const Host = struct {
         self.search_timer_active = false;
     }
 
+    /// The timer runs while a pane of any tab waits out a debounce, a
+    /// background tab's included, so its search fires on schedule rather
+    /// than when the user next acts in that tab (the 2026-11-07
+    /// background-tab debounce entry in search-scrollbar.md).
     pub fn refreshSearchTimerState(self: *Host) void {
-        const tab = self.activeTab() orelse {
-            self.killSearchTimer();
-            return;
-        };
-
-        var wants_timer = false;
-        var it = tab.tree.iterator();
-        while (it.next()) |entry| {
-            if (!entry.view.search_bar.visible) continue;
-            if (entry.view.search_bar.query.len == 0) continue;
-            if (!entry.view.search_bar.searched) {
-                wants_timer = true;
-                break;
+        const wants_timer = tabs: for (self.tabs.items) |*tab| {
+            var it = tab.tree.iterator();
+            while (it.next()) |entry| {
+                if (entry.view.docked_search.view().wants_tick) break :tabs true;
             }
-        }
+        } else false;
 
         if (wants_timer) self.ensureSearchTimer() else self.killSearchTimer();
     }
 
     pub fn tickSearchBars(self: *Host) void {
-        const now_ms: i64 = @intCast(sys.GetTickCount64());
-        if (self.activeTab()) |tab| {
-            var it = tab.tree.iterator();
+        // By index: a search's core reports run inside the tick.
+        var index: usize = 0;
+        while (index < self.tabs.items.len) : (index += 1) {
+            var it = self.tabs.items[index].tree.iterator();
             while (it.next()) |entry| {
-                if (!entry.view.search_bar.visible) continue;
-                if (!entry.view.search_bar.shouldRunSearch(now_ms)) continue;
-                _ = entry.view.runPendingSearchNow() catch |err| {
+                _ = entry.view.dockedSearch(.tick) catch |err| {
                     log.warn("win32 search refresh failed err={}", .{err});
                     continue;
                 };
@@ -7707,7 +8019,7 @@ pub const Host = struct {
                 runUiActionOrLog("context menu select all failed", surface.core_surface.performBindingAction(.{ .select_all = {} }));
             },
             c.CTX_FIND => {
-                runUiActionOrLog("context menu find failed", surface.showSearchOverlay(""));
+                runUiActionOrLog("context menu find failed", surface.dockedSearch(.{ .open = "" }));
             },
             c.CTX_COMMAND_PALETTE => {
                 runUiActionOrLog("context menu command palette failed", surface.toggleCommandPalette());
@@ -7739,8 +8051,8 @@ pub const Host = struct {
     /// Open the context menu of the tab at `tab_index`. The tab is activated
     /// first, so every command acts on it and not on whichever tab was in
     /// front. A menu opened from the keyboard hands focus back to the strip
-    /// when it closes (`labels.tabContextMenuRestoresStripFocus`), on the
-    /// tab the menu was for. Returns false, with the menu not shown, when the
+    /// when it closes, on the tab the menu was for, unless a command opened
+    /// an overlay. Returns false, with the menu not shown, when the
     /// tab could not be activated. `self` may be gone when it returns true:
     /// closing a window's only tab closes the window.
     pub fn showTabContextMenu(self: *Host, button_hwnd: HWND, tab_index: usize, origin: TabMenuOrigin) bool {
@@ -7816,7 +8128,7 @@ pub const Host = struct {
         // PTY. Rename and a close that asks first opened an overlay, which
         // owns the keyboard now.
         live = app.registry.findHostById(host_id) orelse return true;
-        if (live.hwnd != null and labels.tabContextMenuRestoresStripFocus(origin == .keyboard, live.overlay_mode != .none)) {
+        if (live.hwnd != null and origin == .keyboard and live.overlay_mode == .none) {
             live.restoreTabStripFocus();
         }
         return true;
@@ -7827,7 +8139,7 @@ pub const Host = struct {
     fn createTabStripActionButton(
         self: *Host,
         parent: HWND,
-        action: labels.TabStripAction,
+        action: TabStripAction,
         label: [*:0]const u16,
         width: i32,
         id: usize,
@@ -7859,8 +8171,8 @@ pub const Host = struct {
         });
     }
 
-    /// The tab strip's action buttons, by `labels.TabStripAction`.
-    fn tabStripActionHwnd(self: *const Host, action: labels.TabStripAction) ?HWND {
+    /// The tab strip's action buttons, by `TabStripAction`.
+    fn tabStripActionHwnd(self: *const Host, action: TabStripAction) ?HWND {
         return switch (action) {
             .new_tab => self.new_tab_hwnd,
             .more_tabs => self.overflow_hwnd,
@@ -7869,8 +8181,8 @@ pub const Host = struct {
         };
     }
 
-    fn tabStripActionOf(self: *const Host, button: HWND) ?labels.TabStripAction {
-        for (std.enums.values(labels.TabStripAction)) |action| {
+    fn tabStripActionOf(self: *const Host, button: HWND) ?TabStripAction {
+        for (std.enums.values(TabStripAction)) |action| {
             if (self.tabStripActionHwnd(action) == button) return action;
         }
         return null;
@@ -7880,7 +8192,7 @@ pub const Host = struct {
     /// button ([+], [v], command palette, Settings).
     fn tabStripStopHwnd(self: *const Host, stop: usize) ?HWND {
         if (stop < self.tabs.items.len) return focusableHwnd(self.tabs.items[stop].button_hwnd);
-        const action = std.enums.fromInt(labels.TabStripAction, stop - self.tabs.items.len) orelse return null;
+        const action = std.enums.fromInt(TabStripAction, stop - self.tabs.items.len) orelse return null;
         return focusableHwnd(self.tabStripActionHwnd(action));
     }
 
@@ -7906,8 +8218,8 @@ pub const Host = struct {
     /// focus event from `WM_SETFOCUS`.
     pub fn stepTabStripFocus(self: *Host, from: HWND, reverse: bool) bool {
         const current = self.tabStripStopOf(from) orelse return false;
-        const next = labels.nextFocusStop(
-            self.tabs.items.len + std.enums.values(labels.TabStripAction).len,
+        const next = nextFocusStop(
+            self.tabs.items.len + std.enums.values(TabStripAction).len,
             current,
             reverse,
             @as(*const Host, self),
@@ -7926,11 +8238,11 @@ pub const Host = struct {
         const current = if (surface.search_bar_edit_hwnd != null and surface.search_bar_edit_hwnd.? == from)
             0
         else if (surface.searchBarButtonRole(from)) |role|
-            labels.searchFocusStopOfRole(role)
+            search_controls.searchFocusStopOfRole(role)
         else
             return false;
-        const next = labels.nextFocusStop(
-            labels.search_focus_stop_count,
+        const next = nextFocusStop(
+            search_controls.search_focus_stop_count,
             current,
             reverse,
             @as(*const Surface, surface),
@@ -7946,14 +8258,14 @@ pub const Host = struct {
     /// made a click here: it reaches a button only through a dialog manager,
     /// and the host has none. Touch nothing after a click: it can open a
     /// menu, or close the search bar.
-    pub fn handleChromeButtonKey(self: *Host, button: HWND, vk: WPARAM, mods: labels.KeyMods, lParam: LPARAM) bool {
+    pub fn handleChromeButtonKey(self: *Host, button: HWND, vk: WPARAM, mods: win32_input.KeyMods, lParam: LPARAM) bool {
         const search_surface = if (self.searchControlSurface(button)) |surface|
             if (surface.searchBarButtonRole(button) != null) surface else null
         else
             null;
         const in_strip = self.isTabStripActionButton(button);
         if (!in_strip and search_surface == null) return false;
-        const action = labels.chromeButtonKeyAction(vk, mods) orelse return false;
+        const action = chromeButtonKeyAction(vk, mods) orelse return false;
         switch (action) {
             .click => {
                 if ((lParamBits(lParam) & c.KF_REPEAT) != 0) return true;
@@ -8077,7 +8389,7 @@ pub const Host = struct {
                 runUiActionOrLog("overflow command palette failed", surface.toggleCommandPalette());
             },
             c.CTX_FIND => {
-                runUiActionOrLog("overflow find failed", surface.showSearchOverlay(""));
+                runUiActionOrLog("overflow find failed", surface.dockedSearch(.{ .open = "" }));
             },
             c.CTX_NEW_TAB => {
                 self.postDeferredNewTab();
@@ -8713,7 +9025,7 @@ pub const Host = struct {
         bg: u32,
         high_contrast: bool,
     ) void {
-        const parts = labels.tabLabelParts(label);
+        const parts = tab_label.parts(label);
         const muted = if (high_contrast) fg else blendColorRGB(bg, fg, 0.68);
         var rect = area;
         rect.left += self.scaled(tab_content_left - 6);
@@ -8837,7 +9149,7 @@ pub const Host = struct {
         return null;
     }
 
-    fn buttonLauncherTarget(self: *Host, hwnd: HWND) ?ProfileOpenTarget {
+    fn buttonLauncherTarget(self: *Host, hwnd: HWND) ?OpenTarget {
         if (self.overlay_mode == .profile and self.overlay_accept_hwnd != null and hwnd == self.overlay_accept_hwnd.?) {
             return self.app.launcher_profile_target;
         }
@@ -8880,7 +9192,7 @@ pub const Host = struct {
         // the prompt without dispatching accept or cancel. Reachable
         // since the preview pane joined the focus cycle and routes Enter
         // through `submitOverlay`.
-        if (text.len == 0 and overlayEmptySubmitDismisses(self.overlay_mode)) {
+        if (text.len == 0 and overlay_view.shape(self.overlay_mode).empty_submit_dismisses) {
             self.hideOverlay();
             try self.layout();
             return false;
@@ -8908,8 +9220,8 @@ pub const Host = struct {
                     return false;
                 }
                 const action = input.Binding.Action.parse(text) catch |err| {
-                    log.warn("win32 command palette invalid action action={s} err={}", .{ text, err });
-                    try self.setBanner(.err, labels.command_palette_unknown_action);
+                    log.warn("win32 command palette invalid action action={f} err={}", .{ internal_os.redact.bytes(text), err });
+                    try self.setBanner(.err, "No command matches that. You can also type an action name, like new_tab.");
                     if (self.palette_list_uia_provider) |provider| {
                         win32_uia.events.raiseNotification(&provider.base, .action_aborted, "Unknown command");
                     }
@@ -8940,7 +9252,7 @@ pub const Host = struct {
             },
             .tab_overview => {
                 const requested = std.fmt.parseUnsigned(usize, text, 10) catch |err| {
-                    log.warn("win32 tab overview invalid selection value={s} err={}", .{ text, err });
+                    log.warn("win32 tab overview invalid selection value={f} err={}", .{ internal_os.redact.bytes(text), err });
                     try self.setBanner(.err, "Enter a numeric tab index.");
                     return false;
                 };
@@ -8969,13 +9281,6 @@ pub const Host = struct {
         return tabBarVisibleForConfig(self.app.config.@"window-show-tab-bar");
     }
 
-    fn decorationVisibilityForChrome(self: *const Host) bool {
-        return decorationVisibilityForChromeValue(
-            if (self.activeSurface()) |surface| surface.decorations_visible else null,
-            self.cached_decorations_visible,
-        );
-    }
-
     /// Host-local view of the integrated-titlebar state. The app
     /// carries the build/config floor, but host-side non-client
     /// handling must also respect whether this host is actually
@@ -8984,7 +9289,7 @@ pub const Host = struct {
         return usesIntegratedTitlebar(
             self.app.use_integrated_titlebar,
             self.shouldShowTabBar(),
-            self.decorationVisibilityForChrome(),
+            self.top_level.decorations_visible,
         );
     }
 
@@ -8995,10 +9300,9 @@ pub const Host = struct {
     /// the hit test finds only resize edges and client.
     pub fn clientCaptionHeight(self: *const Host) ?i32 {
         if (self.usingIntegratedTitlebar()) return host_caption_button_h;
-        const fullscreen = if (self.activeSurface()) |surface| surface.fullscreen else false;
         if (undecoratedKeepsFrame(self.app.os_build, self.quick_terminal) and
-            !self.decorationVisibilityForChrome() and
-            !fullscreen) return 0;
+            !self.top_level.decorations_visible and
+            !self.top_level.isFullscreen()) return 0;
         return null;
     }
 
@@ -9043,10 +9347,9 @@ pub const Host = struct {
 
     pub fn tabsFlushWithTop(self: *const Host) bool {
         const hwnd = self.hwnd orelse return false;
-        const fullscreen = if (self.activeSurface()) |surface| surface.fullscreen else false;
         return self.app.os_build >= c.OS_BUILD_WIN11_21H2 and
             !self.quick_terminal and self.shouldShowTabBar() and
-            (fullscreen or ((self.usingIntegratedTitlebar() or self.clientCaptionHeight() == 0) and
+            (self.top_level.isFullscreen() or ((self.usingIntegratedTitlebar() or self.clientCaptionHeight() == 0) and
                 sys.IsZoomed(hwnd) != 0));
     }
 
@@ -9238,7 +9541,9 @@ pub const Host = struct {
     /// close from the taskbar or a quit never waits on a prompt nobody can
     /// see, and asking again keeps the prompt already open. If the prompt
     /// cannot open, nothing closes, as in `Surface.close`: closing anyway
-    /// would defeat the setting, and the user can retry.
+    /// would defeat the setting, and the user can retry. The userdata of a
+    /// `.this_tab` prompt is the Surface of the tab, which names the tab
+    /// when it is behind.
     pub fn askBeforeClosing(
         self: *Host,
         scope: CloseScope,
@@ -9254,61 +9559,24 @@ pub const Host = struct {
             };
             return;
         }
-        var body: [256]u8 = undefined;
-        var title: [32]u8 = undefined;
-        var prompt = closeScopePrompt(scope, count, &body);
-        // A tab closed from its button need not be the one in front, and
-        // "this tab" would then name the wrong one.
-        const named_body = if (scope == .this_tab)
-            self.nameBackgroundTab(&prompt, count, @ptrCast(@alignCast(userdata)), &title)
-        else
-            null;
-        defer if (named_body) |text| self.app.core_app.alloc.free(text);
+        const alloc = self.app.core_app.alloc;
+        var words: confirm_text.Words = .{};
+        defer words.deinit(alloc);
+        const behind = if (scope == .this_tab) self.backgroundTabRef(@ptrCast(@alignCast(userdata))) else null;
+        const prompt = words.close(alloc, .{ .scope = .{ .scope = scope, .terminals = count, .behind = behind } });
         self.showConfirm(prompt, on_accept, null, userdata) catch |err| {
             log.warn("close confirm unavailable err={}; declining close to honour confirm-close-surface", .{err});
         };
     }
 
-    /// Words the `.this_tab` prompt for the tab holding `surface` as the
-    /// tab's number and title when another tab is in front, as the OSC 52
-    /// prompt names the tab that asked. Returns the body it allocated, which
-    /// `prompt` borrows; null leaves the prompt as it was (the tab in front,
-    /// or no memory for the words).
-    fn nameBackgroundTab(self: *Host, prompt: *ConfirmPrompt, count: usize, surface: *Surface, title_buf: *[32]u8) ?[]u8 {
-        const index = self.backgroundTabIndex(surface) orelse return null;
-        // The title needs no memory, so it names the tab even if the body cannot.
-        prompt.title = labels.backgroundTabClosePromptTitle(title_buf, index + 1);
-        const body = labels.buildBackgroundTabClosePromptBody(
-            self.app.core_app.alloc,
-            count,
-            index + 1,
-            surface.effectiveTitle(),
-        ) catch return null;
-        prompt.body = body;
-        return body;
-    }
-
-    /// The same for the prompt of a terminal that closes by itself, which
-    /// `Surface.close` raises whatever tab the terminal is in.
-    pub fn nameBackgroundTerminal(self: *Host, prompt: *ConfirmPrompt, surface: *Surface, title_buf: *[32]u8) ?[]u8 {
-        const index = self.backgroundTabIndex(surface) orelse return null;
-        prompt.title = labels.backgroundTerminalClosePromptTitle(title_buf, index + 1);
-        const body = labels.buildBackgroundTerminalClosePromptBody(
-            self.app.core_app.alloc,
-            index + 1,
-            surface.effectiveTitle(),
-            surface.core_initialized and surface.core_surface.child_exited,
-        ) catch return null;
-        prompt.body = body;
-        return body;
-    }
-
-    /// The index of the tab of this window that holds `surface`, unless
-    /// that tab is the one in front.
-    fn backgroundTabIndex(self: *Host, surface: *Surface) ?usize {
+    /// The tab of this window that holds `surface`, as a prompt names it,
+    /// unless that tab is the one in front: a tab closed from its button,
+    /// or a terminal that closes by itself (`Surface.close`) whatever tab
+    /// it is in.
+    pub fn backgroundTabRef(self: *Host, surface: *Surface) ?confirm_text.TabRef {
         const found = Host.findTabForSurface(surface) orelse return null;
         if (found.host != self or found.index == self.active_tab) return null;
-        return found.index;
+        return .{ .number = found.index + 1, .title = surface.effectiveTitle() };
     }
 
     /// Shown on screen, minimized included; a hidden quick terminal is not.
@@ -9360,7 +9628,16 @@ pub const Host = struct {
         // The session's last window, whatever else is open: a quick terminal
         // or a window kept empty for undo is not part of the session.
         if (self.app.closingEndsSession(self)) self.app.saveSessionAsItEnds();
+        // The last pane's teardown destroys and frees the window, so it is
+        // looked up by id after the loop. A pane that does not close keeps
+        // it, which then shows its opacity once, for the panes it has.
+        const app = self.app;
+        const id = self.id;
+        self.closing = true;
         for (surfaces.items) |surface| surface.close(false);
+        const kept = app.registry.findHostById(id) orelse return;
+        kept.closing = false;
+        window_state.refreshBackgroundOpacity(kept);
     }
 
     /// The tab and window title prompts are filled from the active surface
@@ -10227,9 +10504,9 @@ pub const Host = struct {
         // The bell glyph is display only: `cached_window_title` stays the
         // title without it, which is what automation reports.
         const bell = if (self.activeTab()) |tab| tab.bellRinging() else false;
-        if (!windowTitleSyncChanged(self.cached_window_title, host_base_title) and
+        if (ownedStringEquals(self.cached_window_title, host_base_title) and
             bell == self.caption_bell) return false;
-        const caption = if (bell) try win32_bell.withTitleGlyph(alloc, host_base_title) else null;
+        const caption = if (bell) try tab_label.withTitleGlyph(alloc, host_base_title) else null;
         defer if (caption) |value| alloc.free(value);
         const title_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, caption orelse host_base_title);
         defer alloc.free(title_w);
@@ -10254,7 +10531,6 @@ pub const Host = struct {
         // cut every label down to a 0 px strip that survives the restore.
         const rect = (try self.layoutClientRect()) orelse return false;
         const button_width = self.tabStripGeometry(@max(0, rect.right - rect.left)).button_width;
-        const label_max_width = hostTabLabelMaxWidth(button_width, self.current_dpi);
         var tooltip_title_changed = false;
         var button_created = false;
         // A pass that fails after making a button has still changed the list,
@@ -10263,64 +10539,40 @@ pub const Host = struct {
         for (self.tabs.items, 0..) |*tab, i| {
             const surface = tab.focusedSurface() orelse continue;
             const title = if (surface.effectiveTitle()) |value| value else null;
-            const active = i == self.active_tab;
-            const bell = tab.bellRinging();
-            const pane_count = tab.leafCount();
-            const show_pane_count = shouldShowPaneCount(button_width, pane_count, self.current_dpi);
-            // The icon slot comes out of the label's room, charged in cells
-            // after `hostTabLabelMaxWidth` has capped the budget the way the
-            // layout caps the button.
-            const tab_label_max_width = @max(tab_label_min_cells, label_max_width -| tab_icon_cells);
-            const title_unchanged = if (title) |value|
-                ownedStringEquals(tab.cached_button_title, value)
-            else
-                tab.cached_button_title == null;
+            const label_key = tab_label.key(.{
+                .title = title,
+                .index = i,
+                .active = i == self.active_tab,
+                .bell = tab.bellRinging(),
+                .pane_count = tab.leafCount(),
+                .button_width = button_width,
+                .dpi = self.current_dpi,
+            });
+            const cached_key = tab.cachedKey();
             const label_inputs_unchanged = tab.button_hwnd != null and
                 tab.button_label_cache_valid and
-                title_unchanged and
-                tab.cached_button_bell == bell and
-                tab.cached_button_index == i and
-                tab.cached_button_active == active and
-                tab.cached_button_pane_count == pane_count and
-                tab.cached_button_label_max_width == tab_label_max_width and
-                tab.cached_button_show_pane_count == show_pane_count;
+                cached_key.eql(label_key);
             if (label_inputs_unchanged) continue;
             // The UIA name is not the drawn label: it carries the tab's FULL
-            // title and its pane count, and `shouldShowPaneCount` keeps the
-            // count out of the label on a narrow tab. Splitting such a tab
-            // moves the name from "1: pwsh" to "1: pwsh (2)" while the label
-            // stays byte-identical, so the label comparison below cannot be
-            // the only trigger for NameChanged or an event-driven reader keeps
+            // title and its pane count, and a narrow tab keeps the count out
+            // of its label. Splitting such a tab moves the name from
+            // "1: pwsh" to "1: pwsh (2)" while the label stays
+            // byte-identical, so the label comparison below cannot be the
+            // only trigger for NameChanged or an event-driven reader keeps
             // announcing the stale name.
             const uia_name_changed = tab.button_label_cache_valid and
-                labels.tabItemUiaNameChanged(
-                    tab.cached_button_title,
-                    tab.cached_button_index,
-                    tab.cached_button_pane_count,
-                    title,
-                    i,
-                    pane_count,
-                );
+                !cached_key.sameUiaName(label_key);
             if (self.tab_tooltip_tab_id) |shown| {
                 // The title or the width budget moved under the tooltip. It is
                 // refreshed in place once the buttons are laid out below, since
                 // the popup hangs off the button's final rect. Hiding it here
                 // made an animated title flicker the popup: `refreshTabTooltip`.
-                if (shown == tab.id) tooltip_title_changed = !title_unchanged;
+                if (shown == tab.id) tooltip_title_changed = !optionalOwnedStringEquals(tab.cached_button_title, title);
             }
             // The glyph is in front of the drawn label, and its width comes out
             // of the label's budget; the cached title (tooltip, UIA name,
             // palette) and the pane's own title stay without it.
-            const label = try win32_bell.tabLabel(
-                self.app.core_app.alloc,
-                title,
-                bell,
-                i,
-                active,
-                pane_count,
-                tab_label_max_width,
-                show_pane_count,
-            );
+            const label = try tab_label.text(self.app.core_app.alloc, label_key);
             defer self.app.core_app.alloc.free(label);
             const is_new_button = tab.button_hwnd == null;
             const label_changed = is_new_button or
@@ -10358,14 +10610,7 @@ pub const Host = struct {
             // event's `newValue`, and `tabItemUiaName` builds it from
             // `cached_button_title`, so raising first announced the PREVIOUS
             // title -- the one the rename was replacing.
-            try appendOwnedString(self.app.core_app.alloc, &tab.cached_button_title, title);
-            tab.cached_button_bell = bell;
-            tab.cached_button_index = i;
-            tab.cached_button_active = active;
-            tab.cached_button_pane_count = pane_count;
-            tab.cached_button_label_max_width = tab_label_max_width;
-            tab.cached_button_show_pane_count = show_pane_count;
-            tab.button_label_cache_valid = true;
+            try tab.setCachedKey(self.app.core_app.alloc, label_key);
             // A provider created above already reports the current name; only
             // an existing one needs the event. A hidden strip needs none of
             // them: its buttons are out of the UIA tree, and a reader that
@@ -10387,7 +10632,7 @@ pub const Host = struct {
         // layout, so the reader finds each button where it is.
         if (button_created) self.notifyTabListUiaChanged();
         // Refresh whenever a tooltip is up, not only when its own tab's label
-        // was rebuilt: a tab that scrolls out of `visibleTabRange` because
+        // was rebuilt: a tab that scrolls out of `tab_label.visible` because
         // ANOTHER tab was activated keeps every label input and is never
         // rebuilt, yet its button is now hidden and its slot belongs to a
         // different tab. `presentTabTooltip` re-checks the button and the
@@ -10403,7 +10648,7 @@ pub const Host = struct {
     }
 
     const TabStripGeometry = struct {
-        /// The tabs shown, as `visibleTabRange` picks them.
+        /// The tabs shown, as `tab_label.visible` picks them.
         start: usize,
         count: usize,
         button_width: i32,
@@ -10417,7 +10662,7 @@ pub const Host = struct {
         // 3 × caption_button_w pixels for min/max/close so the
         // [+][▾] cluster and tab strip don't collide with them.
         const tab_area_width = @max(1, width - self.rightButtonsWidth() - self.captionButtonsWidth());
-        const range = visibleTabRange(self.tabs.items.len, self.active_tab, tab_area_width, self.current_dpi);
+        const range = tab_label.visible(self.tabs.items.len, self.active_tab, tab_area_width, self.current_dpi);
         const visible_count = @max(@as(i32, 1), @as(i32, @intCast(range.count)));
         return .{
             .start = range.start,
@@ -11044,7 +11289,7 @@ pub const Host = struct {
                 entry.view.setVisible(true);
                 const placement = win32_layout.zoomedSurfacePlacement(
                     layout_content_rect,
-                    entry.view.search_bar.visible,
+                    entry.view.docked_search.view().open,
                     search_bar_height,
                 );
                 content_layout_changed = (try applySurfacePlacement(
@@ -11077,7 +11322,7 @@ pub const Host = struct {
                             spatial,
                             entry.handle,
                             has_multi_panes,
-                            entry.view.search_bar.visible,
+                            entry.view.docked_search.view().open,
                         );
                         content_layout_changed = (try applySurfacePlacement(
                             entry.view,
@@ -11099,7 +11344,7 @@ pub const Host = struct {
         if (chrome_layout_changed or content_layout_changed) {
             // Batch-invalidate after actual positioning/visibility changes.
             self.repaintFullHost();
-            const child_paint = layoutChildPaintPlan(chrome_layout_changed, content_layout_changed);
+            const child_paint = win32_chrome_state.layoutChildPaintPlan(chrome_layout_changed, content_layout_changed);
             if (child_paint.chrome) self.invalidateChromeChildPaint();
             if (child_paint.content or child_paint.native_content_controls) {
                 self.invalidateVisibleSurfaceChildPaint(
@@ -11128,6 +11373,215 @@ pub const Host = struct {
 
     pub const paintChrome = chrome_scene.HostScene.paintChrome;
 };
+
+test "win32 overlayTextNeedsRefill refills on a tab switch and keeps typing otherwise" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var tab_one: u8 = 0;
+    var tab_two: u8 = 0;
+    const one: *const anyopaque = &tab_one;
+    const two: *const anyopaque = &tab_two;
+
+    // The prompt was filled from tab one and tab two became active: refill.
+    try std.testing.expect(overlayTextNeedsRefill(.tab_title, one, two));
+    try std.testing.expect(overlayTextNeedsRefill(.surface_title, one, two));
+
+    // Still on tab one: a chrome refresh must not replace what was typed.
+    try std.testing.expect(!overlayTextNeedsRefill(.tab_title, one, one));
+
+    // Nothing recorded yet (or a failed refill left it unrecorded): fill.
+    try std.testing.expect(overlayTextNeedsRefill(.tab_title, null, one));
+
+    // No active surface: nothing to fill from.
+    try std.testing.expect(!overlayTextNeedsRefill(.tab_title, one, null));
+
+    // Prompts whose text is the user's own query never refill.
+    try std.testing.expect(!overlayTextNeedsRefill(.search, one, two));
+    try std.testing.expect(!overlayTextNeedsRefill(.command_palette, one, two));
+    try std.testing.expect(!overlayTextNeedsRefill(.tab_overview, one, two));
+}
+
+test "win32 buildHostAwareBaseTitle prefixes host tab position" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const titled = try buildHostAwareBaseTitle(std.testing.allocator, "pwsh", .{
+        .index = 1,
+        .total = 3,
+    }, false);
+    defer std.testing.allocator.free(titled);
+    try std.testing.expectEqualStrings("[2/3] pwsh", titled);
+
+    const single = try buildHostAwareBaseTitle(std.testing.allocator, "pwsh", .{
+        .index = 0,
+        .total = 1,
+    }, false);
+    defer std.testing.allocator.free(single);
+    try std.testing.expectEqualStrings("pwsh", single);
+}
+
+test "win32 elevated host title prefixes surface and default title once" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const surface = try buildHostAwareBaseTitle(std.testing.allocator, "pwsh", .{
+        .index = 1,
+        .total = 3,
+    }, true);
+    defer std.testing.allocator.free(surface);
+    try std.testing.expectEqualStrings("Administrator: [2/3] pwsh", surface);
+
+    const default = try buildHostAwareBaseTitle(std.testing.allocator, null, .{
+        .index = 0,
+        .total = 1,
+    }, true);
+    defer std.testing.allocator.free(default);
+    try std.testing.expectEqualStrings("Administrator: Najm", default);
+
+    const idempotent = try buildHostAwareBaseTitle(std.testing.allocator, "Administrator: pwsh", .{
+        .index = 1,
+        .total = 3,
+    }, true);
+    defer std.testing.allocator.free(idempotent);
+    try std.testing.expectEqualStrings("Administrator: [2/3] pwsh", idempotent);
+}
+
+test "win32 a profile's menu item keeps an ampersand and a tab in its label" {
+    const alloc = std.testing.allocator;
+    const profile: windows_shell.Profile = .{
+        .kind = .user,
+        .key = "user:qa",
+        .label = "Q&A\tshell",
+        .command = .{ .shell = "cmd.exe" },
+    };
+    const first = try buildDropdownProfileLabel(alloc, &profile, 0);
+    defer alloc.free(first);
+    try std.testing.expectEqualStrings("Q&&A shell\tCtrl+Shift+1", first);
+    const tenth = try buildDropdownProfileLabel(alloc, &profile, 9);
+    defer alloc.free(tenth);
+    try std.testing.expectEqualStrings("Q&&A shell", tenth);
+}
+
+test "win32 buttonLabelRightInset reserves slot and target badge space" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(@as(i32, 0), buttonLabelRightInset(null, null));
+    try std.testing.expectEqual(@as(i32, 12), buttonLabelRightInset(null, .tab));
+    try std.testing.expectEqual(@as(i32, 16), buttonLabelRightInset(0, null));
+    try std.testing.expectEqual(@as(i32, 16), buttonLabelRightInset(0, .split));
+    try std.testing.expectEqual(@as(i32, 12), buttonLabelRightInset(9, .window));
+}
+
+test "win32 profileOpenTargetMarkerColor reflects launcher target" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(rgb(132, 172, 238), profileOpenTargetMarkerColor(.tab));
+    try std.testing.expectEqual(rgb(236, 182, 118), profileOpenTargetMarkerColor(.window));
+    try std.testing.expectEqual(rgb(126, 204, 148), profileOpenTargetMarkerColor(.split));
+}
+
+test "win32 profileOpenTargetBadgeGlyph reflects launcher target" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(@as(u8, 'T'), profileOpenTargetBadgeGlyph(.tab));
+    try std.testing.expectEqual(@as(u8, 'W'), profileOpenTargetBadgeGlyph(.window));
+    try std.testing.expectEqual(@as(u8, 'S'), profileOpenTargetBadgeGlyph(.split));
+}
+
+test "win32 pinnedSlotBadgeDigit reflects visible quick slot ordinals" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(@as(?u8, '1'), pinnedSlotBadgeDigit(0));
+    try std.testing.expectEqual(@as(?u8, '3'), pinnedSlotBadgeDigit(2));
+    try std.testing.expectEqual(@as(?u8, null), pinnedSlotBadgeDigit(null));
+    try std.testing.expectEqual(@as(?u8, null), pinnedSlotBadgeDigit(9));
+}
+
+test "win32 nextTabOverviewSelection wraps and clamps" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(@as(usize, 2), nextTabOverviewSelection(1, 4, false));
+    try std.testing.expectEqual(@as(usize, 4), nextTabOverviewSelection(1, 4, true));
+    try std.testing.expectEqual(@as(usize, 1), nextTabOverviewSelection(4, 4, false));
+    try std.testing.expectEqual(@as(usize, 1), nextTabOverviewSelection(9, 4, false));
+}
+
+test "win32 chrome button keys: Enter clicks and Tab moves, Ctrl and Alt do neither" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const none: win32_input.KeyMods = .{};
+    try std.testing.expectEqual(ChromeButtonKeyAction.click, chromeButtonKeyAction(c.VK_RETURN, none).?);
+    try std.testing.expectEqual(ChromeButtonKeyAction.focus_next, chromeButtonKeyAction(c.VK_TAB, none).?);
+    try std.testing.expectEqual(ChromeButtonKeyAction.focus_previous, chromeButtonKeyAction(c.VK_TAB, .{ .shift = true }).?);
+    try std.testing.expectEqual(@as(?ChromeButtonKeyAction, null), chromeButtonKeyAction(c.VK_RETURN, .{ .ctrl = true }));
+    try std.testing.expectEqual(@as(?ChromeButtonKeyAction, null), chromeButtonKeyAction(c.VK_TAB, .{ .ctrl = true }));
+    try std.testing.expectEqual(@as(?ChromeButtonKeyAction, null), chromeButtonKeyAction(c.VK_TAB, .{ .alt = true }));
+    // Space is the BUTTON class's own (it clicks on the key-up).
+    try std.testing.expectEqual(@as(?ChromeButtonKeyAction, null), chromeButtonKeyAction(c.VK_SPACE, none));
+}
+
+test "win32 focus stops step in order, wrap, and skip hidden stops" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const Stops = struct {
+        visible: []const bool,
+        fn available(self: @This(), stop: usize) bool {
+            return self.visible[stop];
+        }
+    };
+    const all: Stops = .{ .visible = &.{ true, true, true, true } };
+    try std.testing.expectEqual(@as(?usize, 1), nextFocusStop(4, 0, false, all, Stops.available));
+    try std.testing.expectEqual(@as(?usize, 0), nextFocusStop(4, 3, false, all, Stops.available));
+    try std.testing.expectEqual(@as(?usize, 3), nextFocusStop(4, 0, true, all, Stops.available));
+    try std.testing.expectEqual(@as(?usize, 1), nextFocusStop(4, 2, true, all, Stops.available));
+    const gaps: Stops = .{ .visible = &.{ true, false, false, true } };
+    try std.testing.expectEqual(@as(?usize, 3), nextFocusStop(4, 0, false, gaps, Stops.available));
+    try std.testing.expectEqual(@as(?usize, 0), nextFocusStop(4, 3, false, gaps, Stops.available));
+    try std.testing.expectEqual(@as(?usize, 0), nextFocusStop(4, 3, true, gaps, Stops.available));
+    // Nothing else to land on: stay.
+    const alone: Stops = .{ .visible = &.{ true, false, false, false } };
+    try std.testing.expectEqual(@as(?usize, null), nextFocusStop(4, 0, false, alone, Stops.available));
+    try std.testing.expectEqual(@as(?usize, null), nextFocusStop(1, 0, false, all, Stops.available));
+    try std.testing.expectEqual(@as(?usize, null), nextFocusStop(4, 9, false, all, Stops.available));
+}
+
+test "win32 tab strip action names are the UIA names the tooltips show" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqualStrings("New tab", tabStripActionName(.new_tab));
+    try std.testing.expectEqualStrings("More tabs", tabStripActionName(.more_tabs));
+}
+
+test "win32 command palette toggle binding is recognized inside action chains" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const absent = [_]input.Binding.Action{ .{ .copy_to_clipboard = .mixed }, .paste_from_clipboard };
+    const present = [_]input.Binding.Action{ .{ .copy_to_clipboard = .mixed }, .toggle_command_palette };
+    try std.testing.expect(!bindingActionsToggleCommandPalette(&absent));
+    try std.testing.expect(bindingActionsToggleCommandPalette(&present));
+}
+
+// Differential, not tautological: the same event misses the default
+// ctrl+shift+p binding with an empty remap set and matches it with alt=ctrl.
+test "win32 key-remap applies to command palette toggle lookup" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var cfg = try configpkg.Config.default(std.testing.allocator);
+    defer cfg.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var remaps: input.KeyRemapSet = .empty;
+    try remaps.parseCLI(arena.allocator(), "alt=ctrl");
+    remaps.finalize();
+
+    const event: input.KeyEvent = .{
+        .key = .key_p,
+        .mods = .{ .shift = true, .alt = true },
+        .unshifted_codepoint = 'p',
+    };
+    const no_remaps: input.KeyRemapSet = .empty;
+    try std.testing.expect(!keyEventTogglesCommandPalette(event, &cfg.keybind.set, &no_remaps));
+    try std.testing.expect(keyEventTogglesCommandPalette(event, &cfg.keybind.set, &remaps));
+}
 
 test "win32 only a close in the window in front takes focus" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
@@ -11244,15 +11698,11 @@ test "win32 a palette theme preview keeps the running profile definitions until 
     defer alloc.free(theme);
 
     // The running config, which the hosts' lists were built from.
-    var running = try configpkg.Config.default(alloc);
+    var running = try configpkg.pane_launch.fixtures.load(alloc, .{ .file = "profile-command = x: old.exe\nprofile-env = x: MODE=old\nssh-config-hosts = false\n" });
     defer running.deinit();
-    var running_args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-        .iterator = cli_args.sliceIterator(&.{ "--profile-command=x: old.exe", "--profile-env=x: MODE=old", "--ssh-config-hosts=false" }),
-    };
-    try running.loadIter(alloc, &running_args);
-    try running.finalize();
 
-    // The files read again for the preview, edited since.
+    // The files read again for the preview, edited since (given here as
+    // arguments, so their lines are not a file's).
     const edited = [_][]const u8{ "--profile-command=x: new.exe", "--profile-name=x: New", "--profile-env=x: MODE=new" };
     var preview = try configpkg.Config.default(alloc);
     defer preview.deinit();
@@ -11266,9 +11716,8 @@ test "win32 a palette theme preview keeps the running profile definitions until 
     try std.testing.expect(!userProfileKeysChanged(&running, &preview));
     try std.testing.expectEqualStrings("old.exe", preview.@"profile-command".get("x").?);
     // And where they were read, which New Elevated Window decides by: the
-    // running config's places, not the edited files' (the env line is the
-    // second argument there, the third here).
-    try std.testing.expectEqual(running.profilePlace("profile-env", "x").cli, preview.profilePlace("profile-env", "x").cli);
+    // running config's places, so `x` is still a profile the files give.
+    try std.testing.expect(configpkg.pane_launch.filesDefine(&preview, "user:x"));
 
     // The next reload, which reads the edited files, sees the change and
     // drops the lists (the `config_change` path).
@@ -11278,98 +11727,6 @@ test "win32 a palette theme preview keeps the running profile definitions until 
     try reloaded.loadIter(alloc, &reload_args);
     try reloaded.finalize();
     try std.testing.expect(userProfileKeysChanged(&preview, &reloaded));
-}
-
-test "win32 a palette theme preview keeps the default-profile launch until a reload" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-    var tmp = std.testing.tmpDir(.{});
-    defer tmp.cleanup();
-    try tmp.dir.writeFile(.{ .sub_path = "preview-theme", .data = "background = #102030\n" });
-    const theme = try tmp.dir.realpathAlloc(alloc, "preview-theme");
-    defer alloc.free(theme);
-
-    const Launch = struct {
-        fn expect(config: *const configpkg.Config, line: []const u8, mode: []const u8) !void {
-            var clone = config.shallowClone(std.testing.allocator);
-            defer clone.deinit();
-            _ = (try applyDefaultProfileConfig(&clone)).?;
-            try std.testing.expectEqualStrings(line, clone._profile_launch.?.command_line);
-            try std.testing.expectEqualStrings(mode, clone.env.map.get("MODE").?);
-        }
-    };
-
-    // The running config: `default-profile = py`, resolved.
-    var running = try configpkg.Config.default(alloc);
-    defer running.deinit();
-    var running_args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-        .iterator = cli_args.sliceIterator(&.{ "--profile-command=py: old.exe", "--profile-env=py: MODE=old", "--default-profile=py" }),
-    };
-    try running.loadIter(alloc, &running_args);
-    try running.finalize();
-    try Launch.expect(&running, "old.exe", "old");
-
-    // The files read again for the preview: the same `default-profile`
-    // with its profile edited since, and one that names another profile.
-    inline for (.{
-        &[_][]const u8{ "--profile-command=py: new.exe", "--profile-env=py: MODE=new", "--default-profile=py" },
-        &[_][]const u8{ "--profile-command=py: old.exe", "--profile-env=py: MODE=old", "--profile-command=other: other.exe", "--default-profile=other" },
-    }) |edited| {
-        var preview = try configpkg.Config.default(alloc);
-        defer preview.deinit();
-        var args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{ .iterator = cli_args.sliceIterator(edited) };
-        try preview.loadIter(alloc, &args);
-        try Host.finishPaletteThemeConfig(&preview, &running, theme);
-        try std.testing.expectEqual(@as(u8, 0x10), preview.background.r);
-        // A new tab runs the definition the lists hold: the running one.
-        try std.testing.expectEqualStrings("old.exe", preview.@"profile-command".get("py").?);
-        try std.testing.expectEqualStrings("py", preview.@"default-profile".?);
-        try Launch.expect(&preview, "old.exe", "old");
-        try std.testing.expect(!userProfileKeysChanged(&running, &preview));
-    }
-
-    // With no `default-profile` running, files that add one start nothing
-    // new before the reload either.
-    var plain = try configpkg.Config.default(alloc);
-    defer plain.deinit();
-    try plain.finalize();
-    var added = try configpkg.Config.default(alloc);
-    defer added.deinit();
-    var added_args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-        .iterator = cli_args.sliceIterator(&.{ "--profile-command=py: new.exe", "--default-profile=py" }),
-    };
-    try added.loadIter(alloc, &added_args);
-    try Host.finishPaletteThemeConfig(&added, &plain, theme);
-    try std.testing.expect(added._default_profile == null);
-    try std.testing.expect(added.command == null);
-    var clone = added.shallowClone(alloc);
-    defer clone.deinit();
-    try std.testing.expect(try applyDefaultProfileConfig(&clone) == null);
-
-    // What Settings reads of the running value stays too: a command-line
-    // value the lookup found nothing for, over the files' own, while the
-    // files read again for the preview say nothing about it.
-    try tmp.dir.writeFile(.{ .sub_path = "running.ghostty", .data = "default-profile = pwsh\n" });
-    try tmp.dir.writeFile(.{ .sub_path = "reread.ghostty", .data = "font-size = 13\n" });
-    const running_path = try tmp.dir.realpathAlloc(alloc, "running.ghostty");
-    defer alloc.free(running_path);
-    const reread_path = try tmp.dir.realpathAlloc(alloc, "reread.ghostty");
-    defer alloc.free(reread_path);
-    var missing = try configpkg.Config.default(alloc);
-    defer missing.deinit();
-    try missing.loadFile(alloc, running_path);
-    var missing_args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{ .iterator = cli_args.sliceIterator(&.{"--default-profile=nosuch"}) };
-    try missing.loadIter(alloc, &missing_args);
-    try missing.finalize();
-    try std.testing.expectEqual(configpkg.Config.DefaultProfileFailure.not_found, missing._default_profile_failure);
-    try std.testing.expectEqualStrings("pwsh", missing.defaultProfileFromFiles().?);
-    var reread = try configpkg.Config.default(alloc);
-    defer reread.deinit();
-    try reread.loadFile(alloc, reread_path);
-    try Host.finishPaletteThemeConfig(&reread, &missing, theme);
-    try std.testing.expectEqualStrings("nosuch", reread.@"default-profile".?);
-    try std.testing.expectEqual(configpkg.Config.DefaultProfileFailure.not_found, reread._default_profile_failure);
-    try std.testing.expectEqualStrings("pwsh", reread.defaultProfileFromFiles().?);
 }
 
 test "win32 failed cloned-host registration detaches the host reference" {
@@ -11462,47 +11819,15 @@ test "win32 closing a pane removes its toast" {
         .direction = .right,
     };
     try std.testing.expect(try w.host.undoSplitCreateEntry(&split_create));
-    w.app.flushToastRemovals();
-    var q_buf: [64]u8 = undefined;
-    const q_removal = try expectedToastRemoval(&q_buf, 0x2003);
-    try w.recorder.expectRemovals(&.{q_removal});
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{0x2003});
 
+    // The other tab's pane keeps its toast.
     try w.osc(&w.p, "", "x");
     try w.osc(&w.front, "", "x");
     w.app.windowDestroyed(&w.p);
-    w.app.flushToastRemovals();
-    var buf: [64]u8 = undefined;
-    try w.recorder.expectRemovals(&.{ q_removal, try expectedToastRemoval(&buf, 0x2002) });
-    try std.testing.expectEqual(@as(?u64, 0x1001), w.front.toast_outstanding);
-}
-
-test "win32 a toast shown while its tab is undo-closed is removed" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-
-    // The show pumps the close of the pane's tab, which keeps the pane
-    // alive in undo history, where its toast must not stay.
-    const Close = struct {
-        w: *ToastTestWindow,
-        entry: ?Host.StructuralUndoEntry = null,
-        fn run(ctx: *anyopaque) anyerror!void {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.entry = self.w.host.detachTabForUndo(1) orelse return error.TestExpectedTab;
-        }
-    };
-    var close: Close = .{ .w = &w };
-    defer if (close.entry) |*entry| {
-        entry.dispose(&w.host, .host_destroy) catch {}; // Best-effort test teardown.
-    };
-    w.recorder.during_show = .{ .ctx = &close, .run = Close.run };
-    try w.osc(&w.p, "", "newer");
-    try std.testing.expect(Host.findTabForSurface(&w.p) == null);
-    try std.testing.expectEqual(@as(?u64, null), w.p.toast_outstanding);
-    w.app.flushToastRemovals();
-    var buf: [64]u8 = undefined;
-    try w.recorder.expectRemovals(&.{try expectedToastRemoval(&buf, 0x2002)});
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{ 0x2003, 0x2002 });
 }
 
 test "win32 palette theme preview can restore original config clone" {
@@ -11532,6 +11857,124 @@ test "win32 palette theme commit mutates pending without losing rollback source"
 
     try std.testing.expectEqualStrings("Original Theme", original.theme.?.light);
     try std.testing.expectEqualStrings("Committed Theme", pending.theme.?.light);
+}
+
+test "win32 a palette pick with no live preview keeps the catalog's config alive with a clone it does not show" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            try app.createWindow(default_title);
+            const host = fixture.newest().host.?;
+
+            // Before a pick's save reloads, the catalog's config is kept and
+            // the app takes a clone of the config shown, which shows nothing
+            // new: no theme rebuild, so no window applies it. Shown, it
+            // rebuilt the theme and applied every window once.
+            try std.testing.expect(host.palette_catalog_config_source == .live);
+            const rebuilds = app.theme_rebuilds;
+            const revision = app.config_revision;
+            try host.detachLivePaletteCatalogConfig();
+            try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+            try std.testing.expect(app.config_revision != revision);
+            try std.testing.expect(host.palette_catalog_config_source == .retained);
+            host.resetPaletteCatalogConfigOwner();
+        }
+    }.body);
+}
+
+test "win32 the tab overview's toggle ends what is open first: a palette's theme preview and catalog, a confirm prompt's pending operation" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        var cancels: usize = 0;
+
+        fn accept(_: ?*anyopaque) void {}
+
+        fn cancel(_: ?*anyopaque, reason: overlay_session.ConfirmCancelReason) void {
+            std.debug.assert(reason == .dismissed);
+            cancels += 1;
+        }
+
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const first_pane = fixture.newest();
+            const first = first_pane.host.?;
+            try app.createWindow(default_title);
+            const second = fixture.newest().host.?;
+
+            // The first window's palette, with one row in its catalog (the
+            // palette opens with no catalog: building one lists the user's
+            // theme and layout folders) and a theme preview. The tab
+            // overview's toggle then replaces it: the palette ends as Escape
+            // ends it, the preview reverted and the catalog empty, letting
+            // go of the config. Before, both stayed with the window in
+            // `.tab_overview`, which the next palette's open, looking for
+            // `.command_palette`, left alone: two live previews, and a
+            // catalog borrowing a config the other palette's swaps free.
+            const catalog = first.palette_catalog;
+            first.palette_catalog = null;
+            try first.showOverlay(.command_palette, null);
+            first.palette_catalog = catalog;
+            try std.testing.expect(first.appendPaletteDescriptor(.{
+                .item = .{
+                    .id = win32_palette.catalog.actionStableId("Row", "text:row"),
+                    .title = "Row",
+                    .subtitle = "",
+                    .keywords = "text:row",
+                },
+                .payload = .{ .action = .{ .snapshot_index = 0, .action = "text:row" } },
+            }));
+            try std.testing.expectEqual(@as(usize, 1), first.palette_catalog.?.items().len);
+            var previewed = try app.config.clone(std.testing.allocator);
+            previewed.@"background-opacity" = 0.7;
+            first.showPaletteThemePreview(previewed);
+            try std.testing.expect(first.palette_catalog_config_source == .preview_original);
+            try std.testing.expect(try first_pane.toggleTabOverview());
+            try std.testing.expect(first.overlay_mode == .tab_overview);
+            try std.testing.expectEqual(@as(usize, 0), first.palette_catalog.?.items().len);
+            try std.testing.expect(first.palette_theme_preview_original == null);
+            try std.testing.expect(first.palette_catalog_config_source == .live);
+            try std.testing.expect(first.palette_catalog_retained_config == null);
+            try std.testing.expectEqual(@as(f64, 0.5), app.config.@"background-opacity");
+
+            // Another window's palette opens and previews: its original is
+            // the saved config, and it is the one palette open.
+            second.palette_catalog = null;
+            try second.showOverlay(.command_palette, null);
+            var other = try app.config.clone(std.testing.allocator);
+            other.@"background-opacity" = 0.8;
+            second.showPaletteThemePreview(other);
+            try std.testing.expectEqual(@as(f64, 0.5), second.palette_theme_preview_original.?.@"background-opacity");
+            var open: usize = 0;
+            for (app.registry.hosts.items) |host| {
+                if (host.overlay_mode == .command_palette) open += 1;
+            }
+            try std.testing.expectEqual(@as(usize, 1), open);
+            second.hideOverlay();
+            first.hideOverlay();
+            try std.testing.expectEqual(@as(f64, 0.5), app.config.@"background-opacity");
+
+            // A confirm prompt the toggle replaces releases its pending
+            // operation, as any other overlay's open does (`.dismissed`).
+            // Before, the payload stayed under `.tab_overview`.
+            cancels = 0;
+            try first.showConfirm(.{ .title = "Close?", .body = "Body", .accept_label = "Close" }, &accept, &cancel, null);
+            try std.testing.expect(first.overlay_mode == .confirm);
+            try std.testing.expect(try first_pane.toggleTabOverview());
+            try std.testing.expect(first.overlay_mode == .tab_overview);
+            try std.testing.expect(first.confirm_payload == null);
+            try std.testing.expectEqual(@as(usize, 1), cancels);
+            first.hideOverlay();
+        }
+    }.body);
 }
 
 test "win32 a clicked search button's tooltip stays down until the button is left, hidden or destroyed" {
@@ -11593,10 +12036,10 @@ test "win32 the tab strip action buttons' tooltips and UIA names are one table, 
 
     var buf: [32]u8 = undefined;
     const ctx: *anyopaque = @ptrFromInt(0x10);
-    try std.testing.expectEqualStrings(labels.tabStripActionName(.new_tab), Host.hostActionUiaName(ctx, 0, &buf));
-    try std.testing.expectEqualStrings(labels.tabStripActionName(.more_tabs), Host.hostActionUiaName(ctx, 1, &buf));
-    try std.testing.expectEqualStrings(labels.tabStripActionName(.command_palette), Host.hostActionUiaName(ctx, 2, &buf));
-    try std.testing.expectEqualStrings(labels.tabStripActionName(.settings), Host.hostActionUiaName(ctx, 3, &buf));
+    try std.testing.expectEqualStrings(tabStripActionName(.new_tab), Host.hostActionUiaName(ctx, 0, &buf));
+    try std.testing.expectEqualStrings(tabStripActionName(.more_tabs), Host.hostActionUiaName(ctx, 1, &buf));
+    try std.testing.expectEqualStrings(tabStripActionName(.command_palette), Host.hostActionUiaName(ctx, 2, &buf));
+    try std.testing.expectEqualStrings(tabStripActionName(.settings), Host.hostActionUiaName(ctx, 3, &buf));
 
     // The same hover, click and leave rules govern [+] and [v]: a dwell
     // presents, a click keeps it down, leaving ends the dismissal.
@@ -11628,9 +12071,9 @@ test "win32 titlebar hover fade decays linearly and snaps at zero duration" {
 
 test "win32 moveTab immediately lays out focused tabs and updates numbered labels and UIA names" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try win32.host_test_runtime.runOnHiddenDesktop(struct {
+    try win32.runOnHiddenDesktop(struct {
         fn body() !void {
-            var fixture: win32.host_test_runtime.WindowStartTestApp = .{};
+            var fixture: win32.WindowStartTestApp = .{};
             try fixture.init();
             defer fixture.deinit();
             const app = &fixture.app;
@@ -11701,13 +12144,117 @@ test "win32 moveTab immediately lays out focused tabs and updates numbered label
     }.body);
 }
 
+test "win32 a narrow tab's pane count moves its UIA name, and syncTabButtons announces it" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        /// Split `focused` with `pane` again, as a new split does.
+        fn putBack(tab: *Tab, alloc: Allocator, focused: *Surface, pane: *Surface) !void {
+            var inserted = try SplitTreeSurface.init(alloc, pane);
+            defer inserted.deinit();
+            const next_tree = try tab.tree.split(alloc, tab.findHandle(focused).?, .right, 0.5, &inserted);
+            tab.tree.deinit();
+            tab.tree = next_tree;
+            tab.focused = tab.findHandle(focused).?;
+        }
+
+        fn expectName(host: *Host, tab: *const Tab, expected: []const u8) !void {
+            var buf: [64]u8 = undefined;
+            try std.testing.expectEqualStrings(expected, Host.tabItemUiaName(host, tab.id, &buf));
+        }
+
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const alloc = app.core_app.alloc;
+            app.use_integrated_titlebar = true;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const host = first.host.?;
+            const tab_id = host.tabs.items[0].id;
+            const second = try app.createWindowSurface(&app.config, default_title, .{
+                .host_id = first.host_id,
+                .tab_id = tab_id,
+                .clone_state_from = first,
+                .split_direction = .right,
+            });
+            // Whichever pane has the focus, the tab's title is the same.
+            try appendOwnedString(std.testing.allocator, &first.title, "alpha");
+            try appendOwnedString(std.testing.allocator, &second.title, "alpha");
+            // One tab, too narrow for its button to show a pane count.
+            try std.testing.expect(sys.SetWindowPos(host.hwnd.?, null, 0, 0, host.scaled(320), host.scaled(480), c.SWP_NOMOVE | c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
+            try host.layout();
+            _ = try host.syncTabButtons();
+            const tab = &host.tabs.items[0];
+            try std.testing.expectEqual(tab_id, tab.id);
+            try std.testing.expectEqual(@as(usize, 2), tab.leafCount());
+            try std.testing.expect(tab.button_label_cache_valid);
+            try std.testing.expect(!tab.cached_button_show_pane_count);
+            try std.testing.expect(host.shouldShowTabBar());
+            try std.testing.expect(tab.uia_provider != null);
+            try expectName(host, tab, "1: alpha (2)");
+            const label = try std.testing.allocator.dupe(u8, tab.cached_button_label.?);
+            defer std.testing.allocator.free(label);
+            // What one NameChanged counts: the tab's, and its close button's.
+            const one_event = win32_uia.events.testing_property_changes;
+            tab.uia_provider.?.raiseNameChanged();
+            const per_name_changed = win32_uia.events.testing_property_changes - one_event;
+            try std.testing.expect(per_name_changed > 0);
+
+            // Nothing moved: no event.
+            const quiet = win32_uia.events.testing_property_changes;
+            _ = try host.syncTabButtons();
+            try std.testing.expectEqual(quiet, win32_uia.events.testing_property_changes);
+
+            // The second pane leaves: the drawn label is byte-identical, the
+            // name loses its count, and the one NameChanged says so.
+            const alone = try tab.tree.remove(alloc, tab.findHandle(second).?);
+            tab.tree.deinit();
+            tab.tree = alone;
+            tab.focused = tab.findHandle(first).?;
+            var split = false;
+            // The fixture closes the window through its tabs' panes, so a
+            // failed check below still puts the second one back.
+            defer if (!split) putBack(tab, alloc, first, second) catch {};
+            const left = win32_uia.events.testing_property_changes;
+            _ = try host.syncTabButtons();
+            try std.testing.expectEqualStrings(label, tab.cached_button_label.?);
+            try std.testing.expectEqual(left + per_name_changed, win32_uia.events.testing_property_changes);
+            try expectName(host, tab, "1: alpha");
+
+            // And comes back: the count is in the name again, not the label.
+            try putBack(tab, alloc, first, second);
+            split = true;
+            const back = win32_uia.events.testing_property_changes;
+            _ = try host.syncTabButtons();
+            try std.testing.expectEqualStrings(label, tab.cached_button_label.?);
+            try std.testing.expectEqual(back + per_name_changed, win32_uia.events.testing_property_changes);
+            try expectName(host, tab, "1: alpha (2)");
+
+            // A rename announces the new name: the tab's name is built from
+            // its cached title, so the cache is committed before NameChanged
+            // is raised (raising first announced the title being replaced).
+            try appendOwnedString(std.testing.allocator, &first.title, "gamma");
+            try appendOwnedString(std.testing.allocator, &second.title, "gamma");
+            win32_uia.events.testing_published = .{};
+            defer win32_uia.events.testing_published = null;
+            _ = try host.syncTabButtons();
+            const published = win32_uia.events.testing_published.?;
+            const published_len = published.len orelse return error.TestExpectedNameChanged;
+            try std.testing.expectEqualSlices(u16, std.unicode.utf8ToUtf16LeStringLiteral("1: gamma (2)"), published.units[0..published_len]);
+            try expectName(host, tab, "1: gamma (2)");
+        }
+    }.body);
+}
+
 test "win32 moveTab label sync retries every allocation failure after placements are committed" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try win32.host_test_runtime.runOnHiddenDesktop(struct {
+    try win32.runOnHiddenDesktop(struct {
         fn body() !void {
             var fail_index: usize = 0;
             while (true) : (fail_index += 1) {
-                var fixture: win32.host_test_runtime.WindowStartTestApp = .{};
+                var fixture: win32.WindowStartTestApp = .{};
                 try fixture.init();
                 defer fixture.deinit();
                 const app = &fixture.app;

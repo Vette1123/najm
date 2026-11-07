@@ -3,27 +3,20 @@ const win32 = @import("../win32.zig");
 const runtime = win32.chrome_scene_runtime;
 const Allocator = runtime.Allocator;
 const CaptionButton = runtime.CaptionButton;
-const ChildPlacement = runtime.ChildPlacement;
+const ChildPlacement = child_window.ChildPlacement;
 const ChromeRepaintMask = runtime.ChromeRepaintMask;
 const HDC = runtime.HDC;
 const HWND = runtime.HWND;
 const Host = runtime.Host;
-const HostTabStatus = runtime.HostTabStatus;
 const PAINTSTRUCT = runtime.PAINTSTRUCT;
 const POINT = runtime.POINT;
 const RECT = runtime.RECT;
 const ThemeColors = runtime.ThemeColors;
 const TitlebarButtonRole = runtime.TitlebarButtonRole;
 const TitlebarGlyphKind = runtime.TitlebarGlyphKind;
-const buildInspectorPanelHintText = runtime.buildInspectorPanelHintText;
-const buildInspectorPanelTitleText = runtime.buildInspectorPanelTitleText;
-const buildOverlayFeedbackText = runtime.buildOverlayFeedbackText;
-const buildOverlayPaintLabelText = runtime.buildOverlayPaintLabelText;
-const buildProfileChromeBadgeText = runtime.buildProfileChromeBadgeText;
-const buildProfileHintText = runtime.buildProfileHintText;
-const buildProfileOverlayLabel = runtime.buildProfileOverlayLabel;
 const c = runtime.c;
 const centeredRect = runtime.centeredRect;
+const child_window = @import("child_window.zig");
 const clientTitlebarTheme = runtime.clientTitlebarTheme;
 const confirmBodyPaintRect = runtime.confirmBodyPaintRect;
 const confirmTitlePaintRect = runtime.confirmTitlePaintRect;
@@ -44,23 +37,24 @@ const overlayAccentFor = runtime.overlayAccentFor;
 const overlayActionLayoutForWidth = runtime.overlayActionLayoutForWidth;
 const overlayEditBorderColor = runtime.overlayEditBorderColor;
 const overlayEditFrameRect = runtime.overlayEditFrameRect;
-const overlayEditFrameVisible = runtime.overlayEditFrameVisible;
 const overlayEditText = runtime.overlayEditText;
 const overlayFeedbackLineRect = runtime.overlayFeedbackLineRect;
 const overlayLabelReservation = runtime.overlayLabelReservation;
-const overlayPaintCacheDirty = runtime.overlayPaintCacheDirty;
+const overlay_view = @import("overlay_view.zig");
 const paintRectVisible = runtime.paintRectVisible;
 const paint_text = runtime.paint_text;
 const profileChromeAccent = runtime.profileChromeAccent;
 const profileKindHintColor = runtime.profileKindHintColor;
 const profileKindLabelColor = runtime.profileKindLabelColor;
 const restoreFont = runtime.restoreFont;
-const searchBarGroupRect = runtime.searchBarGroupRect;
-const searchBarSeparatorX = runtime.searchBarSeparatorX;
-const searchBarToolbarVisual = runtime.searchBarToolbarVisual;
+const searchBarGroupRect = search_controls.searchBarGroupRect;
+const searchBarSeparatorX = search_controls.searchBarSeparatorX;
+const searchBarToolbarVisual = search_controls.searchBarToolbarVisual;
+const search_controls = @import("search_controls.zig");
 const std = runtime.std;
 const sys = runtime.sys;
 const fancy_menu = @import("fancy_menu.zig");
+const tab_label = @import("tab_label.zig");
 const textOutWz = runtime.textOutWz;
 const themeSurface = runtime.themeSurface;
 const titlebarButtonVisual = runtime.titlebarButtonVisual;
@@ -70,6 +64,7 @@ const win32_chrome_state = runtime.win32_chrome_state;
 const win32_icons = runtime.win32_icons;
 const win32_nc_layout = runtime.win32_nc_layout;
 const win32_theme = runtime.win32_theme;
+const log = std.log.scoped(.win32);
 const test_runtime = if (@import("builtin").is_test) win32.chrome_scene_test_runtime else struct {};
 const App = test_runtime.App;
 const CoreApp = test_runtime.CoreApp;
@@ -494,87 +489,23 @@ pub const HostScene = struct {
                 theme.chrome_border,
             );
 
-            const surface = self.activeSurface();
-            const overlay_paint_dirty = overlayPaintCacheDirty(
+            const overlay_paint_dirty = win32_chrome_state.overlayPaintCacheDirty(
                 self.chrome_text_dirty.overlay,
                 self.overlay_mode,
-                self.cached_overlay_paint_label_w,
-                self.cached_overlay_paint_feedback_w,
-                self.cached_overlay_paint_badge_w,
+                self.cached_overlay_paint_label_w != null,
+                self.cached_overlay_paint_feedback_w != null,
+                self.cached_overlay_paint_badge_w != null,
             );
             if (overlay_paint_dirty) {
-                const overlay_text = std.mem.trim(u8, overlayEditText(self) catch "", " \t\r\n");
-                const overlay_status = if (surface) |value| self.app.hostTabStatus(value) else HostTabStatus{};
-                const pane_count = if (self.activeTab()) |tab| tab.leafCount() else 1;
-                const overlay_label = if (self.overlay_mode == .profile)
-                    buildProfileOverlayLabel(
-                        alloc,
-                        self.shownProfiles() orelse &.{},
-                        overlay_text,
-                        self.selectedProfileIndex() orelse 0,
-                    ) catch return false
-                else
-                    buildOverlayPaintLabelText(
-                        alloc,
-                        self.overlay_mode,
-                        overlay_text,
-                        if (surface) |value| value.search_total else null,
-                        if (surface) |value| value.search_selected else null,
-                        overlay_status,
-                        self.palettePresentation(),
-                        self.confirmText(),
-                    ) catch return false;
-                defer alloc.free(overlay_label);
-                paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_label_w, overlay_label) catch return false;
-
-                const overlay_feedback = if (self.overlay_mode == .profile)
-                    if (self.banner_text) |value|
-                        switch (self.banner_kind) {
-                            .err => std.fmt.allocPrint(alloc, "Error: {s}", .{value}) catch return false,
-                            .info => std.fmt.allocPrint(alloc, "Info: {s}", .{value}) catch return false,
-                            .none => alloc.dupe(u8, value) catch return false,
-                        }
-                    else
-                        buildProfileHintText(
-                            alloc,
-                            self.shownProfiles(),
-                            overlay_text,
-                            self.selectedProfileIndex() orelse 0,
-                            self.app.launcher_profile_target,
-                            self.app.launcher_quick_slot_keys,
-                        ) catch return false
-                else feedback: {
-                    var mru_buf: [5][]const u8 = undefined;
-                    const mru = self.app.paletteMruSlice(&mru_buf);
-                    break :feedback buildOverlayFeedbackText(
-                        alloc,
-                        self.banner_kind,
-                        self.banner_text,
-                        self.overlay_mode,
-                        overlay_text,
-                        if (surface) |value| value.search_needle else null,
-                        if (surface) |value| value.search_total else null,
-                        if (surface) |value| value.search_selected else null,
-                        overlay_status,
-                        pane_count,
-                        self.paletteSnapshot(),
-                        mru,
-                        self.palettePresentation(),
-                        self.confirmText(),
-                    ) catch return false;
-                };
-                defer alloc.free(overlay_feedback);
-                paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_feedback_w, overlay_feedback) catch return false;
-
-                if (self.overlay_mode == .profile) {
-                    if (self.selectedProfile()) |profile| {
-                        const badge = buildProfileChromeBadgeText(alloc, profile.kind) catch return false;
-                        defer alloc.free(badge);
-                        paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_badge_w, badge) catch return false;
-                    } else {
-                        if (self.cached_overlay_paint_badge_w) |old| alloc.free(old);
-                        self.cached_overlay_paint_badge_w = null;
-                    }
+                var arena = std.heap.ArenaAllocator.init(alloc);
+                defer arena.deinit();
+                // A query EDIT that cannot be read paints as an empty query.
+                const facts = self.overlayFacts(overlayEditText(self) catch "");
+                const text = overlay_view.compose(arena.allocator(), facts) catch return false;
+                paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_label_w, text.paint_label) catch return false;
+                paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_feedback_w, text.feedback) catch return false;
+                if (text.badge) |badge| {
+                    paint_text.replaceCachedUtf16(alloc, &self.cached_overlay_paint_badge_w, badge) catch return false;
                 } else {
                     if (self.cached_overlay_paint_badge_w) |old| alloc.free(old);
                     self.cached_overlay_paint_badge_w = null;
@@ -671,7 +602,7 @@ pub const HostScene = struct {
                 }
             }
 
-            if (overlayEditFrameVisible(self.overlay_mode)) {
+            if (overlay_view.shape(self.overlay_mode).edit_visible) {
                 const edit_frame = overlayEditFrameRect(
                     client_rect.right,
                     tab_h,
@@ -730,11 +661,12 @@ pub const HostScene = struct {
 
     pub fn paintChromeContentLane(
         self: *Host,
-        hdc: HDC,
+        lane: *const AlphaPaint,
         content_rect: RECT,
         paint_content: bool,
         theme: *const ThemeColors,
     ) void {
+        const hdc = lane.hdc;
         if (paint_content) {
             // Content-lane paints can arrive after search-frame or pane
             // geometry shrinks/moves. Clear the exposed parent-painted
@@ -743,7 +675,7 @@ pub const HostScene = struct {
             //
             // This still respects the host clip region from BeginPaint, so
             // child GL surfaces are not brute-force repainted here.
-            fillSolidRect(hdc, content_rect, theme.chrome_bg);
+            lane.fillLaneBackground(content_rect);
 
             if (self.activeTab()) |tab| {
                 var it = tab.tree.iterator();
@@ -972,11 +904,15 @@ pub const HostScene = struct {
     pub fn paintChrome(self: *Host) void {
         const hwnd = self.hwnd orelse return;
         var ps: PAINTSTRUCT = undefined;
-        const hdc = sys.BeginPaint(hwnd, &ps) orelse return;
+        const target_hdc = sys.BeginPaint(hwnd, &ps) orelse return;
         defer _ = sys.EndPaint(hwnd, &ps);
 
         const alloc = self.app.core_app.alloc;
         const theme = &self.app.resolved_theme;
+
+        var alpha_paint = AlphaPaint.begin(self, target_hdc, ps.rcPaint);
+        defer alpha_paint.end();
+        const hdc = alpha_paint.hdc;
 
         const prev_font = self.selectChromeFont(hdc);
         defer restoreFont(hdc, prev_font);
@@ -1000,12 +936,13 @@ pub const HostScene = struct {
             .right = client_rect.right,
             .bottom = @max(client_rect.top, content_rect.top),
         };
-        const paint_top = paintRectVisible(hdc, ps.rcPaint, top_rect);
-        const paint_content = paintRectVisible(hdc, ps.rcPaint, content_rect);
+        // The window's update region, which a buffer's DC does not have.
+        const paint_top = paintRectVisible(target_hdc, ps.rcPaint, top_rect);
+        const paint_content = paintRectVisible(target_hdc, ps.rcPaint, content_rect);
 
         self.paintChromeTabBar(hdc, client_rect, tab_h, bands.overlay_top, paint_top, theme);
         if (!self.paintChromeOverlay(hdc, alloc, client_rect, tab_h, bands, paint_top, theme)) return;
-        self.paintChromeContentLane(hdc, content_rect, paint_content, theme);
+        self.paintChromeContentLane(&alpha_paint, content_rect, paint_content, theme);
         self.paintChromeInspectorPanel(
             hdc,
             alloc,
@@ -1019,3 +956,299 @@ pub const HostScene = struct {
         self.chrome_repaint_dirty = false;
     }
 };
+
+fn buildInspectorPanelTitleText(
+    alloc: Allocator,
+    host: tab_label.TabStatus,
+    pane_count: usize,
+    zoomed: bool,
+) ![]u8 {
+    if (zoomed and pane_count > 1) {
+        return try std.fmt.allocPrint(
+            alloc,
+            "Inspector  •  tab {d}/{d}  •  {d} panes  •  zoomed",
+            .{ host.index + 1, host.total, pane_count },
+        );
+    }
+    if (pane_count > 1) {
+        return try std.fmt.allocPrint(
+            alloc,
+            "Inspector  •  tab {d}/{d}  •  {d} panes",
+            .{ host.index + 1, host.total, pane_count },
+        );
+    }
+    if (zoomed) {
+        return try std.fmt.allocPrint(
+            alloc,
+            "Inspector  •  tab {d}/{d}  •  zoomed",
+            .{ host.index + 1, host.total },
+        );
+    }
+    return try std.fmt.allocPrint(
+        alloc,
+        "Inspector  •  tab {d}/{d}",
+        .{ host.index + 1, host.total },
+    );
+}
+
+fn buildInspectorPanelHintText(
+    alloc: Allocator,
+    pane_count: usize,
+    zoomed: bool,
+) ![]u8 {
+    if (zoomed) {
+        return try alloc.dupe(
+            u8,
+            "Core inspector is live for the zoomed pane. Toggle Inspect to return to terminal-only view.",
+        );
+    }
+    if (pane_count > 1) {
+        return try std.fmt.allocPrint(
+            alloc,
+            "Core inspector is live across {d} panes in this tab. Toggle Inspect to return to terminal-only view.",
+            .{pane_count},
+        );
+    }
+    return try alloc.dupe(u8, "Core inspector is live for this tab. Toggle Inspect to return to terminal-only view.");
+}
+
+test "win32 buildInspectorPanelTitleText reflects host inspector context" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const multi = try buildInspectorPanelTitleText(std.testing.allocator, .{ .index = 1, .total = 4 }, 3, false);
+    defer std.testing.allocator.free(multi);
+    try std.testing.expect(std.mem.indexOf(u8, multi, "Inspector") != null);
+    try std.testing.expect(std.mem.indexOf(u8, multi, "tab 2/4") != null);
+    try std.testing.expect(std.mem.indexOf(u8, multi, "3 panes") != null);
+
+    const zoomed = try buildInspectorPanelTitleText(std.testing.allocator, .{ .index = 0, .total = 2 }, 2, true);
+    defer std.testing.allocator.free(zoomed);
+    try std.testing.expect(std.mem.indexOf(u8, zoomed, "zoomed") != null);
+}
+
+test "win32 buildInspectorPanelHintText reflects live inspector scope" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const single = try buildInspectorPanelHintText(std.testing.allocator, 1, false);
+    defer std.testing.allocator.free(single);
+    try std.testing.expect(std.mem.indexOf(u8, single, "this tab") != null);
+
+    const multi = try buildInspectorPanelHintText(std.testing.allocator, 3, false);
+    defer std.testing.allocator.free(multi);
+    try std.testing.expect(std.mem.indexOf(u8, multi, "3 panes") != null);
+
+    const zoomed = try buildInspectorPanelHintText(std.testing.allocator, 2, true);
+    defer std.testing.allocator.free(zoomed);
+    try std.testing.expect(std.mem.indexOf(u8, zoomed, "zoomed pane") != null);
+}
+
+/// GDI painting with the alpha DWM reads while a window's background alone
+/// is translucent (`Host.chrome_alpha`: blur-behind, under which the alpha 0
+/// GDI writes shows through). The painter draws into a buffer that starts as
+/// what the target shows. What is see-through is decided by what was
+/// painted, never by its color: `fillLaneBackground` writes the terminal
+/// lane's background straight into the buffer at the window's alpha, the one
+/// value nothing else writes (GDI writes alpha 0), and `end` keeps exactly
+/// that value and makes every other pixel opaque (`fixAlpha`), so a divider or
+/// a border in the chrome background's color stays solid. For an opaque
+/// window `hdc` is the target, at no cost; so it is when no buffer can be
+/// had, and the paint still shows, with GDI's alpha.
+pub const AlphaPaint = struct {
+    hdc: HDC,
+    buffer: ?*anyopaque = null,
+    /// The chrome background, a COLORREF.
+    bg: u32,
+    alpha: u8 = 255,
+    /// The buffer DC's state before the painter selects into it: uxtheme
+    /// keeps that DC for the next paint, and an object left selected there
+    /// could not be deleted.
+    saved: c_int = 0,
+
+    pub fn begin(host: *const Host, target: HDC, rect: RECT) AlphaPaint {
+        const bg = host.app.resolved_theme.chrome_bg;
+        const alpha = host.chrome_alpha orelse return .{ .hdc = target, .bg = bg };
+        return beginBuffered(target, rect, bg, alpha);
+    }
+
+    fn beginBuffered(target: HDC, rect: RECT, bg: u32, alpha: u8) AlphaPaint {
+        // Nothing to paint; and an empty rect would fail, and spend the
+        // warning below.
+        if (rect.right <= rect.left or rect.bottom <= rect.top) return .{ .hdc = target, .bg = bg };
+        var buffer_hdc: HDC = null;
+        const buffer = sys.BeginBufferedPaint(target, &rect, sys.BPBF_TOPDOWNDIB, null, &buffer_hdc) orelse {
+            if (!buffer_failure_logged) {
+                buffer_failure_logged = true;
+                log.warn("win32 buffered chrome paint failed; translucent chrome paints with GDI's alpha", .{});
+            }
+            return .{ .hdc = target, .bg = bg };
+        };
+        // A pixel the painter leaves keeps what the target shows: a cached
+        // buffer holds the last paint's pixels, from anywhere.
+        _ = sys.BitBlt(buffer_hdc, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, target, rect.left, rect.top, sys.SRCCOPY);
+        return .{ .hdc = buffer_hdc, .buffer = buffer, .bg = bg, .alpha = alpha, .saved = sys.SaveDC(buffer_hdc) };
+    }
+
+    var buffer_failure_logged = false;
+
+    /// Fills `rect` (in `hdc`'s coordinates) with the chrome background as
+    /// the terminal lane shows it: the gaps around the panes and what a
+    /// control in the lane paints as the lane behind it. See-through while
+    /// the window is translucent; everything painted over it afterwards is
+    /// opaque.
+    pub fn fillLaneBackground(self: *const AlphaPaint, rect: RECT) void {
+        fillSolidRect(self.hdc, rect, self.bg);
+        const area = self.pixels() orelse return;
+        // GDI batches its calls: the fill must land before the bits change.
+        _ = sys.GdiFlush();
+        const value = seeThrough(self.bg, self.alpha);
+        const left = @max(rect.left, area.rect.left);
+        const right = @min(rect.right, area.rect.right);
+        var y = @max(rect.top, area.rect.top);
+        while (y < @min(rect.bottom, area.rect.bottom)) : (y += 1) {
+            if (left >= right) break;
+            const row = area.bits[@as(usize, @intCast(y - area.rect.top)) * area.stride ..];
+            @memset(row[@intCast(left - area.rect.left)..@intCast(right - area.rect.left)], value);
+        }
+    }
+
+    const Pixels = struct { bits: [*]u32, stride: usize, rect: RECT };
+
+    /// The buffer's 0xAARRGGBB pixels, top-down, `stride` apart, and the
+    /// target rect they cover.
+    fn pixels(self: *const AlphaPaint) ?Pixels {
+        const buffer = self.buffer orelse return null;
+        var bits: ?[*]u32 = null;
+        var row: i32 = 0;
+        var rect: RECT = undefined;
+        if (sys.GetBufferedPaintBits(buffer, &bits, &row) < 0) return null;
+        if (sys.GetBufferedPaintTargetRect(buffer, &rect) < 0) return null;
+        return .{ .bits = bits orelse return null, .stride = @intCast(@max(0, row)), .rect = rect };
+    }
+
+    pub fn end(self: *AlphaPaint) void {
+        const buffer = self.buffer orelse return;
+        if (self.saved != 0) _ = sys.RestoreDC(self.hdc, self.saved);
+        _ = sys.GdiFlush();
+        if (self.pixels()) |area| fixAlpha(
+            area.bits,
+            area.stride,
+            @intCast(@max(0, area.rect.right - area.rect.left)),
+            @intCast(@max(0, area.rect.bottom - area.rect.top)),
+            seeThrough(self.bg, self.alpha),
+        );
+        self.buffer = null;
+        _ = sys.EndBufferedPaint(buffer, 1);
+    }
+};
+
+/// The lane background as DWM composes it under blur-behind: the COLORREF
+/// `bg` premultiplied by `alpha`, as a 0xAARRGGBB pixel. Its alpha is at
+/// least 1, so it never equals a pixel GDI drew, which has alpha 0, even at
+/// opacity 0 (1/255 of the background is not visible).
+fn seeThrough(bg: u32, alpha: u8) u32 {
+    const a: u32 = @max(alpha, 1);
+    const r = bg & 0xff;
+    const g = (bg >> 8) & 0xff;
+    const b = (bg >> 16) & 0xff;
+    return (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+}
+
+/// `AlphaPaint.end`'s pass over `height` rows of `width` pixels, `stride`
+/// apart: a pixel that still holds `see_through`, which only
+/// `fillLaneBackground` writes (now, or in an earlier paint the buffer
+/// started from), keeps it, and every other pixel is opaque.
+fn fixAlpha(pixels: [*]u32, stride: usize, width: usize, height: usize, see_through: u32) void {
+    for (0..height) |y| {
+        for (pixels[y * stride ..][0..width]) |*px| {
+            if (px.* != see_through) px.* |= 0xff000000;
+        }
+    }
+}
+
+test "win32 AlphaPaint leaves only the lane background it filled see-through, whatever shares its color" {
+    const Canvas = Host.BannerTestCanvas;
+    const bg: u32 = 0x00302010; // COLORREF: red 0x10, green 0x20, blue 0x30
+    const ink: u32 = 0x000000C0; // red
+    const width = 40;
+    var canvas = try Canvas.init(width, 40);
+    defer canvas.deinit();
+    if (sys.BufferedPaintInit() < 0) return error.SkipZigTest;
+    defer _ = sys.BufferedPaintUnInit();
+
+    const at = struct {
+        fn px(c_: Canvas, x: usize, y: usize) u32 {
+            return c_.bits[y * width + x];
+        }
+    }.px;
+    const full: RECT = .{ .left = 0, .top = 0, .right = width, .bottom = 40 };
+    var paint = AlphaPaint.beginBuffered(canvas.dc, full, bg, 128);
+    try std.testing.expect(paint.buffer != null);
+    // `paintChrome`: the chrome above, in the chrome background's color too,
+    // then the lane from row 20, a pane divider and a focus border drawn on
+    // it in the very same color, and ink.
+    fillSolidRect(paint.hdc, full, bg);
+    fillSolidRect(paint.hdc, .{ .left = 4, .top = 4, .right = 12, .bottom = 12 }, ink);
+    paint.fillLaneBackground(.{ .left = 0, .top = 20, .right = width, .bottom = 40 });
+    fillSolidRect(paint.hdc, .{ .left = 20, .top = 20, .right = 22, .bottom = 40 }, bg);
+    fillSolidRect(paint.hdc, .{ .left = 24, .top = 30, .right = 36, .bottom = 31 }, bg);
+    fillSolidRect(paint.hdc, .{ .left = 4, .top = 24, .right = 12, .bottom = 32 }, ink);
+    paint.end();
+    _ = sys.GdiFlush();
+
+    // Above the lane: the chrome's background and what is drawn on it,
+    // opaque.
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 30, 2));
+    try std.testing.expectEqual(@as(u32, 0xffc00000), at(canvas, 6, 6));
+    // The lane's own background at alpha 128, premultiplied; the divider
+    // and the border in the same color, and the ink, opaque.
+    try std.testing.expectEqual(@as(u32, 0x80081018), at(canvas, 30, 26));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 21, 35));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 30, 30));
+    try std.testing.expectEqual(@as(u32, 0xffc00000), at(canvas, 6, 26));
+
+    // A second paint that touches only the top keeps the lane as it was:
+    // the buffer starts from the target, which holds the see-through value.
+    var again = AlphaPaint.beginBuffered(canvas.dc, full, bg, 128);
+    fillSolidRect(again.hdc, .{ .left = 0, .top = 0, .right = width, .bottom = 20 }, bg);
+    again.end();
+    _ = sys.GdiFlush();
+    try std.testing.expectEqual(@as(u32, 0x80081018), at(canvas, 30, 26));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 21, 35));
+    try std.testing.expectEqual(@as(u32, 0xffc00000), at(canvas, 6, 26));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 6, 2));
+
+    // A buffer whose rect starts below row 0, across chrome and lane rows:
+    // what it paints in the lane is opaque, what it does not paint keeps the
+    // target's alpha, and a fill clipped to it is see-through.
+    var part = AlphaPaint.beginBuffered(canvas.dc, .{ .left = 0, .top = 10, .right = 20, .bottom = 40 }, bg, 128);
+    fillSolidRect(part.hdc, .{ .left = 14, .top = 22, .right = 18, .bottom = 26 }, bg);
+    part.fillLaneBackground(.{ .left = -5, .top = 30, .right = 60, .bottom = 60 });
+    part.end();
+    _ = sys.GdiFlush();
+    try std.testing.expectEqual(@as(u32, 0xffc00000), at(canvas, 6, 26));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 15, 23));
+    try std.testing.expectEqual(@as(u32, 0x80081018), at(canvas, 16, 21));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 15, 12));
+    try std.testing.expectEqual(@as(u32, 0x80081018), at(canvas, 6, 31));
+    try std.testing.expectEqual(@as(u32, 0xff102030), at(canvas, 21, 35));
+}
+
+test "win32 AlphaPaint's see-through value is the background premultiplied, never alpha 0" {
+    try std.testing.expectEqual(@as(u32, 0x80081018), seeThrough(0x00302010, 128));
+    try std.testing.expectEqual(@as(u32, 0xff102030), seeThrough(0x00302010, 255));
+    // At opacity 0 it still differs from black GDI drew (0x00000000).
+    try std.testing.expectEqual(@as(u32, 0x01000000), seeThrough(0x00302010, 0));
+}
+
+test "win32 AlphaPaint paints straight to the target for an opaque window" {
+    // `begin` reads nothing else of an opaque window.
+    var app: App = undefined;
+    app.resolved_theme.chrome_bg = 0x00302010;
+    const host: Host = .{ .app = &app, .id = 1 };
+    const target: HDC = @ptrFromInt(0x1000);
+    var paint = AlphaPaint.begin(&host, target, .{ .left = 0, .top = 0, .right = 1, .bottom = 1 });
+    try std.testing.expectEqual(target, paint.hdc);
+    try std.testing.expectEqual(@as(?*anyopaque, null), paint.buffer);
+    try std.testing.expectEqual(@as(u32, 0x00302010), paint.bg);
+    paint.end();
+}

@@ -1,7 +1,7 @@
 //! Placement math for the tab strip's title tooltip.
 //!
 //! Tab labels are compacted to the cell budget their button can draw (see
-//! `win32/labels.zig`), so a long title is only ever shown in part and the rest
+//! `win32/tab_label.zig`), so a long title is only ever shown in part and the rest
 //! used to be unreachable without renaming the tab. Upstream Ghostty never had
 //! to place this popup itself: its GTK apprt hands the title to `AdwTabPage`
 //! and libadwaita falls back to that title for the tab's tooltip, while the
@@ -78,7 +78,7 @@ pub const Point = struct {
 ///
 /// `button_visible` is the strip's own record of the button (the placement
 /// `layoutChromeForRect` maintains), not a rect: a button that scrolled out
-/// of `visibleTabRange`, or a whole strip turned off by config, is hidden
+/// of `tab_label.visible`, or a whole strip turned off by config, is hidden
 /// with `ShowWindow` alone and keeps its last rect, so `GetWindowRect` would
 /// still describe a slot that some other tab now occupies -- or, with the
 /// bar off, a slot over the terminal. `cursor` is checked against the

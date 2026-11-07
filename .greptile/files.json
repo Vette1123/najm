@@ -100,10 +100,17 @@
         "src/apprt/win32/surface_presentation.zig",
         "src/apprt/win32/terminal_window.zig",
         "src/apprt/win32/window_state.zig",
+        "src/apprt/win32/window_start.zig",
         "src/apprt/win32_nc_layout.zig",
         "src/apprt/win32_quick_terminal.zig",
+        "src/apprt/win32_settings.zig",
         "src/apprt/win32/chrome_layout.zig",
-        "src/apprt/win32_session_state.zig"
+        "src/apprt/win32_session_state.zig",
+        "src/renderer/generic.zig",
+        "src/renderer/OpenGL.zig",
+        "src/renderer/opengl/Target.zig",
+        "src/renderer/opengl/shaders.zig",
+        "src/renderer/shaders/glsl/present_composed.f.glsl"
       ]
     },
     {
@@ -125,8 +132,11 @@
         "src/apprt/win32_tween.zig",
         "src/apprt/win32/focus_cue.zig",
         "src/apprt/win32/gdi.zig",
-        "src/apprt/win32/labels.zig",
-        "src/apprt/win32/chrome_layout.zig"
+        "src/apprt/win32/child_window.zig",
+        "src/apprt/win32/text.zig",
+        "src/apprt/win32/input.zig",
+        "src/apprt/win32/chrome_layout.zig",
+        "src/apprt/win32/tab_label.zig"
       ]
     },
     {
@@ -142,7 +152,10 @@
         "src/apprt/win32/terminal_window.zig",
         "src/apprt/win32_palette*.zig",
         "src/apprt/win32_universal_palette.zig",
-        "src/apprt/win32/labels.zig",
+        "src/apprt/win32/child_window.zig",
+        "src/apprt/win32/text.zig",
+        "src/apprt/win32/confirm_text.zig",
+        "src/apprt/win32/overlay_view.zig",
         "build.zig.zon"
       ]
     },
@@ -156,8 +169,9 @@
         "src/apprt/win32/host.zig",
         "src/apprt/win32/search_controls.zig",
         "src/apprt/win32/terminal_window.zig",
-        "src/apprt/win32_search_bar.zig",
-        "src/apprt/win32_scrollbar_geometry.zig"
+        "src/apprt/win32/docked_search.zig",
+        "src/apprt/win32_scrollbar_geometry.zig",
+        "src/Surface.zig"
       ]
     },
     {
@@ -176,7 +190,8 @@
         "src/apprt/win32_undo.zig",
         "src/apprt/win32_structural_history.zig",
         "src/apprt/win32_shell.zig",
-        "src/apprt/win32_shell/**"
+        "src/apprt/win32_shell/**",
+        "src/apprt/win32/confirm_text.zig"
       ]
     },
     {
@@ -217,11 +232,13 @@
         "src/terminal/kitty/graphics_image.zig",
         "src/terminal/kitty/windows.zig",
         "src/config/Config.zig",
+        "src/config/pane_launch.zig",
         "src/config/windows_visual_studio.zig",
         "src/apprt/win32_elevation.zig",
         "src/cli/list_profiles.zig",
         "src/config/command.zig",
-        "src/apprt/win32/labels.zig"
+        "src/apprt/win32/confirm_text.zig",
+        "src/apprt/win32/profile_pick.zig"
       ]
     },
     {
@@ -237,7 +254,8 @@
         "src/apprt/win32_paste_protection.zig",
         "src/apprt/win32_surface_drop*.zig",
         "src/Surface.zig",
-        "src/apprt/win32_ole.zig"
+        "src/apprt/win32_ole.zig",
+        "src/apprt/win32/confirm_text.zig"
       ]
     },
     {
@@ -246,8 +264,11 @@
       "scope": [
         "src/apprt/win32_settings*.zig",
         "src/apprt/win32/save_target.zig",
+        "src/apprt/win32/settings_patch.zig",
+        "src/cli/args.zig",
         "src/config/Config.zig",
         "src/config/origin.zig",
+        "src/config/pane_launch.zig",
         "src/os/local_path.zig",
         "test/windows/settings-uia-*.ps1",
         "test/windows/settings-open-readiness.psm1",
@@ -271,7 +292,9 @@
         "src/apprt/win32/overlay_session.zig",
         "src/apprt/win32/palette_controller.zig",
         "src/apprt/win32/search_controls.zig",
-        "src/apprt/win32/terminal_window.zig"
+        "src/apprt/win32/terminal_window.zig",
+        "src/apprt/win32/confirm_text.zig",
+        "src/apprt/win32/tab_label.zig"
       ]
     },
     {
@@ -302,6 +325,7 @@
         "src/apprt/win32/session.zig",
         "src/apprt/win32/terminal_window.zig",
         "src/apprt/win32/window_state.zig",
+        "src/apprt/win32/notifications.zig",
         "src/apprt/win32_aumid.zig",
         "src/apprt/win32_jump_list.zig",
         "src/apprt/win32_toast*.zig",
@@ -309,6 +333,7 @@
         "src/apprt/win32_ipc.zig",
         "src/apprt/win32/ipc_server.zig",
         "src/apprt/win32_bell.zig",
+        "src/apprt/win32/tab_label.zig",
         "src/apprt/win32_taskbar_progress.zig",
         "src/apprt/win32_terminal_handoff*",
         "src/crash/**",
@@ -357,6 +382,7 @@
         "scripts/zig-test-stacks.ps1",
         "src/terminal/PageList.zig",
         "src/apprt/win32/test_support.zig",
+        "src/apprt/win32/host.zig",
         "src/apprt/win32/registry.zig",
         "src/apprt/win32_compositor_native.zig",
         "src/apprt/win32/sys.zig"

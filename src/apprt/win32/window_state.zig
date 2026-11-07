@@ -1,82 +1,341 @@
-//! Win32 window state, extracted without changing transition order.
+//! The state of each top-level window, kept once on its Host
+//! (`Host.top_level`), the actions that change it (`perform`, `applyConfig`),
+//! the window's `WM_GETMINMAXINFO` answer (`updateMinMaxInfo`), how a new
+//! window starts (`begin`, `advance`) and how the session saves one
+//! (`sessionPlacement`). The decisions are window_start.zig's, from values;
+//! this file carries them out through Win32.
+const std = @import("std");
+const builtin = @import("builtin");
 const win32 = @import("../win32.zig");
-const runtime = win32.window_state_runtime;
-const App = runtime.App;
-const HWND = runtime.HWND;
-const HWND_TOPMOST = runtime.HWND_TOPMOST;
-const Host = runtime.Host;
-const LPARAM = runtime.LPARAM;
-const MINMAXINFO = runtime.MINMAXINFO;
-const MONITORINFO = runtime.MONITORINFO;
-const POINT = runtime.POINT;
-const RECT = runtime.RECT;
-const Surface = runtime.Surface;
-const SurfaceInitOptions = runtime.SurfaceInitOptions;
-const UINT = runtime.UINT;
-const WINDOWPLACEMENT = runtime.WINDOWPLACEMENT;
-const WS_OVERLAPPEDWINDOW = runtime.WS_OVERLAPPEDWINDOW;
-const alphaByteForOpacity = runtime.alphaByteForOpacity;
-const apprt = runtime.apprt;
-const c = runtime.c;
-const configpkg = runtime.configpkg;
-const configuredHostWindowPosition = runtime.configuredHostWindowPosition;
-const effectiveBackgroundOpacity = runtime.effectiveBackgroundOpacity;
-const forwardedArgvSetsKey = runtime.forwardedArgvSetsKey;
-const lastError = runtime.lastError;
-const log = runtime.log;
-const scaleInitialClientSize = runtime.scaleInitialClientSize;
-const std = runtime.std;
-const sys = runtime.sys;
-const win32_theme = runtime.win32_theme;
-const test_runtime = if (@import("builtin").is_test) win32.window_state_test_runtime else struct {};
-const BOOL = test_runtime.BOOL;
-const CoreApp = test_runtime.CoreApp;
-const HDC = test_runtime.HDC;
-const LPCWSTR = test_runtime.LPCWSTR;
-const SafeModeAppFixture = test_runtime.SafeModeAppFixture;
-const Tab = test_runtime.Tab;
-const TestSession = test_runtime.TestSession;
-const WindowStartTestApp = test_runtime.WindowStartTestApp;
-const builtin = test_runtime.builtin;
-const createTestHostWindow = test_runtime.createTestHostWindow;
-const default_title = test_runtime.default_title;
-const deinitTestHostWindowFixture = test_runtime.deinitTestHostWindowFixture;
-const initTestHostWindowFixture = test_runtime.initTestHostWindowFixture;
-const monitorInfo = test_runtime.monitorInfo;
-const placementTestApp = test_runtime.placementTestApp;
-const placementTestSurface = test_runtime.placementTestSurface;
-const prompt_label_class = test_runtime.prompt_label_class;
-const runOnHiddenDesktop = test_runtime.runOnHiddenDesktop;
-const testHostIsLayered = test_runtime.testHostIsLayered;
-const testLayeredAlpha = test_runtime.testLayeredAlpha;
-const testWindowStyle = test_runtime.testWindowStyle;
-const win32_quick_terminal = test_runtime.win32_quick_terminal;
-const win32_terminal_handoff = test_runtime.win32_terminal_handoff;
+const apprt = @import("../../apprt.zig");
+const build_config = @import("../../build_config.zig");
+const configpkg = @import("../../config.zig");
+const c = @import("consts.zig");
+const child_window = @import("child_window.zig");
+const chrome_layout = @import("chrome_layout.zig");
+const sys = @import("sys.zig");
+const win32_theme = @import("../win32_theme.zig");
+const win32_types = @import("../win32_types.zig");
+const window_start = @import("window_start.zig");
+const App = win32.App;
+const BOOL = win32_types.BOOL;
+const HDC = win32_types.HDC;
+const HWND = win32_types.HWND;
+const Host = win32.Host;
+const LPARAM = win32_types.LPARAM;
+const MINMAXINFO = sys.MINMAXINFO;
+const MONITORINFO = sys.MONITORINFO;
+const POINT = sys.POINT;
+const RECT = sys.RECT;
+const Surface = win32.Surface;
+const UINT = win32_types.UINT;
+const WINDOWPLACEMENT = sys.WINDOWPLACEMENT;
+const configuredHostWindowPosition = win32.configuredHostWindowPosition;
+const forwardedArgvSetsKey = @import("ipc_server.zig").forwardedArgvSetsKey;
+const lastError = child_window.lastError;
+const log = win32.log;
+const test_support = win32.test_support;
+const CoreApp = @import("../../App.zig");
+const LPCWSTR = win32_types.LPCWSTR;
+const SafeModeAppFixture = test_support.SafeModeAppFixture;
+const TestSession = test_support.TestSession;
+const WindowStartTestApp = test_support.WindowStartTestApp;
+const cascadeStep = window_start.cascadeStep;
+const default_title = win32.default_title;
+const monitorInfo = @import("quick_terminal_host.zig").monitorInfo;
+const placementTestApp = test_support.placementTestApp;
+const placementTestHost = test_support.placementTestHost;
+const prompt_label_class = child_window.prompt_label_class;
+const rectEquals = chrome_layout.rectEquals;
+const runOnHiddenDesktop = test_support.runOnHiddenDesktop;
+const testBackgroundAlpha = test_support.testBackgroundAlpha;
+const testHostIsLayered = test_support.testHostIsLayered;
+const testLayeredAlpha = test_support.testLayeredAlpha;
+const testWindowStyle = test_support.testWindowStyle;
+const win32_quick_terminal = @import("../win32_quick_terminal.zig");
 
-/// Whether `window-decoration = none` keeps the system frame and only
-/// collapses its caption, the integrated titlebar's mechanism with a 0 px
-/// row. The frame gives the window its resize edges, shadow, Snap,
-/// work-area maximize and the Alt+Space window menu, with nothing to
-/// paint. Windows 11 only: Windows 10 draws its window border inside the
-/// non-client top this would remove, and stays frameless. So does the
-/// quick terminal, which is sized from config and placed flush with a
-/// screen edge by its window rect: the frame's invisible resize margins
-/// would pull it in from that edge.
-pub fn undecoratedKeepsFrame(os_build: u32, quick_terminal: bool) bool {
-    return os_build >= c.OS_BUILD_WIN11_21H2 and !quick_terminal;
+pub const TopLevel = window_start.TopLevel;
+pub const InitialShow = window_start.InitialShow;
+const Enter = window_start.Enter;
+pub const undecoratedKeepsFrame = window_start.undecoratedKeepsFrame;
+pub const hostStyle = window_start.hostStyle;
+const fitRectInWork = window_start.fitRectInWork;
+pub const workspaceRectToScreen = window_start.workspaceRectToScreen;
+const screenRectToWorkspace = window_start.screenRectToWorkspace;
+pub const SavedPlacement = window_start.SavedPlacement;
+
+/// Where a new window comes from, which decides how it starts (`begin`).
+pub const Origin = union(window_start.Kind) {
+    /// An ordinary new window: the first one, or a new tab with no window to
+    /// open it in.
+    fresh,
+    /// Opened from `source`: `new_window`, a forwarded launch, a profile in
+    /// a new window. `forwarded` is the argv a forwarded launch applied to
+    /// the new window's config.
+    copy: struct { source: *const Host, forwarded: []const [:0]const u8 = &.{} },
+    /// A restored session's or launched layout's window, as it was saved.
+    /// Session restore places it once its first tab is there
+    /// (`.restore_placed`) and gives it `maximize` and `fullscreen` once all
+    /// are (`.restore_complete`).
+    restore: SavedPlacement,
+    /// The quick terminal, first shown as asked.
+    quick_terminal: InitialShow,
+    /// A handed-off console's window, first shown as its client asked.
+    adopted: InitialShow,
+
+    /// A copy of `source`, or a fresh window when there is none to copy
+    /// (`Registry.newWindowSource`).
+    pub fn from(source: ?*const Host, forwarded: []const [:0]const u8) Origin {
+        const host = source orelse return .fresh;
+        return .{ .copy = .{ .source = host, .forwarded = forwarded } };
+    }
+};
+
+/// A pane's metrics, from its own font: core init's `initial_size`,
+/// `cell_size` and `size_limit` (`Surface.metrics`). A tab or split starts
+/// with those of the pane it is opened from, and a copy's first pane with
+/// those of its source's active pane.
+pub const PaneMetrics = struct {
+    /// The client size `reset_window_size` returns to.
+    default_client_size: ?apprt.SurfaceSize = null,
+    cell_size_pixels: apprt.action.CellSize = .{ .width = 0, .height = 0 },
+    size_limit: apprt.action.SizeLimit = .{ .min_width = 0, .min_height = 0, .max_width = 0, .max_height = 0 },
+};
+
+/// How a new window starts, decided by `begin` before it exists: it is
+/// created in `plan.top_level` with `plan.style`, at `plan.position` (else
+/// `CW_USEDEFAULT`), and its Host keeps the rest (`Host.pending_start`) for
+/// `advance` until its last stage.
+pub const Pending = struct {
+    plan: window_start.Plan,
+    /// The metrics of the source's active pane, which a copy's first pane
+    /// takes.
+    source_pane: ?PaneMetrics = null,
+    /// A restored window's saved placement, and what it enters once its tabs
+    /// are there (`window_start.forRestore`).
+    restore: ?struct { saved: SavedPlacement, enter: Enter } = null,
+    /// The last stage carried out.
+    reached: ?Stage = null,
+};
+
+/// What `config` asks of how its window starts.
+fn wants(config: *const configpkg.Config) window_start.Wants {
+    return .{
+        .position = if (configuredHostWindowPosition(config)) |position| .{ .x = position.x, .y = position.y } else null,
+        .decorated = config.@"window-decoration" != .none,
+        .opacity = std.math.clamp(config.@"background-opacity", 0.0, 1.0),
+        .maximize = config.maximize,
+        .fullscreen = config.fullscreen != .false,
+        .sized = config.@"window-width" > 0 and config.@"window-height" > 0,
+    };
 }
 
-pub fn decorationsVisibleForConfig(value: configpkg.Config.WindowDecoration) bool {
-    return value != .none;
+/// The window keys `argv`, a forwarded launch's, names. Read from the argv,
+/// not from a config that differs from the app's: a forwarded value equal to
+/// the app config's would be lost (window-frame.md 2026-10-20, trap 1).
+fn forwardedKeys(argv: []const [:0]const u8) window_start.Forwarded {
+    return .{
+        .size = forwardedArgvSetsKey(argv, "window-width") or forwardedArgvSetsKey(argv, "window-height"),
+        .decoration = forwardedArgvSetsKey(argv, "window-decoration"),
+        .opacity = forwardedArgvSetsKey(argv, "background-opacity"),
+    };
 }
 
-pub fn initialDecorationsVisibleForSource(config: *const configpkg.Config, clone_state_from: ?*const Surface) bool {
-    if (clone_state_from) |source| return source.decorations_visible;
-    return decorationsVisibleForConfig(config.@"window-decoration");
+/// Decides how a new window with `config` starts, before it exists. A copy
+/// reads its source here, once: the window's state and geometry and its
+/// active pane's metrics. The windows its cascade steps past are asked when
+/// it is placed (`occupiedAround`).
+pub fn begin(app: *const App, config: *const configpkg.Config, origin: Origin) !Pending {
+    var pending: Pending = .{ .plan = undefined };
+    var snapshot: ?window_start.Snapshot = null;
+    var argv: []const [:0]const u8 = &.{};
+    var show: InitialShow = .activate;
+    const wanted = wants(config);
+    switch (origin) {
+        .copy => |copy| {
+            snapshot = try snapshotOf(copy.source);
+            if (copy.source.activeSurface()) |pane| pending.source_pane = pane.metrics;
+            argv = copy.forwarded;
+        },
+        .quick_terminal, .adopted => |first_show| show = first_show,
+        .restore => |saved| pending.restore = .{ .saved = saved, .enter = window_start.forRestore(wanted, saved) },
+        .fresh => {},
+    }
+    pending.plan = window_start.plan(
+        std.meta.activeTag(origin),
+        wanted,
+        forwardedKeys(argv),
+        if (snapshot) |*source| source else null,
+        show,
+        app.os_build,
+    );
+    return pending;
 }
 
-pub fn startupHostWindowStyle(framed: bool, fullscreen: bool) u32 {
-    return effectiveHostWindowStyle(framed, fullscreen, true) & ~@as(u32, c.WS_VISIBLE);
+fn snapshotOf(source: *const Host) !window_start.Snapshot {
+    const hwnd = source.hwnd orelse return error.InvalidHost;
+    var snapshot: window_start.Snapshot = .{
+        .state = source.top_level,
+        .iconic = sys.IsIconic(hwnd) != 0,
+        .zoomed = sys.IsZoomed(hwnd) != 0,
+        // For a minimized window this is the monitor it was on, not the one
+        // its icon is on.
+        .monitor = try windowMonitor(hwnd),
+    };
+    snapshot.placement.length = @sizeOf(WINDOWPLACEMENT);
+    if (sys.GetWindowPlacement(hwnd, &snapshot.placement) == 0 or
+        sys.GetWindowRect(hwnd, &snapshot.rect) == 0) return lastError();
+    return snapshot;
+}
+
+/// The windows the copy `host` steps past, asked as it is placed: every
+/// window on screen but the copy itself (`Registry.windowStartsAt`).
+fn occupiedAround(host: *const Host) window_start.Occupied {
+    return .{ .ctx = host, .startsAt = struct {
+        fn startsAt(ctx: *const anyopaque, corner: POINT) bool {
+            const copy: *const Host = @ptrCast(@alignCast(ctx));
+            return copy.app.registry.windowStartsAt(corner, copy.hwnd);
+        }
+    }.startsAt };
+}
+
+/// The steps of a new window's start that need the window, in this order,
+/// each once.
+pub const Stage = enum {
+    /// In `App.createHost`, right after `CreateWindowEx` and the shell
+    /// compositor attach, while the window is hidden and has no tab.
+    created,
+    /// In the `Surface.init` that created the window, after core init: the
+    /// window's first show.
+    before_show,
+    /// Right after it: a copy takes its source's state.
+    after_show,
+    /// A restored window, once its first tab is there: its saved rect and
+    /// maximize (as the rect it returns to if a minimized launch minimized
+    /// it).
+    restore_placed,
+    /// A restored window, once all its tabs are there: `maximize` and
+    /// `fullscreen`.
+    restore_complete,
+};
+
+/// Carries out the `at` stage of the start `begin` decided for `host`, which
+/// `App.createHost` keeps in `Host.pending_start`. The last stage
+/// (`.after_show`, or `.restore_complete` for a restored window) clears it,
+/// and a host with no start pending fails with `error.NoWindowStart`.
+/// `.before_show` returns whether the pane that first shows the window
+/// presents it with focus.
+pub fn advance(host: *Host, comptime at: Stage) !(if (at == .before_show) bool else void) {
+    const pending = if (host.pending_start) |*start| start else return error.NoWindowStart;
+    std.debug.assert(pending.reached == null or @intFromEnum(pending.reached.?) < @intFromEnum(at));
+    std.debug.assert(@intFromEnum(at) < @intFromEnum(Stage.restore_placed) or pending.plan.kind == .restore);
+    const last: Stage = if (pending.plan.kind == .restore) .restore_complete else .after_show;
+    defer {
+        if (at == last) host.pending_start = null;
+    }
+    pending.reached = at;
+    return switch (at) {
+        .created => onCreated(host, pending),
+        .before_show => beforeShow(host, pending),
+        .after_show => afterShow(host, pending),
+        .restore_placed => placeRestored(host, pending.restore.?.saved),
+        .restore_complete => applyWindowStart(host, pending.restore.?.enter),
+    };
+}
+
+fn onCreated(host: *Host, pending: *const Pending) !void {
+    const hwnd = host.hwnd orelse return;
+    if (pending.plan.hide_border) win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, false);
+    // After the shell compositor attach: the frame change resizes the
+    // client area, and the host's WM_SIZE resizes its compositor target
+    // (window-frame.md 2026-09-23).
+    restoreRequestedHostWindowStyle(hwnd, pending.plan.style);
+    // A copy starts hidden where it will show, on its source's monitor, so
+    // core init runs at that monitor's DPI.
+    if (pending.plan.source == null) return;
+    const placed = window_start.place(&pending.plan, occupiedAround(host), null);
+    if (sys.SetWindowPos(
+        hwnd,
+        null,
+        placed.rect.left,
+        placed.rect.top,
+        placed.rect.right - placed.rect.left,
+        placed.rect.bottom - placed.rect.top,
+        placed.flags,
+    ) == 0) {
+        return lastError();
+    }
+}
+
+/// The window is shown only now, once GL and core init have succeeded, so a
+/// startup failure reaches the fatal dialog without a blank window first.
+fn beforeShow(host: *Host, pending: *const Pending) !bool {
+    // Translucent before any show, so the window never shows opaque and
+    // then fades (#234).
+    applyBackgroundOpacity(host) catch |err| {
+        log.warn("win32 initial background opacity failed err={}", .{err});
+    };
+    // A copy of a fullscreen window is a popup over its monitor from
+    // `.created`, and shows there first: at the rect it covers fullscreen on
+    // the monitor it is on, as its own pane decides (`takeSourceState` keeps
+    // it there). `WS_POPUP` is exactly that copy today: `window_start.plan`
+    // gives it only to a copy of a fullscreen source without a size of its
+    // own; `window-decoration = none` is a bare `WS_OVERLAPPED` (framed on
+    // Windows 11), and a config's `fullscreen` starts framed until
+    // `enterFullscreen`. The table test "win32
+    // a new window is created framed, bare or a popup as its state and Windows
+    // build say" pins that; a change there that makes another window a popup
+    // widens this gate.
+    if (pending.plan.style & c.WS_POPUP != 0) {
+        placeFullscreenCopy(host) catch |err| {
+            log.warn("win32 fullscreen copy placement failed err={}", .{err});
+        };
+    }
+    try host.refreshChrome();
+    try host.layout();
+    // `maximize` and `fullscreen` (#496), before the first show, so the
+    // window first appears in that state. Core init has already given it
+    // `window-width`/`window-height`, so that is the normal rect it returns
+    // to. A copy takes them after its source's state.
+    if (pending.plan.source == null) applyWindowStart(host, pending.plan.enter);
+    const show = pending.plan.show;
+    if (show.showCommand()) |command| if (host.hwnd) |hwnd| {
+        _ = sys.ShowWindow(hwnd, command);
+        _ = sys.UpdateWindow(hwnd);
+    };
+    return show.takesFocus();
+}
+
+fn placeFullscreenCopy(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
+    const screen = (try windowMonitor(hwnd)).info.rcMonitor;
+    const rect = fullscreenRect(host, screen);
+    if (rectEquals(rect, screen)) return;
+    if (sys.SetWindowPos(
+        hwnd,
+        null,
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+        c.SWP_NOZORDER | c.SWP_NOACTIVATE,
+    ) == 0) {
+        return lastError();
+    }
+}
+
+fn afterShow(host: *Host, pending: *const Pending) !void {
+    if (pending.plan.source == null) return;
+    // Its first pane takes the metrics of its source's active pane, but
+    // for a client size of its own.
+    if (pending.source_pane) |metrics| if (host.activeSurface()) |pane| {
+        const own = pane.metrics.default_client_size;
+        pane.metrics = metrics;
+        if (pending.plan.keeps.size) pane.metrics.default_client_size = own;
+    };
+    try takeSourceState(host, pending);
+    // After it: a normal source ends in SW_RESTORE.
+    applyWindowStart(host, pending.plan.enter);
 }
 
 /// The style to write back over the one `CreateWindowEx` gave a host
@@ -90,22 +349,22 @@ pub fn startupHostWindowStyle(framed: bool, fullscreen: bool) u32 {
 /// window created with no window to copy (the first one, the quick
 /// terminal, a restored or adopted window) had a title bar, and a
 /// `new_window` clone did not: it and every runtime toggle set the style
-/// afterwards through `Surface.applyWindowStyle`. Creating the host as `WS_POPUP` instead would
+/// afterwards through `applyWindowStyle`. Creating the host as `WS_POPUP` instead would
 /// avoid the added caption, but `CW_USEDEFAULT` puts a popup at (0, 0)
 /// rather than at the next default position, so the first window would
 /// move. Windows also forces `WS_CLIPSIBLINGS` on every top-level window,
 /// through either API, so that bit is ignored here.
-pub fn createdHostWindowStyleCorrection(requested: u32, created: u32) ?u32 {
+fn createdHostWindowStyleCorrection(requested: u32, created: u32) ?u32 {
     const forced: u32 = c.WS_CLIPSIBLINGS;
     if ((requested & ~forced) == (created & ~forced)) return null;
     return requested;
 }
 
 /// Put back the host style `CreateWindowEx` altered (see
-/// `createdHostWindowStyleCorrection`). `App.createHost` calls this while
-/// the host is still hidden and has no tabs, so no terminal is sized
+/// `createdHostWindowStyleCorrection`). The `.created` stage calls this
+/// while the host is still hidden and has no tabs, so no terminal is sized
 /// against, or shown with, the frame Windows added.
-pub fn restoreRequestedHostWindowStyle(hwnd: HWND, requested: u32) void {
+fn restoreRequestedHostWindowStyle(hwnd: HWND, requested: u32) void {
     const created: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_STYLE))));
     const style = createdHostWindowStyleCorrection(requested, created) orelse return;
     _ = sys.SetWindowLongPtrW(hwnd, c.GWL_STYLE, @bitCast(@as(usize, style)));
@@ -122,518 +381,329 @@ pub fn restoreRequestedHostWindowStyle(hwnd: HWND, requested: u32) void {
     }
 }
 
-/// `framed` picks the system frame: decorated windows, and on Windows 11
-/// undecorated ones too (`undecoratedKeepsFrame`).
-pub fn effectiveHostWindowStyle(
-    framed: bool,
-    fullscreen: bool,
-    hosted: bool,
-) u32 {
-    if (fullscreen) {
-        return if (hosted)
-            c.WS_VISIBLE | c.WS_POPUP | c.WS_CLIPCHILDREN
-        else
-            c.WS_VISIBLE | c.WS_POPUP;
-    }
-
-    if (framed) {
-        return if (hosted)
-            c.WS_VISIBLE | WS_OVERLAPPEDWINDOW | c.WS_CLIPCHILDREN
-        else
-            c.WS_VISIBLE | WS_OVERLAPPEDWINDOW;
-    }
-
-    return if (hosted)
-        c.WS_VISIBLE | c.WS_OVERLAPPED | c.WS_CLIPCHILDREN
-    else
-        c.WS_VISIBLE | c.WS_OVERLAPPED;
-}
-
-pub fn sharesHostWindowState(dst_host_id: ?u32, src_host_id: ?u32) bool {
-    return dst_host_id != null and src_host_id != null and dst_host_id.? == src_host_id.?;
-}
-
-pub fn sizeLimitEquals(a: apprt.action.SizeLimit, b: apprt.action.SizeLimit) bool {
+fn sizeLimitEquals(a: apprt.action.SizeLimit, b: apprt.action.SizeLimit) bool {
     return a.min_width == b.min_width and
         a.min_height == b.min_height and
         a.max_width == b.max_width and
         a.max_height == b.max_height;
 }
 
-pub fn shouldResizeHostForInitialSize(host_surface_count: usize) bool {
-    return host_surface_count == 1;
-}
-
-pub fn sharedHostWindowFrameStateEquals(a: *const Surface, b: *const Surface) bool {
-    return a.decorations_visible == b.decorations_visible and
-        a.fullscreen == b.fullscreen and
-        sizeLimitEquals(a.size_limit, b.size_limit);
-}
-
-pub fn sharedHostWindowTopmostEquals(a: *const Surface, b: *const Surface) bool {
-    return a.topmost == b.topmost;
-}
-
-pub fn sharedHostWindowOpacityEquals(a: *const Surface, b: *const Surface) bool {
-    return alphaByteForOpacity(effectiveBackgroundOpacity(
-        a.background_opacity_default,
-        a.background_opacity_force_opaque,
-    )) == alphaByteForOpacity(effectiveBackgroundOpacity(
-        b.background_opacity_default,
-        b.background_opacity_force_opaque,
-    ));
-}
-
-pub fn shouldPropagateSharedHostWindowState(source: *const Surface) bool {
-    const host = source.host orelse return true;
-    return host.activeSurface() == source;
-}
-
-pub fn shouldApplyConfigDecorations(decorations_visible_overridden: bool) bool {
-    return !decorations_visible_overridden;
-}
-
-/// `positioned`: `WindowKeeps.position`.
-pub fn inheritHostWindowState(self: *App, destination: *Host, source: *Host, positioned: bool) !void {
-    const dst_hwnd = destination.hwnd orelse return;
-    const src_hwnd = source.hwnd orelse return;
-    const fullscreen = if (source.activeSurface()) |surface| surface.fullscreen else false;
-    const placed = try newWindowPlacement(self, src_hwnd, fullscreen, dst_hwnd, null);
-    if (sys.SetWindowPos(
-        dst_hwnd,
-        null,
-        placed.rect.left,
-        placed.rect.top,
-        placed.rect.right - placed.rect.left,
-        placed.rect.bottom - placed.rect.top,
-        newWindowSetPosFlags(positioned, false, placed),
-    ) == 0) {
-        return lastError();
+/// A window action from any pane of `host`'s window. The window's own
+/// actions change the Window, whichever of its panes asked. `size_limit` and
+/// `initial_size` come from one pane's font: they are kept on that pane, and
+/// the Window acts on them (the active pane's limit is the window's minimum
+/// track size; an initial size resizes a window of one pane).
+/// Returns false only for `toggle_background_opacity` on an opaque window.
+pub fn perform(
+    host: *Host,
+    pane: *Surface,
+    comptime action: apprt.Action.Key,
+    value: apprt.Action.Value(action),
+) !bool {
+    switch (action) {
+        .toggle_maximize => toggleMaximize(host),
+        .toggle_fullscreen => if (host.top_level.isFullscreen()) try leaveFullscreen(host) else try enterFullscreen(host),
+        .toggle_window_decorations => {
+            // The style write changes the frame: blur-behind is asserted
+            // again after it, whatever it ends in.
+            defer refreshBackgroundOpacity(host);
+            try setDecorationsVisible(host, !host.top_level.decorations_visible);
+            host.top_level.decorations_overridden = true;
+        },
+        .float_window => {
+            host.top_level.topmost = switch (value) {
+                .on => true,
+                .off => false,
+                .toggle => !host.top_level.topmost,
+            };
+            try applyTopmost(host);
+        },
+        .toggle_background_opacity => {
+            if (!host.top_level.translucent()) return false;
+            host.top_level.force_opaque = !host.top_level.force_opaque;
+            try applyBackgroundOpacity(host);
+        },
+        .reset_window_size => try resetWindowSize(host, pane),
+        .initial_size => try setInitialSize(host, pane, value),
+        .size_limit => setSizeLimit(host, pane, value),
+        else => @compileError("not a window action: " ++ @tagName(action)),
     }
+    return true;
 }
 
-pub fn syncHostWindowState(self: *App, source: *Surface) !void {
-    if (!shouldPropagateSharedHostWindowState(source)) return;
-    var host_surfaces = try self.registry.collectHostSurfaces(self.core_app.alloc, source.host_id);
-    defer host_surfaces.deinit(self.core_app.alloc);
-    for (host_surfaces.items) |candidate| {
-        if (candidate == source) continue;
-        try candidate.inheritWindowStateFrom(source, .{});
-    }
-}
-
-const HWND_NOTOPMOST: ?*anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -2))));
-
-/// What a new window keeps of its own config over the state it copies from
-/// the window it is opened from (`new_window`, a forwarded launch, a profile
-/// in a new window; `Surface.inheritWindowStateFrom`). By default it copies
-/// that window's size, one cascade step off it, its maximized or fullscreen
-/// state, its decorations and its background opacity.
-pub const WindowKeeps = struct {
-    /// `window-position-x/y` place it: it stays where `App.createHost` put
-    /// it and takes only the size.
-    position: bool = false,
-    /// The size core init gave it from its `window-width`/`window-height`.
-    /// Its state is still the source's: maximized or fullscreen, it returns
-    /// to that size.
-    size: bool = false,
-    /// Its own `window-decoration`.
-    decoration: bool = false,
-    /// Its own `background-opacity`.
-    background_opacity: bool = false,
-
-    /// What a window `Surface.init` creates keeps: its position whenever its
-    /// config places it, as for every new window, and the rest when a
-    /// forwarded launch set them. docs/windows.md ("Forwarded arguments")
-    /// says the running noctty honors them, and copying the source dropped
-    /// them all. The same keys from the app config are still the source's.
-    pub fn forNewSurface(config: *const configpkg.Config, opts: SurfaceInitOptions) WindowKeeps {
-        const argv = opts.forwarded_arguments orelse &.{};
-        return .{
-            .position = configuredHostWindowPosition(config) != null,
-            // Core init sizes the window only when both are set.
-            .size = (forwardedArgvSetsKey(argv, "window-width") or forwardedArgvSetsKey(argv, "window-height")) and
-                config.@"window-width" > 0 and config.@"window-height" > 0,
-            .decoration = forwardedArgvSetsKey(argv, "window-decoration"),
-            .background_opacity = forwardedArgvSetsKey(argv, "background-opacity"),
+/// The window half of a config change: `window-decoration`, unless a toggle
+/// chose the decorations, and `background-opacity` as the window shows it
+/// (`App.shownBackgroundOpacity`: a Settings preview of it wins). A
+/// decoration failure is logged; an opacity failure is returned.
+pub fn applyConfig(host: *Host, config: *const configpkg.Config) !void {
+    if (!host.top_level.decorations_overridden) {
+        setDecorationsVisible(host, config.@"window-decoration" != .none) catch |err| {
+            log.warn("win32 decoration update failed during config reload err={}", .{err});
         };
     }
-};
-
-test "win32 a new window keeps the forwarded window keys and the configured position" {
-    var config = try configpkg.Config.default(std.testing.allocator);
-    defer config.deinit();
-    try std.testing.expectEqual(WindowKeeps{}, WindowKeeps.forNewSurface(&config, .{}));
-    const argv: []const [:0]const u8 = &.{ "--window-width=80", "--window-decoration=none", "--background-opacity=0.5" };
-    // A size needs both keys in the window's config, as core init does.
-    try std.testing.expectEqual(
-        WindowKeeps{ .decoration = true, .background_opacity = true },
-        WindowKeeps.forNewSurface(&config, .{ .forwarded_arguments = argv }),
-    );
-    config.@"window-width" = 80;
-    config.@"window-height" = 24;
-    try std.testing.expectEqual(
-        WindowKeeps{ .size = true, .decoration = true, .background_opacity = true },
-        WindowKeeps.forNewSurface(&config, .{ .forwarded_arguments = argv }),
-    );
-    // From the app config they stay the source's; the position is the
-    // window's either way.
-    config.@"window-position-x" = 10;
-    try std.testing.expectEqual(WindowKeeps{}, WindowKeeps.forNewSurface(&config, .{}));
-    config.@"window-position-y" = 20;
-    try std.testing.expectEqual(WindowKeeps{ .position = true }, WindowKeeps.forNewSurface(&config, .{}));
+    host.top_level.opacity = std.math.clamp(host.app.shownBackgroundOpacity(config), 0.0, 1.0);
+    if (!host.top_level.translucent()) host.top_level.force_opaque = false;
+    try applyBackgroundOpacity(host);
 }
 
-/// The state a new top-level window starts in from its config's `maximize`
-/// and `fullscreen` (#496). Both apply to every new window, restored and
-/// forwarded ones included, but never to a tab, a split, the quick terminal
-/// or a handed-off console, which keeps the show state its client asked for.
-/// A config reload does not change the windows already open.
-pub const WindowStart = struct {
-    maximize: bool = false,
-    fullscreen: bool = false,
+/// `WM_GETMINMAXINFO`: the active pane's `size_limit`, which is in client
+/// pixels, plus this window's frame. Returns false for a window with no
+/// pane, whose limits are Windows' own (`DefWindowProc`).
+pub fn updateMinMaxInfo(host: *Host, lParam: LPARAM) bool {
+    const limit = (host.activeSurface() orelse return false).metrics.size_limit;
+    if (limit.min_width == 0 and
+        limit.min_height == 0 and
+        limit.max_width == 0 and
+        limit.max_height == 0) return true;
 
-    pub fn fromConfig(config: *const configpkg.Config) WindowStart {
-        return .{ .maximize = config.maximize, .fullscreen = config.fullscreen != .false };
+    const info: *MINMAXINFO = @ptrFromInt(@as(usize, @bitCast(lParam)));
+    const hwnd = host.hwnd orelse return true;
+    var client_rect: RECT = undefined;
+    var window_rect: RECT = undefined;
+    if (sys.GetClientRect(hwnd, &client_rect) == 0) return true;
+    if (sys.GetWindowRect(hwnd, &window_rect) == 0) return true;
+
+    const frame_width = (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
+    const frame_height = (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
+
+    if (limit.min_width > 0) {
+        info.ptMinTrackSize.x = @as(i32, @intCast(limit.min_width)) + frame_width;
     }
-
-    /// What `Surface.init` applies to the window it creates.
-    pub fn forNewSurface(config: *const configpkg.Config, opts: SurfaceInitOptions) WindowStart {
-        if (opts.host_id != null or opts.quick_terminal or opts.adopted_session != null or
-            !opts.config_window_start) return .{};
-        return fromConfig(config);
+    if (limit.min_height > 0) {
+        info.ptMinTrackSize.y = @as(i32, @intCast(limit.min_height)) + frame_height;
     }
-};
-
-test "win32 maximize and fullscreen start only a new ordinary window" {
-    var config = try configpkg.Config.default(std.testing.allocator);
-    defer config.deinit();
-    config.maximize = true;
-    config.fullscreen = .true;
-    const both: WindowStart = .{ .maximize = true, .fullscreen = true };
-    try std.testing.expectEqual(both, WindowStart.forNewSurface(&config, .{}));
-    // A clone of another window takes them too (after it copies the
-    // source's state), and so does a window a forwarded argv configured.
-    var source: Surface = undefined;
-    try std.testing.expectEqual(both, WindowStart.forNewSurface(&config, .{ .clone_state_from = &source }));
-    // Not a tab or a split of a window that is already open, the quick
-    // terminal, a handed-off console, or a restored window, which applies
-    // them once it is at its saved rect.
-    var pending: win32_terminal_handoff.PendingSession = undefined;
-    for ([_]SurfaceInitOptions{
-        .{ .host_id = 1 },
-        .{ .host_id = 1, .tab_id = 1, .clone_state_from = &source },
-        .{ .quick_terminal = true },
-        .{ .adopted_session = &pending },
-        .{ .config_window_start = false },
-    }) |opts| {
-        try std.testing.expectEqual(WindowStart{}, WindowStart.forNewSurface(&config, opts));
+    if (limit.max_width > 0) {
+        info.ptMaxTrackSize.x = @as(i32, @intCast(limit.max_width)) + frame_width;
     }
-    config.maximize = false;
-    config.fullscreen = .false;
-    try std.testing.expectEqual(WindowStart{}, WindowStart.forNewSurface(&config, .{}));
+    if (limit.max_height > 0) {
+        info.ptMaxTrackSize.y = @as(i32, @intCast(limit.max_height)) + frame_height;
+    }
+    return true;
 }
 
-pub const FullscreenMonitor = struct {
-    monitor: sys.HMONITOR,
-    info: MONITORINFO,
-    dpi: u32,
-};
-
-pub fn fullscreenRestoreRect(rect: RECT, old_work: RECT, new_work: RECT, old_dpi: u32, new_dpi: u32) RECT {
-    const width = rect.right - rect.left;
-    const height = rect.bottom - rect.top;
-    const scale = old_dpi > 0 and new_dpi > 0;
-    return fitRectInWork(
-        rect.left + new_work.left - old_work.left,
-        rect.top + new_work.top - old_work.top,
-        if (scale) sys.MulDiv(width, @intCast(new_dpi), @intCast(old_dpi)) else width,
-        if (scale) sys.MulDiv(height, @intCast(new_dpi), @intCast(old_dpi)) else height,
-        new_work,
-    );
-}
-
-/// The rect at (`left`, `top`) of the given size, moved to the nearest place
-/// inside `work`. Keep the logical size when it fits. An oversized rectangle
-/// can overlap a neighbour more than this monitor, causing Windows to select
-/// that neighbour's DPI again; cap it to the work area.
-pub fn fitRectInWork(left: i32, top: i32, width: i32, height: i32, work: RECT) RECT {
-    const fitted_width = @min(width, work.right - work.left);
-    const fitted_height = @min(height, work.bottom - work.top);
-    const fitted_left = @max(work.left, @min(left, work.right - fitted_width));
-    const fitted_top = @max(work.top, @min(top, work.bottom - fitted_height));
-    return .{
-        .left = fitted_left,
-        .top = fitted_top,
-        .right = fitted_left + fitted_width,
-        .bottom = fitted_top + fitted_height,
-    };
-}
-
-/// How far a new window sits below and right of the one it was opened from,
-/// about a caption height.
-pub fn cascadeStep(dpi: u32) i32 {
-    return sys.MulDiv(32, @intCast(@max(dpi, 96)), 96);
-}
-
-/// A rect in workspace coordinates (what `GetWindowPlacement` reports for a
-/// window without `WS_EX_TOOLWINDOW`) as screen coordinates, for the monitor
-/// the window is on. This is the convention `leaveFullscreen` uses.
-pub fn workspaceRectToScreen(rect: RECT, monitor: MONITORINFO) RECT {
-    const dx = monitor.rcWork.left - monitor.rcMonitor.left;
-    const dy = monitor.rcWork.top - monitor.rcMonitor.top;
-    return .{
-        .left = rect.left + dx,
-        .top = rect.top + dy,
-        .right = rect.right + dx,
-        .bottom = rect.bottom + dy,
-    };
-}
+const HWND_TOPMOST: ?*anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -1))));
+const HWND_NOTOPMOST: ?*anyopaque = @ptrFromInt(@as(usize, @bitCast(@as(isize, -2))));
 
 /// Makes `rect` (screen coordinates) the rect the minimized `hwnd` returns
 /// to, and leaves it minimized.
-pub fn setMinimizedNormalRect(hwnd: HWND, rect: RECT) !void {
+fn setMinimizedNormalRect(hwnd: HWND, rect: RECT) !void {
     var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
     placement.length = @sizeOf(WINDOWPLACEMENT);
     if (sys.GetWindowPlacement(hwnd, &placement) == 0) return lastError();
     // Workspace coordinates of the monitor the rect is on, as
-    // `sessionWindowPlacementOn` reads them.
+    // `sessionPlacement` reads them.
     const center: POINT = .{
         .x = @divTrunc(rect.left, 2) + @divTrunc(rect.right, 2),
         .y = @divTrunc(rect.top, 2) + @divTrunc(rect.bottom, 2),
     };
     const monitor = sys.MonitorFromPoint(center, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
-    var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
-    info.cbSize = @sizeOf(MONITORINFO);
-    if (sys.GetMonitorInfoW(monitor, &info) == 0) return lastError();
-    placement.rcNormalPosition = Surface.screenRectToWorkspace(rect, info);
+    const info = monitorInfoOf(monitor) orelse return lastError();
+    placement.rcNormalPosition = screenRectToWorkspace(rect, info);
     placement.showCmd = c.SW_SHOWMINNOACTIVE;
     if (sys.SetWindowPlacement(hwnd, &placement) == 0) return lastError();
 }
 
-/// `SetWindowPos` flags for a window placed like the one it was opened from.
-/// `window-position-x/y` says where every new window goes, so when its config
-/// sets them (`positioned`, `WindowKeeps.position`) the window keeps that
-/// place and takes only the size. With a size of its own as well (`sized`,
-/// `WindowKeeps.size`) it takes neither: core init already gave it that size
-/// where it is, which can be another monitor than the source's, whose work
-/// area `newWindowPlacement` fits the rect to. A fullscreen window covers its
-/// monitor wherever the config would put it.
-pub fn newWindowSetPosFlags(positioned: bool, sized: bool, placed: NewWindowPlacement) UINT {
-    var flags: UINT = c.SWP_NOACTIVATE;
-    if (!placed.copied and positioned) {
-        flags |= c.SWP_NOMOVE;
-        if (sized) flags |= c.SWP_NOSIZE;
-    }
-    return flags;
-}
+/// The work areas of the monitors there are now, in screen coordinates.
+pub const WorkAreas = MonitorRectList("rcWork");
+/// The whole rects of the monitors there are now, in screen coordinates: what
+/// a fullscreen window's edges are checked against (`fullscreenRect`).
+const MonitorRects = MonitorRectList("rcMonitor");
 
-test "win32 a new window placed and sized by its own config takes neither from the window it copies" {
-    const cascaded: NewWindowPlacement = .{ .rect = std.mem.zeroes(RECT), .maximize = null };
-    const fullscreen: NewWindowPlacement = .{ .rect = std.mem.zeroes(RECT), .maximize = null, .copied = true };
-    try std.testing.expectEqual(@as(UINT, c.SWP_NOACTIVATE), newWindowSetPosFlags(false, false, cascaded));
-    // A size alone is still moved one cascade step off the source and
-    // fitted to its monitor, where the window goes.
-    try std.testing.expectEqual(@as(UINT, c.SWP_NOACTIVATE), newWindowSetPosFlags(false, true, cascaded));
-    try std.testing.expectEqual(@as(UINT, c.SWP_NOACTIVATE | c.SWP_NOMOVE), newWindowSetPosFlags(true, false, cascaded));
-    try std.testing.expectEqual(@as(UINT, c.SWP_NOACTIVATE | c.SWP_NOMOVE | c.SWP_NOSIZE), newWindowSetPosFlags(true, true, cascaded));
-    // A fullscreen window covers the source's monitor all the same.
-    try std.testing.expectEqual(@as(UINT, c.SWP_NOACTIVATE), newWindowSetPosFlags(true, true, fullscreen));
-}
+/// One rect of each monitor there is now, `MONITORINFO.<field>`. `complete`
+/// is false when Windows did not give every monitor's.
+fn MonitorRectList(comptime field: []const u8) type {
+    return struct {
+        const List = @This();
+        rects: [16]RECT = undefined,
+        count: usize = 0,
+        complete: bool = true,
 
-/// A window's outer size, in physical pixels.
-pub const WindowSize = struct { width: i32, height: i32 };
-
-/// `rect` with its top-left corner kept and its size `size`.
-pub fn rectWithSize(rect: RECT, size: WindowSize) RECT {
-    return .{ .left = rect.left, .top = rect.top, .right = rect.left + size.width, .bottom = rect.top + size.height };
-}
-
-/// Where a window opened from another one (`new_window`, a profile in a new
-/// window) starts.
-pub const NewWindowPlacement = struct {
-    /// In screen coordinates: the size the source has when it is a normal
-    /// window, one cascade step down and right so the new window does not
-    /// sit exactly on it, kept inside the source's monitor. Never the rect of
-    /// a minimized source, which is not on screen, nor the monitor-sized rect
-    /// of a maximized one.
-    rect: RECT,
-    /// Set when the source is, or restores to, maximized: its placement,
-    /// for `maximizeWithPlacement`.
-    maximize: ?WINDOWPLACEMENT,
-    /// `rect` is the source's own, unchanged: it is fullscreen, so the new
-    /// window is too and covers the same monitor.
-    copied: bool = false,
-};
-
-/// `destination` is the window being placed, if it already exists: it is not
-/// one of the windows the new one steps past. `size` is the window's own
-/// size (`WindowKeeps.size`), which replaces the source's. A fullscreen window
-/// covers the monitor whatever its size.
-pub fn newWindowPlacement(app: *App, source: HWND, fullscreen: bool, destination: ?HWND, size: ?WindowSize) !NewWindowPlacement {
-    var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
-    placement.length = @sizeOf(WINDOWPLACEMENT);
-    if (sys.GetWindowPlacement(source, &placement) == 0) return lastError();
-    // For a minimized window this is the monitor it was on, not the one its
-    // icon is on.
-    const monitor = sys.MonitorFromWindow(source, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
-    var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
-    info.cbSize = @sizeOf(MONITORINFO);
-    if (sys.GetMonitorInfoW(monitor, &info) == 0) return lastError();
-
-    // The monitor, not the source's rect, which is a sliver under the
-    // taskbar once the source is minimized.
-    if (fullscreen) return .{ .rect = info.rcMonitor, .maximize = null, .copied = true };
-
-    const iconic = sys.IsIconic(source) != 0;
-    if (restoresMaximized(source, &placement)) {
-        // It is maximized again, never minimized with it.
-        placement.showCmd = c.SW_MAXIMIZE;
-        var normal = workspaceRectToScreen(placement.rcNormalPosition, info);
-        if (size) |own| {
-            normal = fitRectInWork(normal.left, normal.top, own.width, own.height, info.rcWork);
-            placement.rcNormalPosition = Surface.screenRectToWorkspace(normal, info);
+        pub fn collect() List {
+            var list: List = .{};
+            if (sys.EnumDisplayMonitors(null, null, enumProc, @as(LPARAM, @bitCast(@intFromPtr(&list)))) == 0) list.complete = false;
+            return list;
         }
-        return .{ .rect = normal, .maximize = placement };
-    }
 
+        pub fn slice(self: *const List) []const RECT {
+            return self.rects[0..self.count];
+        }
+
+        fn enumProc(monitor: sys.HMONITOR, _: HDC, _: *RECT, data: LPARAM) callconv(.winapi) BOOL {
+            const list: *List = @ptrFromInt(@as(usize, @bitCast(data)));
+            if (list.count == list.rects.len) {
+                list.complete = false;
+                return 0;
+            }
+            const info = monitorInfoOf(monitor) orelse {
+                list.complete = false;
+                return 1;
+            };
+            list.rects[list.count] = @field(info, field);
+            list.count += 1;
+            return 1;
+        }
+    };
+}
+
+/// Puts a restored window at the rect it was saved at, moved onto a monitor
+/// if its own is gone, and maximizes it if it was.
+fn placeRestored(host: *Host, saved: SavedPlacement) !void {
+    const hwnd = host.hwnd orelse return;
+    if (saved.rect) |rect| {
+        // The saved rect is where the window was, not where there is room
+        // for it now: its monitor may be gone.
+        const works = WorkAreas.collect();
+        const dpi_before = sys.GetDpiForWindow(hwnd);
+        var target = window_start.restoredRectOnScreen(rect, works.slice(), window_start.restore_grab);
+        if (sys.IsIconic(hwnd) != 0) {
+            // A launch that asked for a minimized window (`start /min`,
+            // a shortcut set to Run: Minimized) has Windows minimize the
+            // first window's first show. SetWindowPos on a minimized
+            // window moves its icon, and it would come back from the
+            // taskbar where it was created: give it the rect to return to.
+            try setMinimizedNormalRect(hwnd, target);
+        } else {
+            // The rect is in the pixels of the monitor it was saved on, and is
+            // where the window goes: a crossing from the monitor the host was
+            // created on must not swap in the DPI suggestion's rescaled size.
+            host.restore_placing = true;
+            defer host.restore_placing = false;
+            for (0..3) |attempt| {
+                if (sys.SetWindowPos(
+                    hwnd,
+                    null,
+                    target.left,
+                    target.top,
+                    target.right - target.left,
+                    target.bottom - target.top,
+                    c.SWP_NOZORDER | c.SWP_NOACTIVATE,
+                ) == 0) return lastError();
+                // Windows caps what it is given (a left edge to 16 bits, a
+                // width to the largest window), so whether the title bar can
+                // be reached is judged on the rect the window ended up with.
+                var actual: RECT = undefined;
+                if (sys.GetWindowRect(hwnd, &actual) == 0) return lastError();
+                const moved = window_start.restoredRectOnScreen(actual, works.slice(), window_start.restore_grab);
+                if (!rectEquals(moved, actual)) {
+                    if (attempt == 2) {
+                        log.warn("win32 session restore: window stayed off every monitor", .{});
+                        break;
+                    }
+                    target = moved;
+                    continue;
+                }
+                // The layout that follows a DPI change can resize it once
+                // more: apply the same rect again once.
+                if (sys.GetDpiForWindow(hwnd) == dpi_before or rectEquals(actual, target)) break;
+            }
+        }
+    }
+    if (saved.maximized) _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
+}
+
+/// How the session saves `host`'s window, as a restored window starts
+/// (`Origin.restore`). `monitor` stands in for the monitor of a window that
+/// is not fullscreen, so a test can give it the taskbar this machine lacks.
+pub fn sessionPlacement(host: *Host, monitor: ?MONITORINFO) ?SavedPlacement {
+    const hwnd = host.hwnd orelse return null;
+    // Fullscreen is kept apart from the window it returns to: the popup's
+    // rect covers its monitor and is not its normal rect.
+    if (host.top_level.fullscreen) |saved| {
+        const back = fullscreenReturn(saved, hwnd) catch |err| fallback: {
+            log.warn("win32 session save: fullscreen window placement failed; using captured placement err={}", .{err});
+            break :fallback saved;
+        };
+        return window_start.savedFullscreen(back);
+    }
+    var maximized = sys.IsZoomed(hwnd) != 0;
     var rect: RECT = undefined;
-    if (iconic) {
-        rect = workspaceRectToScreen(placement.rcNormalPosition, info);
-    } else if (sys.GetWindowRect(source, &rect) == 0) {
-        return lastError();
+    if (maximized or sys.IsIconic(hwnd) != 0) {
+        var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
+        placement.length = @sizeOf(WINDOWPLACEMENT);
+        if (sys.GetWindowPlacement(hwnd, &placement) != 0) {
+            maximized = restoresMaximized(hwnd, &placement);
+            // Workspace coordinates, offset from the screen's by a taskbar
+            // on the top or left. Every other state saves screen
+            // coordinates, and restore applies them as such.
+            rect = placement.rcNormalPosition;
+            if (monitor) |info| {
+                rect = workspaceRectToScreen(rect, info);
+            } else if (windowMonitor(hwnd)) |here| {
+                rect = workspaceRectToScreen(rect, here.info);
+            } else |_| {}
+        } else if (sys.GetWindowRect(hwnd, &rect) == 0) {
+            return .{ .rect = null, .maximized = maximized };
+        }
+    } else if (sys.GetWindowRect(hwnd, &rect) == 0) {
+        return .{ .rect = null, .maximized = maximized };
     }
-    if (size) |own| rect = rectWithSize(rect, own);
-    const step = cascadeStep(sys.GetDpiForWindow(source));
-    // One step off the source, and on past any window already there: one
-    // window can be the source of several, as when the user goes back to it
-    // and opens another, or when Windows does not activate a forwarded one.
-    var placed = cascadedRect(rect, step, info.rcWork);
-    var steps: u8 = 0;
-    while (steps < 8 and app.registry.windowStartsAt(placed, destination)) : (steps += 1) {
-        placed = cascadedRect(placed, step, info.rcWork);
-    }
-    return .{ .rect = placed, .maximize = null };
+
+    if (rect.right <= rect.left or rect.bottom <= rect.top) return .{ .rect = null, .maximized = maximized };
+    return .{ .rect = rect, .maximized = maximized };
 }
 
-/// `rect` moved `step` down and right, kept inside `work`.
-pub fn cascadedRect(rect: RECT, step: i32, work: RECT) RECT {
-    return fitRectInWork(rect.left + step, rect.top + step, rect.right - rect.left, rect.bottom - rect.top, work);
+/// `window_start.restoresMaximized` for the window `hwnd`.
+fn restoresMaximized(hwnd: HWND, placement: *const WINDOWPLACEMENT) bool {
+    return window_start.restoresMaximized(sys.IsZoomed(hwnd) != 0, sys.IsIconic(hwnd) != 0, placement);
 }
 
-test "win32 fullscreen restore translates work areas and scales size to fit" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const old_work: RECT = .{ .left = 0, .top = 40, .right = 3840, .bottom = 2160 };
-    const new_work: RECT = .{ .left = -1920, .top = -1080, .right = 0, .bottom = 0 };
-    const rect: RECT = .{ .left = 100, .top = 140, .right = 1500, .bottom = 1040 };
-    try std.testing.expectEqualDeep(rect, fullscreenRestoreRect(rect, old_work, old_work, 144, 144));
-    const moved = fullscreenRestoreRect(rect, old_work, new_work, 144, 96);
-    try std.testing.expectEqualDeep(RECT{ .left = -1820, .top = -980, .right = -887, .bottom = -380 }, moved);
-    // MulDiv rounds the fractional width. Returning to the old scale is
-    // within one physical pixel and never scales absolute desktop origins.
-    const back = fullscreenRestoreRect(moved, new_work, old_work, 96, 144);
-    try std.testing.expectEqualDeep(rect, back);
-    const portrait: RECT = .{ .left = -1080, .top = 0, .right = 0, .bottom = 1872 };
-    const edge: RECT = .{ .left = 3000, .top = 1700, .right = 3800, .bottom = 2100 };
-    const clamped = fullscreenRestoreRect(edge, old_work, portrait, 144, 96);
-    try std.testing.expectEqualDeep(RECT{ .left = -533, .top = 1605, .right = 0, .bottom = 1872 }, clamped);
-    const oversized: RECT = .{ .left = 150, .top = 190, .right = 3950, .bottom = 1390 };
-    try std.testing.expectEqualDeep(RECT{ .left = -1080, .top = 150, .right = 0, .bottom = 950 }, fullscreenRestoreRect(oversized, old_work, portrait, 144, 96));
-}
-
-/// Whether the window is, or when restored becomes, maximized. A window
-/// minimized from maximized restores to maximized. The flag alone says
-/// nothing about a window that was restored since: Windows keeps it set on a
-/// normal window.
-pub fn restoresMaximized(hwnd: HWND, placement: *const WINDOWPLACEMENT) bool {
-    return sys.IsZoomed(hwnd) != 0 or
-        (sys.IsIconic(hwnd) != 0 and (placement.flags & c.WPF_RESTORETOMAXIMIZED) != 0);
-}
-
-pub fn toggleMaximize(self: *Surface) void {
-    const hwnd = self.windowHwnd() orelse return;
-    if (self.fullscreen) return;
+fn toggleMaximize(host: *Host) void {
+    const hwnd = host.hwnd orelse return;
+    if (host.top_level.isFullscreen()) return;
     _ = sys.ShowWindow(hwnd, if (sys.IsZoomed(hwnd) != 0) c.SW_RESTORE else c.SW_MAXIMIZE);
 }
 
-pub fn toggleBackgroundOpacity(self: *Surface) !bool {
-    if (self.background_opacity_default >= 0.999) return false;
-    self.background_opacity_force_opaque = !self.background_opacity_force_opaque;
-    try self.applyBackgroundOpacity();
-    return true;
-}
-
-pub fn toggleFullscreen(self: *Surface, mode: apprt.action.Fullscreen) !void {
-    _ = mode;
-    if (self.fullscreen) {
-        try self.leaveFullscreen();
-        return;
-    }
-    try self.enterFullscreen();
-}
-
-pub fn toggleDecorations(self: *Surface) !void {
-    try self.setDecorationsVisible(!self.decorations_visible);
-    self.decorations_visible_overridden = true;
-}
-
-pub fn setInitialSize(self: *Surface, size: apprt.action.InitialSize) !void {
-    self.default_client_size = .{
-        .width = @intCast(size.width),
-        .height = @intCast(size.height),
-    };
-    if (self.fullscreen or
-        (if (self.windowHwnd()) |hwnd| sys.IsZoomed(hwnd) != 0 else false) or
-        !shouldResizeHostForInitialSize(self.hostSurfaceCount())) return;
-    const client_size = scaleInitialClientSize(self.default_client_size.?, self.content_scale);
-    try self.resizeClientArea(client_size.width, client_size.height);
-}
-
-pub fn hostSurfaceCount(self: *const Surface) usize {
-    const host = self.host orelse return 1;
+/// How many panes `host`'s window holds, in all its tabs.
+fn paneCount(host: *const Host) usize {
     var count: usize = 0;
     for (host.tabs.items) |*tab| count += tab.leafCount();
     return count;
 }
 
-pub fn resetWindowSize(self: *Surface) !void {
-    const size = self.default_client_size orelse return;
-    if (self.fullscreen) try self.leaveFullscreen();
-    if (self.windowHwnd()) |hwnd| _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
-    const client_size = scaleInitialClientSize(size, self.content_scale);
-    try self.resizeClientArea(client_size.width, client_size.height);
-}
-
-pub fn setSizeLimit(self: *Surface, limit: apprt.action.SizeLimit) void {
-    if (sizeLimitEquals(self.size_limit, limit)) return;
-    self.size_limit = limit;
-    if (self.host != null) {
-        self.refreshSharedWindowFrame();
-        return;
-    }
-    const hwnd = self.windowHwnd() orelse return;
-    _ = sys.SetWindowPos(
-        hwnd,
-        null,
-        0,
-        0,
-        0,
-        0,
-        c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_NOZORDER | c.SWP_NOACTIVATE | c.SWP_FRAMECHANGED,
-    );
-}
-
-pub fn setFloatWindow(self: *Surface, mode: apprt.action.FloatWindow) !void {
-    self.topmost = switch (mode) {
-        .on => true,
-        .off => false,
-        .toggle => !self.topmost,
+fn scaleInitialClientSize(size: apprt.SurfaceSize, scale: apprt.ContentScale) apprt.SurfaceSize {
+    return .{
+        .width = scaleInitialClientAxis(size.width, scale.x),
+        .height = scaleInitialClientAxis(size.height, scale.y),
     };
-    try self.applyTopmost();
+}
+
+fn scaleInitialClientAxis(value: u32, scale: f32) u32 {
+    const scaled = @ceil(@as(f64, @floatFromInt(value)) * @as(f64, @floatCast(scale)));
+    const max_u32: f64 = @floatFromInt(std.math.maxInt(u32));
+    return @intFromFloat(@min(max_u32, @max(1, scaled)));
+}
+
+fn setInitialSize(host: *Host, pane: *Surface, size: apprt.action.InitialSize) !void {
+    pane.metrics.default_client_size = .{
+        .width = @intCast(size.width),
+        .height = @intCast(size.height),
+    };
+    const hwnd = host.hwnd orelse return;
+    if (host.top_level.isFullscreen() or sys.IsZoomed(hwnd) != 0 or paneCount(host) != 1) return;
+    const client_size = scaleInitialClientSize(pane.metrics.default_client_size.?, pane.content_scale);
+    try resizeClientArea(host, client_size.width, client_size.height);
+}
+
+fn resetWindowSize(host: *Host, pane: *const Surface) !void {
+    const size = pane.metrics.default_client_size orelse return;
+    if (host.top_level.isFullscreen()) try leaveFullscreen(host);
+    if (host.hwnd) |hwnd| _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
+    const client_size = scaleInitialClientSize(size, pane.content_scale);
+    try resizeClientArea(host, client_size.width, client_size.height);
+}
+
+/// Only the active pane's limit is the window's (`updateMinMaxInfo`), so only
+/// it refreshes the frame. A window's first pane sends its limit during core
+/// init, and that frame refresh is what gives the window its integrated frame
+/// before the pty opens (2026-09-23, #262).
+fn setSizeLimit(host: *Host, pane: *Surface, limit: apprt.action.SizeLimit) void {
+    if (sizeLimitEquals(pane.metrics.size_limit, limit)) return;
+    pane.metrics.size_limit = limit;
+    if (host.activeSurface() == pane) refreshFrame(host);
 }
 
 /// Puts a new top-level window in the state `maximize` and `fullscreen`
-/// ask for (`WindowStart`), on top of the state it already has: a window
+/// ask for (`Enter`), on top of the state it already has: a window
 /// that is maximized stays so, and one that is fullscreen stays so.
 ///
 /// A window that is still hidden is made fullscreen in place: it was
@@ -646,9 +716,9 @@ pub fn setFloatWindow(self: *Surface, mode: apprt.action.FloatWindow) !void {
 ///
 /// A failure is logged: how a window starts is a preference, and a
 /// window in its ordinary state is still a usable window.
-pub fn applyWindowStart(self: *Surface, start: WindowStart) void {
-    const hwnd = self.windowHwnd() orelse return;
-    if (start.fullscreen and !self.fullscreen) {
+fn applyWindowStart(host: *Host, start: Enter) void {
+    const hwnd = host.hwnd orelse return;
+    if (start.fullscreen and !host.top_level.isFullscreen()) {
         // A launcher's show command (`start /min`, a shortcut set to Run:
         // Minimized or Maximized) goes to the first framed top-level
         // window the process calls ShowWindow on. A popup's show does not
@@ -657,43 +727,47 @@ pub fn applyWindowStart(self: *Surface, start: WindowStart) void {
         // minimized. SW_HIDE takes it while this window is still framed,
         // and shows nothing.
         if (sys.IsWindowVisible(hwnd) == 0) _ = sys.ShowWindow(hwnd, c.SW_HIDE);
-        self.enterFullscreen() catch |err| {
+        enterFullscreen(host) catch |err| {
             log.warn("win32 startup fullscreen failed err={}", .{err});
         };
     }
     if (start.maximize) {
-        if (self.fullscreen) {
+        if (host.top_level.fullscreen) |*back| {
             // `leaveFullscreen` maximizes a window whose placement says
             // it was maximized.
-            self.restore_placement.showCmd = c.SW_MAXIMIZE;
+            back.placement.showCmd = c.SW_MAXIMIZE;
         } else if (sys.IsZoomed(hwnd) == 0) {
             _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
         }
     }
 }
 
-pub fn enterFullscreen(self: *Surface) !void {
-    const hwnd = self.windowHwnd() orelse return;
+fn enterFullscreen(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
+    // The style writes below change the frame; blur-behind is asserted
+    // again after them, whatever they end in.
+    defer refreshBackgroundOpacity(host);
     // A minimized window comes back first. SetWindowPos would move only
     // its icon, and it would return from the taskbar as a popup at its
     // normal rect. A restored session's first window is minimized here
-    // under a minimized launch (`applyRestoredWindowPlacement`).
+    // under a minimized launch (`placeRestored`).
     if (sys.IsIconic(hwnd) != 0) _ = sys.ShowWindow(hwnd, c.SW_SHOWNOACTIVATE);
     // Captured before the style write below, which drops WS_MAXIMIZE:
     // the monitor-sized SetWindowPos after it would otherwise land on a
     // normal window and overwrite its normal rect.
-    self.restore_placement.length = @sizeOf(WINDOWPLACEMENT);
-    if (sys.GetWindowPlacement(hwnd, &self.restore_placement) == 0 or
-        sys.GetWindowRect(hwnd, &self.restore_rect) == 0) return lastError();
+    var back: TopLevel.Return = .{ .rect = undefined, .placement = std.mem.zeroes(WINDOWPLACEMENT), .monitor = null };
+    back.placement.length = @sizeOf(WINDOWPLACEMENT);
+    if (sys.GetWindowPlacement(hwnd, &back.placement) == 0 or
+        sys.GetWindowRect(hwnd, &back.rect) == 0) return lastError();
     const monitor = try windowMonitor(hwnd);
-    self.restore_monitor = monitor;
-    self.fullscreen = true;
-    try self.applyWindowStyle();
+    back.monitor = monitor;
+    host.top_level.fullscreen = back;
+    try applyWindowStyle(host);
 
-    const screen = monitor.info.rcMonitor;
+    const screen = fullscreenRect(host, monitor.info.rcMonitor);
     if (sys.SetWindowPos(
         hwnd,
-        if (self.topmost) HWND_TOPMOST else null,
+        if (host.top_level.topmost) HWND_TOPMOST else null,
         screen.left,
         screen.top,
         screen.right - screen.left,
@@ -704,44 +778,107 @@ pub fn enterFullscreen(self: *Surface) !void {
     }
 }
 
-/// The window leaving fullscreen gives back: the one it was when it
-/// entered fullscreen, moved to the monitor it is on now.
-pub const FullscreenReturn = struct {
-    /// Its rect, in screen coordinates.
-    rect: RECT,
-    /// Its placement. `rcNormalPosition` is in the workspace coordinates
-    /// of `monitor`.
-    placement: WINDOWPLACEMENT,
-    /// The monitor it is on now, if entering fullscreen recorded one.
-    monitor: ?MONITORINFO,
-};
-
-pub fn fullscreenReturn(self: *const Surface, hwnd: HWND) !FullscreenReturn {
-    var back: FullscreenReturn = .{ .rect = self.restore_rect, .placement = self.restore_placement, .monitor = null };
-    const source = self.restore_monitor orelse return back;
-    const target = try windowMonitor(hwnd);
-    back.monitor = target.info;
-    if (target.monitor != source.monitor or target.dpi != source.dpi) {
-        back.rect = fullscreenRestoreRect(back.rect, source.info.rcWork, target.info.rcWork, source.dpi, target.dpi);
-        // WINDOWPLACEMENT uses workspace coordinates for a normal
-        // host (no WS_EX_TOOLWINDOW). Convert to screen coordinates
-        // before the work-area translation, and back afterwards.
-        const normal = workspaceRectToScreen(back.placement.rcNormalPosition, source.info);
-        back.placement.rcNormalPosition = screenRectToWorkspace(
-            fullscreenRestoreRect(normal, source.info.rcWork, target.info.rcWork, source.dpi, target.dpi),
-            target.info,
-        );
-    }
-    return back;
+/// Whether `host`'s window, fullscreen, covers 1 px more than its monitor
+/// (`window_start.composedFullscreenRect`, #598): its tab bar is hidden
+/// (`window-show-tab-bar = never`), so its active pane fills the window, and
+/// that pane renders with OpenGL, whose presents Windows can take out of
+/// composition when they cover a monitor exactly. It is read as the window
+/// enters fullscreen and as a copy of a fullscreen window opens, never again
+/// while it stays fullscreen: a config reload, a renderer fallback, a DPI or
+/// monitor change keep the rect it has.
+fn keepsFullscreenComposed(host: *const Host) bool {
+    if (builtin.is_test and test_keeps_fullscreen_composed) return true;
+    return composesFullscreen(host.shouldShowTabBar(), paneRenderer(host.activeSurface()));
 }
 
-pub fn leaveFullscreen(self: *Surface) !void {
-    const hwnd = self.windowHwnd() orelse return;
-    const back = try self.fullscreenReturn(hwnd);
-    const rect = back.rect;
-    const placement = back.placement;
-    self.fullscreen = false;
-    try self.applyWindowStyle();
+/// `keepsFullscreenComposed`'s decision: the tab bar hidden, and the active
+/// pane running OpenGL.
+fn composesFullscreen(tab_bar_shown: bool, renderer: PaneRenderer) bool {
+    return !tab_bar_shown and renderer == .opengl;
+}
+
+/// What a window's active pane renders with.
+const PaneRenderer = enum {
+    /// No pane: a window kept empty for undo.
+    none,
+    /// Its core init has not finished, so no renderer runs yet.
+    starting,
+    opengl,
+    d3d11,
+
+    /// The backend that runs, which a fallback can have changed from the
+    /// configured one. Once OpenGL runs, it stays: a fallback goes only from
+    /// D3D11 to OpenGL.
+    fn of(pane: ?*const Surface) PaneRenderer {
+        const surface = pane orelse return .none;
+        if (!surface.core_initialized) return .starting;
+        if (comptime !build_config.d3d11) return .opengl;
+        return if (surface.core_surface.renderer.opengl.load(.acquire) != null) .opengl else .d3d11;
+    }
+};
+
+/// Turns `keepsFullscreenComposed` on in a test, whose panes have no renderer
+/// to ask. Off by default, so every other test keeps the exact monitor rect.
+var test_keeps_fullscreen_composed = false;
+
+/// What every pane renders with in a test, whose panes have no renderer to
+/// ask (`PaneRenderer.of` reads them as starting), but `test_d3d11_pane`,
+/// which runs D3D11. Both null by default.
+var test_pane_renderer: ?PaneRenderer = null;
+var test_d3d11_pane: ?*const Surface = null;
+
+/// Every `DwmEnableBlurBehindWindow` that turns it on, in a test: counted,
+/// and failed while `test_blur_behind_fails`. DWM has no call that reads
+/// blur-behind back.
+var test_blur_behind_asserts: usize = 0;
+var test_blur_behind_fails = false;
+
+/// Every `applyBackgroundOpacity` on a window, in a test, and the opacity it
+/// applied last; and, while a test points `test_background_opacity_log` at a
+/// list, each window it applied to, with that opacity.
+var test_background_opacity_applies: usize = 0;
+var test_background_opacity_applied: f64 = 1.0;
+var test_background_opacity_log: ?*std.ArrayListUnmanaged(TestOpacityApply) = null;
+/// `theme_rebuilds` is the app's count of theme rebuilds when the window
+/// applied, which tells an apply after a rebuild from one before it.
+const TestOpacityApply = struct { host: *const Host, opacity: f64, theme_rebuilds: u32 = 0 };
+
+/// The window whose layered alpha fails to apply in a test, as
+/// `SetLayeredWindowAttributes` can.
+var test_layered_fails: ?HWND = null;
+
+fn paneRenderer(pane: ?*const Surface) PaneRenderer {
+    if (builtin.is_test) {
+        if (test_d3d11_pane != null and pane == test_d3d11_pane) return .d3d11;
+        if (test_pane_renderer) |renderer| return renderer;
+    }
+    return .of(pane);
+}
+
+/// The rect `host`'s window covers fullscreen on the monitor whose rect is
+/// `screen`: `screen`, or with `keepsFullscreenComposed` 1 px more past the
+/// first edge no other monitor is past. With a monitor missing from the list,
+/// `screen`: the pixel could land on it.
+fn fullscreenRect(host: *const Host, screen: RECT) RECT {
+    if (!keepsFullscreenComposed(host)) return screen;
+    const monitors = MonitorRects.collect();
+    if (!monitors.complete) return screen;
+    return window_start.composedFullscreenRect(screen, monitors.slice()) orelse screen;
+}
+
+/// What `hwnd`, fullscreen since `saved`, returns to when it leaves
+/// fullscreen on the monitor it is on now (`window_start.returnOn`).
+fn fullscreenReturn(saved: TopLevel.Return, hwnd: HWND) !TopLevel.Return {
+    if (saved.monitor == null) return saved;
+    return window_start.returnOn(saved, try windowMonitor(hwnd));
+}
+
+fn leaveFullscreen(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
+    defer refreshBackgroundOpacity(host);
+    const back = try fullscreenReturn(host.top_level.fullscreen.?, hwnd);
+    host.top_level.fullscreen = null;
+    try applyWindowStyle(host);
 
     // A maximized window is maximized again and given back the normal
     // rect it had before. Moving it to its maximized rect first, while
@@ -749,12 +886,13 @@ pub fn leaveFullscreen(self: *Surface) !void {
     // later restore kept it maximized-size. Any other window returns to
     // its exact rect: the placement of a snapped window holds its
     // pre-snap rect.
-    if (placement.showCmd == c.SW_MAXIMIZE) {
-        return maximizeWithPlacement(hwnd, &placement);
+    if (back.placement.showCmd == c.SW_MAXIMIZE) {
+        return maximizeWithPlacement(hwnd, &back.placement);
     }
+    const rect = back.rect;
     if (sys.SetWindowPos(
         hwnd,
-        if (self.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
+        if (host.top_level.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
         rect.left,
         rect.top,
         rect.right - rect.left,
@@ -775,92 +913,68 @@ fn maximizeWithPlacement(hwnd: HWND, placement: *const WINDOWPLACEMENT) !void {
 }
 
 /// The monitor nearest `hwnd`, its info and the window's DPI.
-pub fn windowMonitor(hwnd: HWND) !FullscreenMonitor {
+pub fn windowMonitor(hwnd: HWND) !window_start.Monitor {
     const monitor = sys.MonitorFromWindow(hwnd, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
+    const info = monitorInfoOf(monitor) orelse return lastError();
+    return .{ .id = @intFromPtr(monitor), .info = info, .dpi = sys.GetDpiForWindow(hwnd) };
+}
+
+/// `monitor`'s rects, or null when Windows cannot give them.
+fn monitorInfoOf(monitor: sys.HMONITOR) ?MONITORINFO {
     var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
     info.cbSize = @sizeOf(MONITORINFO);
-    if (sys.GetMonitorInfoW(monitor, &info) == 0) return lastError();
-    return .{ .monitor = monitor, .info = info, .dpi = sys.GetDpiForWindow(hwnd) };
+    if (sys.GetMonitorInfoW(monitor, &info) == 0) return null;
+    return info;
 }
 
-/// The inverse of `workspaceRectToScreen`.
-pub fn screenRectToWorkspace(rect: RECT, info: MONITORINFO) RECT {
-    const dx = info.rcWork.left - info.rcMonitor.left;
-    const dy = info.rcWork.top - info.rcMonitor.top;
-    return .{
-        .left = rect.left - dx,
-        .top = rect.top - dy,
-        .right = rect.right - dx,
-        .bottom = rect.bottom - dy,
-    };
-}
+/// Its callers show the window's opacity again after it, since its style
+/// write changes the frame: the toggle through a defer, `applyConfig` through
+/// its own apply, once and at the new opacity.
+fn setDecorationsVisible(host: *Host, visible: bool) !void {
+    if (host.top_level.decorations_visible == visible) return;
 
-pub fn setDecorationsVisible(self: *Surface, visible: bool) !void {
-    if (self.decorations_visible == visible) return;
+    const previous_visible = host.top_level.decorations_visible;
+    const used_integrated_titlebar_before = host.usingIntegratedTitlebar();
+    host.top_level.decorations_visible = visible;
 
-    const previous_visible = self.decorations_visible;
-    const host = self.host;
-    const should_refresh_host = shouldPropagateSharedHostWindowState(self);
-    const used_integrated_titlebar_before = if (should_refresh_host and host != null)
-        host.?.usingIntegratedTitlebar()
-    else
-        false;
-
-    self.decorations_visible = visible;
-
-    if (!should_refresh_host) return;
-    self.applyWindowStyle() catch |err| {
-        self.rollbackDecorationsVisible(previous_visible, host, false);
+    applyWindowStyle(host) catch |err| {
+        rollbackDecorationsVisible(host, previous_visible, false);
         return err;
     };
-
-    if (host) |value| {
-        const integrated_titlebar_changed = used_integrated_titlebar_before != value.usingIntegratedTitlebar();
-        if (integrated_titlebar_changed) {
-            // Switching between stock and app-owned caption chrome can
-            // strand hover state until the next NC leave.
-            value.handleNcMouseLeave();
-        }
-        value.layout() catch |err| {
-            self.rollbackDecorationsVisible(previous_visible, host, integrated_titlebar_changed);
-            return err;
-        };
-        value.refreshChrome() catch |err| {
-            self.rollbackDecorationsVisible(previous_visible, host, integrated_titlebar_changed);
-            return err;
-        };
-        value.cached_decorations_visible = visible;
-        value.scheduleCaptionUiaSync();
+    const integrated_titlebar_changed = used_integrated_titlebar_before != host.usingIntegratedTitlebar();
+    if (integrated_titlebar_changed) {
+        // Switching between stock and app-owned caption chrome can
+        // strand hover state until the next NC leave.
+        host.handleNcMouseLeave();
     }
+    host.layout() catch |err| {
+        rollbackDecorationsVisible(host, previous_visible, integrated_titlebar_changed);
+        return err;
+    };
+    host.refreshChrome() catch |err| {
+        rollbackDecorationsVisible(host, previous_visible, integrated_titlebar_changed);
+        return err;
+    };
+    host.scheduleCaptionUiaSync();
 }
 
-pub fn rollbackDecorationsVisible(
-    self: *Surface,
-    previous_visible: bool,
-    host: ?*Host,
-    integrated_titlebar_changed: bool,
-) void {
-    self.decorations_visible = previous_visible;
-    self.applyWindowStyle() catch |err| {
+fn rollbackDecorationsVisible(host: *Host, previous_visible: bool, integrated_titlebar_changed: bool) void {
+    host.top_level.decorations_visible = previous_visible;
+    applyWindowStyle(host) catch |err| {
         log.warn("win32 decoration rollback style update failed err={}", .{err});
     };
-
-    if (host) |value| {
-        value.cached_decorations_visible = previous_visible;
-        if (integrated_titlebar_changed) value.handleNcMouseLeave();
-        value.layout() catch |err| {
-            log.warn("win32 decoration rollback layout failed err={}", .{err});
-        };
-        value.refreshChrome() catch |err| {
-            log.warn("win32 decoration rollback chrome refresh failed err={}", .{err});
-        };
-        value.scheduleCaptionUiaSync();
-    }
+    if (integrated_titlebar_changed) host.handleNcMouseLeave();
+    host.layout() catch |err| {
+        log.warn("win32 decoration rollback layout failed err={}", .{err});
+    };
+    host.refreshChrome() catch |err| {
+        log.warn("win32 decoration rollback chrome refresh failed err={}", .{err});
+    };
+    host.scheduleCaptionUiaSync();
 }
 
-pub fn resizeClientArea(self: *Surface, client_width: u32, client_height: u32) !void {
-    const hwnd = self.windowHwnd() orelse return;
-    const hosted = self.host != null;
+fn resizeClientArea(host: *Host, client_width: u32, client_height: u32) !void {
+    const hwnd = host.hwnd orelse return;
     var client_rect: RECT = undefined;
     if (sys.GetClientRect(hwnd, &client_rect) == 0) {
         return lastError();
@@ -889,78 +1003,14 @@ pub fn resizeClientArea(self: *Surface, client_width: u32, client_height: u32) !
         return lastError();
     }
 
-    if (hosted) {
-        const host = self.host orelse unreachable;
-        try host.layout();
-        host.syncVisibleSurfaceCoreSizesFromClientRects();
-    } else {
-        self.syncCoreSizeFromClientRect();
-    }
+    try host.layout();
+    host.syncVisibleSurfaceCoreSizesFromClientRects();
 }
 
-/// Takes the window state of `source`, but what `keeps` names stays this
-/// surface's own.
-pub fn copySharedWindowStateFrom(self: *Surface, source: *const Surface, keeps: WindowKeeps) void {
-    if (!keeps.decoration) {
-        self.decorations_visible = source.decorations_visible;
-        self.decorations_visible_overridden = source.decorations_visible_overridden;
-    }
-    if (self.host) |host| {
-        if (host.activeSurface() == self) {
-            host.cached_decorations_visible = self.decorations_visible;
-        }
-    }
-    self.fullscreen = source.fullscreen;
-    self.topmost = source.topmost;
-    self.restore_rect = source.restore_rect;
-    self.restore_placement = source.restore_placement;
-    self.restore_monitor = source.restore_monitor;
-    if (!keeps.size) self.default_client_size = source.default_client_size;
-    self.cell_size_pixels = source.cell_size_pixels;
-    if (!keeps.background_opacity) {
-        self.background_opacity_default = source.background_opacity_default;
-        self.background_opacity_force_opaque = source.background_opacity_force_opaque;
-    }
-    self.size_limit = source.size_limit;
-}
-
-pub fn activeSharedHostWindowHwnd(self: *const Surface) ?HWND {
-    const host = self.host orelse return self.hwnd;
-    if (host.activeSurface() != self) return null;
-    return host.hwnd;
-}
-
-pub fn syncSharedHostWindowState(self: *Surface, previous_surface: ?*const Surface) void {
-    const host = self.host orelse return;
-    if (host.activeSurface() != self) return;
-
-    if (previous_surface == null or
-        !sharedHostWindowFrameStateEquals(previous_surface.?, self))
-    {
-        self.refreshSharedWindowFrame();
-    }
-    if (previous_surface == null or
-        !sharedHostWindowTopmostEquals(previous_surface.?, self))
-    {
-        self.applyTopmost() catch |err| {
-            log.warn("win32 shared host topmost sync failed err={}", .{err});
-        };
-    }
-    if (previous_surface == null or
-        !sharedHostWindowOpacityEquals(previous_surface.?, self))
-    {
-        self.applyBackgroundOpacity() catch |err| {
-            log.warn("win32 shared host opacity sync failed err={}", .{err});
-        };
-    }
-}
-
-pub fn refreshSharedWindowFrame(self: *Surface) void {
-    const hwnd = self.windowHwnd() orelse return;
-    const host = self.host orelse return;
-    if (host.activeSurface() != self) return;
-    if (self.keepsFrameUndecorated()) {
-        win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, self.decorations_visible);
+fn refreshFrame(host: *Host) void {
+    const hwnd = host.hwnd orelse return;
+    if (keepsFrameUndecorated(host)) {
+        win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, host.top_level.decorations_visible);
     }
 
     _ = sys.SetWindowPos(
@@ -974,63 +1024,47 @@ pub fn refreshSharedWindowFrame(self: *Surface) void {
     );
 }
 
-/// Gives this surface's window the state of `source`'s, keeping what
-/// `keeps` names.
-pub fn inheritWindowStateFrom(self: *Surface, source: *const Surface, keeps: WindowKeeps) !void {
-    // The size core init gave the window, before it takes the source's
-    // state.
-    var own_size: ?WindowSize = null;
-    if (keeps.size) if (self.windowHwnd()) |hwnd| {
+/// Puts a copy where `window_start.place` says, fullscreen when its source
+/// is, and shows it in the rest of its source's state, which it was created
+/// with (`window_start.plan`).
+fn takeSourceState(host: *Host, pending: *const Pending) !void {
+    const hwnd = host.hwnd orelse return;
+    const keeps = pending.plan.keeps;
+    // The size core init gave the window, measured before it takes the
+    // source's state (window-frame.md 2026-10-20 #496 part 2, trap 2).
+    var own: ?window_start.Own = null;
+    if (keeps.size) {
         var rect: RECT = undefined;
         if (sys.GetWindowRect(hwnd, &rect) == 0) return lastError();
-        own_size = .{ .width = rect.right - rect.left, .height = rect.bottom - rect.top };
-    };
-    self.copySharedWindowStateFrom(source, keeps);
-    if (own_size) |size| if (self.fullscreen) if (self.windowHwnd()) |hwnd| {
-        // It leaves fullscreen to that size, where the source would, and
-        // inside the work area there, as a window opened from a normal
-        // or maximized source is. The source's return is in the pixels
-        // of the monitor it entered fullscreen on, which leaving scales
-        // from, and `size` is in this window's, on the monitor the
-        // source covers now. So the return is first taken as leaving
-        // fullscreen here gives it, then sized and fitted here, and
-        // leaving does not scale `size` too.
-        const back = try self.fullscreenReturn(hwnd);
-        const here = try windowMonitor(hwnd);
-        const work = here.info.rcWork;
-        self.restore_monitor = here;
-        self.restore_rect = fitRectInWork(back.rect.left, back.rect.top, size.width, size.height, work);
-        self.restore_placement = back.placement;
-        const normal = workspaceRectToScreen(back.placement.rcNormalPosition, here.info);
-        self.restore_placement.rcNormalPosition = screenRectToWorkspace(
-            fitRectInWork(normal.left, normal.top, size.width, size.height, work),
-            here.info,
-        );
-    };
+        own = .{
+            .size = .{ .width = rect.right - rect.left, .height = rect.bottom - rect.top },
+            .here = try windowMonitor(hwnd),
+        };
+    }
+    var placed = window_start.place(&pending.plan, occupiedAround(host), own);
+    // Fullscreen on the monitor `place` gives, as this window's own pane
+    // decides, not its source's.
+    if (placed.fullscreen != null) placed.rect = fullscreenRect(host, placed.rect);
+    const top_level = &host.top_level;
+    top_level.fullscreen = placed.fullscreen;
 
-    try self.applyWindowStyle();
-    try self.applyTopmost();
-    try self.applyBackgroundOpacity();
+    try applyWindowStyle(host);
+    try applyTopmost(host);
+    try applyBackgroundOpacity(host);
 
-    const hwnd = self.windowHwnd() orelse return;
-    const source_hwnd = source.windowHwnd() orelse return;
-    const placed = try newWindowPlacement(self.app, source_hwnd, source.fullscreen, hwnd, own_size);
-    var flags = newWindowSetPosFlags(keeps.position, own_size != null, placed) | c.SWP_FRAMECHANGED;
-    // Another tab of the source's own window is already where it goes.
-    if (hwnd == source_hwnd) flags |= c.SWP_NOMOVE | c.SWP_NOSIZE;
     if (sys.SetWindowPos(
         hwnd,
-        if (self.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
+        if (top_level.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
         placed.rect.left,
         placed.rect.top,
         placed.rect.right - placed.rect.left,
         placed.rect.bottom - placed.rect.top,
-        flags,
+        placed.flags | c.SWP_FRAMECHANGED,
     ) == 0) {
         return lastError();
     }
 
-    if (!self.fullscreen) {
+    if (!top_level.isFullscreen()) {
         if (placed.maximize) |*placement| {
             // The source's normal rect, not the monitor-sized one.
             try maximizeWithPlacement(hwnd, placement);
@@ -1040,56 +1074,24 @@ pub fn inheritWindowStateFrom(self: *Surface, source: *const Surface, keeps: Win
     }
 }
 
-pub fn updateMinMaxInfo(self: *Surface, lParam: LPARAM) void {
-    if (self.size_limit.min_width == 0 and
-        self.size_limit.min_height == 0 and
-        self.size_limit.max_width == 0 and
-        self.size_limit.max_height == 0) return;
-
-    const info: *MINMAXINFO = @ptrFromInt(@as(usize, @bitCast(lParam)));
-    const hwnd = self.windowHwnd() orelse return;
-    var client_rect: RECT = undefined;
-    var window_rect: RECT = undefined;
-    if (sys.GetClientRect(hwnd, &client_rect) == 0) return;
-    if (sys.GetWindowRect(hwnd, &window_rect) == 0) return;
-
-    const frame_width = (window_rect.right - window_rect.left) - (client_rect.right - client_rect.left);
-    const frame_height = (window_rect.bottom - window_rect.top) - (client_rect.bottom - client_rect.top);
-
-    if (self.size_limit.min_width > 0) {
-        info.ptMinTrackSize.x = @as(i32, @intCast(self.size_limit.min_width)) + frame_width;
-    }
-    if (self.size_limit.min_height > 0) {
-        info.ptMinTrackSize.y = @as(i32, @intCast(self.size_limit.min_height)) + frame_height;
-    }
-    if (self.size_limit.max_width > 0) {
-        info.ptMaxTrackSize.x = @as(i32, @intCast(self.size_limit.max_width)) + frame_width;
-    }
-    if (self.size_limit.max_height > 0) {
-        info.ptMaxTrackSize.y = @as(i32, @intCast(self.size_limit.max_height)) + frame_height;
-    }
+/// `undecoratedKeepsFrame` for `host`. The quick terminal flag is the
+/// host's: a split or tab opened inside the quick terminal is an ordinary
+/// surface in the quick terminal's window.
+fn keepsFrameUndecorated(host: *const Host) bool {
+    return undecoratedKeepsFrame(host.app.os_build, host.quick_terminal);
 }
 
-/// `undecoratedKeepsFrame` for this surface's host window. The quick
-/// terminal flag is the host's: a split or tab opened inside the quick
-/// terminal is an ordinary surface in the quick terminal's window.
-pub fn keepsFrameUndecorated(self: *const Surface) bool {
-    const quick_terminal = if (self.host) |host| host.quick_terminal else false;
-    return undecoratedKeepsFrame(self.app.os_build, quick_terminal);
-}
-
-pub fn applyWindowStyle(self: *Surface) !void {
-    const hwnd = self.activeSharedHostWindowHwnd() orelse return;
-    const keeps_frame = self.keepsFrameUndecorated();
+fn applyWindowStyle(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
+    const keeps_frame = keepsFrameUndecorated(host);
     const current: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_STYLE))));
     // The write keeps the window's own visibility. Forcing WS_VISIBLE on
     // showed a hidden quick terminal on a config reload without its
     // surface knowing (see `App.toggleQuickTerminal`).
-    const style = (effectiveHostWindowStyle(
-        self.decorations_visible or keeps_frame,
-        self.fullscreen,
-        self.host != null,
-    ) & ~@as(u32, c.WS_VISIBLE)) | (current & c.WS_VISIBLE);
+    const style = hostStyle(
+        host.top_level.decorations_visible or keeps_frame,
+        host.top_level.isFullscreen(),
+    ) | (current & c.WS_VISIBLE);
     // On Windows 11 a decoration toggle keeps the frame, so the style is
     // already right, and writing it anyway would drop WS_MAXIMIZE: a
     // maximized window left un-maximized in its maximized rect.
@@ -1097,7 +1099,7 @@ pub fn applyWindowStyle(self: *Surface) !void {
     if ((current & ~state_bits) != (style & ~state_bits)) {
         _ = sys.SetWindowLongPtrW(hwnd, c.GWL_STYLE, @bitCast(@as(isize, @intCast(style))));
     }
-    if (keeps_frame) win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, self.decorations_visible);
+    if (keeps_frame) win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, host.top_level.decorations_visible);
     if (sys.SetWindowPos(
         hwnd,
         null,
@@ -1111,89 +1113,267 @@ pub fn applyWindowStyle(self: *Surface) !void {
     }
 }
 
-/// Give a brand-new host window its `background-opacity` before the
-/// window is shown for the first time.
-///
-/// On Win32 the host window's layered alpha is the only mechanism that
-/// makes `background-opacity` visible: DWM discards the GL child's
-/// framebuffer alpha and nothing here opts into
-/// `DwmExtendFrameIntoClientArea` or `WS_EX_NOREDIRECTIONBITMAP`.
-/// `App.createHost` passes `dwExStyle = 0`, and the only callers of
-/// `applyBackgroundOpacity` used to be config reload, tab/window
-/// activation and `inheritWindowStateFrom` — none of which a
-/// cold-start window reaches — so window 1 stayed fully opaque while
-/// every later window faded (issue #234).
-///
-/// Only `Surface.init`'s `activate_during_init` branch may call this: it
-/// is the one path that owns a brand-new host window. A same-host tab or
-/// split inherits an HWND whose alpha is already correct, and for a split
-/// `tab.focused` already points at the new surface, so calling this there
-/// would write to the live window rather than no-op through
-/// `activeSharedHostWindowHwnd`.
-///
-/// The unit tests cover this function against a live HWND, but nothing
-/// unit-testable reaches `Surface.init` (it needs a GL context and a real
-/// `CoreSurface`), so neither the call site nor its ordering against the
-/// first show is machine-checked. Both were verified by running the app
-/// and reading back `GWL_EXSTYLE` / `GetLayeredWindowAttributes`.
-///
-/// Failure is logged rather than propagated: a window that could not be
-/// layered is still a usable window.
-pub fn applyInitialBackgroundOpacity(self: *Surface, clone_state_from: ?*const Surface) void {
-    if (clone_state_from) |source| {
-        // `inheritWindowStateFrom` copies the source's opacity wholesale,
-        // but it only runs after the clone is already on screen. Seed it
-        // here so a clone of a window the user forced opaque with
-        // `toggle_background_opacity` is never briefly shown faded.
-        self.background_opacity_default = source.background_opacity_default;
-        self.background_opacity_force_opaque = source.background_opacity_force_opaque;
+/// Shows `host`'s opacity as `TopLevel.shows` decides from its panes'
+/// renderers. Every Win32 side effect of `background-opacity` is here: the
+/// layered fade of a D3D11 window; the blur-behind, buffered chrome paint and
+/// solid child controls of a window whose background alone is translucent;
+/// and what each pane's renderer draws its background at. An opaque window
+/// makes none of these calls once it is opaque. Only the layered alpha can
+/// fail, and it is applied last, after everything the window shows is set.
+fn applyBackgroundOpacity(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
+    if (builtin.is_test) {
+        test_background_opacity_applies += 1;
+        test_background_opacity_applied = host.top_level.opacity;
+        if (test_background_opacity_log) |applied| applied.append(std.testing.allocator, .{
+            .host = host,
+            .opacity = host.top_level.opacity,
+            .theme_rebuilds = host.app.theme_rebuilds,
+        }) catch {};
     }
-    self.applyBackgroundOpacity() catch |err| {
-        log.warn("win32 initial background opacity failed err={}", .{err});
+    var shown = shownOpacity(host);
+    if (shown.background != null) {
+        // Not layered before blur-behind starts, so the ex-style change
+        // cannot drop it.
+        unlayer(hwnd);
+        // Asserted again while it is on, a DWM call per apply while
+        // translucent: nothing is known to reset it, but a window that
+        // lost it would draw its panes' alpha dark.
+        const kept = if (host.chrome_alpha != null) setBlurBehind(hwnd, true) else beginBackgroundAlpha(hwnd);
+        if (!kept) {
+            host.blur_behind_failed = true;
+            log.warn("win32 blur-behind failed; this window's background-opacity fades it whole until the system theme changes", .{});
+            shown = shownOpacity(host);
+        }
+    }
+    if (shown.background == null and host.chrome_alpha != null) endBackgroundAlpha(hwnd);
+    if (host.chrome_alpha != shown.background) {
+        host.chrome_alpha = shown.background;
+        // Every control repaints with the alpha it needs now, panes too:
+        // pixels GDI drew while the window was opaque have alpha 0.
+        _ = sys.RedrawWindow(hwnd, null, null, c.RDW_INVALIDATE | c.RDW_ALLCHILDREN);
+    }
+    for (host.tabs.items) |*tab| {
+        var it = tab.tree.iterator();
+        while (it.next()) |entry| entry.view.setBackgroundOpacity(shown.pane_opacity);
+    }
+    try setLayered(hwnd, shown.layered);
+}
+
+/// `TopLevel.shows` for `host` as it stands.
+fn shownOpacity(host: *Host) TopLevel.Shows {
+    return host.top_level.shows(panesDrawAlpha(host), win32.isHighContrastActive(), host.blur_behind_failed);
+}
+
+/// `Host.deinit`: ends the buffered paint a translucent window still holds
+/// (`beginBackgroundAlpha`).
+pub fn releaseBackgroundOpacity(host: *Host) void {
+    if (host.chrome_alpha == null) return;
+    host.chrome_alpha = null;
+    _ = sys.BufferedPaintUnInit();
+}
+
+/// Shows `host`'s opacity again after something `TopLevel.shows` reads
+/// changed without a window action: a pane's renderer started or switched to
+/// OpenGL, or High Contrast turned on or off (`App.reconfigureTheme`).
+pub fn refreshBackgroundOpacity(host: *Host) void {
+    applyBackgroundOpacity(host) catch |err| {
+        log.warn("win32 background opacity refresh failed err={}", .{err});
     };
 }
 
-pub fn applyBackgroundOpacity(self: *Surface) !void {
-    const hwnd = self.activeSharedHostWindowHwnd() orelse return;
-    const opacity = effectiveBackgroundOpacity(
-        self.background_opacity_default,
-        self.background_opacity_force_opaque,
+/// `refreshBackgroundOpacity`, where a failed blur-behind
+/// (`Host.blur_behind_failed`) tries once more; failing again latches it
+/// again, with one warning.
+pub fn retryBackgroundOpacity(host: *Host) void {
+    host.blur_behind_failed = false;
+    refreshBackgroundOpacity(host);
+}
+
+/// What a system theme message can change and no rebuild of the app's own
+/// does: the light/dark mode, High Contrast and its colors, the non-client
+/// metrics and client animations; not the config's `window-theme` or
+/// `split-divider-color`. A failed blur-behind tries again only when these
+/// changed since the last system theme message
+/// (`App.reconfigureSystemTheme`).
+pub const SystemInputs = struct {
+    dark: bool,
+    high_contrast: bool,
+    /// High Contrast's system colors, while it is on.
+    high_contrast_colors: ?win32.ThemeColors,
+    metrics: ?sys.NONCLIENTMETRICSW,
+    animations: bool,
+
+    pub fn capture() SystemInputs {
+        if (builtin.is_test) if (test_system_inputs) |inputs| return inputs;
+        const high_contrast = win32.isHighContrastActive();
+        var metrics = std.mem.zeroes(sys.NONCLIENTMETRICSW);
+        metrics.cbSize = @sizeOf(sys.NONCLIENTMETRICSW);
+        return .{
+            .dark = win32.isSystemDarkMode(),
+            .high_contrast = high_contrast,
+            .high_contrast_colors = if (high_contrast) win32.highContrastThemeFromSysColors() else null,
+            .metrics = if (sys.SystemParametersInfoW(c.SPI_GETNONCLIENTMETRICS, @sizeOf(sys.NONCLIENTMETRICSW), @ptrCast(&metrics), 0) != 0) metrics else null,
+            .animations = Host.clientAnimationsEnabled(),
+        };
+    }
+};
+
+/// What `SystemInputs.capture` returns in a test that sets it, so a test can
+/// change a system input without changing the system.
+var test_system_inputs: ?SystemInputs = null;
+
+/// A child control `host`'s window made: made solid while the window's
+/// background alone is translucent (`solidChild`).
+pub fn childCreated(host: *const Host, child: HWND) void {
+    if (host.chrome_alpha != null) _ = solidChild(child, 1);
+}
+
+/// Whether every pane of `host` whose renderer runs draws with OpenGL
+/// (`TopLevel.shows`). A pane still starting is not counted: its core init
+/// asks again once its renderer runs (`refreshBackgroundOpacity`). A
+/// fallback goes only from D3D11 to OpenGL, and posts that it did.
+fn panesDrawAlpha(host: *Host) bool {
+    for (host.tabs.items) |*tab| {
+        var it = tab.tree.iterator();
+        while (it.next()) |entry| if (paneRenderer(entry.view) == .d3d11) return false;
+    }
+    return true;
+}
+
+/// What lets DWM keep the client area's alpha, so the panes' translucent
+/// background shows: blur-behind with an empty region, which blurs nothing
+/// (`DwmExtendFrameIntoClientArea` would turn the native title bar to glass
+/// too); the buffered paint that gives the GDI chrome its alpha
+/// (`chrome_scene.AlphaPaint`), which `Host.deinit` ends if the window still
+/// has it; and the child controls made solid. Returns false, with nothing
+/// changed, if it cannot.
+fn beginBackgroundAlpha(hwnd: HWND) bool {
+    if (sys.BufferedPaintInit() < 0) return false;
+    if (!setBlurBehind(hwnd, true)) {
+        _ = sys.BufferedPaintUnInit();
+        return false;
+    }
+    _ = sys.EnumChildWindows(hwnd, solidChild, 1);
+    return true;
+}
+
+fn endBackgroundAlpha(hwnd: HWND) void {
+    _ = setBlurBehind(hwnd, false);
+    _ = sys.EnumChildWindows(hwnd, solidChild, 0);
+    _ = sys.BufferedPaintUnInit();
+}
+
+fn setBlurBehind(hwnd: HWND, on: bool) bool {
+    if (builtin.is_test and on) {
+        test_blur_behind_asserts += 1;
+        if (test_blur_behind_fails) return false;
+    }
+    // An empty region: what is behind shows through unblurred.
+    const region = if (on) (sys.CreateRectRgn(0, 0, -1, -1) orelse return false) else null;
+    defer if (region) |r| {
+        _ = sys.DeleteObject(r);
+    };
+    const blur: sys.DWM_BLURBEHIND = .{
+        .dwFlags = sys.DWM_BB_ENABLE | sys.DWM_BB_BLURREGION,
+        .fEnable = @intFromBool(on),
+        .hRgnBlur = region,
+        .fTransitionOnMaximized = 0,
+    };
+    return sys.DwmEnableBlurBehindWindow(hwnd, &blur) >= 0;
+}
+
+fn unlayer(hwnd: HWND) void {
+    const ex_style: u32 = @intCast(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_EXSTYLE))));
+    if ((ex_style & c.WS_EX_LAYERED) == 0) return;
+    _ = sys.SetWindowLongPtrW(hwnd, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex_style & ~@as(u32, c.WS_EX_LAYERED)))));
+    _ = sys.SetWindowPos(
+        hwnd,
+        null,
+        0,
+        0,
+        0,
+        0,
+        c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_NOZORDER | c.SWP_NOACTIVATE | c.SWP_FRAMECHANGED,
     );
-    const ex_style_raw = sys.GetWindowLongPtrW(hwnd, c.GWL_EXSTYLE);
-    var ex_style: u32 = @intCast(@as(usize, @bitCast(ex_style_raw)));
+}
 
-    if (opacity >= 0.999) {
-        if ((ex_style & c.WS_EX_LAYERED) != 0) {
-            ex_style &= ~@as(u32, c.WS_EX_LAYERED);
-            _ = sys.SetWindowLongPtrW(hwnd, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex_style))));
-            _ = sys.SetWindowPos(
-                hwnd,
-                null,
-                0,
-                0,
-                0,
-                0,
-                c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_NOZORDER | c.SWP_NOACTIVATE | c.SWP_FRAMECHANGED,
-            );
-        }
-        return;
-    }
-
+/// The whole window layered at `alpha`, or not layered at all.
+fn setLayered(hwnd: HWND, alpha: ?u8) !void {
+    const layered = alpha orelse return unlayer(hwnd);
+    const ex_style: u32 = @intCast(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_EXSTYLE))));
     if ((ex_style & c.WS_EX_LAYERED) == 0) {
-        ex_style |= c.WS_EX_LAYERED;
-        _ = sys.SetWindowLongPtrW(hwnd, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex_style))));
+        _ = sys.SetWindowLongPtrW(hwnd, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex_style | c.WS_EX_LAYERED))));
     }
-
-    if (sys.SetLayeredWindowAttributes(hwnd, 0, alphaByteForOpacity(opacity), c.LWA_ALPHA) == 0) {
+    if (builtin.is_test and test_layered_fails == hwnd) return error.TestLayeredFailed;
+    if (sys.SetLayeredWindowAttributes(hwnd, 0, layered, c.LWA_ALPHA) == 0) {
         return lastError();
     }
 }
 
-pub fn applyTopmost(self: *Surface) !void {
-    const hwnd = self.activeSharedHostWindowHwnd() orelse return;
+/// `EnumChildWindows` over a window whose background alone is translucent:
+/// `solid` 1 layers each child control that paints itself at alpha 255, and 0
+/// takes that back. GDI leaves alpha 0, which DWM shows through, but DWM
+/// composes a layered child from its own surface, opaque. Owner-drawn
+/// controls stay unlayered, since some overlap others, and
+/// `chrome_scene.AlphaPaint` gives their `WM_DRAWITEM` its alpha
+/// (`solidifies`).
+fn solidChild(child: HWND, solid: LPARAM) callconv(.winapi) BOOL {
+    var name: [64]u16 = undefined;
+    const len = sys.GetClassNameW(child, &name, name.len);
+    const style: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(child, c.GWL_STYLE))));
+    if (!solidifies(name[0..@intCast(@max(0, len))], style)) return 1;
+    const ex: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(child, c.GWL_EXSTYLE))));
+    const layered = (ex & c.WS_EX_LAYERED) != 0;
+    if (solid != 0) {
+        // A child layered for its own sake keeps its own alpha.
+        if (layered) return 1;
+        _ = sys.SetWindowLongPtrW(child, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex | c.WS_EX_LAYERED))));
+        // A layered window with no attributes shows nothing: one that cannot
+        // take them stays unlayered, readable if not solid.
+        if (sys.SetLayeredWindowAttributes(child, 0, 255, c.LWA_ALPHA) == 0) {
+            _ = sys.SetWindowLongPtrW(child, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex))));
+        }
+        return 1;
+    }
+    if (!layered) return 1;
+    var key: u32 = 0;
+    var alpha: u8 = 0;
+    var flags: u32 = 0;
+    if (sys.GetLayeredWindowAttributes(child, &key, &alpha, &flags) == 0) return 1;
+    // Only what `solid` 1 made: every child layered for its own sake has a
+    // color key or another alpha (the overlay scrollbar, quick-select, the
+    // tab drop preview).
+    if (flags != c.LWA_ALPHA or alpha != 255) return 1;
+    _ = sys.SetWindowLongPtrW(child, c.GWL_EXSTYLE, @bitCast(@as(isize, @intCast(ex & ~@as(u32, c.WS_EX_LAYERED)))));
+    return 1;
+}
+
+/// Whether a child control of this class and style is layered while its
+/// window's background alone is translucent (`solidChild`): one that paints
+/// itself (an EDIT, a plain STATIC, the palette list). Not an owner-drawn
+/// BUTTON or STATIC, whose `WM_DRAWITEM` `chrome_scene.AlphaPaint` gives its
+/// alpha, and not a terminal pane, which draws its own alpha.
+fn solidifies(class: []const u16, style: u32) bool {
+    if (std.mem.eql(u16, class, win32.class_name)) return false;
+    if (classIs(class, "BUTTON")) return style & 0xF != c.BS_OWNERDRAW;
+    if (classIs(class, "STATIC")) return style & 0x1F != c.SS_OWNERDRAW;
+    return true;
+}
+
+fn classIs(class: []const u16, comptime name: []const u8) bool {
+    if (class.len != name.len) return false;
+    for (class, name) |unit, char| {
+        if (unit > 0x7F or std.ascii.toUpper(@intCast(unit)) != char) return false;
+    }
+    return true;
+}
+
+fn applyTopmost(host: *Host) !void {
+    const hwnd = host.hwnd orelse return;
     if (sys.SetWindowPos(
         hwnd,
-        if (self.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
+        if (host.top_level.topmost) HWND_TOPMOST else HWND_NOTOPMOST,
         0,
         0,
         0,
@@ -1204,32 +1384,28 @@ pub fn applyTopmost(self: *Surface) !void {
     }
 }
 
-test "win32 decorationsVisibleForConfig only hides none" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
+test "win32 a window's config and a forward's argv say how it wants to start" {
+    var config = try configpkg.Config.default(std.testing.allocator);
+    defer config.deinit();
+    try std.testing.expectEqual(window_start.Wants{}, wants(&config));
+    config.@"window-decoration" = .none;
+    config.@"background-opacity" = 1.5;
+    config.maximize = true;
+    config.fullscreen = .true;
+    // A position and a size each need both keys.
+    config.@"window-position-x" = 10;
+    config.@"window-width" = 80;
+    try std.testing.expectEqual(window_start.Wants{ .decorated = false, .opacity = 1.0, .maximize = true, .fullscreen = true }, wants(&config));
+    config.@"window-position-y" = 20;
+    config.@"window-height" = 24;
+    try std.testing.expectEqual(window_start.Wants{ .position = .{ .x = 10, .y = 20 }, .decorated = false, .opacity = 1.0, .maximize = true, .fullscreen = true, .sized = true }, wants(&config));
 
-    try std.testing.expect(decorationsVisibleForConfig(.auto));
-    try std.testing.expect(decorationsVisibleForConfig(.client));
-    try std.testing.expect(decorationsVisibleForConfig(.server));
-    try std.testing.expect(!decorationsVisibleForConfig(.none));
-}
-
-test "win32 startupHostWindowStyle respects decoration and fullscreen frame state" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
+    try std.testing.expectEqual(window_start.Forwarded{}, forwardedKeys(&.{}));
+    try std.testing.expectEqual(window_start.Forwarded{ .size = true }, forwardedKeys(&.{"--window-height=20"}));
     try std.testing.expectEqual(
-        effectiveHostWindowStyle(true, false, true) & ~@as(u32, c.WS_VISIBLE),
-        startupHostWindowStyle(true, false),
+        window_start.Forwarded{ .size = true, .decoration = true, .opacity = true },
+        forwardedKeys(&.{ "--window-width=80", "--window-decoration=none", "--background-opacity=0.5" }),
     );
-    try std.testing.expectEqual(
-        effectiveHostWindowStyle(false, false, true) & ~@as(u32, c.WS_VISIBLE),
-        startupHostWindowStyle(false, false),
-    );
-    try std.testing.expectEqual(
-        effectiveHostWindowStyle(false, true, true) & ~@as(u32, c.WS_VISIBLE),
-        startupHostWindowStyle(false, true),
-    );
-    try std.testing.expect((startupHostWindowStyle(true, false) & c.WS_CLIPCHILDREN) != 0);
-    try std.testing.expect((startupHostWindowStyle(true, false) & c.WS_VISIBLE) == 0);
 }
 
 test "win32 createdHostWindowStyleCorrection takes back only what CreateWindowEx added" {
@@ -1237,7 +1413,7 @@ test "win32 createdHostWindowStyleCorrection takes back only what CreateWindowEx
 
     // Measured: `CreateWindowEx` answers the undecorated request with
     // 0x06C00000, i.e. the request plus WS_CAPTION and WS_CLIPSIBLINGS.
-    const undecorated = startupHostWindowStyle(false, false);
+    const undecorated = hostStyle(false, false);
     try std.testing.expectEqual(
         @as(?u32, undecorated),
         createdHostWindowStyleCorrection(undecorated, undecorated | c.WS_CAPTION | c.WS_CLIPSIBLINGS),
@@ -1246,9 +1422,9 @@ test "win32 createdHostWindowStyleCorrection takes back only what CreateWindowEx
 
     // Decorated and fullscreen requests come back with only the
     // WS_CLIPSIBLINGS every top-level window carries, and stay untouched.
-    const decorated = startupHostWindowStyle(true, false);
+    const decorated = hostStyle(true, false);
     try std.testing.expectEqual(@as(?u32, null), createdHostWindowStyleCorrection(decorated, decorated | c.WS_CLIPSIBLINGS));
-    const fullscreen = startupHostWindowStyle(false, true);
+    const fullscreen = hostStyle(false, true);
     try std.testing.expectEqual(@as(?u32, null), createdHostWindowStyleCorrection(fullscreen, fullscreen | c.WS_CLIPSIBLINGS));
 }
 
@@ -1256,7 +1432,7 @@ test "win32 restoreRequestedHostWindowStyle removes the caption CreateWindowEx a
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     // Never shown, so it reaches neither the desktop nor the taskbar.
-    const requested = startupHostWindowStyle(false, false);
+    const requested = hostStyle(false, false);
     const hwnd = sys.CreateWindowExW(
         0,
         prompt_label_class,
@@ -1291,166 +1467,12 @@ test "win32 restoreRequestedHostWindowStyle removes the caption CreateWindowEx a
     try std.testing.expectEqual(requested, testWindowStyle(hwnd) & ~@as(u32, c.WS_CLIPSIBLINGS));
 }
 
-test "win32 initialDecorationsVisible follows startup source" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var config: configpkg.Config = .{};
-
-    config.@"window-decoration" = .none;
-    try std.testing.expect(!Surface.initialDecorationsVisible(&config, .{}));
-
-    config.@"window-decoration" = .auto;
-    try std.testing.expect(Surface.initialDecorationsVisible(&config, .{}));
-
-    var source: Surface = undefined;
-    source.host = null;
-    source.decorations_visible = false;
-    try std.testing.expect(!Surface.initialDecorationsVisible(
-        &config,
-        .{ .clone_state_from = &source },
-    ));
-
-    source.decorations_visible = true;
-    try std.testing.expect(Surface.initialDecorationsVisible(
-        &config,
-        .{
-            .host_id = 7,
-            .clone_state_from = &source,
-        },
-    ));
-
-    // A forwarded `--window-decoration` (already applied to `config`) wins
-    // over the source's.
-    config.@"window-decoration" = .none;
-    try std.testing.expect(!Surface.initialDecorationsVisible(
-        &config,
-        .{ .clone_state_from = &source, .forwarded_arguments = &.{"--window-decoration=none"} },
-    ));
-    try std.testing.expect(Surface.initialDecorationsVisible(&config, .{ .clone_state_from = &source }));
-
-    config.@"window-decoration" = .none;
-    try std.testing.expect(!Surface.initialDecorationsVisible(
-        &config,
-        .{ .host_id = 7 },
-    ));
-
-    config.@"window-decoration" = .auto;
-    try std.testing.expect(Surface.initialDecorationsVisible(
-        &config,
-        .{ .host_id = 7 },
-    ));
-}
-
-test "win32 effectiveHostWindowStyle preserves clipchildren for hosted surfaces" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect((effectiveHostWindowStyle(true, false, true) & c.WS_CLIPCHILDREN) != 0);
-    try std.testing.expect((effectiveHostWindowStyle(false, false, true) & c.WS_CLIPCHILDREN) != 0);
-    try std.testing.expect((effectiveHostWindowStyle(true, true, true) & c.WS_CLIPCHILDREN) != 0);
-    try std.testing.expect((effectiveHostWindowStyle(true, false, false) & c.WS_CLIPCHILDREN) == 0);
-}
-
-test "win32 sharesHostWindowState only for same-host clones" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(sharesHostWindowState(7, 7));
-    try std.testing.expect(!sharesHostWindowState(7, 8));
-    try std.testing.expect(!sharesHostWindowState(7, null));
-    try std.testing.expect(!sharesHostWindowState(null, 7));
-}
-
-test "win32 copySharedWindowStateFrom clones host-scoped window fields" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var source: Surface = undefined;
-    source.decorations_visible = false;
-    source.decorations_visible_overridden = true;
-    source.fullscreen = true;
-    source.topmost = true;
-    source.restore_rect = .{ .left = 10, .top = 20, .right = 30, .bottom = 40 };
-    source.restore_monitor = .{ .monitor = @ptrFromInt(1), .info = std.mem.zeroes(MONITORINFO), .dpi = 144 };
-    source.restore_placement = std.mem.zeroes(WINDOWPLACEMENT);
-    source.restore_placement.showCmd = c.SW_MAXIMIZE;
-    source.restore_placement.rcNormalPosition = .{ .left = 50, .top = 60, .right = 70, .bottom = 80 };
-    source.default_client_size = .{ .width = 123, .height = 456 };
-    source.cell_size_pixels = .{ .width = 9, .height = 21 };
-    source.background_opacity_default = 0.75;
-    source.background_opacity_force_opaque = true;
-    source.size_limit = .{
-        .min_width = 111,
-        .min_height = 222,
-        .max_width = 333,
-        .max_height = 444,
-    };
-    var dest: Surface = undefined;
-    dest.host = null;
-
-    dest.copySharedWindowStateFrom(&source, .{});
-
-    try std.testing.expectEqual(source.decorations_visible, dest.decorations_visible);
-    try std.testing.expectEqual(source.decorations_visible_overridden, dest.decorations_visible_overridden);
-    try std.testing.expectEqual(source.fullscreen, dest.fullscreen);
-    try std.testing.expectEqual(source.topmost, dest.topmost);
-    try std.testing.expectEqualDeep(source.restore_rect, dest.restore_rect);
-    try std.testing.expectEqualDeep(source.restore_placement, dest.restore_placement);
-    try std.testing.expectEqualDeep(source.restore_monitor, dest.restore_monitor);
-    try std.testing.expectEqualDeep(source.default_client_size, dest.default_client_size);
-    try std.testing.expectEqualDeep(source.cell_size_pixels, dest.cell_size_pixels);
-    try std.testing.expectEqual(source.background_opacity_default, dest.background_opacity_default);
-    try std.testing.expectEqual(source.background_opacity_force_opaque, dest.background_opacity_force_opaque);
-    try std.testing.expect(sizeLimitEquals(source.size_limit, dest.size_limit));
-
-    // What a forwarded launch set stays the window's own; the state and the
-    // rest are still the source's.
-    var own: Surface = undefined;
-    own.host = null;
-    own.decorations_visible = true;
-    own.decorations_visible_overridden = false;
-    own.default_client_size = .{ .width = 7, .height = 8 };
-    own.background_opacity_default = 0.5;
-    own.background_opacity_force_opaque = false;
-    own.copySharedWindowStateFrom(&source, .{ .position = true, .size = true, .decoration = true, .background_opacity = true });
-    try std.testing.expect(own.decorations_visible and !own.decorations_visible_overridden);
-    try std.testing.expectEqualDeep(@as(?apprt.SurfaceSize, .{ .width = 7, .height = 8 }), own.default_client_size);
-    try std.testing.expectEqual(@as(f64, 0.5), own.background_opacity_default);
-    try std.testing.expect(!own.background_opacity_force_opaque);
-    try std.testing.expectEqual(source.fullscreen, own.fullscreen);
-    try std.testing.expectEqualDeep(source.restore_placement, own.restore_placement);
-    try std.testing.expect(sizeLimitEquals(source.size_limit, own.size_limit));
-}
-
 test "win32 leaveFullscreen and new_window keep the normal rect of a maximized window" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     // Maximizing shows a window, so these live on a desktop of their own and
     // never reach the user's.
     try runOnHiddenDesktop(struct {
-        fn window(app: *App, origin: i32) !Surface {
-            var surface: Surface = undefined;
-            surface.app = app;
-            surface.host = null;
-            surface.hwnd = sys.CreateWindowExW(
-                0,
-                prompt_label_class,
-                std.unicode.utf8ToUtf16LeStringLiteral(""),
-                WS_OVERLAPPEDWINDOW,
-                origin,
-                origin,
-                640,
-                480,
-                null,
-                null,
-                sys.GetModuleHandleW(null),
-                null,
-            ) orelse return lastError();
-            surface.decorations_visible = true;
-            surface.fullscreen = false;
-            surface.topmost = false;
-            surface.background_opacity_default = 1.0;
-            surface.background_opacity_force_opaque = false;
-            return surface;
-        }
-
         fn normalRect(hwnd: HWND) !RECT {
             var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
             placement.length = @sizeOf(WINDOWPLACEMENT);
@@ -1474,8 +1496,8 @@ test "win32 leaveFullscreen and new_window keep the normal rect of a maximized w
         fn body() !void {
             _ = sys.SetThreadDpiAwarenessContext(-4);
             var app = placementTestApp();
-            var surface = try window(&app, 100);
-            const hwnd = surface.hwnd.?;
+            var window = try placementTestHost(&app, 100, 100);
+            const hwnd = window.hwnd.?;
             defer _ = sys.DestroyWindow(hwnd);
 
             _ = sys.ShowWindow(hwnd, c.SW_SHOW);
@@ -1489,8 +1511,8 @@ test "win32 leaveFullscreen and new_window keep the normal rect of a maximized w
                 try std.testing.expectEqual(maximized, sys.IsZoomed(hwnd) != 0);
                 var before: RECT = undefined;
                 try std.testing.expect(sys.GetWindowRect(hwnd, &before) != 0);
-                try surface.enterFullscreen();
-                try surface.leaveFullscreen();
+                try enterFullscreen(&window);
+                try leaveFullscreen(&window);
                 try std.testing.expectEqual(maximized, sys.IsZoomed(hwnd) != 0);
                 var rect: RECT = undefined;
                 try std.testing.expect(sys.GetWindowRect(hwnd, &rect) != 0);
@@ -1503,10 +1525,12 @@ test "win32 leaveFullscreen and new_window keep the normal rect of a maximized w
 
             // new_window from a maximized window, into a window created
             // elsewhere, so it has to take the source's normal rect.
-            var clone = try window(&app, 200);
+            var clone = try placementTestHost(&app, 200, 200);
             defer _ = sys.DestroyWindow(clone.hwnd.?);
             _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-            try clone.inheritWindowStateFrom(&surface, .{});
+            const start = try begin(&app, &app.config, .{ .copy = .{ .source = &window } });
+            clone.top_level = start.plan.top_level;
+            try takeSourceState(&clone, &start);
             try std.testing.expect(sys.IsZoomed(clone.hwnd.?) != 0);
             try std.testing.expectEqualDeep(normal, try normalRect(clone.hwnd.?));
 
@@ -1526,10 +1550,10 @@ test "win32 leaveFullscreen and new_window keep the normal rect of a maximized w
                             var before: RECT = undefined;
                             try std.testing.expect(sys.GetWindowRect(hwnd, &before) != 0);
                             if (maximized) _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-                            try surface.enterFullscreen();
+                            try enterFullscreen(&window);
                             try std.testing.expect(sys.SetWindowPos(hwnd, null, dest_info.full_rect.left, dest_info.full_rect.top, dest_info.full_rect.width(), dest_info.full_rect.height(), c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
                             const dest_dpi = sys.GetDpiForWindow(hwnd);
-                            try surface.leaveFullscreen();
+                            try leaveFullscreen(&window);
                             try std.testing.expectEqual(maximized, sys.IsZoomed(hwnd) != 0);
                             try std.testing.expectEqual(dest_monitor, sys.MonitorFromWindow(hwnd, c.MONITOR_DEFAULTTONEAREST).?);
                             const width = @min(dest_info.work_area.width(), sys.MulDiv(before.right - before.left, @intCast(dest_dpi), @intCast(source_dpi)));
@@ -1560,108 +1584,233 @@ test "win32 leaveFullscreen and new_window keep the normal rect of a maximized w
     }.body);
 }
 
-test "win32 a window opened from a minimized one starts on screen at its restored size" {
+test "win32 a composed fullscreen window covers 1 px past its monitor, and saves and leaves fullscreen to exactly the window it was" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     try runOnHiddenDesktop(struct {
+        fn placementOf(hwnd: HWND) !WINDOWPLACEMENT {
+            var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
+            placement.length = @sizeOf(WINDOWPLACEMENT);
+            if (sys.GetWindowPlacement(hwnd, &placement) == 0) return lastError();
+            return placement;
+        }
+
+        fn rectOf(hwnd: HWND) !RECT {
+            var rect: RECT = undefined;
+            if (sys.GetWindowRect(hwnd, &rect) == 0) return lastError();
+            return rect;
+        }
+
         fn body() !void {
             _ = sys.SetThreadDpiAwarenessContext(-4);
             var app = placementTestApp();
-            var source = try placementTestSurface(&app, 50, 50);
-            defer _ = sys.DestroyWindow(source.hwnd.?);
-            var clone = try placementTestSurface(&app, 700, 300);
-            defer _ = sys.DestroyWindow(clone.hwnd.?);
+            app.config.@"window-show-tab-bar" = .never;
+            var window = try placementTestHost(&app, 100, 100);
+            const hwnd = window.hwnd.?;
+            defer _ = sys.DestroyWindow(hwnd);
+            _ = sys.ShowWindow(hwnd, c.SW_SHOW);
+            const screen = (try windowMonitor(hwnd)).info.rcMonitor;
 
-            _ = sys.ShowWindow(source.hwnd.?, c.SW_SHOWNOACTIVATE);
-            var restored: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(source.hwnd.?, &restored) != 0);
-            _ = sys.ShowWindow(source.hwnd.?, c.SW_SHOWMINNOACTIVE);
-            try std.testing.expect(sys.IsIconic(source.hwnd.?) != 0);
+            // Off unless a test turns it on, even with the tab bar hidden:
+            // no test window has a pane whose renderer runs, so every other
+            // test sees the monitor's exact rect.
+            try std.testing.expect(!keepsFullscreenComposed(&window));
+            try enterFullscreen(&window);
+            try std.testing.expectEqualDeep(screen, try rectOf(hwnd));
+            try leaveFullscreen(&window);
 
-            try clone.inheritWindowStateFrom(&source, .{});
+            test_keeps_fullscreen_composed = true;
+            defer test_keeps_fullscreen_composed = false;
+            const monitors = MonitorRects.collect();
+            try std.testing.expect(monitors.complete and monitors.count > 0);
+            // With a monitor past every edge it would keep the exact rect.
+            const grown = window_start.composedFullscreenRect(screen, monitors.slice()) orelse screen;
+            for ([_]bool{ false, true }) |maximized| {
+                if (maximized) _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
+                try std.testing.expectEqual(maximized, sys.IsZoomed(hwnd) != 0);
+                const before = try placementOf(hwnd);
+                const before_rect = try rectOf(hwnd);
+                try enterFullscreen(&window);
+                try std.testing.expectEqualDeep(grown, try rectOf(hwnd));
+                // A popup has no frame: the client a single pane fills has
+                // the extra pixel too.
+                var client: RECT = undefined;
+                try std.testing.expect(sys.GetClientRect(hwnd, &client) != 0);
+                try std.testing.expectEqual(grown.right - grown.left, client.right - client.left);
+                try std.testing.expectEqual(grown.bottom - grown.top, client.bottom - client.top);
 
-            // The iconic rect is near (-32000, -32000); what the source
-            // restores to is its normal rect.
-            try std.testing.expect(sys.IsIconic(clone.hwnd.?) == 0);
-            var rect: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(clone.hwnd.?, &rect) != 0);
-            try std.testing.expectEqual(restored.right - restored.left, rect.right - rect.left);
-            try std.testing.expectEqual(restored.bottom - restored.top, rect.bottom - rect.top);
-            // One cascade step down and right, so it does not cover the
-            // source's restored place.
-            const dx = rect.left - restored.left;
-            const dy = rect.top - restored.top;
-            try std.testing.expect(dx > 0 and dx <= 96);
-            try std.testing.expect(dy > 0 and dy <= 96);
+                // What it returns to, and what the session saves, is the
+                // window it was, never the grown rect.
+                const back = window.top_level.fullscreen.?;
+                try std.testing.expectEqualDeep(before_rect, back.rect);
+                try std.testing.expectEqualDeep(before, back.placement);
+                const saved = sessionPlacement(&window, null).?;
+                try std.testing.expect(saved.fullscreen and !saved.maximized);
+                try std.testing.expectEqual(maximized, saved.fullscreen_maximized);
+                const normal = if (maximized) workspaceRectToScreen(before.rcNormalPosition, back.monitor.?.info) else before_rect;
+                try std.testing.expectEqualDeep(normal, saved.rect.?);
+
+                try leaveFullscreen(&window);
+                try std.testing.expectEqualDeep(before, try placementOf(hwnd));
+                try std.testing.expectEqualDeep(before_rect, try rectOf(hwnd));
+                if (maximized) _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
+            }
         }
     }.body);
 }
 
-test "win32 a new window cascades from its source, stays on its monitor and follows its state" {
+test "win32 a copy of a composed fullscreen window first shows, and stays, 1 px past a free edge of the monitor it is on" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     try runOnHiddenDesktop(struct {
         fn body() !void {
             _ = sys.SetThreadDpiAwarenessContext(-4);
-            var app = placementTestApp();
-            var source = try placementTestSurface(&app, 50, 50);
-            defer _ = sys.DestroyWindow(source.hwnd.?);
-            var clone = try placementTestSurface(&app, 700, 300);
-            defer _ = sys.DestroyWindow(clone.hwnd.?);
-            const source_hwnd = source.hwnd.?;
-            const clone_hwnd = clone.hwnd.?;
-            _ = sys.ShowWindow(source_hwnd, c.SW_SHOWNOACTIVATE);
-            var restored: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(source_hwnd, &restored) != 0);
-            const step = sys.MulDiv(32, @intCast(sys.GetDpiForWindow(source_hwnd)), 96);
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const Fixture = WindowStartTestApp;
+            test_keeps_fullscreen_composed = true;
+            defer test_keeps_fullscreen_composed = false;
 
-            // A normal source: one step down and right, same size.
-            try clone.inheritWindowStateFrom(&source, .{});
-            var rect: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(clone_hwnd, &rect) != 0);
-            try std.testing.expectEqual(restored.left + step, rect.left);
-            try std.testing.expectEqual(restored.top + step, rect.top);
-            try std.testing.expectEqual(restored.right - restored.left, rect.right - rect.left);
-            try std.testing.expectEqual(restored.bottom - restored.top, rect.bottom - rect.top);
+            try app.createWindow(default_title);
+            const source = fixture.newest();
+            const source_hwnd = source.windowHwnd().?;
+            const monitors = MonitorRects.collect();
+            const works = WorkAreas.collect();
+            try std.testing.expect(monitors.complete and works.count > 0);
+            // On each monitor in turn: a copy is created where Windows puts
+            // it and moved, hidden, to its source's monitor, and grows from
+            // that one's edges.
+            for (works.slice()) |work| {
+                try std.testing.expect(sys.SetWindowPos(source_hwnd, null, work.left + 48, work.top + 40, 640, 480, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
+                const source_rect = try Fixture.screenRect(source_hwnd);
+                try std.testing.expect(try perform(source.host.?, source, .toggle_fullscreen, .native));
+                const screen = try Fixture.monitorRect(source_hwnd);
+                const grown = window_start.composedFullscreenRect(screen, monitors.slice()) orelse screen;
+                try std.testing.expectEqualDeep(grown, try Fixture.screenRect(source_hwnd));
 
-            // At the corner of its monitor there is no room to step: the new
-            // window stays on the monitor, at the same size.
-            const monitor = sys.MonitorFromWindow(source_hwnd, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
-            const info = monitorInfo(monitor) orelse return lastError();
-            try std.testing.expect(sys.SetWindowPos(source_hwnd, null, info.work_area.right - 640, info.work_area.bottom - 480, 640, 480, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
-            try clone.inheritWindowStateFrom(&source, .{});
-            try std.testing.expect(sys.GetWindowRect(clone_hwnd, &rect) != 0);
-            try std.testing.expect(rect.left >= info.work_area.left and rect.right <= info.work_area.right);
-            try std.testing.expect(rect.top >= info.work_area.top and rect.bottom <= info.work_area.bottom);
-            try std.testing.expectEqual(@as(i32, 640), rect.right - rect.left);
-            try std.testing.expectEqual(@as(i32, 480), rect.bottom - rect.top);
+                try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = null }));
+                const clone = fixture.newest();
+                try std.testing.expect(clone != source);
+                const hwnd = clone.windowHwnd().?;
+                // Never shown at the monitor's exact rect first.
+                const shown = Fixture.first_show orelse return error.TestWindowNeverShown;
+                try std.testing.expect(shown.style & c.WS_POPUP != 0);
+                try std.testing.expectEqualDeep(grown, shown.rect);
+                try std.testing.expect(clone.host.?.top_level.isFullscreen());
+                try std.testing.expectEqualDeep(grown, try Fixture.screenRect(hwnd));
+                // It leaves fullscreen to its source's window, never to the
+                // grown rect.
+                try std.testing.expectEqualDeep(source.host.?.top_level.fullscreen.?, clone.host.?.top_level.fullscreen.?);
+                try std.testing.expect(try perform(clone.host.?, clone, .toggle_fullscreen, .native));
+                try std.testing.expectEqualDeep(source_rect, try Fixture.screenRect(hwnd));
+                fixture.closeWindow(clone);
 
-            // `window-position-x/y` still says where it goes (`createHost`
-            // put it there); only the size comes from the source.
-            try std.testing.expect(sys.SetWindowPos(source_hwnd, null, 80, 90, 640, 480, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
-            try std.testing.expect(sys.SetWindowPos(clone_hwnd, null, 300, 310, 400, 300, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
-            try clone.inheritWindowStateFrom(&source, .{ .position = true });
-            try std.testing.expect(sys.GetWindowRect(clone_hwnd, &rect) != 0);
-            try std.testing.expectEqual(@as(i32, 300), rect.left);
-            try std.testing.expectEqual(@as(i32, 310), rect.top);
-            try std.testing.expectEqual(@as(i32, 640), rect.right - rect.left);
-            try std.testing.expectEqual(@as(i32, 480), rect.bottom - rect.top);
-
-            // A source minimized from maximized restores to maximized, so
-            // the new window is maximized, with the source's normal rect.
-            var normal_placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
-            normal_placement.length = @sizeOf(WINDOWPLACEMENT);
-            try std.testing.expect(sys.GetWindowPlacement(source_hwnd, &normal_placement) != 0);
-            _ = sys.ShowWindow(source_hwnd, c.SW_MAXIMIZE);
-            _ = sys.ShowWindow(source_hwnd, c.SW_SHOWMINNOACTIVE);
-            try std.testing.expect(sys.IsIconic(source_hwnd) != 0);
-            try clone.inheritWindowStateFrom(&source, .{});
-            try std.testing.expect(sys.IsIconic(clone_hwnd) == 0);
-            try std.testing.expect(sys.IsZoomed(clone_hwnd) != 0);
-            var clone_placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
-            clone_placement.length = @sizeOf(WINDOWPLACEMENT);
-            try std.testing.expect(sys.GetWindowPlacement(clone_hwnd, &clone_placement) != 0);
-            try std.testing.expectEqualDeep(normal_placement.rcNormalPosition, clone_placement.rcNormalPosition);
+                try std.testing.expect(try perform(source.host.?, source, .toggle_fullscreen, .native));
+                try std.testing.expectEqualDeep(source_rect, try Fixture.screenRect(source_hwnd));
+            }
         }
     }.body);
+}
+
+test "win32 a translucent OpenGL window fullscreen with its tab bar hidden is unlayered, keeps blur-behind and grows 1 px" {
+    // #608's rule held only an unlayered window to need the extra pixel; a
+    // translucent window was layered then. With #640 it is not, so both hold
+    // at once, through the production decisions: no test flag forces the
+    // composed rect here.
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            _ = sys.SetThreadDpiAwarenessContext(-4);
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const Fixture = WindowStartTestApp;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+            app.config.@"window-show-tab-bar" = .never;
+            app.config.@"background-opacity" = 0.5;
+
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            try std.testing.expect(keepsFullscreenComposed(host));
+            // The fullscreen style write changes the frame: blur-behind is
+            // asserted again after it.
+            const asserts = test_blur_behind_asserts;
+            try std.testing.expect(try perform(host, pane, .toggle_fullscreen, .native));
+            try std.testing.expect(test_blur_behind_asserts > asserts);
+            const screen = try Fixture.monitorRect(hwnd);
+            const monitors = MonitorRects.collect();
+            try std.testing.expect(monitors.complete);
+            // With a monitor past every edge there is no pixel to grow by.
+            const grown = window_start.composedFullscreenRect(screen, monitors.slice()) orelse return error.SkipZigTest;
+            try std.testing.expectEqualDeep(grown, try Fixture.screenRect(hwnd));
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try std.testing.expectEqual(@as(?f64, 0.5), pane.background_opacity);
+            // So it is after leaving fullscreen, and after a decorations
+            // toggle.
+            for ([_]apprt.Action.Key{ .toggle_fullscreen, .toggle_window_decorations, .toggle_window_decorations }) |key| {
+                const before = test_blur_behind_asserts;
+                switch (key) {
+                    .toggle_fullscreen => try std.testing.expect(try perform(host, pane, .toggle_fullscreen, .native)),
+                    .toggle_window_decorations => try std.testing.expect(try perform(host, pane, .toggle_window_decorations, {})),
+                    else => unreachable,
+                }
+                try std.testing.expect(test_blur_behind_asserts > before);
+                try std.testing.expect(!testHostIsLayered(hwnd));
+                try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            }
+        }
+    }.body);
+}
+
+test "win32 a fullscreen window grows only with its tab bar hidden and its active pane on OpenGL" {
+    // The decision the window tests above force on.
+    const Case = struct { tab_bar_shown: bool, renderer: PaneRenderer, grows: bool };
+    for ([_]Case{
+        .{ .tab_bar_shown = false, .renderer = .opengl, .grows = true },
+        // With the tab bar shown the pane is smaller than the monitor.
+        .{ .tab_bar_shown = true, .renderer = .opengl, .grows = false },
+        // D3D11 presents through composition anyway.
+        .{ .tab_bar_shown = false, .renderer = .d3d11, .grows = false },
+        .{ .tab_bar_shown = true, .renderer = .d3d11, .grows = false },
+        // No pane, or one whose renderer does not run yet.
+        .{ .tab_bar_shown = false, .renderer = .none, .grows = false },
+        .{ .tab_bar_shown = false, .renderer = .starting, .grows = false },
+    }) |case| {
+        try std.testing.expectEqual(case.grows, composesFullscreen(case.tab_bar_shown, case.renderer));
+    }
+
+    // Through a window: `window-show-tab-bar` is what hides the tab bar, and
+    // a window with no pane never grows.
+    var app = placementTestApp();
+    var host: Host = .{ .app = &app, .id = 1 };
+    for ([_]configpkg.Config.WindowShowTabBar{ .always, .auto, .never }) |tabs| {
+        app.config.@"window-show-tab-bar" = tabs;
+        try std.testing.expectEqual(tabs != .never, host.shouldShowTabBar());
+        try std.testing.expect(!keepsFullscreenComposed(&host));
+    }
+}
+
+test "win32 a window's active pane reads as no renderer, one starting, OpenGL or D3D11" {
+    try std.testing.expectEqual(PaneRenderer.none, PaneRenderer.of(null));
+    var pane: Surface = .{ .app = undefined };
+    try std.testing.expectEqual(PaneRenderer.starting, PaneRenderer.of(&pane));
+    pane.core_initialized = true;
+    if (comptime !build_config.d3d11) {
+        try std.testing.expectEqual(PaneRenderer.opengl, PaneRenderer.of(&pane));
+        return;
+    }
+    // Only the renderer's `opengl` pointer is read, never what it points at:
+    // null while D3D11 runs, set once OpenGL does.
+    const opengl = &pane.core_surface.renderer.opengl;
+    opengl.* = .init(null);
+    try std.testing.expectEqual(PaneRenderer.d3d11, PaneRenderer.of(&pane));
+    opengl.store(@ptrFromInt(0x1000), .release);
+    try std.testing.expectEqual(PaneRenderer.opengl, PaneRenderer.of(&pane));
 }
 
 test "win32 a host opened from a minimized host starts on screen" {
@@ -1674,7 +1823,7 @@ test "win32 a host opened from a minimized host starts on screen" {
             defer fixture.deinit();
             const app = &fixture.app;
             const title = std.unicode.utf8ToUtf16LeStringLiteral("");
-            const source = try app.createHost(title, &app.config, .{});
+            const source = try app.createHost(title, &app.config, .fresh);
             const hwnd = source.hwnd.?;
             try std.testing.expect(sys.SetWindowPos(hwnd, null, 60, 70, 700, 500, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
             _ = sys.ShowWindow(hwnd, c.SW_SHOWNOACTIVATE);
@@ -1685,8 +1834,7 @@ test "win32 a host opened from a minimized host starts on screen" {
 
             // `createHost` gives the new host the source's place before
             // anything is shown.
-            const clone = try app.createHost(title, &app.config, .{});
-            try app.inheritHostWindowState(clone, source, false);
+            const clone = try app.createHost(title, &app.config, .{ .copy = .{ .source = source } });
             var rect: RECT = undefined;
             try std.testing.expect(sys.GetWindowRect(clone.hwnd.?, &rect) != 0);
             try std.testing.expectEqual(restored.right - restored.left, rect.right - rect.left);
@@ -1730,11 +1878,14 @@ test "win32 new_window does not copy state from a quick terminal" {
 
     const Hook = struct {
         var calls: usize = 0;
-        var clone_state_from: ?*const Surface = null;
+        var source: ?*const Host = null;
 
-        fn createSurface(_: *App, _: *const configpkg.Config, _: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
+        fn createSurface(_: *App, _: *const configpkg.Config, _: LPCWSTR, opts: win32.SurfaceInitOptions) anyerror!*Surface {
             calls += 1;
-            clone_state_from = opts.clone_state_from;
+            source = switch (opts.window) {
+                .copy => |copy| copy.source,
+                else => null,
+            };
             return error.TestWindowCreateFailed;
         }
     };
@@ -1746,20 +1897,20 @@ test "win32 new_window does not copy state from a quick terminal" {
     Hook.calls = 0;
     _ = app.performAction(.app, .new_window, .{}) catch {};
     try std.testing.expectEqual(@as(usize, 1), Hook.calls);
-    try std.testing.expect(Hook.clone_state_from == &surface);
+    try std.testing.expect(Hook.source == &host);
 
     // With no ordinary window it is an ordinary new window.
     _ = app.registry.hosts.orderedRemove(1);
     _ = app.performAction(.app, .new_window, .{}) catch {};
     try std.testing.expectEqual(@as(usize, 2), Hook.calls);
-    try std.testing.expect(Hook.clone_state_from == null);
+    try std.testing.expect(Hook.source == null);
 
     // An ordinary window is what a new one copies.
     app.registry.hosts.clearRetainingCapacity();
     try app.registry.addHost(std.testing.allocator, &host);
     _ = app.performAction(.app, .new_window, .{}) catch {};
     try std.testing.expectEqual(@as(usize, 3), Hook.calls);
-    try std.testing.expect(Hook.clone_state_from == &surface);
+    try std.testing.expect(Hook.source == &host);
 }
 
 test "win32 new_window from the app copies the window activated last, never the quick terminal or a window kept empty for undo" {
@@ -1801,23 +1952,26 @@ test "win32 new_window from the app copies the window activated last, never the 
     quick_host.quick_terminal = true;
 
     const Hook = struct {
-        var clone_state_from: ?*const Surface = null;
+        var copied: ?*const Host = null;
 
-        fn createSurface(_: *App, _: *const configpkg.Config, _: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
-            clone_state_from = opts.clone_state_from;
+        fn createSurface(_: *App, _: *const configpkg.Config, _: LPCWSTR, opts: win32.SurfaceInitOptions) anyerror!*Surface {
+            copied = switch (opts.window) {
+                .copy => |copy| copy.source,
+                else => null,
+            };
             return error.TestWindowCreateFailed;
         }
 
-        fn source(a: *App, target: apprt.Target) !?*const Surface {
-            clone_state_from = null;
+        fn source(a: *App, target: apprt.Target) !?*const Host {
+            copied = null;
             _ = a.performAction(target, .new_window, .{}) catch {};
-            return clone_state_from;
+            return copied;
         }
     };
     app.test_create_window_surface = &Hook.createSurface;
 
     // Never activated: the first ordinary window with a pane, in list order.
-    try std.testing.expect(try Hook.source(&app, .app) == &first);
+    try std.testing.expect(try Hook.source(&app, .app) == &first_host);
 
     // The ordinary window activated last, though the empty window and the
     // quick terminal were activated after it. Before, the empty window in
@@ -1826,133 +1980,16 @@ test "win32 new_window from the app copies the window activated last, never the 
     second_host.activated = 2;
     quick_host.activated = 3;
     empty_host.activated = 4;
-    try std.testing.expect(try Hook.source(&app, .app) == &second);
+    try std.testing.expect(try Hook.source(&app, .app) == &second_host);
     first_host.activated = 5;
-    try std.testing.expect(try Hook.source(&app, .app) == &first);
+    try std.testing.expect(try Hook.source(&app, .app) == &first_host);
 
     // From the quick terminal too. Before, that was the first ordinary
     // window in the list.
     second_host.activated = 6;
-    try std.testing.expect(try Hook.source(&app, .{ .surface = quick_surface.core() }) == &second);
+    try std.testing.expect(try Hook.source(&app, .{ .surface = quick_surface.core() }) == &second_host);
     // From an ordinary window, that window, whenever it was activated.
-    try std.testing.expect(try Hook.source(&app, .{ .surface = first.core() }) == &first);
-}
-
-test "win32 a new window is not maximized by a restore-to-maximized flag left on a normal window" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try runOnHiddenDesktop(struct {
-        fn body() !void {
-            _ = sys.SetThreadDpiAwarenessContext(-4);
-            var app = placementTestApp();
-            var source = try placementTestSurface(&app, 50, 50);
-            defer _ = sys.DestroyWindow(source.hwnd.?);
-            var clone = try placementTestSurface(&app, 700, 300);
-            defer _ = sys.DestroyWindow(clone.hwnd.?);
-            const hwnd = source.hwnd.?;
-
-            // Maximize, minimize, restore (back to maximized), restore again.
-            // Windows keeps WPF_RESTORETOMAXIMIZED in the placement of the
-            // normal window this leaves.
-            _ = sys.ShowWindow(hwnd, c.SW_SHOWNOACTIVATE);
-            _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-            _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
-            _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
-            try std.testing.expect(sys.IsZoomed(hwnd) != 0);
-            _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
-            try std.testing.expect(sys.IsZoomed(hwnd) == 0 and sys.IsIconic(hwnd) == 0);
-
-            try clone.inheritWindowStateFrom(&source, .{});
-            try std.testing.expect(sys.IsZoomed(clone.hwnd.?) == 0);
-
-            // Another tab of the same window syncing its state does not
-            // maximize the window either.
-            var twin = source;
-            try twin.inheritWindowStateFrom(&source, .{});
-            try std.testing.expect(sys.IsZoomed(hwnd) == 0);
-        }
-    }.body);
-}
-
-test "win32 a new window from a fullscreen window covers the same monitor" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try runOnHiddenDesktop(struct {
-        fn body() !void {
-            _ = sys.SetThreadDpiAwarenessContext(-4);
-            var app = placementTestApp();
-            var source = try placementTestSurface(&app, 50, 50);
-            defer _ = sys.DestroyWindow(source.hwnd.?);
-            var clone = try placementTestSurface(&app, 700, 300);
-            defer _ = sys.DestroyWindow(clone.hwnd.?);
-            const monitor = sys.MonitorFromWindow(source.hwnd.?, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
-            const full = (monitorInfo(monitor) orelse return lastError()).full_rect;
-            _ = sys.ShowWindow(source.hwnd.?, c.SW_SHOWNOACTIVATE);
-            source.fullscreen = true;
-            try std.testing.expect(sys.SetWindowPos(source.hwnd.?, null, full.left, full.top, full.width(), full.height(), c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
-
-            // Not stepped down and fitted to the work area, which would show
-            // the taskbar under a window that is meant to be fullscreen, and
-            // not moved by `window-position-x/y`.
-            for ([_]bool{ false, true }) |configured| {
-                try std.testing.expect(sys.SetWindowPos(clone.hwnd.?, null, 700, 300, 640, 480, c.SWP_NOZORDER | c.SWP_NOACTIVATE) != 0);
-                try clone.inheritWindowStateFrom(&source, .{ .position = configured });
-                try std.testing.expect(clone.fullscreen);
-                var rect: RECT = undefined;
-                try std.testing.expect(sys.GetWindowRect(clone.hwnd.?, &rect) != 0);
-                try std.testing.expectEqualDeep(RECT{ .left = full.left, .top = full.top, .right = full.right, .bottom = full.bottom }, rect);
-            }
-
-            // Minimized, the source's own rect is a sliver under the
-            // taskbar; the monitor is still where it is fullscreen.
-            _ = sys.ShowWindow(source.hwnd.?, c.SW_SHOWMINNOACTIVE);
-            try std.testing.expect(sys.IsIconic(source.hwnd.?) != 0);
-            try clone.inheritWindowStateFrom(&source, .{});
-            var rect: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(clone.hwnd.?, &rect) != 0);
-            try std.testing.expectEqualDeep(RECT{ .left = full.left, .top = full.top, .right = full.right, .bottom = full.bottom }, rect);
-        }
-    }.body);
-}
-
-test "win32 new windows from one source step past the windows already there" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try runOnHiddenDesktop(struct {
-        fn body() !void {
-            _ = sys.SetThreadDpiAwarenessContext(-4);
-            var app = placementTestApp();
-            defer app.registry.hosts.deinit(std.testing.allocator);
-            var source = try placementTestSurface(&app, 50, 50);
-            defer _ = sys.DestroyWindow(source.hwnd.?);
-            var clone = try placementTestSurface(&app, 700, 300);
-            defer _ = sys.DestroyWindow(clone.hwnd.?);
-            _ = sys.ShowWindow(source.hwnd.?, c.SW_SHOWNOACTIVATE);
-            var origin: RECT = undefined;
-            try std.testing.expect(sys.GetWindowRect(source.hwnd.?, &origin) != 0);
-            const step = sys.MulDiv(32, @intCast(sys.GetDpiForWindow(source.hwnd.?)), 96);
-
-            // Several new windows opened from the same window: the next one
-            // goes where the last one is not.
-            var rect: RECT = undefined;
-            for ([_]i32{ 1, 2, 3 }) |n| {
-                try clone.inheritWindowStateFrom(&source, .{});
-                try std.testing.expect(sys.GetWindowRect(clone.hwnd.?, &rect) != 0);
-                try std.testing.expectEqual(origin.left + n * step, rect.left);
-                try std.testing.expectEqual(origin.top + n * step, rect.top);
-                var opened = try placementTestSurface(&app, rect.left, rect.top);
-                _ = sys.ShowWindow(opened.hwnd.?, c.SW_SHOWNOACTIVATE);
-                const host = try std.testing.allocator.create(Host);
-                host.* = .{ .app = &app, .id = @intCast(n), .hwnd = opened.hwnd };
-                try app.registry.addHost(std.testing.allocator, host);
-                // Kept until the end of the body: `opened` is a copy of the
-                // window handle, destroyed with the loop's other windows.
-                _ = &opened;
-            }
-            for (app.registry.hosts.items) |host| {
-                _ = sys.DestroyWindow(host.hwnd.?);
-                std.testing.allocator.destroy(host);
-            }
-            app.registry.hosts.clearRetainingCapacity();
-        }
-    }.body);
+    try std.testing.expect(try Hook.source(&app, .{ .surface = first.core() }) == &first_host);
 }
 
 test "win32 maximize and fullscreen start a new window in that state at its first show" {
@@ -1977,7 +2014,7 @@ test "win32 maximize and fullscreen start a new window in that state at its firs
                 const shown = Fixture.first_show orelse return error.TestWindowNeverShown;
                 const screen = try Fixture.monitorRect(hwnd);
 
-                try std.testing.expectEqual(fullscreen, surface.fullscreen);
+                try std.testing.expectEqual(fullscreen, surface.host.?.top_level.isFullscreen());
                 if (fullscreen) {
                     // Shown at the monitor's rect, without a frame: no
                     // framed window first. And never a maximized popup,
@@ -1989,8 +2026,8 @@ test "win32 maximize and fullscreen start a new window in that state at its firs
                     try std.testing.expectEqualDeep(screen, try Fixture.screenRect(hwnd));
                     // Leaving it gives back the window it was created as,
                     // maximized with both.
-                    try surface.toggleFullscreen(.native);
-                    try std.testing.expect(!surface.fullscreen);
+                    _ = try perform(surface.host.?, surface, .toggle_fullscreen, .native);
+                    try std.testing.expect(!surface.host.?.top_level.isFullscreen());
                     try std.testing.expect(Fixture.framed(hwnd));
                     try std.testing.expectEqual(maximize, sys.IsZoomed(hwnd) != 0);
                     try std.testing.expectEqualDeep(created, try Fixture.normalRect(hwnd));
@@ -2062,20 +2099,20 @@ test "win32 a new window from a normal one takes maximize, and a forwarded --max
                 const clone = fixture.newest();
                 try std.testing.expect(clone != source);
                 const hwnd = clone.windowHwnd().?;
-                try std.testing.expectEqual(case.fullscreen, clone.fullscreen);
+                try std.testing.expectEqual(case.fullscreen, clone.host.?.top_level.isFullscreen());
                 if (case.fullscreen) {
                     // On the source's monitor, and back to the cascaded
                     // window when it leaves, maximized with both.
                     try std.testing.expectEqualDeep(screen, try Fixture.screenRect(hwnd));
                     try std.testing.expect(sys.IsZoomed(hwnd) == 0);
-                    try clone.toggleFullscreen(.native);
+                    _ = try perform(clone.host.?, clone, .toggle_fullscreen, .native);
                 }
                 // Before the fix every one of these ended in the source's
                 // SW_RESTORE.
                 try std.testing.expectEqual(case.maximized, sys.IsZoomed(hwnd) != 0);
                 try std.testing.expectEqualDeep(cascaded, try Fixture.normalRect(hwnd));
                 // The source is left as it was.
-                try std.testing.expect(sys.IsZoomed(source_hwnd) == 0 and !source.fullscreen);
+                try std.testing.expect(sys.IsZoomed(source_hwnd) == 0 and !source.host.?.top_level.isFullscreen());
                 try std.testing.expectEqualDeep(source_rect, try Fixture.screenRect(source_hwnd));
                 fixture.closeWindow(clone);
             }
@@ -2158,44 +2195,7 @@ const ForwardedKeysTest = struct {
     }
 
     fn undecoratedStyle(surface: *const Surface) u32 {
-        return effectiveHostWindowStyle(surface.keepsFrameUndecorated(), false, true) & ~@as(u32, c.WS_VISIBLE);
-    }
-
-    /// The monitors of the desktop, at most `buf.len`. A CI runner has one,
-    /// so the legs that need two run only on a machine with more.
-    fn monitors(buf: *[8]MONITORINFO) ![]const MONITORINFO {
-        const Collect = struct {
-            infos: *[8]MONITORINFO,
-            count: usize = 0,
-            failed: bool = false,
-
-            fn add(monitor: sys.HMONITOR, _: HDC, _: *RECT, data: LPARAM) callconv(.winapi) BOOL {
-                const self: *@This() = @ptrFromInt(@as(usize, @bitCast(data)));
-                if (self.count == self.infos.len) return 0;
-                var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
-                info.cbSize = @sizeOf(MONITORINFO);
-                if (sys.GetMonitorInfoW(monitor, &info) == 0) {
-                    self.failed = true;
-                    return 0;
-                }
-                self.infos[self.count] = info;
-                self.count += 1;
-                return 1;
-            }
-        };
-        var collect: Collect = .{ .infos = buf };
-        _ = sys.EnumDisplayMonitors(null, null, Collect.add, @bitCast(@intFromPtr(&collect)));
-        if (collect.failed) return lastError();
-        return buf[0..collect.count];
-    }
-
-    /// Moves the source, a normal window, to (100, 100) in `work`, asking
-    /// for 800x600 (onto a monitor of another DPI it takes the size its DPI
-    /// change scales that to), and returns its DPI there.
-    fn moveSource(self: *ForwardedKeysTest, work: RECT) !u32 {
-        const hwnd = self.source.windowHwnd().?;
-        if (sys.SetWindowPos(hwnd, null, work.left + 100, work.top + 100, 800, 600, c.SWP_NOZORDER | c.SWP_NOACTIVATE) == 0) return lastError();
-        return sys.GetDpiForWindow(hwnd);
+        return hostStyle(keepsFrameUndecorated(surface.host.?), false);
     }
 };
 
@@ -2265,7 +2265,7 @@ test "win32 a forwarded window size sizes a new window, also one opened from a m
                 try std.testing.expectEqual(t.cascaded.left, rect.left);
                 try std.testing.expectEqual(t.cascaded.top, rect.top);
                 // And what `reset_window_size` returns to.
-                try std.testing.expectEqualDeep(@as(?apprt.SurfaceSize, .{ .width = ForwardedKeysTest.own.width, .height = ForwardedKeysTest.own.height }), clone.default_client_size);
+                try std.testing.expectEqualDeep(@as(?apprt.SurfaceSize, .{ .width = ForwardedKeysTest.own.width, .height = ForwardedKeysTest.own.height }), clone.metrics.default_client_size);
                 t.fixture.closeWindow(clone);
             }
 
@@ -2289,216 +2289,21 @@ test "win32 a forwarded window size sizes a new window, also one opened from a m
 
             // From a fullscreen source: the window the fullscreen new window
             // leaves fullscreen to, where the source's is.
-            try t.source.toggleFullscreen(.native);
+            _ = try perform(t.source.host.?, t.source, .toggle_fullscreen, .native);
             {
                 const clone = try t.forward(ForwardedKeysTest.sized, ForwardedKeysTest.own);
                 const hwnd = clone.windowHwnd().?;
-                try std.testing.expect(clone.fullscreen);
+                try std.testing.expect(clone.host.?.top_level.isFullscreen());
                 try std.testing.expectEqualDeep(try Fixture.monitorRect(hwnd), try Fixture.screenRect(hwnd));
-                try clone.toggleFullscreen(.native);
-                try std.testing.expect(!clone.fullscreen and sys.IsZoomed(hwnd) == 0);
+                _ = try perform(clone.host.?, clone, .toggle_fullscreen, .native);
+                try std.testing.expect(!clone.host.?.top_level.isFullscreen() and sys.IsZoomed(hwnd) == 0);
                 try std.testing.expectEqualDeep(ForwardedKeysTest.ownClient(clone), try ForwardedKeysTest.clientSize(hwnd));
                 const rect = try Fixture.screenRect(hwnd);
                 try std.testing.expectEqual(t.source_rect.left, rect.left);
                 try std.testing.expectEqual(t.source_rect.top, rect.top);
                 t.fixture.closeWindow(clone);
             }
-            try t.source.toggleFullscreen(.native);
-        }
-    }.body);
-}
-
-test "win32 a forwarded size from a fullscreen window is in the pixels of the monitor the new window is on" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try runOnHiddenDesktop(struct {
-        /// Moves the source, a normal window, near the far corner of `work`,
-        /// where its rect fits and a new window of the forwarded size does
-        /// not, also on a 1024x768 runner at 96 DPI.
-        fn toCorner(hwnd: HWND, work: RECT) !void {
-            if (sys.SetWindowPos(hwnd, null, work.right - 300, work.bottom - 200, 280, 180, c.SWP_NOZORDER | c.SWP_NOACTIVATE) == 0) return lastError();
-        }
-
-        /// The new window leaves fullscreen, maximized if the source was
-        /// before it went fullscreen, and is then restored: it has the client
-        /// its forwarded size gives it, inside `work`. Returns its rect.
-        fn leaveInside(clone: *Surface, maximized: bool, work: RECT) !RECT {
-            const hwnd = clone.windowHwnd().?;
-            try std.testing.expect(clone.fullscreen);
-            try clone.toggleFullscreen(.native);
-            try std.testing.expect(!clone.fullscreen);
-            try std.testing.expectEqual(maximized, sys.IsZoomed(hwnd) != 0);
-            if (maximized) _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
-            try std.testing.expectEqualDeep(ForwardedKeysTest.ownClient(clone), try ForwardedKeysTest.clientSize(hwnd));
-            const rect = try ForwardedKeysTest.Fixture.screenRect(hwnd);
-            try std.testing.expect(rect.left >= work.left and rect.top >= work.top);
-            try std.testing.expect(rect.right <= work.right and rect.bottom <= work.bottom);
-            return rect;
-        }
-
-        /// The source leaves fullscreen too. `rect`, the new window's, is
-        /// where the source comes back to, moved only as far as its own
-        /// size needs to stay inside `work`.
-        fn expectAtSource(t: *ForwardedKeysTest, maximized: bool, rect: RECT, work: RECT) !void {
-            const hwnd = t.source.windowHwnd().?;
-            try t.source.toggleFullscreen(.native);
-            const back = if (maximized) try ForwardedKeysTest.Fixture.normalRect(hwnd) else try ForwardedKeysTest.Fixture.screenRect(hwnd);
-            try std.testing.expectEqualDeep(fitRectInWork(back.left, back.top, rect.right - rect.left, rect.bottom - rect.top, work), rect);
-            if (maximized) _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
-        }
-
-        fn body() !void {
-            var t: ForwardedKeysTest = .{};
-            try t.init();
-            defer t.deinit();
-            const Fixture = ForwardedKeysTest.Fixture;
-            const source_hwnd = t.source.windowHwnd().?;
-
-            // The source entered fullscreen while its monitor's scale was
-            // twice what it is now, so leaving gives it its rect at half the
-            // size. The new window's forwarded size is its own, in pixels of
-            // the scale it has now. Before the fix it was halved too.
-            try t.source.toggleFullscreen(.native);
-            const dpi = t.source.restore_monitor.?.dpi;
-            t.source.restore_monitor.?.dpi = dpi * 2;
-            {
-                const clone = try t.forward(ForwardedKeysTest.sized, ForwardedKeysTest.own);
-                t.source.restore_monitor.?.dpi = dpi;
-                const hwnd = clone.windowHwnd().?;
-                try std.testing.expect(clone.fullscreen);
-                try clone.toggleFullscreen(.native);
-                try std.testing.expect(!clone.fullscreen and sys.IsZoomed(hwnd) == 0);
-                try std.testing.expectEqualDeep(ForwardedKeysTest.ownClient(clone), try ForwardedKeysTest.clientSize(hwnd));
-                const rect = try Fixture.screenRect(hwnd);
-                try std.testing.expectEqual(t.source_rect.left, rect.left);
-                try std.testing.expectEqual(t.source_rect.top, rect.top);
-                t.fixture.closeWindow(clone);
-            }
-            try t.source.toggleFullscreen(.native);
-
-            // Near the far corner of the work area the source fits and the
-            // new window does not, so it comes back moved inside, as one
-            // opened from a normal or maximized source is. Also from a source
-            // maximized before it went fullscreen, which leaves to its
-            // placement, and at the doubled scale above. Before the fix it
-            // reached past the work area at either scale, and from the
-            // maximized source at the doubled scale its client was halved.
-            const work = (try Surface.windowMonitor(source_hwnd)).info.rcWork;
-            for ([_]bool{ false, true }) |maximized| {
-                for ([_]u32{ 1, 2 }) |scale| {
-                    try toCorner(source_hwnd, work);
-                    if (maximized) _ = sys.ShowWindow(source_hwnd, c.SW_MAXIMIZE);
-                    try t.source.toggleFullscreen(.native);
-                    t.source.restore_monitor.?.dpi = dpi * scale;
-                    const clone = try t.forward(ForwardedKeysTest.sized, ForwardedKeysTest.own);
-                    t.source.restore_monitor.?.dpi = dpi;
-                    const rect = try leaveInside(clone, maximized, work);
-                    t.fixture.closeWindow(clone);
-                    try expectAtSource(&t, maximized, rect, work);
-                }
-            }
-
-            // The same with real monitors: the source entered fullscreen on
-            // one and was moved to another while fullscreen. Measured on
-            // main with a 144 DPI and two 96 DPI monitors: the new window
-            // left fullscreen with a 261x187 client on a 96 DPI monitor and
-            // 911x703 on the 144 DPI one, where 400x300 and 600x450 were
-            // asked for. Monitors of the same DPI were right before the fix.
-            // The maximized source pins the placement's half of the fix.
-            var buf: [8]MONITORINFO = undefined;
-            const monitors = try ForwardedKeysTest.monitors(&buf);
-            for (monitors) |entered| {
-                for (monitors) |now| {
-                    if (std.meta.eql(entered.rcMonitor, now.rcMonitor)) continue;
-                    for ([_]bool{ false, true }) |maximized| {
-                        _ = try t.moveSource(entered.rcWork);
-                        try toCorner(source_hwnd, entered.rcWork);
-                        if (maximized) _ = sys.ShowWindow(source_hwnd, c.SW_MAXIMIZE);
-                        try t.source.toggleFullscreen(.native);
-                        const screen = now.rcMonitor;
-                        if (sys.SetWindowPos(source_hwnd, null, screen.left, screen.top, screen.right - screen.left, screen.bottom - screen.top, c.SWP_NOZORDER | c.SWP_NOACTIVATE) == 0) return lastError();
-                        const now_dpi = sys.GetDpiForWindow(source_hwnd);
-                        const clone = try t.forward(ForwardedKeysTest.sized, ForwardedKeysTest.own);
-                        const hwnd = clone.windowHwnd().?;
-                        try std.testing.expectEqualDeep(screen, try Fixture.screenRect(hwnd));
-                        const rect = try leaveInside(clone, maximized, now.rcWork);
-                        try std.testing.expectEqualDeep(screen, try Fixture.monitorRect(hwnd));
-                        try std.testing.expectEqual(now_dpi, sys.GetDpiForWindow(hwnd));
-                        t.fixture.closeWindow(clone);
-                        try expectAtSource(&t, maximized, rect, now.rcWork);
-                    }
-                }
-            }
-        }
-    }.body);
-}
-
-test "win32 a new window placed and sized by forwarded arguments keeps that size on any monitor" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    try runOnHiddenDesktop(struct {
-        fn forwardAt(t: *ForwardedKeysTest, x: i32, y: i32, size: apprt.action.InitialSize) !void {
-            var buf: [2][32]u8 = undefined;
-            const placed = try ForwardedKeysTest.placedAt(&buf, x, y);
-            const clone = try t.forward(&.{ placed[0], placed[1], ForwardedKeysTest.sized[0], ForwardedKeysTest.sized[1] }, size);
-            const hwnd = clone.windowHwnd().?;
-            const rect = try ForwardedKeysTest.Fixture.screenRect(hwnd);
-            try std.testing.expectEqual(x, rect.left);
-            try std.testing.expectEqual(y, rect.top);
-            try std.testing.expectEqualDeep(
-                scaleInitialClientSize(.{ .width = size.width, .height = size.height }, clone.content_scale),
-                try ForwardedKeysTest.clientSize(hwnd),
-            );
-            t.fixture.closeWindow(clone);
-        }
-
-        fn body() !void {
-            var t: ForwardedKeysTest = .{};
-            try t.init();
-            defer t.deinit();
-            const source_hwnd = t.source.windowHwnd().?;
-
-            // Placed where the arguments say, a window keeps the size they
-            // give it, as a first window would, even where it does not fit
-            // the source's work area: the cascade that fits a new window to
-            // that area does not place this one. Before the fix it was cut
-            // to that area. On the source's monitor, that is a window taller
-            // than the work area, up to the tallest a window can be.
-            {
-                const monitor = try Surface.windowMonitor(source_hwnd);
-                const work = monitor.info.rcWork;
-                const scale: apprt.ContentScale = .{
-                    .x = @as(f32, @floatFromInt(monitor.dpi)) / 96.0,
-                    .y = @as(f32, @floatFromInt(monitor.dpi)) / 96.0,
-                };
-                const frame_height = (t.source_rect.bottom - t.source_rect.top) -
-                    @as(i32, @intCast((try ForwardedKeysTest.clientSize(source_hwnd)).height));
-                const height: u32 = @intFromFloat(@ceil(@as(f32, @floatFromInt(work.bottom - work.top - frame_height + 1)) / scale.y));
-                const client = scaleInitialClientSize(.{ .width = ForwardedKeysTest.own.width, .height = height }, scale);
-                // SM_CYMAXTRACK.
-                const tallest = sys.GetSystemMetricsForDpi(60, monitor.dpi);
-                if (@as(i32, @intCast(client.height)) + frame_height <= tallest) {
-                    try forwardAt(&t, work.left + 40, work.top, .{ .width = ForwardedKeysTest.own.width, .height = height });
-                }
-            }
-
-            // Placed on another monitor, larger than the source's work area
-            // and inside its own. Measured on main with 3840x2088,
-            // 1920x1032 and 1080x1872 work areas: every window larger than
-            // the source's work area was cut to it, at the right place.
-            var buf: [8]MONITORINFO = undefined;
-            const monitors = try ForwardedKeysTest.monitors(&buf);
-            for (monitors) |source| {
-                for (monitors) |target| {
-                    if (std.meta.eql(source.rcMonitor, target.rcMonitor)) continue;
-                    const target_dpi: i32 = @intCast(try t.moveSource(target.rcWork));
-                    _ = try t.moveSource(source.rcWork);
-                    const width = @min(target.rcWork.right - target.rcWork.left - 120, @max(source.rcWork.right - source.rcWork.left + 60, 600));
-                    const height = @min(target.rcWork.bottom - target.rcWork.top - 120, @max(source.rcWork.bottom - source.rcWork.top + 40, 400));
-                    try forwardAt(&t, target.rcWork.left + 40, target.rcWork.top + 30, .{
-                        .width = @intCast(@divTrunc(width * 96, target_dpi)),
-                        .height = @intCast(@divTrunc(height * 96, target_dpi)),
-                    });
-                }
-            }
+            _ = try perform(t.source.host.?, t.source, .toggle_fullscreen, .native);
         }
     }.body);
 }
@@ -2512,7 +2317,7 @@ test "win32 forwarded window decorations win over the ones a new window copies" 
             defer t.deinit();
             const style = ForwardedKeysTest.style;
             const undecorated = ForwardedKeysTest.undecoratedStyle;
-            const framed = effectiveHostWindowStyle(true, false, true) & ~@as(u32, c.WS_VISIBLE);
+            const framed = hostStyle(true, false);
 
             // Windows 10's frameless undecorated window, and Windows 11's,
             // which keeps the frame (`undecoratedKeepsFrame`), so there only
@@ -2523,30 +2328,30 @@ test "win32 forwarded window decorations win over the ones a new window copies" 
                 // Before the fix a new window always took the source's.
                 {
                     const clone = try t.forward(&.{"--window-decoration=none"}, null);
-                    try std.testing.expect(!clone.decorations_visible and !clone.host.?.cached_decorations_visible);
+                    try std.testing.expect(!clone.host.?.top_level.decorations_visible);
                     try std.testing.expectEqual(undecorated(clone), style(clone.windowHwnd().?));
-                    try std.testing.expectEqual(clone.keepsFrameUndecorated(), undecorated(clone) == framed);
+                    try std.testing.expectEqual(keepsFrameUndecorated(clone.host.?), undecorated(clone) == framed);
                     t.fixture.closeWindow(clone);
                 }
-                try t.source.toggleDecorations();
+                try std.testing.expect(try perform(t.source.host.?, t.source, .toggle_window_decorations, {}));
                 // The control: without them it copies the source's.
                 {
                     const clone = try t.forward(null, null);
-                    try std.testing.expect(!clone.decorations_visible);
+                    try std.testing.expect(!clone.host.?.top_level.decorations_visible);
                     try std.testing.expectEqual(undecorated(clone), style(clone.windowHwnd().?));
                     t.fixture.closeWindow(clone);
                 }
                 {
                     const clone = try t.forward(&.{"--window-decoration=auto"}, null);
-                    try std.testing.expect(clone.decorations_visible and clone.host.?.cached_decorations_visible);
+                    try std.testing.expect(clone.host.?.top_level.decorations_visible);
                     try std.testing.expectEqual(framed, style(clone.windowHwnd().?));
                     // A config reload gives it the config's decorations
                     // again, as it does a window that took them from the
                     // config.
-                    try std.testing.expect(!clone.decorations_visible_overridden);
+                    try std.testing.expect(!clone.host.?.top_level.decorations_overridden);
                     t.fixture.closeWindow(clone);
                 }
-                try t.source.toggleDecorations();
+                try std.testing.expect(try perform(t.source.host.?, t.source, .toggle_window_decorations, {}));
             }
         }
     }.body);
@@ -2563,16 +2368,18 @@ test "win32 a forwarded window background opacity wins over the one a new window
             // The control: an opaque source, an opaque copy.
             {
                 const clone = try t.forward(null, null);
-                try std.testing.expect(!testHostIsLayered(clone.windowHwnd().?));
+                try std.testing.expectEqual(@as(?u8, null), shownAlpha(clone.windowHwnd().?));
                 t.fixture.closeWindow(clone);
             }
-            // Before the fix the copy stayed opaque.
+            // Before the fix the copy stayed opaque. Its background alone is
+            // translucent (#640), and its pane is told so.
             {
                 const clone = try t.forward(&.{"--background-opacity=0.5"}, null);
                 const hwnd = clone.windowHwnd().?;
-                try std.testing.expectEqual(@as(f64, 0.5), clone.background_opacity_default);
-                try std.testing.expect(testHostIsLayered(hwnd));
-                try std.testing.expect((testLayeredAlpha(hwnd) orelse 255) < 255);
+                try std.testing.expectEqual(@as(f64, 0.5), clone.host.?.top_level.opacity);
+                try std.testing.expect(!testHostIsLayered(hwnd));
+                try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+                try std.testing.expectEqual(@as(?f64, 0.5), clone.background_opacity);
                 t.fixture.closeWindow(clone);
             }
         }
@@ -2600,7 +2407,7 @@ test "win32 forwarded window keys apply to a new window when no window is open" 
             try std.testing.expectEqual(x, rect.left);
             try std.testing.expectEqual(y, rect.top);
             try std.testing.expectEqualDeep(ForwardedKeysTest.ownClient(clone), try ForwardedKeysTest.clientSize(hwnd));
-            try std.testing.expect(!clone.decorations_visible and !clone.host.?.cached_decorations_visible);
+            try std.testing.expect(!clone.host.?.top_level.decorations_visible);
             try std.testing.expectEqual(ForwardedKeysTest.undecoratedStyle(clone), ForwardedKeysTest.style(hwnd));
         }
     }.body);
@@ -2659,13 +2466,14 @@ test "win32 a forwarded window copies the window activated last, not the first i
         }
 
         /// A plain forward is one cascade step off `source`, at its size,
-        /// kept in its work area as `newWindowPlacement` keeps it.
+        /// kept in its work area as `window_start.place` keeps it.
         fn expectCopies(t: *ForwardedKeysTest, source: *Surface) !void {
             const hwnd = source.windowHwnd().?;
             const rect = try ForwardedKeysTest.Fixture.screenRect(hwnd);
-            const work = (try Surface.windowMonitor(hwnd)).info.rcWork;
+            const work = (try windowMonitor(hwnd)).info.rcWork;
             const clone = try t.forward(null, null);
-            try std.testing.expectEqualDeep(cascadedRect(rect, cascadeStep(sys.GetDpiForWindow(hwnd)), work), try ForwardedKeysTest.Fixture.screenRect(clone.windowHwnd().?));
+            const step = cascadeStep(sys.GetDpiForWindow(hwnd));
+            try std.testing.expectEqualDeep(fitRectInWork(rect.left + step, rect.top + step, rect.right - rect.left, rect.bottom - rect.top, work), try ForwardedKeysTest.Fixture.screenRect(clone.windowHwnd().?));
             t.fixture.closeWindow(clone);
         }
     }.body);
@@ -2692,16 +2500,16 @@ test "win32 a config reload of maximize and fullscreen leaves the windows alread
             defer both.deinit();
             both.maximize = true;
             both.fullscreen = .true;
-            try reload(app, &both);
+            try reloadConfig(app, &both);
             try std.testing.expect(app.config.maximize and app.config.fullscreen == .true);
-            try std.testing.expect(sys.IsZoomed(plain_hwnd) == 0 and !plain.fullscreen);
+            try std.testing.expect(sys.IsZoomed(plain_hwnd) == 0 and !plain.host.?.top_level.isFullscreen());
             try std.testing.expectEqualDeep(plain_rect, try Fixture.screenRect(plain_hwnd));
 
             // A window opened after the reload takes them.
             try app.createWindow(default_title);
             const started = fixture.newest();
             const started_hwnd = started.windowHwnd().?;
-            try std.testing.expect(started.fullscreen);
+            try std.testing.expect(started.host.?.top_level.isFullscreen());
             const started_rect = try Fixture.screenRect(started_hwnd);
 
             // Turned off: neither window changes, and the second still
@@ -2710,237 +2518,1973 @@ test "win32 a config reload of maximize and fullscreen leaves the windows alread
             defer neither.deinit();
             neither.maximize = false;
             neither.fullscreen = .false;
-            try reload(app, &neither);
-            try std.testing.expect(started.fullscreen and sys.IsZoomed(started_hwnd) == 0);
+            try reloadConfig(app, &neither);
+            try std.testing.expect(started.host.?.top_level.isFullscreen() and sys.IsZoomed(started_hwnd) == 0);
             try std.testing.expectEqualDeep(started_rect, try Fixture.screenRect(started_hwnd));
-            try std.testing.expect(sys.IsZoomed(plain_hwnd) == 0 and !plain.fullscreen);
+            try std.testing.expect(sys.IsZoomed(plain_hwnd) == 0 and !plain.host.?.top_level.isFullscreen());
             try std.testing.expectEqualDeep(plain_rect, try Fixture.screenRect(plain_hwnd));
-            try started.toggleFullscreen(.native);
+            _ = try perform(started.host.?, started, .toggle_fullscreen, .native);
             try std.testing.expect(sys.IsZoomed(started_hwnd) != 0);
-        }
-
-        /// What a reload does once the file is read (`CoreApp.updateConfig`):
-        /// each pane's config change, then the app's.
-        fn reload(app: *App, config: *const configpkg.Config) !void {
-            for (app.registry.windows.items) |surface| {
-                try std.testing.expect(try app.performAction(.{ .surface = surface.core() }, .config_change, .{ .config = config }));
-            }
-            try std.testing.expect(try app.performAction(.app, .config_change, .{ .config = config }));
         }
     }.body);
 }
 
-test "win32 shouldPropagateSharedHostWindowState only for active shared-host surfaces" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var standalone: Surface = undefined;
-    standalone.host = null;
-    try std.testing.expect(shouldPropagateSharedHostWindowState(&standalone));
-
-    var host: Host = undefined;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var active_surface: Surface = undefined;
-    active_surface.host = &host;
-    var inactive_surface: Surface = undefined;
-    inactive_surface.host = &host;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &active_surface));
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 2, &inactive_surface));
-
-    try std.testing.expect(shouldPropagateSharedHostWindowState(&active_surface));
-    try std.testing.expect(!shouldPropagateSharedHostWindowState(&inactive_surface));
-
-    host.active_tab = 1;
-    try std.testing.expect(!shouldPropagateSharedHostWindowState(&active_surface));
-    try std.testing.expect(shouldPropagateSharedHostWindowState(&inactive_surface));
+/// What a reload does once the file is read (`App.updateCoreConfig`): each
+/// pane's config change, then the app's, as core orders them (a test pane
+/// has no core: `App.test_surface_init_stage`).
+fn reloadConfig(app: *App, config: *const configpkg.Config) !void {
+    try app.updateCoreConfig(config);
 }
 
-test "win32 config decoration reload respects runtime override" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(shouldApplyConfigDecorations(false));
-    try std.testing.expect(!shouldApplyConfigDecorations(true));
-}
-
-test "win32 shouldResizeHostForInitialSize only for single-surface hosts" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(!shouldResizeHostForInitialSize(0));
-    try std.testing.expect(shouldResizeHostForInitialSize(1));
-    try std.testing.expect(!shouldResizeHostForInitialSize(2));
-    try std.testing.expect(!shouldResizeHostForInitialSize(8));
-}
-
-test "win32 sharedHostWindowFrameStateEquals ignores non-frame host state" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var a: Surface = undefined;
-    a.decorations_visible = true;
-    a.fullscreen = false;
-    a.topmost = false;
-    a.background_opacity_default = 1.0;
-    a.background_opacity_force_opaque = false;
-    a.size_limit = .{
-        .min_width = 0,
-        .min_height = 0,
-        .max_width = 0,
-        .max_height = 0,
+/// That `applied` has `host`'s window applying its opacity once, at
+/// `opacity`.
+fn expectAppliedOnce(applied: []const TestOpacityApply, host: *const Host, opacity: f64) !void {
+    var applies: usize = 0;
+    for (applied) |apply| if (apply.host == host) {
+        applies += 1;
+        try std.testing.expectEqual(opacity, apply.opacity);
     };
-
-    var b: Surface = a;
-    b.topmost = true;
-    b.background_opacity_default = 0.6;
-    b.background_opacity_force_opaque = true;
-
-    try std.testing.expect(sharedHostWindowFrameStateEquals(&a, &b));
-
-    b.decorations_visible = false;
-    try std.testing.expect(!sharedHostWindowFrameStateEquals(&a, &b));
-    b.decorations_visible = a.decorations_visible;
-
-    b.size_limit = .{ .min_width = 123, .min_height = 0, .max_width = 0, .max_height = 0 };
-    try std.testing.expect(!sharedHostWindowFrameStateEquals(&a, &b));
+    try std.testing.expectEqual(@as(usize, 1), applies);
 }
 
-test "win32 applyInitialBackgroundOpacity layers the cold-start host window" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
-
-    var host: Host = undefined;
-    var surface: Surface = undefined;
-    try initTestHostWindowFixture(&host, &surface, hwnd);
-    defer deinitTestHostWindowFixture(&host);
-
-    // Regression for #234: a cold-start window never reached
-    // `applyBackgroundOpacity`, so it stayed opaque while cloned windows
-    // faded. `WS_EX_LAYERED` plus `LWA_ALPHA` is the whole mechanism.
-    surface.background_opacity_default = 0.75;
-    surface.applyInitialBackgroundOpacity(null);
-    try std.testing.expect(testHostIsLayered(hwnd));
-    try std.testing.expectEqual(@as(?u8, 191), testLayeredAlpha(hwnd));
-
-    // `toggle_background_opacity` forces the window opaque, which must drop
-    // the layered style entirely rather than set alpha 255.
-    try std.testing.expect(try surface.toggleBackgroundOpacity());
-    try std.testing.expect(!testHostIsLayered(hwnd));
-
-    try std.testing.expect(try surface.toggleBackgroundOpacity());
-    try std.testing.expect(testHostIsLayered(hwnd));
-    try std.testing.expectEqual(@as(?u8, 191), testLayeredAlpha(hwnd));
+/// The alpha `hwnd`'s window shows at, either way: layered whole, or its
+/// background alone under blur-behind.
+fn shownAlpha(hwnd: HWND) ?u8 {
+    return if (testHostIsLayered(hwnd)) testLayeredAlpha(hwnd) else testBackgroundAlpha(hwnd);
 }
 
-test "win32 applyInitialBackgroundOpacity leaves a fully opaque window unlayered" {
+test "win32 a first window and a window opened from it show their opacity at the first show" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const Fixture = WindowStartTestApp;
 
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
+            // OpenGL panes: the background alone is translucent, and the
+            // window is never layered (#640). D3D11 panes: the whole window
+            // fades, layered, as before.
+            for ([_]PaneRenderer{ .opengl, .d3d11 }) |renderer| {
+                test_pane_renderer = renderer;
+                defer test_pane_renderer = null;
+                const layered: ?u8 = if (renderer == .d3d11) 128 else null;
+                const background: ?u8 = if (renderer == .opengl) 128 else null;
 
-    var host: Host = undefined;
-    var surface: Surface = undefined;
-    try initTestHostWindowFixture(&host, &surface, hwnd);
-    defer deinitTestHostWindowFixture(&host);
+                // The default, opaque, is neither: layering would put every
+                // window on a composition path it does not need.
+                app.config.@"background-opacity" = 1;
+                try app.createWindow(default_title);
+                var shown = Fixture.first_show orelse return error.TestWindowNeverShown;
+                try std.testing.expect(shown.ex_style & c.WS_EX_LAYERED == 0);
+                try std.testing.expectEqual(@as(?u8, null), shown.alpha);
+                try std.testing.expectEqual(@as(?u8, null), shown.background_alpha);
+                fixture.closeWindow(fixture.newest());
 
-    // The default configuration must not start layering every window: that
-    // would put all of Win32 on a composition path it does not need.
-    surface.applyInitialBackgroundOpacity(null);
-    try std.testing.expect(!testHostIsLayered(hwnd));
-    try std.testing.expectEqual(@as(?u8, null), testLayeredAlpha(hwnd));
+                // Translucent before any show (#234): no opaque frame, then a
+                // fade.
+                app.config.@"background-opacity" = 0.5;
+                try app.createWindow(default_title);
+                const source = fixture.newest();
+                shown = Fixture.first_show orelse return error.TestWindowNeverShown;
+                try std.testing.expectEqual(layered != null, shown.ex_style & c.WS_EX_LAYERED != 0);
+                try std.testing.expectEqual(layered, shown.alpha);
+                try std.testing.expectEqual(background, shown.background_alpha);
+
+                // A copy shows at its source's opacity before it takes the
+                // source's state.
+                try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = null }));
+                shown = Fixture.first_show orelse return error.TestWindowNeverShown;
+                try std.testing.expectEqual(layered != null, shown.ex_style & c.WS_EX_LAYERED != 0);
+                try std.testing.expectEqual(layered, shown.alpha);
+                try std.testing.expectEqual(background, shown.background_alpha);
+                fixture.closeWindow(fixture.newest());
+
+                // A copy of a window the user forced opaque is never shown
+                // faded. Forced opaque, a window drops the layered style and
+                // blur-behind, not just its alpha to 255, and takes them back
+                // with the toggle.
+                const hwnd = source.windowHwnd().?;
+                try std.testing.expect(try app.performAction(.{ .surface = source.core() }, .toggle_background_opacity, {}));
+                try std.testing.expect(!testHostIsLayered(hwnd));
+                try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+                try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = null }));
+                shown = Fixture.first_show orelse return error.TestWindowNeverShown;
+                try std.testing.expect(shown.ex_style & c.WS_EX_LAYERED == 0);
+                try std.testing.expectEqual(@as(?u8, null), shown.alpha);
+                try std.testing.expectEqual(@as(?u8, null), shown.background_alpha);
+                fixture.closeWindow(fixture.newest());
+                try std.testing.expect(try app.performAction(.{ .surface = source.core() }, .toggle_background_opacity, {}));
+                try std.testing.expectEqual(layered != null, testHostIsLayered(hwnd));
+                try std.testing.expectEqual(layered orelse background, shownAlpha(hwnd));
+                fixture.closeWindow(source);
+            }
+        }
+    }.body);
 }
 
-test "win32 applyInitialBackgroundOpacity seeds a clone from its source window" {
+test "win32 an OpenGL window's background alone shows its opacity, in every pane, through a toggle, a reload, a preview, a new tab and a split" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn panesAt(host: *Host, opacity: ?f64) !void {
+            var count: usize = 0;
+            for (host.tabs.items) |*tab| {
+                var it = tab.tree.iterator();
+                while (it.next()) |entry| {
+                    try std.testing.expectEqual(opacity, entry.view.background_opacity);
+                    count += 1;
+                }
+            }
+            try std.testing.expect(count > 0);
+        }
 
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
 
-    var host: Host = undefined;
-    var surface: Surface = undefined;
-    try initTestHostWindowFixture(&host, &surface, hwnd);
-    defer deinitTestHostWindowFixture(&host);
+            // A config load: the window is never layered, blur-behind keeps
+            // the panes' alpha, and the pane draws its background at the
+            // window's opacity.
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const host = first.host.?;
+            const hwnd = host.hwnd.?;
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try panesAt(host, 0.5);
 
-    // `new_window` from an existing surface presents the clone before
-    // `inheritWindowStateFrom` runs, so the source's opacity has to be seeded
-    // up front. The fixture left the clone on the configured 1.0, so reading
-    // 0.6 back off the clone is the seed and nothing else.
-    var source: Surface = undefined;
-    source.background_opacity_default = 0.6;
-    source.background_opacity_force_opaque = false;
+            // The toggle: no blur-behind, and the pane at 1 rather than the
+            // config's 0.5, which would draw a darker background DWM drops
+            // the alpha of.
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .toggle_background_opacity, {}));
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+            try panesAt(host, 1.0);
 
-    surface.applyInitialBackgroundOpacity(&source);
-    try std.testing.expectEqual(@as(f64, 0.6), surface.background_opacity_default);
-    try std.testing.expect(testHostIsLayered(hwnd));
-    try std.testing.expectEqual(@as(?u8, 153), testLayeredAlpha(hwnd));
+            // A tab made after the toggle starts at what its window shows.
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .new_tab, {}));
+            const tab = host.activeSurface().?;
+            try std.testing.expect(tab != first);
+            try std.testing.expectEqual(@as(?f64, 1.0), tab.background_opacity);
+            try std.testing.expect(try app.performAction(.{ .surface = tab.core() }, .toggle_background_opacity, {}));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try panesAt(host, 0.5);
 
-    // Cloning a window the user forced opaque with
-    // `toggle_background_opacity` must not flash the clone translucent.
-    var opaque_source: Surface = undefined;
-    opaque_source.background_opacity_default = 0.6;
-    opaque_source.background_opacity_force_opaque = true;
+            // So does a split (made as `createNewSplit` makes it, without the
+            // working directory a test pane has no core to read).
+            const split = try app.createWindowSurface(&app.config, default_title, .{
+                .host_id = tab.host_id,
+                .tab_id = host.activeTab().?.id,
+                .clone_state_from = tab,
+            });
+            try std.testing.expectEqual(@as(usize, 2), host.activeTab().?.leafCount());
+            try std.testing.expectEqual(@as(?f64, 0.5), split.background_opacity);
 
-    surface.applyInitialBackgroundOpacity(&opaque_source);
-    try std.testing.expect(surface.background_opacity_force_opaque);
-    try std.testing.expect(!testHostIsLayered(hwnd));
+            // A reload keeps the window's opacity in its panes: the
+            // renderer keeps it apart from the config a reload replaces.
+            var reloaded = try app.config.clone(std.testing.allocator);
+            defer reloaded.deinit();
+            try reloadConfig(app, &reloaded);
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try panesAt(host, 0.5);
+
+            // A Settings preview reaches the panes without the config.
+            win32.settingsPreviewFieldThunk(app, .background_opacity, .{ .background_opacity = 0.7 });
+            try std.testing.expectEqual(@as(?u8, 179), testBackgroundAlpha(hwnd));
+            try panesAt(host, 0.7);
+            win32.settingsPreviewFieldThunk(app, .background_opacity, .{ .background_opacity = 0.5 });
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try panesAt(host, 0.5);
+
+            // Back to opaque: no blur-behind, nothing layered, panes at 1.
+            reloaded.@"background-opacity" = 1;
+            try reloadConfig(app, &reloaded);
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+            try panesAt(host, 1.0);
+        }
+    }.body);
 }
 
-test "win32 shared host topmost and opacity equality track separate window state" {
+test "win32 a window with a D3D11 pane fades whole and leaves its panes at their config's opacity" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn perPixel(hwnd: HWND, pane: *const Surface) !void {
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try std.testing.expectEqual(@as(?f64, 0.5), pane.background_opacity);
+        }
 
-    var a: Surface = undefined;
-    a.topmost = false;
-    a.background_opacity_default = 0.5;
-    a.background_opacity_force_opaque = false;
+        fn faded(hwnd: HWND, pane: *const Surface) !void {
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+            try std.testing.expectEqual(@as(?f64, null), pane.background_opacity);
+        }
 
-    var b: Surface = a;
-    try std.testing.expect(sharedHostWindowTopmostEquals(&a, &b));
-    try std.testing.expect(sharedHostWindowOpacityEquals(&a, &b));
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            defer test_pane_renderer = null;
+            defer test_d3d11_pane = null;
 
-    b.topmost = true;
-    try std.testing.expect(!sharedHostWindowTopmostEquals(&a, &b));
-    try std.testing.expect(sharedHostWindowOpacityEquals(&a, &b));
+            test_pane_renderer = .d3d11;
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            try faded(hwnd, pane);
 
-    b.topmost = a.topmost;
-    b.background_opacity_force_opaque = true;
-    try std.testing.expect(sharedHostWindowTopmostEquals(&a, &b));
-    try std.testing.expect(!sharedHostWindowOpacityEquals(&a, &b));
+            // Its pane falls back to OpenGL. The fallback posts that it did,
+            // and the window, from its message loop, shows the background
+            // alone translucent now.
+            test_pane_renderer = .opengl;
+            pane.rendererSwitchedToOpenGL();
+            var msg: sys.MSG = undefined;
+            try std.testing.expect(sys.PeekMessageW(&msg, hwnd, c.WM_WINHOSTTY_RENDERER_SWITCHED, c.WM_WINHOSTTY_RENDERER_SWITCHED, c.PM_REMOVE) != 0);
+            _ = sys.DispatchMessageW(&msg);
+            try perPixel(hwnd, pane);
 
-    b.background_opacity_force_opaque = false;
-    b.background_opacity_default = 0.5001;
-    try std.testing.expect(sharedHostWindowOpacityEquals(&a, &b));
+            // A tab on D3D11 joins it: the whole window fades as the tab's
+            // renderer starts, and the OpenGL pane goes back to its config's
+            // opacity.
+            test_pane_renderer = .d3d11;
+            const tab = try app.createWindowSurface(&app.config, default_title, .{ .host_id = pane.host_id });
+            test_d3d11_pane = tab;
+            test_pane_renderer = .opengl;
+            try faded(hwnd, pane);
+
+            // It goes into undo history, as a closed tab does, and comes
+            // back, as an undo or a close that rolled back puts it.
+            var entry = host.detachTabForUndo(1).?;
+            errdefer _ = host.restoreClosedTabEntryNative(&entry.payload.close_tab) catch false;
+            try perPixel(hwnd, pane);
+            try std.testing.expect(try host.restoreClosedTabEntryNative(&entry.payload.close_tab));
+            try faded(hwnd, pane);
+
+            // That tab closes: every pane left draws with OpenGL again.
+            fixture.core_app.deleteSurface(tab);
+            _ = sys.DestroyWindow(tab.hwnd.?);
+            test_d3d11_pane = null;
+            try perPixel(hwnd, pane);
+        }
+    }.body);
 }
 
-test "win32 hostSurfaceCount tracks surfaces attached to one host" {
+test "win32 a window closing whole shows no opacity as its panes go, and a pane closing in a window that stays shows it once" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        /// A window whose first tab runs D3D11 and its `others` OpenGL: it
+        /// fades whole.
+        fn window(fixture: *WindowStartTestApp, others: []*Surface) !*Surface {
+            const app = &fixture.app;
+            test_pane_renderer = .d3d11;
+            try app.createWindow(default_title);
+            const d3d11 = fixture.newest();
+            test_d3d11_pane = d3d11;
+            test_pane_renderer = .opengl;
+            for (others) |*other| other.* = try app.createWindowSurface(&app.config, default_title, .{ .host_id = d3d11.host_id });
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(d3d11.host.?.hwnd.?));
+            return d3d11;
+        }
 
-    var host: Host = undefined;
-    host.id = 42;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
+        /// One pane's window is destroyed, as at the end of any pane close
+        /// (`App.windowDestroyed`).
+        fn closePane(fixture: *WindowStartTestApp, pane: *Surface, applies: usize) !void {
+            const before = test_background_opacity_applies;
+            fixture.core_app.deleteSurface(pane);
+            _ = sys.DestroyWindow(pane.hwnd.?);
+            try std.testing.expectEqual(before + applies, test_background_opacity_applies);
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            defer test_pane_renderer = null;
+            defer test_d3d11_pane = null;
+            app.config.@"background-opacity" = 0.5;
+
+            var tabs: [4]*Surface = undefined;
+            const d3d11 = try window(&fixture, &tabs);
+            const host = d3d11.host.?;
+
+            // A pane of a window that stays: the window shows its opacity
+            // again, once.
+            try closePane(&fixture, tabs[3], 1);
+
+            // A window close that asks and is cancelled closes nothing, and a
+            // pane closing after it still shows the opacity again.
+            host.askBeforeClosing(.window, 1, &win32.hostCloseConfirmAccept, host);
+            try std.testing.expect(host.confirm_payload != null);
+            host.invokeConfirmCancel();
+            try std.testing.expectEqual(@as(usize, 4), host.tabs.items.len);
+            try closePane(&fixture, tabs[2], 1);
+
+            // The window closes whole, its D3D11 pane first: nothing shows
+            // its opacity on the way, so it never turns per-pixel for the
+            // moment before it goes.
+            const id = host.id;
+            for ([_]*Surface{ d3d11, tabs[0], tabs[1] }) |pane| fixture.core_app.deleteSurface(pane);
+            var applies = test_background_opacity_applies;
+            var asserts = test_blur_behind_asserts;
+            host.closeConfirmed();
+            try std.testing.expect(app.registry.findHostById(id) == null);
+            try std.testing.expectEqual(applies, test_background_opacity_applies);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+
+            // A pane whose close is refused (`requestClose` refuses one with
+            // no window, among others) keeps its window, which shows its
+            // opacity once, for the panes it has: with the D3D11 pane gone,
+            // the background alone is translucent.
+            var kept: [1]*Surface = undefined;
+            const faded = try window(&fixture, &kept);
+            const stays = faded.host.?;
+            const refused = kept[0].hwnd.?;
+            kept[0].hwnd = null;
+            fixture.core_app.deleteSurface(faded);
+            applies = test_background_opacity_applies;
+            asserts = test_blur_behind_asserts;
+            stays.closeConfirmed();
+            kept[0].hwnd = refused;
+            try std.testing.expectEqual(@as(usize, 1), stays.tabs.items.len);
+            try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+            try std.testing.expectEqual(asserts + 1, test_blur_behind_asserts);
+            try std.testing.expect(!testHostIsLayered(stays.hwnd.?));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(stays.hwnd.?));
+
+            // And it is an ordinary window again: a pane of it closing later
+            // shows its opacity again.
+            const later = try app.createWindowSurface(&app.config, default_title, .{ .host_id = stays.id });
+            try closePane(&fixture, later, 1);
+        }
+    }.body);
+}
+
+test "win32 a config change that toggles decorations and changes opacity applies the opacity once, at its new value" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+
+            // Both ways: undecorated and opaque, then decorated and
+            // translucent again. Each applies once, at the config's opacity,
+            // and blur-behind is never asserted at the old one on the way.
+            for ([_]struct { decoration: configpkg.Config.WindowDecoration, opacity: f64, shown: ?u8 }{
+                .{ .decoration = .none, .opacity = 1.0, .shown = null },
+                .{ .decoration = .auto, .opacity = 0.5, .shown = 128 },
+            }) |step| {
+                var config = try app.config.clone(std.testing.allocator);
+                defer config.deinit();
+                config.@"window-decoration" = step.decoration;
+                config.@"background-opacity" = step.opacity;
+                const applies = test_background_opacity_applies;
+                const asserts = test_blur_behind_asserts;
+                try applyConfig(host, &config);
+                try std.testing.expectEqual(step.decoration != .none, host.top_level.decorations_visible);
+                try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+                try std.testing.expectEqual(step.opacity, test_background_opacity_applied);
+                try std.testing.expectEqual(asserts + @intFromBool(step.shown != null), test_blur_behind_asserts);
+                try std.testing.expect(!testHostIsLayered(hwnd));
+                try std.testing.expectEqual(step.shown, testBackgroundAlpha(hwnd));
+            }
+        }
+    }.body);
+}
+
+test "win32 a theme change or a reload that flips the frame mode asserts blur-behind after the frame write" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        /// `test_blur_behind_asserts` when the window's frame last changed.
+        var asserts_at_frame: ?usize = null;
+        var previous: ?*const anyopaque = null;
+
+        fn proc(hwnd: HWND, msg: UINT, wp: usize, lp: LPARAM) callconv(.winapi) isize {
+            if (msg == c.WM_WINDOWPOSCHANGED) {
+                const pos: *const sys.WINDOWPOS = @ptrFromInt(@as(usize, @bitCast(lp)));
+                if (pos.flags & c.SWP_FRAMECHANGED != 0) asserts_at_frame = test_blur_behind_asserts;
+            }
+            return sys.CallWindowProcW(previous, hwnd, msg, wp, lp);
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const hwnd = fixture.newest().host.?.hwnd.?;
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            previous = @ptrFromInt(@as(usize, @bitCast(sys.SetWindowLongPtrW(hwnd, c.GWLP_WNDPROC, @bitCast(@intFromPtr(&proc))))));
+
+            // On Windows 11 the tab strip shown is the integrated titlebar and
+            // hidden the stock frame: each way, the frame changes, and the
+            // window applies its opacity once, after it. A theme rebuild that
+            // refreshes it does so itself; a reload's leaves it to the
+            // `applyConfig` that follows.
+            app.os_build = c.OS_BUILD_WIN11_21H2;
+            for ([_]bool{ false, true }) |reload| {
+                for ([_]configpkg.Config.WindowShowTabBar{ .auto, .never }) |tabs| {
+                    const integrated = app.use_integrated_titlebar;
+                    const applies = test_background_opacity_applies;
+                    asserts_at_frame = null;
+                    if (reload) {
+                        var config = try app.config.clone(std.testing.allocator);
+                        defer config.deinit();
+                        config.@"window-show-tab-bar" = tabs;
+                        try std.testing.expect(try app.performAction(.app, .config_change, .{ .config = &config }));
+                    } else {
+                        app.config.@"window-show-tab-bar" = tabs;
+                        app.reconfigureTheme(.refresh);
+                    }
+                    try std.testing.expect(app.use_integrated_titlebar != integrated);
+                    const at_frame = asserts_at_frame orelse return error.TestFrameNeverChanged;
+                    try std.testing.expect(test_blur_behind_asserts > at_frame);
+                    try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+                    try std.testing.expect(!testHostIsLayered(hwnd));
+                    try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+                }
+            }
+        }
+    }.body);
+}
+
+test "win32 a reload and the palette's theme apply each window's opacity once, at its new value, a window kept empty for undo included" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // A window of two tabs, a window of one, and a window whose only
+            // tab is in undo history, which no pane's config change reaches.
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const shown = fixture.newest();
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = shown.host_id });
+            try app.createWindow(default_title);
+            const single = fixture.newest();
+            try app.createWindow(default_title);
+            const emptied = fixture.newest().host.?;
+            var entry = emptied.detachTabForUndo(0).?;
+            defer _ = emptied.restoreClosedTabEntryNative(&entry.payload.close_tab) catch false;
+            const hosts = [_]*Host{ shown.host.?, single.host.?, emptied };
+            for (hosts) |host| try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(host.hwnd.?));
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // A reload (every pane's config change, then the app's) and the
+            // palette's theme (every pane's, then its window loop): each
+            // window applies its opacity once, in the app-wide step after the
+            // theme rebuild, at the new value, so blur-behind is asserted
+            // only where a window ends translucent, once.
+            for ([_]bool{ false, true }) |palette| {
+                for ([_]struct { opacity: f64, shown: ?u8 }{
+                    .{ .opacity = 1.0, .shown = null },
+                    .{ .opacity = 0.5, .shown = 128 },
+                }) |step| {
+                    var config = try app.config.clone(std.testing.allocator);
+                    config.@"background-opacity" = step.opacity;
+                    applied.clearRetainingCapacity();
+                    const asserts = test_blur_behind_asserts;
+                    if (palette) {
+                        var left = shown.host.?.swapRuntimeConfigFromPalette(config);
+                        left.deinit();
+                    } else {
+                        defer config.deinit();
+                        try reloadConfig(app, &config);
+                    }
+                    try std.testing.expectEqual(hosts.len, applied.items.len);
+                    for (hosts) |host| {
+                        try expectAppliedOnce(applied.items, host, step.opacity);
+                        try std.testing.expectEqual(step.shown, testBackgroundAlpha(host.hwnd.?));
+                    }
+                    try std.testing.expectEqual(asserts + if (step.shown != null) hosts.len else 0, test_blur_behind_asserts);
+                }
+            }
+
+            // A pane's own config change, outside an app-wide one, still
+            // gives its window the config, from the pane the window shows.
+            applied.clearRetainingCapacity();
+            try std.testing.expect(try app.performAction(.{ .surface = single.core() }, .config_change, .{ .config = &app.config }));
+            try std.testing.expectEqual(@as(usize, 1), applied.items.len);
+            try expectAppliedOnce(applied.items, single.host.?, 0.5);
+        }
+    }.body);
+}
+
+test "win32 a reload during the palette's live theme preview supersedes it: every pane and window takes the reload, each window once" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        /// The backgrounds of the config, the palette's preview and the
+        /// reload, each its own: the pane half of a config change a pane's
+        /// own step stores (`setTabBackground`), which the `.app` arm leaves
+        /// alone.
+        const original_background: configpkg.Config.Color = .{ .r = 0x10, .g = 0x20, .b = 0x30 };
+        const preview_background: configpkg.Config.Color = .{ .r = 0x40, .g = 0x50, .b = 0x60 };
+        const reload_background: configpkg.Config.Color = .{ .r = 0x70, .g = 0x80, .b = 0x90 };
+
+        /// The palette previews a theme at opacity 0.7, its panes' scrollbar
+        /// hidden, over the config at 0.5 with the scrollbar shown.
+        fn preview(app: *App, host: *Host) !void {
+            var previewed = try app.config.clone(std.testing.allocator);
+            previewed.@"background-opacity" = 0.7;
+            previewed.scrollbar = .never;
+            previewed.background = preview_background;
+            host.showPaletteThemePreview(previewed);
+            try std.testing.expect(host.palette_catalog_config_source == .preview_original);
+            host.overlay_mode = .command_palette;
+            try std.testing.expectEqual(@as(?u8, 179), testBackgroundAlpha(host.hwnd.?));
+        }
+
+        fn expect(app: *App, applied: []const TestOpacityApply, hosts: []const *Host, opacity: f64, scrollbar: configpkg.Config.Scrollbar, background: configpkg.Config.Color) !void {
+            try std.testing.expectEqual(hosts.len, applied.len);
+            for (hosts) |host| {
+                try expectAppliedOnce(applied, host, opacity);
+                try std.testing.expect(host.palette_theme_preview_original == null);
+                try std.testing.expect(host.overlay_mode != .command_palette);
+            }
+            for (app.registry.windows.items) |pane| {
+                try std.testing.expectEqual(scrollbar, pane.scrollbar_config);
+                try std.testing.expectEqual(win32_theme.rgb(background.r, background.g, background.b), pane.tab_background);
+            }
+            try std.testing.expectEqual(opacity, app.config.@"background-opacity");
+            try std.testing.expectEqual(scrollbar, app.config.scrollbar);
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // A window of two tabs, whose palette previews, and a window of
+            // one.
+            app.config.@"background-opacity" = 0.5;
+            app.config.scrollbar = .system;
+            app.config.background = original_background;
+            try app.createWindow(default_title);
+            const palette = fixture.newest().host.?;
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = fixture.newest().host_id });
+            try app.createWindow(default_title);
+            const hosts = [_]*Host{ palette, fixture.newest().host.? };
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // A reload of a config read again (a Settings save, a hard
+            // reload) at 0.6, the scrollbar shown, another background: every
+            // pane and window takes it, each window once, and the palette
+            // closes. Restoring the preview's original first showed 0.5 in
+            // every window, then gave every pane the original's config after
+            // the reload's (its background; the `.app` arm stores every
+            // pane's scrollbar setting again, but no background).
+            try preview(app, palette);
+            applied.clearRetainingCapacity();
+            var reloaded = try app.config.clone(std.testing.allocator);
+            defer reloaded.deinit();
+            reloaded.@"background-opacity" = 0.6;
+            reloaded.scrollbar = .system;
+            reloaded.background = reload_background;
+            try reloadConfig(app, &reloaded);
+            try expect(app, applied.items, &hosts, 0.6, .system, reload_background);
+
+            // A reload of the app config itself (the soft reload a
+            // light/dark change makes) starts from the config the preview
+            // replaced, not from the preview, which nothing saved.
+            try preview(app, palette);
+            applied.clearRetainingCapacity();
+            try std.testing.expect(try app.performAction(.app, .reload_config, .{ .soft = true }));
+            try expect(app, applied.items, &hosts, 0.6, .system, reload_background);
+        }
+    }.body);
+}
+
+test "win32 a reload that fails at a pane's step after it ended the palette's live theme preview puts every pane, the chrome and every window back on the app config, and closes the palette" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn colorRef(color: configpkg.Config.Color) u32 {
+            return win32_theme.rgb(color.r, color.g, color.b);
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // Three panes: a window of two tabs, whose palette previews the
+            // Light theme at 0.7 over the Dark one at 0.5, each with its own
+            // background, and a window of one.
+            const original: configpkg.Config.Color = .{ .r = 0x10, .g = 0x20, .b = 0x30 };
+            const previewed_background: configpkg.Config.Color = .{ .r = 0x40, .g = 0x50, .b = 0x60 };
+            const reload_background: configpkg.Config.Color = .{ .r = 0x70, .g = 0x80, .b = 0x90 };
+            app.config.@"background-opacity" = 0.5;
+            app.config.@"window-theme" = .dark;
+            app.config.background = original;
+            app.reconfigureTheme(.refresh);
+            const dark = app.resolved_theme;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const palette = first.host.?;
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+            try app.createWindow(default_title);
+            const hosts = [_]*Host{ palette, fixture.newest().host.? };
+            try std.testing.expectEqual(@as(usize, 3), app.registry.windows.items.len);
+            var previewed = try app.config.clone(std.testing.allocator);
+            previewed.@"background-opacity" = 0.7;
+            previewed.@"window-theme" = .light;
+            previewed.background = previewed_background;
+            palette.showPaletteThemePreview(previewed);
+            palette.overlay_mode = .command_palette;
+            try std.testing.expect(!std.meta.eql(dark, app.resolved_theme));
+            for (app.registry.windows.items) |pane| try std.testing.expectEqual(colorRef(previewed_background), pane.tab_background);
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // A reload to 0.6 whose first pane's step fails, before the app's
+            // step: the reload ended the preview, unshown, the first pane
+            // took the reload and the other two kept the preview. Then every
+            // pane, the chrome (Dark) and every window, once, after the
+            // rebuild, go back on the app config the preview replaced, and
+            // the palette, whose Escape has nothing left to revert, closes.
+            // Before, the panes after the failing one kept the unsaved
+            // preview with no way back to it, and the windows took the
+            // reload's opacity under the app config's chrome.
+            var reloaded = try palette.palette_theme_preview_original.?.clone(std.testing.allocator);
+            defer reloaded.deinit();
+            reloaded.@"background-opacity" = 0.6;
+            reloaded.background = reload_background;
+            try std.testing.expect(app.core_app.surfaces.items[0] == first);
+            const rebuilds = app.theme_rebuilds;
+            Surface.test_scrollbar_refresh_fails = first;
+            defer Surface.test_scrollbar_refresh_fails = null;
+            try std.testing.expectError(error.TestScrollbarRefreshFailed, reloadConfig(app, &reloaded));
+            Surface.test_scrollbar_refresh_fails = null;
+            try std.testing.expect(palette.palette_theme_preview_original == null);
+            try std.testing.expectEqual(@as(f64, 0.5), app.config.@"background-opacity");
+            for (app.registry.windows.items) |pane| try std.testing.expectEqual(colorRef(original), pane.tab_background);
+            try std.testing.expect(std.meta.eql(dark, app.resolved_theme));
+            try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
+            try std.testing.expect(palette.overlay_mode != .command_palette);
+            try std.testing.expectEqual(hosts.len, applied.items.len);
+            for (hosts) |host| {
+                try expectAppliedOnce(applied.items, host, 0.5);
+                try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(host.hwnd.?));
+            }
+            for (applied.items) |apply| try std.testing.expectEqual(rebuilds + 1, apply.theme_rebuilds);
+
+            // The next reload that succeeds gives every pane and window the
+            // reload.
+            applied.clearRetainingCapacity();
+            try reloadConfig(app, &reloaded);
+            try std.testing.expectEqual(@as(f64, 0.6), app.config.@"background-opacity");
+            for (app.registry.windows.items) |pane| try std.testing.expectEqual(colorRef(reload_background), pane.tab_background);
+            for (hosts) |host| try expectAppliedOnce(applied.items, host, 0.6);
+        }
+    }.body);
+}
+
+test "win32 a reload that fails at a pane's step during a palette preview, and whose own restore cannot take the config, still closes the palette and shows the app config" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // A window of two tabs, whose palette previews the Light theme at
+            // 0.7 over the Dark one at 0.5, and a window of one.
+            app.config.@"background-opacity" = 0.5;
+            app.config.@"window-theme" = .dark;
+            app.reconfigureTheme(.refresh);
+            const dark = app.resolved_theme;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const palette = first.host.?;
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+            try app.createWindow(default_title);
+            const hosts = [_]*Host{ palette, fixture.newest().host.? };
+            var previewed = try app.config.clone(std.testing.allocator);
+            previewed.@"background-opacity" = 0.7;
+            previewed.@"window-theme" = .light;
+            palette.showPaletteThemePreview(previewed);
+            palette.overlay_mode = .command_palette;
+            try std.testing.expect(!std.meta.eql(dark, app.resolved_theme));
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // A reload to 0.6 whose first pane's step fails, and the app
+            // step of its restore cannot clone the config (memory ran out):
+            // the palette still closes, and the chrome (Dark) and every
+            // window, once, after the rebuild, show the app config the
+            // preview replaced. Before, the preview's theme stayed on screen
+            // and the palette open with nothing left to revert.
+            var reloaded = try palette.palette_theme_preview_original.?.clone(std.testing.allocator);
+            defer reloaded.deinit();
+            reloaded.@"background-opacity" = 0.6;
+            const rebuilds = app.theme_rebuilds;
+            Surface.test_scrollbar_refresh_fails = first;
+            defer Surface.test_scrollbar_refresh_fails = null;
+            App.test_app_config_clone_fails = true;
+            defer App.test_app_config_clone_fails = false;
+            try std.testing.expectError(error.TestScrollbarRefreshFailed, reloadConfig(app, &reloaded));
+            App.test_app_config_clone_fails = false;
+            Surface.test_scrollbar_refresh_fails = null;
+            try std.testing.expect(palette.palette_theme_preview_original == null);
+            try std.testing.expect(palette.overlay_mode != .command_palette);
+            try std.testing.expectEqual(@as(f64, 0.5), app.config.@"background-opacity");
+            try std.testing.expect(std.meta.eql(dark, app.resolved_theme));
+            try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
+            try std.testing.expectEqual(hosts.len, applied.items.len);
+            for (hosts) |host| try expectAppliedOnce(applied.items, host, 0.5);
+            for (applied.items) |apply| try std.testing.expectEqual(rebuilds + 1, apply.theme_rebuilds);
+        }
+    }.body);
+}
+
+test "win32 a reload in which a pane's step fails puts every pane and window back on the app config, each window once, and returns the failure" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // A window of two tabs, a window of one, and a window whose only
+            // tab is in undo history.
+            app.config.@"background-opacity" = 0.5;
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+            try app.createWindow(default_title);
+            const single = fixture.newest().host.?;
+            try app.createWindow(default_title);
+            const emptied = fixture.newest().host.?;
+            var entry = emptied.detachTabForUndo(0).?;
+            defer _ = emptied.restoreClosedTabEntryNative(&entry.payload.close_tab) catch false;
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // A reload to 0.6 and another background whose first pane's step
+            // fails (its scrollbar refresh), which ends core's update before
+            // the app's step, so the app keeps its config: the first pane
+            // took the reload's, and the panes left the windows to that
+            // step. Every pane goes back on the app config, each window
+            // applies it once (0.5), and the reload returns the pane's
+            // failure. Before, the windows took the reload's opacity (0.6)
+            // and the first pane kept its background.
+            const background = app.config.background;
+            var config = try app.config.clone(std.testing.allocator);
+            defer config.deinit();
+            config.@"background-opacity" = 0.6;
+            config.background = .{ .r = 0x70, .g = 0x80, .b = 0x90 };
+            try std.testing.expect(app.core_app.surfaces.items[0] == first);
+            Surface.test_scrollbar_refresh_fails = first;
+            defer Surface.test_scrollbar_refresh_fails = null;
+            // The failing pane comes first in the app's step too; a pane
+            // after it is counted. And a quit timer runs, as after the last
+            // window closed, for the app's step to stop.
+            try std.testing.expect(app.registry.windows.items[0] == first);
+            const later = app.registry.windows.items[app.registry.windows.items.len - 1];
+            Surface.test_scrollbar_refreshes_of = later;
+            Surface.test_scrollbar_refreshes = 0;
+            defer Surface.test_scrollbar_refreshes_of = null;
+            const quit_timer = sys.SetTimer(null, 0, 60_000, null);
+            try std.testing.expect(quit_timer != 0);
+            app.quit_timer_id = quit_timer;
+            defer App.killThreadTimer(&app.quit_timer_id);
+            try std.testing.expectError(error.TestScrollbarRefreshFailed, reloadConfig(app, &config));
+            // Core's update stopped at the first pane; the restore gave the
+            // later pane its own step (one refresh), and the app's step went
+            // on past the failing pane to it (another), then ran its tail:
+            // the quit timer is stopped. Breaking at the failing pane leaves
+            // one refresh; the tail after the failure, a running timer.
+            try std.testing.expectEqual(@as(usize, 2), Surface.test_scrollbar_refreshes);
+            try std.testing.expect(app.quit_timer_id == null);
+            try std.testing.expectEqual(@as(usize, 3), applied.items.len);
+            for ([_]*Host{ first.host.?, single, emptied }) |host| {
+                try expectAppliedOnce(applied.items, host, 0.5);
+                try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(host.hwnd.?));
+            }
+            for (app.registry.windows.items) |pane| {
+                try std.testing.expectEqual(win32_theme.rgb(background.r, background.g, background.b), pane.tab_background);
+            }
+        }
+    }.body);
+}
+
+test "win32 a reload in which a window fails to apply its opacity still applies every window after it, tells Settings, and returns the failure" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            defer test_pane_renderer = null;
+            defer test_d3d11_pane = null;
+
+            // First a window that fades whole (its pane runs D3D11), then a
+            // translucent OpenGL window and a window kept empty for undo.
+            app.config.@"background-opacity" = 0.5;
+            test_pane_renderer = .d3d11;
+            try app.createWindow(default_title);
+            const faded = fixture.newest().host.?;
+            test_d3d11_pane = fixture.newest();
+            test_pane_renderer = .opengl;
+            try app.createWindow(default_title);
+            const translucent = fixture.newest().host.?;
+            try app.createWindow(default_title);
+            const emptied = fixture.newest().host.?;
+            var entry = emptied.detachTabForUndo(0).?;
+            defer _ = emptied.restoreClosedTabEntryNative(&entry.payload.close_tab) catch false;
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(faded.hwnd.?));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(translucent.hwnd.?));
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // Settings open, at 0.5: it keeps a snapshot of its own, which
+            // only `externalConfigChanged` moves.
+            app.settings_window.handle.deferUiaDisconnect = null;
+            try app.settings_window.open();
+            defer SettingsPreviewWindow.deinit(app);
+            try SettingsPreviewWindow.expectSavedControls(app, "0.5", app.config.@"window-theme");
+
+            // A reload to 0.6 in which the first window's layered alpha
+            // fails: each window after it still applies its opacity, the
+            // window kept empty for undo too, Settings hears of the config
+            // installed, and the reload returns the failure. Before, the
+            // failure ended the app's step before Settings, which kept 0.5.
+            var config = try app.config.clone(std.testing.allocator);
+            defer config.deinit();
+            config.@"background-opacity" = 0.6;
+            test_layered_fails = faded.hwnd.?;
+            defer test_layered_fails = null;
+            // The translucent window's pane: its own step refreshes its
+            // scrollbar, and the app's step again after the window pass,
+            // the failed window's apply notwithstanding (it skipped them).
+            Surface.test_scrollbar_refreshes_of = translucent.activeSurface().?;
+            Surface.test_scrollbar_refreshes = 0;
+            defer Surface.test_scrollbar_refreshes_of = null;
+            try std.testing.expectError(error.TestLayeredFailed, reloadConfig(app, &config));
+            try std.testing.expectEqual(@as(usize, 2), Surface.test_scrollbar_refreshes);
+            try std.testing.expectEqual(@as(usize, 3), applied.items.len);
+            for ([_]*Host{ faded, translucent, emptied }) |host| try expectAppliedOnce(applied.items, host, 0.6);
+            try std.testing.expectEqual(@as(?u8, 153), testBackgroundAlpha(translucent.hwnd.?));
+            try std.testing.expectEqual(@as(f64, 0.6), emptied.top_level.opacity);
+            try std.testing.expectEqual(@as(?u8, 153), testBackgroundAlpha(emptied.hwnd.?));
+            try SettingsPreviewWindow.expectSavedControls(app, "0.6", app.config.@"window-theme");
+        }
+    }.body);
+}
+
+test "win32 a Settings preview of a theme and an opacity that ends applies the opacity once, at the saved value" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            app.config.@"window-theme" = .dark;
+            try app.createWindow(default_title);
+            const hwnd = fixture.newest().host.?.hwnd.?;
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+
+            // Settings previews a translucent opacity and another theme.
+            try std.testing.expect(app.previewSetting(.{ .background_opacity = 0.5 }));
+            app.refreshSettingsPreview(.opacity);
+            try std.testing.expect(app.previewSetting(.{ .window_theme = .light }));
+            app.refreshSettingsPreview(.theme);
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+
+            // A save without a reload (safe mode) ends both together, at the
+            // saved, opaque config: the window applies its opacity once, and
+            // never asserts blur-behind at the previewed one on the way.
+            const applies = test_background_opacity_applies;
+            const asserts = test_blur_behind_asserts;
+            app.endSettingsPreview();
+            try std.testing.expect(app.settings_preview == null);
+            try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+            try std.testing.expectEqual(@as(f64, 1.0), test_background_opacity_applied);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+
+            // A cancel-shaped end (`endSettingsPreview` directly; closing
+            // Settings for real reaches it through the window's
+            // `endPreviews`, tested on its own below) ends the same way, back at
+            // the config's own translucent opacity and theme: one apply, at
+            // that value, and blur-behind asserted once for it.
+            app.config.@"background-opacity" = 0.8;
+            try applyConfig(fixture.newest().host.?, &app.config);
+            try std.testing.expectEqual(@as(?u8, 204), testBackgroundAlpha(hwnd));
+            try std.testing.expect(app.previewSetting(.{ .background_opacity = 0.5 }));
+            app.refreshSettingsPreview(.opacity);
+            try std.testing.expect(app.previewSetting(.{ .window_theme = .light }));
+            app.refreshSettingsPreview(.theme);
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            const cancel_applies = test_background_opacity_applies;
+            const cancel_asserts = test_blur_behind_asserts;
+            app.endSettingsPreview();
+            try std.testing.expectEqual(cancel_applies + 1, test_background_opacity_applies);
+            try std.testing.expectEqual(@as(f64, 0.8), test_background_opacity_applied);
+            try std.testing.expectEqual(cancel_asserts + 1, test_blur_behind_asserts);
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 204), testBackgroundAlpha(hwnd));
+            try std.testing.expect(std.meta.eql(win32.resolveTheme(&app.config), app.resolved_theme));
+        }
+    }.body);
+}
+
+/// The real Settings window over a `WindowStartTestApp`, for the tests of
+/// what its previews and their end show in the windows: opened, given a
+/// translucent opacity and the Light theme to preview through its own
+/// controls, and torn down with its window classes.
+const SettingsPreviewWindow = struct {
+    const field_model = @import("../win32_settings_fields.zig");
+    const cb_setcursel = 0x014E;
+    const cbn_selchange = 1;
+    const bm_click = 0x00F5;
+    const settings_class = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings");
+    const viewport_class = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings.viewport");
+
+    /// Opens Settings and previews opacity 0.5 and the Light theme, as typing
+    /// into the opacity field and choosing in the theme dropdown do.
+    fn openWithPreviews(app: *App) !void {
+        // No app message loop drains a deferred UIA disconnect here.
+        app.settings_window.handle.deferUiaDisconnect = null;
+        const settings = &app.settings_window;
+        try settings.open();
+        _ = sys.SetWindowTextW(settings.fields.edit_bg_opacity.?, std.unicode.utf8ToUtf16LeStringLiteral("0.5"));
+        const combo = settings.fields.combo_window_theme.?;
+        _ = sys.SendMessageW(combo, cb_setcursel, field_model.Combo(.window_theme).toIndex(.light), 0);
+        const id: usize = @intCast(sys.GetDlgCtrlID(combo));
+        _ = sys.SendMessageW(settings.hwnd.?, c.WM_COMMAND, id | (@as(usize, cbn_selchange) << 16), @bitCast(@intFromPtr(combo)));
+        try std.testing.expect(settings.hasPendingChanges());
+        try std.testing.expectEqual(@as(f64, 0.5), app.shownConfig().@"background-opacity");
+        try std.testing.expect(app.shownConfig().@"window-theme" == .light);
     }
 
-    var first: Surface = undefined;
-    first.host = &host;
-    first.host_id = host.id;
+    /// Closes Settings as its title bar's close and the prompt's Discard
+    /// do: `WM_CLOSE` opens the prompt, Discard posts the close, and the
+    /// window's own message runs `closeNow` (`DestroyWindow`, whose
+    /// `WM_NCDESTROY` rolls the previews back, then `onClosed`).
+    fn cancel(app: *App) !void {
+        const settings = &app.settings_window;
+        const hwnd = settings.hwnd.?;
+        _ = sys.SendMessageW(hwnd, c.WM_CLOSE, 0, 0);
+        try std.testing.expect(settings.close_prompt_visible);
+        _ = sys.SendMessageW(settings.btn_discard_changes.?, bm_click, 0, 0);
+        try std.testing.expect(settings.close_posted);
+        var msg: sys.MSG = undefined;
+        var left: usize = 256;
+        while (settings.hwnd != null and left > 0) : (left -= 1) {
+            if (sys.PeekMessageW(&msg, hwnd, 0, 0, c.PM_REMOVE) == 0) break;
+            _ = sys.DispatchMessageW(&msg);
+        }
+        try std.testing.expect(settings.hwnd == null);
+    }
 
-    var second: Surface = undefined;
-    second.host = &host;
-    second.host_id = host.id;
+    /// Discards the draft with the window open, as the action bar's Discard
+    /// does: its first click asks, its second (the prompt's Discard) runs
+    /// `discardChangesNow` -> `adoptConfig` -> `clearPending`.
+    fn discard(app: *App) !void {
+        const settings = &app.settings_window;
+        _ = sys.SendMessageW(settings.btn_discard_changes.?, bm_click, 0, 0);
+        try std.testing.expect(settings.discard_prompt);
+        _ = sys.SendMessageW(settings.btn_discard_changes.?, bm_click, 0, 0);
+        try std.testing.expect(!settings.hasPendingChanges());
+        try std.testing.expect(settings.hwnd != null);
+    }
 
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &first));
-    try std.testing.expectEqual(@as(usize, 1), first.hostSurfaceCount());
-    try std.testing.expect(shouldResizeHostForInitialSize(first.hostSurfaceCount()));
+    /// That the window's opacity field and theme dropdown read `opacity` and
+    /// `theme`, with nothing unsaved.
+    fn expectSavedControls(app: *App, opacity: []const u8, theme: configpkg.Config.WindowTheme) !void {
+        const settings = &app.settings_window;
+        try std.testing.expect(!settings.hasPendingChanges());
+        var text: [32]u16 = undefined;
+        const len = sys.GetWindowTextW(settings.fields.edit_bg_opacity.?, &text, text.len);
+        var utf8: [64]u8 = undefined;
+        const shown = utf8[0..try std.unicode.utf16LeToUtf8(&utf8, text[0..@intCast(len)])];
+        try std.testing.expectEqualStrings(opacity, shown);
+        const cb_getcursel = 0x0147;
+        const index = sys.SendMessageW(settings.fields.combo_window_theme.?, cb_getcursel, 0, 0);
+        try std.testing.expectEqual(@as(isize, @intCast(field_model.Combo(.window_theme).toIndex(theme))), index);
+    }
 
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 2, &second));
-    try std.testing.expectEqual(@as(usize, 2), first.hostSurfaceCount());
-    try std.testing.expect(!shouldResizeHostForInitialSize(first.hostSurfaceCount()));
+    /// Row `binding`'s Reset button, shown.
+    fn resetButton(app: *App, comptime binding: []const u8) !HWND {
+        const index = comptime for (field_model.form_fields, 0..) |row, i| {
+            if (std.mem.eql(u8, row.native.binding, binding)) break i;
+        } else @compileError("no form row " ++ binding);
+        const button = app.settings_window.reset_buttons[index] orelse return error.TestNoResetButton;
+        try std.testing.expect(sys.IsWindowVisible(button) != 0);
+        return button;
+    }
+
+    fn deinit(app: *App) void {
+        app.settings_window.deinit();
+        _ = sys.UnregisterClassW(settings_class, app.settings_window.handle.hinstance);
+        _ = sys.UnregisterClassW(viewport_class, app.settings_window.handle.hinstance);
+    }
+};
+
+test "win32 closing Settings with a theme and an opacity preview left applies each window's opacity once, at the saved value, after the theme" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            if (!app.com_initialized) return error.SkipZigTest;
+            defer SettingsPreviewWindow.deinit(app);
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            // Two translucent windows under the saved Dark theme.
+            app.config.@"window-theme" = .dark;
+            app.config.@"background-opacity" = 0.8;
+            try app.createWindow(default_title);
+            const first = fixture.newest().host.?;
+            try app.createWindow(default_title);
+            const second = fixture.newest().host.?;
+            for ([_]*Host{ first, second }) |host| try std.testing.expectEqual(@as(?u8, 204), testBackgroundAlpha(host.hwnd.?));
+            try SettingsPreviewWindow.openWithPreviews(app);
+            for ([_]*Host{ first, second }) |host| try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(host.hwnd.?));
+
+            // The cancel: Settings closes with both previews left. Each
+            // window applies its opacity once, at the saved 0.8, after the
+            // one theme rebuild, and asserts blur-behind once for it. The
+            // reverts one at a time (the opacity's, then the theme's
+            // refresh) applied each window twice, the first before the
+            // rebuild.
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+            const rebuilds = app.theme_rebuilds;
+            const asserts = test_blur_behind_asserts;
+            try SettingsPreviewWindow.cancel(app);
+            try std.testing.expect(app.settings_preview == null);
+            try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
+            try std.testing.expectEqual(@as(usize, 2), applied.items.len);
+            for ([_]*Host{ first, second }) |host| try expectAppliedOnce(applied.items, host, 0.8);
+            for (applied.items) |apply| try std.testing.expectEqual(rebuilds + 1, apply.theme_rebuilds);
+            try std.testing.expectEqual(asserts + 2, test_blur_behind_asserts);
+            for ([_]*Host{ first, second }) |host| {
+                try std.testing.expect(!testHostIsLayered(host.hwnd.?));
+                try std.testing.expectEqual(@as(?u8, 204), testBackgroundAlpha(host.hwnd.?));
+            }
+            try std.testing.expect(std.meta.eql(win32.resolveTheme(&app.config), app.resolved_theme));
+
+            // The window is gone; opened again, its controls read what is
+            // saved, with nothing unsaved.
+            try app.settings_window.open();
+            try SettingsPreviewWindow.expectSavedControls(app, "0.8", .dark);
+        }
+    }.body);
+}
+
+test "win32 Discard in an open Settings with a theme and an opacity preview left applies each window's opacity once, at the saved value, after the theme, and a later edit still previews" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            if (!app.com_initialized) return error.SkipZigTest;
+            defer SettingsPreviewWindow.deinit(app);
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            app.config.@"window-theme" = .dark;
+            app.config.@"background-opacity" = 0.8;
+            try app.createWindow(default_title);
+            const first = fixture.newest().host.?;
+            try app.createWindow(default_title);
+            const second = fixture.newest().host.?;
+            try SettingsPreviewWindow.openWithPreviews(app);
+
+            // Discard with the window open: each window applies its opacity
+            // once, at the saved 0.8, after the one theme rebuild, and the
+            // window's controls read what is saved. The reverts one at a
+            // time applied each window twice.
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+            const rebuilds = app.theme_rebuilds;
+            const asserts = test_blur_behind_asserts;
+            try SettingsPreviewWindow.discard(app);
+            try std.testing.expect(app.settings_preview == null);
+            try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
+            try std.testing.expectEqual(@as(usize, 2), applied.items.len);
+            for ([_]*Host{ first, second }) |host| try expectAppliedOnce(applied.items, host, 0.8);
+            for (applied.items) |apply| try std.testing.expectEqual(rebuilds + 1, apply.theme_rebuilds);
+            try std.testing.expectEqual(asserts + 2, test_blur_behind_asserts);
+            for ([_]*Host{ first, second }) |host| try std.testing.expectEqual(@as(?u8, 204), testBackgroundAlpha(host.hwnd.?));
+            try std.testing.expect(std.meta.eql(win32.resolveTheme(&app.config), app.resolved_theme));
+            try SettingsPreviewWindow.expectSavedControls(app, "0.8", .dark);
+
+            // The window stays, and a later edit previews as any does: one
+            // field's `previewField`, each window once at the new value, and
+            // no theme rebuild.
+            applied.clearRetainingCapacity();
+            const edit_rebuilds = app.theme_rebuilds;
+            _ = sys.SetWindowTextW(app.settings_window.fields.edit_bg_opacity.?, std.unicode.utf8ToUtf16LeStringLiteral("0.6"));
+            try std.testing.expect(app.settings_window.hasPendingChanges());
+            try std.testing.expect(app.settings_preview != null);
+            try std.testing.expectEqual(@as(f64, 0.6), app.shownConfig().@"background-opacity");
+            try std.testing.expectEqual(@as(usize, 2), applied.items.len);
+            for ([_]*Host{ first, second }) |host| try expectAppliedOnce(applied.items, host, 0.6);
+            try std.testing.expectEqual(edit_rebuilds, app.theme_rebuilds);
+            for ([_]*Host{ first, second }) |host| try std.testing.expectEqual(@as(?u8, 153), testBackgroundAlpha(host.hwnd.?));
+        }
+    }.body);
+}
+
+test "win32 a Settings Reset of the opacity row alone, with the theme preview kept, applies each window's opacity once" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            if (!app.com_initialized) return error.SkipZigTest;
+            defer SettingsPreviewWindow.deinit(app);
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+
+            app.config.@"window-theme" = .dark;
+            app.config.@"background-opacity" = 0.8;
+            try app.createWindow(default_title);
+            const host = fixture.newest().host.?;
+            try SettingsPreviewWindow.openWithPreviews(app);
+            const resolved = app.resolved_theme;
+
+            // The opacity row's Reset puts the draft at the default, 1.0, an
+            // edit of one row: the window applies its opacity once, at 1.0,
+            // the theme is not rebuilt, and its preview stays.
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+            const rebuilds = app.theme_rebuilds;
+            const asserts = test_blur_behind_asserts;
+            const reset = try SettingsPreviewWindow.resetButton(app, "edit_bg_opacity");
+            _ = sys.SendMessageW(reset, SettingsPreviewWindow.bm_click, 0, 0);
+            try std.testing.expectEqual(@as(f64, 1.0), app.settings_window.pending.?.@"background-opacity");
+            try std.testing.expectEqual(@as(usize, 1), applied.items.len);
+            try expectAppliedOnce(applied.items, host, 1.0);
+            try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(host.hwnd.?));
+            try std.testing.expect(app.settings_preview != null);
+            try std.testing.expect(app.shownConfig().@"window-theme" == .light);
+            try std.testing.expect(std.meta.eql(resolved, app.resolved_theme));
+            try std.testing.expect(app.settings_window.hasPendingChanges());
+        }
+    }.body);
+}
+
+test "win32 a window whose blur-behind failed fades whole, and tries it again only at a system theme change" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        /// A system theme message, after a system change (light/dark,
+        /// through `test_system_inputs`, with the theme rebuilt) or only
+        /// finding a resource missing, with blur-behind failing or not: it
+        /// applies the opacity once and tries blur-behind `tries` times.
+        fn themeMessage(app: *App, host: *Host, changed: bool, fails: bool, tries: usize) !void {
+            test_blur_behind_fails = fails;
+            if (changed) {
+                test_system_inputs.?.dark = !test_system_inputs.?.dark;
+                app.system_theme_refresh = .{};
+            } else {
+                _ = sys.DeleteObject(host.chrome_brush.?);
+                host.chrome_brush = null;
+            }
+            const applies = test_background_opacity_applies;
+            const asserts = test_blur_behind_asserts;
+            app.reconfigureSystemTheme();
+            try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+            try std.testing.expectEqual(asserts + tries, test_blur_behind_asserts);
+        }
+
+        /// A system theme message that changed nothing, after a theme change
+        /// of the app's own: it rebuilds nothing and does not try.
+        fn unchangedMessage(app: *App, host: *const Host) !void {
+            const rebuilds = app.theme_rebuilds;
+            const asserts = test_blur_behind_asserts;
+            app.reconfigureSystemTheme();
+            try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+            try std.testing.expect(host.blur_behind_failed);
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+            test_blur_behind_fails = true;
+            defer test_blur_behind_fails = false;
+            test_system_inputs = SystemInputs.capture();
+            defer test_system_inputs = null;
+
+            app.config.@"background-opacity" = 0.5;
+            app.config.@"window-theme" = .dark;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            try std.testing.expect(host.blur_behind_failed);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+            try std.testing.expectEqual(@as(?f64, null), pane.background_opacity);
+
+            // Latched: with blur-behind working again, a reload neither
+            // tries it nor changes how the window shows its opacity.
+            test_blur_behind_fails = false;
+            const asserts = test_blur_behind_asserts;
+            var reloaded = try app.config.clone(std.testing.allocator);
+            defer reloaded.deinit();
+            try reloadConfig(app, &reloaded);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+
+            // A system theme change tries it again. Where it fails again, the
+            // window latches again after one try, so one warning, and still
+            // fades whole.
+            try themeMessage(app, host, true, true, 1);
+            try std.testing.expect(host.blur_behind_failed);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+            try std.testing.expectEqual(@as(?u8, null), testBackgroundAlpha(hwnd));
+
+            // The app's own theme changes are none of the system's: with
+            // blur-behind working again, after Settings previews another
+            // theme, after that preview ends, after a reload and after the
+            // palette's theme, each of another theme, a theme message that
+            // changed nothing rebuilds nothing and does not try.
+            test_blur_behind_fails = false;
+            try std.testing.expect(app.previewSetting(.{ .window_theme = .light }));
+            app.refreshSettingsPreview(.theme);
+            try unchangedMessage(app, host);
+            app.endSettingsPreview();
+            try unchangedMessage(app, host);
+            reloaded.@"window-theme" = .light;
+            try reloadConfig(app, &reloaded);
+            try unchangedMessage(app, host);
+            var palette = try app.config.clone(std.testing.allocator);
+            palette.@"window-theme" = .dark;
+            var left = host.swapRuntimeConfigFromPalette(palette);
+            left.deinit();
+            try unchangedMessage(app, host);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+
+            // A system change a rebuild of the app's own takes in before its
+            // message arrives: the system turns light or dark, a reload
+            // rebuilds the theme (and leaves the latch, as a reload does),
+            // then the message finds the theme as the reload left it, so
+            // nothing to rebuild, but the change is still the system's: the
+            // window tries once, and where it fails again latches again.
+            test_system_inputs.?.dark = !test_system_inputs.?.dark;
+            reloaded.@"window-theme" = .light;
+            var asserts_before = test_blur_behind_asserts;
+            try reloadConfig(app, &reloaded);
+            try std.testing.expectEqual(asserts_before, test_blur_behind_asserts);
+            try std.testing.expect(host.blur_behind_failed);
+            test_blur_behind_fails = true;
+            const rebuilds = app.theme_rebuilds;
+            const applies = test_background_opacity_applies;
+            asserts_before = test_blur_behind_asserts;
+            app.reconfigureSystemTheme();
+            try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+            try std.testing.expectEqual(applies + 1, test_background_opacity_applies);
+            try std.testing.expectEqual(asserts_before + 1, test_blur_behind_asserts);
+            try std.testing.expect(host.blur_behind_failed);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+            // That message was the change's: the next one, with nothing
+            // changed, does not try again.
+            test_blur_behind_fails = false;
+            try unchangedMessage(app, host);
+
+            // A theme message that changed nothing but finds a resource
+            // missing rebuilds the theme without trying.
+            try themeMessage(app, host, false, false, 0);
+            try std.testing.expect(host.blur_behind_failed);
+            try std.testing.expectEqual(@as(?u8, 128), testLayeredAlpha(hwnd));
+
+            // Where DWM works again, the next theme change shows the
+            // background alone translucent.
+            try themeMessage(app, host, true, false, 1);
+            try std.testing.expect(!host.blur_behind_failed);
+            try std.testing.expect(!testHostIsLayered(hwnd));
+            try std.testing.expectEqual(@as(?u8, 128), testBackgroundAlpha(hwnd));
+            try std.testing.expectEqual(@as(?f64, 0.5), pane.background_opacity);
+        }
+    }.body);
+}
+
+test "win32 a light/dark change and its reload apply each window's opacity once, at the new theme's, whichever system message comes first, a failed reload's too, and retry a failed blur-behind once" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        /// The light theme's opacity, and the dark one's.
+        fn opacity(theme: configpkg.ConditionalState.Theme) f64 {
+            return switch (theme) {
+                .light => 0.6,
+                .dark => 0.8,
+            };
+        }
+
+        /// Each theme's `split-divider-color`, which the chrome draws
+        /// (`App.resolved_theme.pane_divider`).
+        fn divider(theme: configpkg.ConditionalState.Theme) u32 {
+            return switch (theme) {
+                .light => win32_theme.rgb(0x10, 0x20, 0x30),
+                .dark => win32_theme.rgb(0x40, 0x50, 0x60),
+            };
+        }
+
+        /// The app config and the chrome in `theme`.
+        fn expectAppIn(app: *App, theme: configpkg.ConditionalState.Theme) !void {
+            try std.testing.expectEqual(opacity(theme), app.config.@"background-opacity");
+            try std.testing.expectEqual(divider(theme), app.resolved_theme.pane_divider);
+            const color = app.config.@"split-divider-color".?;
+            try std.testing.expectEqual(divider(theme), win32_theme.rgb(color.r, color.g, color.b));
+        }
+
+        /// Settings' snapshot of the opacity (`current`) and the field it
+        /// shows, in `theme`, with nothing unsaved.
+        fn expectSettingsIn(app: *App, theme: configpkg.ConditionalState.Theme) !void {
+            const settings = &app.settings_window;
+            try std.testing.expect(!settings.hasPendingChanges());
+            const entry = for (settings.transaction.?.entries) |*entry| {
+                if (entry.field == .background_opacity) break entry;
+            } else return error.TestNoOpacityEntry;
+            const SettingValue = @import("../win32_settings.zig").SettingValue;
+            try std.testing.expect(std.meta.eql(SettingValue{ .background_opacity = opacity(theme) }, entry.current));
+            var text: [32]u16 = undefined;
+            const len = sys.GetWindowTextW(settings.fields.edit_bg_opacity.?, &text, text.len);
+            var utf8: [64]u8 = undefined;
+            const shown = utf8[0..try std.unicode.utf16LeToUtf8(&utf8, text[0..@intCast(len)])];
+            try std.testing.expectEqualStrings(switch (theme) {
+                .light => "0.6",
+                .dark => "0.8",
+            }, shown);
+        }
+
+        fn alpha(theme: configpkg.ConditionalState.Theme) u8 {
+            return switch (theme) {
+                .light => 153,
+                .dark => 204,
+            };
+        }
+
+        fn system() configpkg.ConditionalState.Theme {
+            return if (win32.isSystemDarkMode()) .dark else .light;
+        }
+
+        fn other() configpkg.ConditionalState.Theme {
+            return if (system() == .dark) .light else .dark;
+        }
+
+        /// The app as it was before the system turned light or dark: core's
+        /// light/dark state and the app's config the other one's than the
+        /// system's, every window at its opacity.
+        fn before(app: *App) !void {
+            app.core_app.config_conditional_state.theme = other();
+            try app.updateCoreConfig(&app.config);
+            try std.testing.expectEqual(opacity(other()), app.config.@"background-opacity");
+        }
+
+        /// The config at `path`, in the other light/dark state than the
+        /// system's.
+        fn load(alloc: std.mem.Allocator, path: []const u8) !configpkg.Config {
+            var loaded = try configpkg.Config.default(alloc);
+            errdefer loaded.deinit();
+            try loaded.loadFile(alloc, path);
+            try loaded.loadRecursiveFiles(alloc);
+            try loaded.finalize();
+            const in_state = (try loaded.changeConditionalState(.{ .theme = other() })) orelse return loaded;
+            loaded.deinit();
+            return in_state;
+        }
+
+        const Order = enum { immersive_first, theme_changed_first };
+
+        /// The system turned light or dark (`test_system_inputs`), with the
+        /// theme to rebuild: every window gets the system's messages, in
+        /// `order`, through its window procedure. Where `before` ran, core's
+        /// light/dark state is the other one, so the first message reloads.
+        fn messages(app: *App, order: Order) void {
+            test_system_inputs.?.dark = !test_system_inputs.?.dark;
+            app.system_theme_refresh = .{};
+            const immersive = std.unicode.utf8ToUtf16LeStringLiteral("ImmersiveColorSet");
+            for (0..2) |step| {
+                const theme_changed = (step == 0) == (order == .theme_changed_first);
+                for (app.registry.hosts.items) |host| {
+                    if (theme_changed)
+                        _ = sys.SendMessageW(host.hwnd.?, c.WM_THEMECHANGED, 0, 0)
+                    else
+                        _ = sys.SendMessageW(host.hwnd.?, c.WM_SETTINGCHANGE, 0, @bitCast(@intFromPtr(immersive)));
+                }
+            }
+        }
+
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            test_pane_renderer = .opengl;
+            defer test_pane_renderer = null;
+            defer test_blur_behind_fails = false;
+            test_system_inputs = SystemInputs.capture();
+            defer test_system_inputs = null;
+
+            // A config whose light and dark themes differ in opacity, read
+            // from files so core's light/dark state replays it, under a
+            // `window-theme` that follows the system.
+            const alloc = std.testing.allocator;
+            var tmp = std.testing.tmpDir(.{});
+            defer tmp.cleanup();
+            try tmp.dir.writeFile(.{ .sub_path = "light", .data = "background-opacity = 0.6\nsplit-divider-color = #102030\n" });
+            try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "background-opacity = 0.8\nsplit-divider-color = #405060\n" });
+            const light = try tmp.dir.realpathAlloc(alloc, "light");
+            defer alloc.free(light);
+            const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+            defer alloc.free(dark);
+            const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nwindow-theme = system\n", .{ light, dark });
+            defer alloc.free(text);
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            const path = try tmp.dir.realpathAlloc(alloc, "config");
+            defer alloc.free(path);
+            const loaded = try load(alloc, path);
+            app.config.deinit();
+            app.config = loaded;
+            app.core_app.config_conditional_state.theme = other();
+            try std.testing.expectEqual(opacity(other()), app.config.@"background-opacity");
+
+            // A window whose blur-behind failed and one whose did not, both
+            // translucent.
+            test_blur_behind_fails = true;
+            try app.createWindow(default_title);
+            const failed = fixture.newest().host.?;
+            test_blur_behind_fails = false;
+            try app.createWindow(default_title);
+            const working = fixture.newest().host.?;
+            try std.testing.expect(failed.blur_behind_failed);
+            try std.testing.expect(!working.blur_behind_failed);
+            const hosts = [_]*Host{ failed, working };
+
+            var applied: std.ArrayListUnmanaged(TestOpacityApply) = .empty;
+            defer applied.deinit(std.testing.allocator);
+            test_background_opacity_log = &applied;
+            defer test_background_opacity_log = null;
+
+            // With a reload, in either order of the system's messages: one
+            // apply per window, in the reload, at the opacity of the theme
+            // the system turned to, and the failed window tries blur-behind
+            // once there and keeps it. Before, a `WM_THEMECHANGED` first
+            // rebuilt the theme and applied every window at the opacity the
+            // reload then replaced, and the reload applied every window again.
+            for ([_]Order{ .immersive_first, .theme_changed_first }) |order| {
+                try before(app);
+                applied.clearRetainingCapacity();
+                const asserts = test_blur_behind_asserts;
+                messages(app, order);
+                try std.testing.expectEqual(hosts.len, applied.items.len);
+                for (hosts) |host| try expectAppliedOnce(applied.items, host, opacity(system()));
+                try std.testing.expectEqual(system(), app.core_app.config_conditional_state.theme);
+                try expectAppIn(app, system());
+                try std.testing.expectEqual(asserts + hosts.len, test_blur_behind_asserts);
+                try std.testing.expect(!failed.blur_behind_failed);
+                try std.testing.expectEqual(@as(?u8, alpha(system())), testBackgroundAlpha(failed.hwnd.?));
+            }
+
+            // With a reload whose first pane's step fails: core's light/dark
+            // state moved, and the update ends as a reload of the app's own
+            // config in it, so the app config, the chrome (its divider) and
+            // every window, once, are in the system's state with the panes,
+            // and the message after it finds the theme current. Before G2's
+            // fallback, the message rebuilt the theme the failed update never
+            // had and applied every window again (4 where 2); with it, the
+            // windows took the new state while the app config and the
+            // chrome stayed in the old one.
+            {
+                try before(app);
+                // Settings open, on the app config as it was: it keeps a
+                // snapshot of its own, which only `externalConfigChanged`
+                // moves.
+                app.settings_window.handle.deferUiaDisconnect = null;
+                try app.settings_window.open();
+                defer SettingsPreviewWindow.deinit(app);
+                try expectSettingsIn(app, other());
+                applied.clearRetainingCapacity();
+                const asserts = test_blur_behind_asserts;
+                Surface.test_scrollbar_refresh_fails = app.core_app.surfaces.items[0];
+                defer Surface.test_scrollbar_refresh_fails = null;
+                messages(app, .immersive_first);
+                Surface.test_scrollbar_refresh_fails = null;
+                try std.testing.expectEqual(hosts.len, applied.items.len);
+                for (hosts) |host| try expectAppliedOnce(applied.items, host, opacity(system()));
+                try std.testing.expectEqual(asserts + hosts.len, test_blur_behind_asserts);
+                try expectAppIn(app, system());
+                // The app's step fails at the same pane's scrollbar again,
+                // and Settings still hears of the config it installed.
+                // Before, that failure ended the step first, and Settings
+                // kept the other state's opacity.
+                try expectSettingsIn(app, system());
+            }
+
+            // Failing again, it latches again after that one try.
+            fixture.closeWindow(fixture.newest());
+            test_blur_behind_fails = true;
+            {
+                try before(app);
+                applied.clearRetainingCapacity();
+                const asserts = test_blur_behind_asserts;
+                messages(app, .immersive_first);
+                try std.testing.expectEqual(@as(usize, 1), applied.items.len);
+                try expectAppliedOnce(applied.items, failed, opacity(system()));
+                try std.testing.expectEqual(asserts + 1, test_blur_behind_asserts);
+                try std.testing.expect(failed.blur_behind_failed);
+                try std.testing.expectEqual(@as(?u8, alpha(system())), testLayeredAlpha(failed.hwnd.?));
+            }
+
+            // Without a reload (core already in the system's state) the
+            // message alone rebuilds, and retries once, as before.
+            {
+                applied.clearRetainingCapacity();
+                const asserts = test_blur_behind_asserts;
+                messages(app, .theme_changed_first);
+                try std.testing.expectEqual(@as(usize, 1), applied.items.len);
+                try expectAppliedOnce(applied.items, failed, opacity(system()));
+                try std.testing.expectEqual(asserts + 1, test_blur_behind_asserts);
+                try std.testing.expect(failed.blur_behind_failed);
+            }
+
+            // A message that changed nothing after either tries nothing.
+            applied.clearRetainingCapacity();
+            const asserts = test_blur_behind_asserts;
+            const rebuilds = app.theme_rebuilds;
+            app.reconfigureSystemTheme();
+            try std.testing.expectEqual(rebuilds, app.theme_rebuilds);
+            try std.testing.expectEqual(@as(usize, 0), applied.items.len);
+            try std.testing.expectEqual(asserts, test_blur_behind_asserts);
+        }
+    }.body);
+}
+
+test "win32 DWM_BLURBEHIND matches dwmapi.h, which packs it to 1" {
+    try std.testing.expectEqual(@as(usize, 20), @sizeOf(sys.DWM_BLURBEHIND));
+    try std.testing.expectEqual(@as(usize, 4), @offsetOf(sys.DWM_BLURBEHIND, "fEnable"));
+    try std.testing.expectEqual(@as(usize, 8), @offsetOf(sys.DWM_BLURBEHIND, "hRgnBlur"));
+    try std.testing.expectEqual(@as(usize, 16), @offsetOf(sys.DWM_BLURBEHIND, "fTransitionOnMaximized"));
+}
+
+test "win32 a translucent background makes solid the child controls that paint themselves, and gives back only those" {
+    const ascii = std.unicode.utf8ToUtf16LeStringLiteral;
+    // Classes as `GetClassNameW` gives them, whatever case they were made
+    // with.
+    try std.testing.expect(solidifies(ascii("Edit"), c.ES_AUTOHSCROLL));
+    try std.testing.expect(solidifies(ascii("Static"), c.SS_RIGHT));
+    try std.testing.expect(solidifies(win32.palette_list_class_name, 0));
+    try std.testing.expect(!solidifies(ascii("Button"), c.BS_OWNERDRAW));
+    try std.testing.expect(!solidifies(ascii("Static"), c.SS_OWNERDRAW));
+    try std.testing.expect(!solidifies(ascii("STATIC"), c.SS_OWNERDRAW | c.WS_CHILD));
+    try std.testing.expect(!solidifies(win32.class_name, 0));
+}
+
+test "win32 a size limit on the active pane of a minimized window leaves it minimized" {
+    // A pane's own action never restores its window, whatever other panes
+    // the window holds.
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const limit: apprt.action.SizeLimit = .{ .min_width = 120, .min_height = 60, .max_width = 0, .max_height = 0 };
+
+            try app.createWindow(default_title);
+            const pair = fixture.newest();
+            const hwnd = pair.windowHwnd().?;
+            _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = pair.host_id });
+            try std.testing.expectEqual(pair, pair.host.?.activeSurface().?);
+
+            _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
+            try std.testing.expect(sys.IsIconic(hwnd) != 0);
+            try std.testing.expect(try app.performAction(.{ .surface = pair.core() }, .size_limit, limit));
+            try std.testing.expect(sys.IsIconic(hwnd) != 0);
+        }
+    }.body);
+}
+
+test "win32 a reload leaves the active window active and a minimized window minimized" {
+    // A reload sends every pane of a two-pane window a config change, the
+    // pane it shows included: none of them restores or activates a window.
+    // A minimized window that is restored becomes the active one, so this
+    // probe sees an activation.
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+
+            var firsts: [2]*Surface = undefined;
+            for (&firsts) |*first| {
+                try app.createWindow(default_title);
+                first.* = fixture.newest();
+                _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.*.host_id });
+            }
+            const older = firsts[0].windowHwnd().?;
+            const newer = firsts[1].windowHwnd().?;
+            _ = sys.SetActiveWindow(older);
+            try std.testing.expectEqual(@as(?HWND, older), sys.GetActiveWindow());
+            try reloadConfig(app, &app.config);
+            try std.testing.expectEqual(@as(?HWND, older), sys.GetActiveWindow());
+
+            _ = sys.ShowWindow(newer, c.SW_SHOWMINNOACTIVE);
+            _ = sys.SetActiveWindow(older);
+            try std.testing.expectEqual(@as(?HWND, older), sys.GetActiveWindow());
+            try reloadConfig(app, &app.config);
+            try std.testing.expect(sys.IsIconic(newer) != 0);
+            try std.testing.expectEqual(@as(?HWND, older), sys.GetActiveWindow());
+        }
+    }.body);
+}
+
+test "win32 a new window takes the pane metrics of the pane it is opened from" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const Fixture = WindowStartTestApp;
+
+            try app.createWindow(default_title);
+            const source = fixture.newest();
+            const target: apprt.Target = .{ .surface = source.core() };
+            try std.testing.expect(try app.performAction(target, .cell_size, .{ .width = 9, .height = 18 }));
+            try std.testing.expect(try app.performAction(target, .size_limit, .{ .min_width = 90, .min_height = 72, .max_width = 0, .max_height = 0 }));
+            try std.testing.expect(try app.performAction(target, .initial_size, .{ .width = 640, .height = 400 }));
+
+            // Its own core init asks for another client size, as a font of
+            // its own would.
+            Fixture.initial_size = .{ .width = 500, .height = 300 };
+            defer Fixture.initial_size = null;
+            try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = null }));
+            const clone = fixture.newest();
+            try std.testing.expect(clone != source);
+            try std.testing.expectEqual(source.metrics.cell_size_pixels, clone.metrics.cell_size_pixels);
+            try std.testing.expect(sizeLimitEquals(source.metrics.size_limit, clone.metrics.size_limit));
+            try std.testing.expectEqual(source.metrics.default_client_size, clone.metrics.default_client_size);
+        }
+    }.body);
+}
+
+test "win32 Windows sends WM_GETMINMAXINFO to a top-level window and never to a terminal child on SetWindowPos" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const Counter = struct {
+        var top_level: usize = 0;
+        var child: usize = 0;
+        var top_prev: ?*const anyopaque = null;
+        var child_prev: ?*const anyopaque = null;
+
+        fn topProc(hwnd: HWND, msg: UINT, wp: usize, lp: LPARAM) callconv(.winapi) isize {
+            if (msg == c.WM_GETMINMAXINFO) top_level += 1;
+            return sys.CallWindowProcW(top_prev, hwnd, msg, wp, lp);
+        }
+
+        fn childProc(hwnd: HWND, msg: UINT, wp: usize, lp: LPARAM) callconv(.winapi) isize {
+            if (msg == c.WM_GETMINMAXINFO) child += 1;
+            return sys.CallWindowProcW(child_prev, hwnd, msg, wp, lp);
+        }
+
+        fn subclass(hwnd: HWND, proc: anytype) ?*const anyopaque {
+            return @ptrFromInt(@as(usize, @bitCast(sys.SetWindowLongPtrW(hwnd, c.GWLP_WNDPROC, @bitCast(@intFromPtr(proc))))));
+        }
+    };
+    const top = sys.CreateWindowExW(0, prompt_label_class, std.unicode.utf8ToUtf16LeStringLiteral(""), hostStyle(true, false), 0, 0, 640, 480, null, null, sys.GetModuleHandleW(null), null) orelse return lastError();
+    defer _ = sys.DestroyWindow(top);
+    const child = sys.CreateWindowExW(0, prompt_label_class, std.unicode.utf8ToUtf16LeStringLiteral(""), win32.surfaceWindowStyle(), 0, 0, 100, 100, top, null, sys.GetModuleHandleW(null), null) orelse return lastError();
+    Counter.top_prev = Counter.subclass(top, &Counter.topProc);
+    Counter.child_prev = Counter.subclass(child, &Counter.childProc);
+    const flags: UINT = c.SWP_NOZORDER | c.SWP_NOACTIVATE;
+    // The positive control: the top-level window is asked.
+    if (sys.SetWindowPos(top, null, 10, 10, 600, 400, flags) == 0) return lastError();
+    try std.testing.expect(Counter.top_level > 0);
+    for ([_][2]i32{ .{ 300, 200 }, .{ 40, 30 }, .{ 2000, 1500 } }) |size| {
+        if (sys.SetWindowPos(child, null, 5, 5, size[0], size[1], flags) == 0) return lastError();
+    }
+    if (sys.SetWindowPos(child, null, 0, 0, 0, 0, flags | c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_FRAMECHANGED | c.SWP_SHOWWINDOW) == 0) return lastError();
+    try std.testing.expectEqual(@as(usize, 0), Counter.child);
+}
+
+test "win32 a background tab's config change, goto_tab and a tab click leave the window's state alone" {
+    // A window's state is the window's: a config change from a tab behind
+    // the front one does not reach it, and showing that tab gives the
+    // window nothing of it (alpha 128 would).
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const host = first.host.?;
+            const hwnd = host.hwnd.?;
+            const second = try app.createWindowSurface(&app.config, default_title, .{ .host_id = first.host_id });
+            try std.testing.expectEqual(first, host.activeSurface().?);
+
+            // A config change of the background tab does not reach its
+            // window, which takes config from the pane it shows.
+            var faded = try app.config.clone(std.testing.allocator);
+            defer faded.deinit();
+            faded.@"background-opacity" = 0.5;
+            try std.testing.expect(try app.performAction(.{ .surface = second.core() }, .config_change, .{ .config = &faded }));
+            try std.testing.expectEqual(@as(?u8, null), shownAlpha(hwnd));
+
+            // Nor does showing that tab.
+            try std.testing.expect(host.activateTabIndex(1));
+            try std.testing.expectEqual(@as(?u8, null), shownAlpha(hwnd));
+            try std.testing.expect(host.activateTabIndex(0));
+            try std.testing.expectEqual(@as(?u8, null), shownAlpha(hwnd));
+
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .goto_tab, .next));
+            try std.testing.expectEqual(second, host.activeSurface().?);
+            try std.testing.expectEqual(@as(?u8, null), shownAlpha(hwnd));
+        }
+    }.body);
+}
+
+test "win32 a config reload decorates a window unless a toggle chose its decorations" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+
+            try app.createWindow(default_title);
+            const plain = fixture.newest().host.?;
+            try app.createWindow(default_title);
+            const toggled_pane = fixture.newest();
+            const toggled = toggled_pane.host.?;
+            try std.testing.expect(try perform(toggled, toggled_pane, .toggle_window_decorations, {}));
+            try std.testing.expect(!toggled.top_level.decorations_visible and toggled.top_level.decorations_overridden);
+
+            var config = try app.config.clone(std.testing.allocator);
+            defer config.deinit();
+            for ([_]configpkg.Config.WindowDecoration{ .none, .auto }) |decoration| {
+                config.@"window-decoration" = decoration;
+                for ([_]*Host{ plain, toggled }) |host| try applyConfig(host, &config);
+                try std.testing.expectEqual(decoration != .none, plain.top_level.decorations_visible);
+                try std.testing.expect(!toggled.top_level.decorations_visible);
+            }
+        }
+    }.body);
+}
+
+test "win32 scaleInitialClientSize converts logical initial size to physical pixels" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqualDeep(
+        apprt.SurfaceSize{ .width = 1680, .height = 810 },
+        scaleInitialClientSize(
+            .{ .width = 1120, .height = 540 },
+            .{ .x = 1.5, .y = 1.5 },
+        ),
+    );
+    try std.testing.expectEqualDeep(
+        apprt.SurfaceSize{ .width = 701, .height = 300 },
+        scaleInitialClientSize(
+            .{ .width = 467, .height = 200 },
+            .{ .x = 1.5, .y = 1.5 },
+        ),
+    );
+    try std.testing.expectEqualDeep(
+        apprt.SurfaceSize{
+            .width = std.math.maxInt(u32),
+            .height = std.math.maxInt(u32),
+        },
+        scaleInitialClientSize(
+            .{ .width = std.math.maxInt(u32), .height = std.math.maxInt(u32) },
+            .{ .x = 2.0, .y = 2.0 },
+        ),
+    );
+}
+
+test "win32 an initial size resizes a window of one pane that is neither zoomed nor fullscreen" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            _ = sys.SetThreadDpiAwarenessContext(-4);
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            const Case = struct { size: apprt.action.InitialSize, zoomed: bool = false, fullscreen: bool = false, panes: usize = 1 };
+            for ([_]Case{
+                .{ .size = .{ .width = 500, .height = 300 } },
+                .{ .size = .{ .width = 520, .height = 320 }, .zoomed = true },
+                .{ .size = .{ .width = 540, .height = 340 }, .fullscreen = true },
+                .{ .size = .{ .width = 560, .height = 360 }, .panes = 2 },
+            }) |case| {
+                if (case.zoomed) _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
+                if (case.fullscreen) try std.testing.expect(try perform(host, pane, .toggle_fullscreen, .native));
+                if (case.panes == 2) _ = try app.createWindowSurface(&app.config, default_title, .{ .host_id = host.id });
+                const before = try ForwardedKeysTest.clientSize(hwnd);
+                try std.testing.expect(try perform(host, pane, .initial_size, case.size));
+                try std.testing.expectEqual(@as(?apprt.SurfaceSize, .{ .width = case.size.width, .height = case.size.height }), pane.metrics.default_client_size);
+                const resizes = !case.zoomed and !case.fullscreen and case.panes == 1;
+                const expected = if (resizes) scaleInitialClientSize(pane.metrics.default_client_size.?, pane.content_scale) else before;
+                try std.testing.expectEqual(expected, try ForwardedKeysTest.clientSize(hwnd));
+                if (case.zoomed) _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
+                if (case.fullscreen) try std.testing.expect(try perform(host, pane, .toggle_fullscreen, .native));
+            }
+        }
+    }.body);
+}
+
+test "win32 window actions and tab switches leave a fullscreen window where it is" {
+    // tabs-panes.md 2026-04-29: a tab's own actions must not drop its
+    // window out of its state. The window's state is one copy, so no tab
+    // switch or tab action writes it.
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        var moves: usize = 0;
+        var previous: ?*const anyopaque = null;
+        const swp_hidewindow: UINT = 0x0080;
+
+        fn proc(hwnd: HWND, msg: UINT, wp: usize, lp: LPARAM) callconv(.winapi) isize {
+            if (msg == c.WM_WINDOWPOSCHANGED) {
+                const pos: *const sys.WINDOWPOS = @ptrFromInt(@as(usize, @bitCast(lp)));
+                const still: UINT = c.SWP_NOMOVE | c.SWP_NOSIZE;
+                if (pos.flags & still != still or pos.flags & (c.SWP_SHOWWINDOW | swp_hidewindow) != 0) moves += 1;
+            }
+            return sys.CallWindowProcW(previous, hwnd, msg, wp, lp);
+        }
+
+        fn body() !void {
+            _ = sys.SetThreadDpiAwarenessContext(-4);
+            var fixture: WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            const Fixture = WindowStartTestApp;
+
+            try app.createWindow(default_title);
+            const first = fixture.newest();
+            const host = first.host.?;
+            const hwnd = host.hwnd.?;
+            _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
+            const normal = try Fixture.normalRect(hwnd);
+            const second = try app.createWindowSurface(&app.config, default_title, .{ .host_id = host.id });
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .toggle_fullscreen, .native));
+            const screen = try Fixture.screenRect(hwnd);
+
+            moves = 0;
+            previous = @ptrFromInt(@as(usize, @bitCast(sys.SetWindowLongPtrW(hwnd, c.GWLP_WNDPROC, @bitCast(@intFromPtr(&proc))))));
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .goto_tab, .next));
+            try std.testing.expectEqual(second, host.activeSurface().?);
+            try std.testing.expect(host.activateTabIndex(0));
+            // A new background tab's core init sends its size limit.
+            const third = try app.createWindowSurface(&app.config, default_title, .{ .host_id = host.id });
+            try std.testing.expect(try app.performAction(.{ .surface = third.core() }, .size_limit, .{ .min_width = 90, .min_height = 72, .max_width = 0, .max_height = 0 }));
+            try std.testing.expect(try app.performAction(.{ .surface = first.core() }, .goto_tab, .last));
+            try std.testing.expectEqual(third, host.activeSurface().?);
+            try std.testing.expectEqual(@as(usize, 0), moves);
+            try std.testing.expect(host.top_level.isFullscreen());
+            try std.testing.expectEqualDeep(screen, try Fixture.screenRect(hwnd));
+
+            // It leaves fullscreen to the window it was.
+            try std.testing.expect(try app.performAction(.{ .surface = third.core() }, .toggle_fullscreen, .native));
+            try std.testing.expect(sys.IsZoomed(hwnd) != 0);
+            try std.testing.expectEqualDeep(normal, try Fixture.normalRect(hwnd));
+        }
+    }.body);
 }

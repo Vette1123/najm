@@ -3,42 +3,47 @@ const win32 = @import("../win32.zig");
 const runtime = win32.quick_terminal_host_runtime;
 const App = runtime.App;
 const BOOL = runtime.BOOL;
-const CoreApp = runtime.CoreApp;
 const HDC = runtime.HDC;
 const HWND = runtime.HWND;
 const HWND_TOPMOST = runtime.HWND_TOPMOST;
 const Host = runtime.Host;
 const LPARAM = runtime.LPARAM;
-const LPCWSTR = runtime.LPCWSTR;
 const MONITORINFO = runtime.MONITORINFO;
 const POINT = runtime.POINT;
-const QuickTerminalToggleFixture = win32.test_support.QuickTerminalToggleFixture;
 const RECT = runtime.RECT;
-const SplitTreeSurface = runtime.SplitTreeSurface;
-const Surface = runtime.Surface;
-const SurfaceInitOptions = runtime.SurfaceInitOptions;
-const Tab = runtime.Tab;
-const appendOwnedString = runtime.appendOwnedString;
 const apprt = runtime.apprt;
-const builtin = runtime.builtin;
 const c = runtime.c;
 const configpkg = runtime.configpkg;
 const getHost = runtime.getHost;
-const hostWindowProc = runtime.hostWindowProc;
-const host_class_name = runtime.host_class_name;
 const log = runtime.log;
-const palette_list_class_name = runtime.palette_list_class_name;
 const rectEqual = runtime.rectEqual;
-const runOnHiddenDesktop = win32.test_support.runOnHiddenDesktop;
-const scrollbar_class_name = runtime.scrollbar_class_name;
-const setWindowData = runtime.setWindowData;
 const std = runtime.std;
 const sys = runtime.sys;
 const win32_quick_terminal = runtime.win32_quick_terminal;
 const win32_theme = runtime.win32_theme;
 const win32_tween = runtime.win32_tween;
+const window_state = @import("window_state.zig");
 
-pub const quick_terminal_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm quick terminal");
+// Test dependencies.
+const CoreApp = @import("../../App.zig");
+const LPCWSTR = @import("../win32_types.zig").LPCWSTR;
+const QuickTerminalToggleFixture = win32.test_support.QuickTerminalToggleFixture;
+const SplitTreeSurface = win32.SplitTreeSurface;
+const Surface = win32.Surface;
+const SurfaceInitOptions = win32.SurfaceInitOptions;
+const Tab = win32.Tab;
+const appendOwnedString = paint_text.appendOwnedString;
+const builtin = @import("builtin");
+const child_window = @import("child_window.zig");
+const hostWindowProc = win32.hostWindowProc;
+const host_class_name = win32.host_class_name;
+const paint_text = @import("text.zig");
+const palette_list_class_name = win32.palette_list_class_name;
+const runOnHiddenDesktop = win32.test_support.runOnHiddenDesktop;
+const scrollbar_class_name = win32.scrollbar_class_name;
+const setWindowData = child_window.setWindowData;
+
+const quick_terminal_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm quick terminal");
 
 pub fn hideQuickTerminalHost(host: *Host) void {
     host.cancelQuickTerminalAnimation();
@@ -107,14 +112,13 @@ pub fn toggleQuickTerminal(self: *App) !void {
                 .window,
             );
             defer config.deinit();
-            const fresh_profile = try self.applyDefaultProfileLaunch(&config);
+            const launch = try configpkg.pane_launch.prepare(&config, .{ .fresh = .{} }, self.launchContext(null));
             const fresh = try self.createWindowSurface(&config, quick_terminal_title, .{
                 .host_id = host.id,
+                .launch = launch,
             });
-            if (fresh_profile) |profile| try self.noteProfileLaunch(fresh, profile);
-            // Floating is the surface's state: the window follows the
-            // active tab's.
-            try fresh.setFloatWindow(.on);
+            // The quick terminal floats over other windows.
+            _ = try window_state.perform(host, fresh, .float_window, .on);
             if (host.hwnd) |top_level| self.showQuickTerminalWindow(top_level, want_focus);
             self.showHostSurface(fresh, want_focus);
             self.auditCreationAfterActivation();
@@ -147,18 +151,17 @@ pub fn toggleQuickTerminal(self: *App) !void {
         .window,
     );
     defer config.deinit();
-    const default_profile = try self.applyDefaultProfileLaunch(&config);
+    const launch = try configpkg.pane_launch.prepare(&config, .{ .fresh = .{} }, self.launchContext(null));
     const surface = try self.createWindowSurface(&config, quick_terminal_title, .{
-        .quick_terminal = true,
         // Passive first-show: `Surface.init` uses `SW_SHOWNOACTIVATE`
         // after GL and core initialization, so the new HWND appears
         // without taking focus. Without this, the very first toggle-on
         // with `keyboard-interactivity = none` would still activate the
         // window even though the later `present()` call is skipped.
-        .show = if (want_focus) .activate else .no_activate,
+        .window = .{ .quick_terminal = if (want_focus) .activate else .no_activate },
+        .launch = launch,
     });
-    if (default_profile) |profile| try self.noteProfileLaunch(surface, profile);
-    try surface.setFloatWindow(.on);
+    _ = try window_state.perform(surface.host.?, surface, .float_window, .on);
     if (surface.windowHwnd()) |top_level| {
         self.applyQuickTerminalGeometry(top_level, true) catch |err| {
             std.log.warn("QT geometry failed err={}", .{err});
@@ -298,12 +301,12 @@ pub fn cancelQuickTerminalAnimation(self: *Host) void {
     }
 }
 
-pub const QuickTerminalGeometrySize = struct {
+const QuickTerminalGeometrySize = struct {
     primary: win32_quick_terminal.SizePercent,
     secondary: ?win32_quick_terminal.SizePercent,
 };
 
-pub fn quickTerminalSizeForGeometry(
+fn quickTerminalSizeForGeometry(
     qts: configpkg.Config.QuickTerminalSize,
     position: configpkg.Config.QuickTerminalPosition,
     dims: configpkg.Config.QuickTerminalSize.Dimensions,
@@ -329,7 +332,7 @@ pub fn quickTerminalSizeForGeometry(
     };
 }
 
-pub fn sizeToGeometry(sz: configpkg.Config.QuickTerminalSize.Size) win32_quick_terminal.SizePercent {
+fn sizeToGeometry(sz: configpkg.Config.QuickTerminalSize.Size) win32_quick_terminal.SizePercent {
     return switch (sz) {
         .percentage => |v| .{ .percent = v },
         .pixels => |v| .{ .pixels = v },
@@ -368,7 +371,7 @@ test "win32 DPI suggestions preserve a quick terminal tween but resize ordinary 
         _ = sys.UnregisterClassW(palette_list_class_name, hinstance);
         _ = sys.UnregisterClassW(scrollbar_class_name, hinstance);
     }
-    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = true });
+    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = .activate });
     const hwnd = host.hwnd.?;
     var before: RECT = undefined;
     try std.testing.expect(sys.GetWindowRect(hwnd, &before) != 0);
@@ -523,22 +526,25 @@ test "win32 toggle_quick_terminal opens a fresh floating tab instead of showing 
             try fixture.app.validateShellNativeMapping();
             // The window floats with the tab it shows, so a tab switch or
             // undo does not drop it below other windows.
-            try std.testing.expect(fixture.fresh.topmost);
+            try std.testing.expect(fixture.host.top_level.topmost);
         }
     }.body);
 }
 
 /// What a quick terminal toggle hands `createWindowSurface`, for the
-/// `default-profile` test: the program and the profile's variable.
+/// `default-profile` test: the launch key, the program, the profile's
+/// variable and the pinned directory.
 const QuickTerminalDefaultProfile = struct {
     /// Copies: the config is freed when the toggle returns.
     var arena: std.heap.ArenaAllocator = undefined;
+    var key: ?[]const u8 = null;
     var program: ?[]const u8 = null;
     var mode: ?[]const u8 = null;
     var dir: ?[]const u8 = null;
 
-    fn see(config: *const configpkg.Config) !void {
+    fn see(config: *const configpkg.Config, opts: SurfaceInitOptions) !void {
         const a = arena.allocator();
+        key = if (opts.launch.key) |value| try a.dupe(u8, value) else null;
         program = try a.dupe(u8, config.command.?.direct[0]);
         mode = if (config.env.map.get("MODE")) |value| try a.dupe(u8, value) else null;
         dir = if (config.@"working-directory") |wd| switch (wd) {
@@ -548,12 +554,12 @@ const QuickTerminalDefaultProfile = struct {
     }
 
     fn fresh(app: *App, config: *const configpkg.Config, title: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
-        try see(config);
+        try see(config, opts);
         return try QuickTerminalFreshTab.createSurface(app, config, title, opts);
     }
 
     fn create(_: *App, config: *const configpkg.Config, _: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
-        try see(config);
+        try see(config, opts);
         try std.testing.expect(opts.host_id == null);
         return error.TestWindowCreateFailed;
     }
@@ -573,7 +579,7 @@ test "win32 toggle_quick_terminal runs default-profile in a new window and a fre
             try fixture.app.config.@"profile-working-directory".parseCLI(arena, "py: D:\\pinned");
             fixture.app.config.@"default-profile" = "py";
             try fixture.app.config.finalize();
-            try std.testing.expectEqualStrings("user:py", if (fixture.app.config._default_profile) |profile| profile.key else "");
+            try std.testing.expectEqualStrings("user:py", if (configpkg.pane_launch.defaultProfile(&fixture.app.config)) |profile| profile.key else "");
             QuickTerminalDefaultProfile.arena = .init(std.testing.allocator);
             defer QuickTerminalDefaultProfile.arena.deinit();
 
@@ -592,28 +598,32 @@ test "win32 toggle_quick_terminal runs default-profile in a new window and a fre
             try fixture.app.toggleQuickTerminal();
             try std.testing.expect(!fixture.visible());
 
-            // The fresh tab it opens runs the profile and keeps its key.
+            // The fresh tab it opens is a fresh pane (`pane_launch.prepare`):
+            // the profile in its pinned directory, whose key the tab keeps.
             QuickTerminalFreshTab.fixture = &fixture;
             QuickTerminalFreshTab.calls = 0;
-            QuickTerminalDefaultProfile.program = null;
+            QuickTerminalDefaultProfile.key = null;
             fixture.app.test_create_window_surface = &QuickTerminalDefaultProfile.fresh;
             defer appendOwnedString(alloc, &fixture.host.cached_window_title, null) catch unreachable;
             defer appendOwnedString(alloc, &fixture.fresh.launch_profile_key, null) catch unreachable;
             try fixture.app.toggleQuickTerminal();
             try std.testing.expectEqual(@as(usize, 1), QuickTerminalFreshTab.calls);
+            try std.testing.expectEqualStrings("user:py", QuickTerminalDefaultProfile.key orelse "");
             try std.testing.expectEqualStrings("cmd.exe", QuickTerminalDefaultProfile.program orelse "");
             try std.testing.expectEqualStrings("profile", QuickTerminalDefaultProfile.mode orelse "");
             try std.testing.expectEqualStrings("D:\\pinned", QuickTerminalDefaultProfile.dir orelse "");
             try std.testing.expectEqualStrings("user:py", fixture.fresh.launch_profile_key orelse "");
 
-            // With no quick terminal yet, the window it creates runs it too.
+            // With no quick terminal yet, the window it creates is one too.
             fixture.host.quick_terminal = false;
             defer fixture.host.quick_terminal = true;
-            QuickTerminalDefaultProfile.program = null;
+            QuickTerminalDefaultProfile.key = null;
             fixture.app.test_create_window_surface = &QuickTerminalDefaultProfile.create;
             try std.testing.expectError(error.TestWindowCreateFailed, fixture.app.toggleQuickTerminal());
+            try std.testing.expectEqualStrings("user:py", QuickTerminalDefaultProfile.key orelse "");
             try std.testing.expectEqualStrings("cmd.exe", QuickTerminalDefaultProfile.program orelse "");
             try std.testing.expectEqualStrings("profile", QuickTerminalDefaultProfile.mode orelse "");
+            try std.testing.expectEqualStrings("D:\\pinned", QuickTerminalDefaultProfile.dir orelse "");
             // The app config is left as it was.
             try std.testing.expect(fixture.app.config.env.map.get("MODE") == null);
         }
@@ -771,11 +781,11 @@ pub fn monitorInfo(monitor: sys.HMONITOR) ?win32_quick_terminal.MonitorInfo {
     };
 }
 
-pub const PrimaryMonitorSearch = struct {
+const PrimaryMonitorSearch = struct {
     found: ?sys.HMONITOR = null,
 };
 
-pub fn primaryMonitorEnumProc(
+fn primaryMonitorEnumProc(
     monitor: sys.HMONITOR,
     _: HDC,
     _: *RECT,
@@ -794,7 +804,7 @@ pub fn primaryMonitorEnumProc(
     return 0;
 }
 
-pub fn primaryMonitor() ?sys.HMONITOR {
+fn primaryMonitor() ?sys.HMONITOR {
     var search: PrimaryMonitorSearch = .{};
     _ = sys.EnumDisplayMonitors(
         null,
@@ -805,18 +815,18 @@ pub fn primaryMonitor() ?sys.HMONITOR {
     return search.found orelse sys.MonitorFromPoint(.{ .x = 0, .y = 0 }, c.MONITOR_DEFAULTTOPRIMARY);
 }
 
-pub const AllMonitorsSearch = struct {
+const AllMonitorsSearch = struct {
     found: bool = false,
     failed: bool = false,
     info: win32_quick_terminal.MonitorInfo = undefined,
 };
 
-pub fn isVisibleMonitorInfo(info: win32_quick_terminal.MonitorInfo) bool {
+fn isVisibleMonitorInfo(info: win32_quick_terminal.MonitorInfo) bool {
     return info.full_rect.width() > 0 and info.full_rect.height() > 0 and
         info.work_area.width() > 0 and info.work_area.height() > 0;
 }
 
-pub fn allMonitorsEnumProc(
+fn allMonitorsEnumProc(
     monitor: sys.HMONITOR,
     _: HDC,
     _: *RECT,
@@ -839,7 +849,7 @@ pub fn allMonitorsEnumProc(
     return 1;
 }
 
-pub fn allMonitorsInfo() ?win32_quick_terminal.MonitorInfo {
+fn allMonitorsInfo() ?win32_quick_terminal.MonitorInfo {
     var search: AllMonitorsSearch = .{};
     if (sys.EnumDisplayMonitors(
         null,

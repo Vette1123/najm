@@ -5,8 +5,8 @@
 // and the status line are what the app showed for "split" in the captures;
 // tests pin each row's title, description and action, the shortcut on the
 // rows that show one, and the status format to src/input/command.zig, the
-// Windows default keybindings and src/apprt/win32/labels.zig. The order and
-// the match count come only from the capture.
+// Windows default keybindings and src/apprt/win32/overlay_view.zig. The
+// order and the match count come only from the capture.
 
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -48,7 +48,7 @@ export const PALETTE_KEYS = ['Enter'];
 // description, and the default shortcut where one exists. "api" is the
 // current tab, which the palette also matches.
 export const PALETTE_QUERY = 'split';
-export const PALETTE_MATCH_COUNT = 48;
+export const PALETTE_MATCH_COUNT = 46;
 export const PALETTE_RESULTS = [
   { title: 'Split Up', description: 'Split the terminal up.', keys: '', action: 'new_split:up' },
   { title: 'Split Down', description: 'Split the terminal down.', keys: 'ctrl+shift+e', action: 'new_split:down' },
@@ -60,8 +60,8 @@ export const PALETTE_RESULTS = [
 ];
 export const PALETTE_PICK = 'Split Right';
 
-// labels.zig: "{d} matches. Selected: {s} — {s}{s} Up/Down selects; Enter
-// activates.", where the last {s} is sentenceStop: a period unless the
+// overlay_view.zig: "{d} matches. Selected: {s} — {s}{s} Up/Down selects;
+// Enter activates.", where the last {s} is sentenceStop: a period unless the
 // description already ends in one.
 export function paletteStatus(count, entry) {
   const stop = /[.!?]$/.test(entry.description) ? '' : '.';

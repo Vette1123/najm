@@ -1,63 +1,47 @@
 //! Overlay and confirmation lifecycle. Host and Surface retain coordination.
-const labels = @import("labels.zig");
 const win32 = @import("../win32.zig");
 const runtime = win32.overlay_session_runtime;
 const Allocator = runtime.Allocator;
 const HWND = runtime.HWND;
 const Host = runtime.Host;
 const HostOverlayMode = runtime.HostOverlayMode;
-const HostTabStatus = runtime.HostTabStatus;
 const LONG_PTR = runtime.LONG_PTR;
-const OverlayConfirmPreview = runtime.OverlayConfirmPreview;
-const OverlayConfirmText = runtime.OverlayConfirmText;
-const OverlayFocusSlot = runtime.OverlayFocusSlot;
 const WPARAM = runtime.WPARAM;
-const appendOwnedString = runtime.appendOwnedString;
-const applyChildVisibility = runtime.applyChildVisibility;
-const buildCommandPaletteFeedbackText = runtime.buildCommandPaletteFeedbackText;
-const buildCommandPaletteOverlayLabel = runtime.buildCommandPaletteOverlayLabel;
-const buildConfirmBodyText = runtime.buildConfirmBodyText;
-const buildConfirmPreview = runtime.buildConfirmPreview;
-const buildConfirmPreviewCaption = runtime.buildConfirmPreviewCaption;
-const buildOverlayAcceptLabel = runtime.buildOverlayAcceptLabel;
-const buildOverlayHintText = runtime.buildOverlayHintText;
-const buildProfileAcceptLabel = runtime.buildProfileAcceptLabel;
-const buildProfileHintText = runtime.buildProfileHintText;
-const buildProfileOverlayLabel = runtime.buildProfileOverlayLabel;
-const buildTabOverviewOverlayLabel = runtime.buildTabOverviewOverlayLabel;
+const appendOwnedString = paint_text.appendOwnedString;
+const applyChildVisibility = child_window.applyChildVisibility;
 const c = runtime.c;
+const child_window = @import("child_window.zig");
 const chromeSyncOrLog = runtime.chromeSyncOrLog;
+const confirm_text = @import("confirm_text.zig");
 const confirmPromptUiaName = runtime.confirmPromptUiaName;
 const destroySubclassedWindow = runtime.destroySubclassedWindow;
 const detachChromeControlProvider = runtime.detachChromeControlProvider;
-const editSnapshot = runtime.editSnapshot;
+const editSnapshot = child_window.editSnapshot;
 const hostButtonProc = runtime.hostButtonProc;
 const host_overlay_height = runtime.host_overlay_height;
-const lastError = runtime.lastError;
+const lastError = child_window.lastError;
 const log = runtime.log;
-const nativeEditSelection = runtime.nativeEditSelection;
-const nextVisibleOverlayFocusSlot = runtime.nextVisibleOverlayFocusSlot;
-const overlayAcceptButtonVisible = runtime.overlayAcceptButtonVisible;
-const overlayCancelLabel = runtime.overlayCancelLabel;
+const nativeEditSelection = child_window.nativeEditSelection;
 const overlayEditProc = runtime.overlayEditProc;
 const overlayPromptTextProc = runtime.overlayPromptTextProc;
-const overlayTextFollowsActiveSurface = runtime.overlayTextFollowsActiveSurface;
+const overlay_view = @import("overlay_view.zig");
+const paint_text = @import("text.zig");
 const palette_list_class_name = runtime.palette_list_class_name;
 const palette_max_visible_rows = runtime.palette_max_visible_rows;
 const palette_row_height = runtime.palette_row_height;
 const program_confirm_arming_ms = runtime.program_confirm_arming_ms;
-const prompt_button_class = runtime.prompt_button_class;
-const prompt_edit_class = runtime.prompt_edit_class;
-const prompt_label_class = runtime.prompt_label_class;
-const readWindowTextUtf8Alloc = runtime.readWindowTextUtf8Alloc;
+const prompt_button_class = child_window.prompt_button_class;
+const prompt_edit_class = child_window.prompt_edit_class;
+const prompt_label_class = child_window.prompt_label_class;
+const readWindowTextUtf8Alloc = child_window.readWindowTextUtf8Alloc;
 const refocusActiveSurface = runtime.refocusActiveSurface;
 const runUiActionOrLog = runtime.runUiActionOrLog;
-const selectNativeEditRange = runtime.selectNativeEditRange;
-const setWindowData = runtime.setWindowData;
+const selectNativeEditRange = child_window.selectNativeEditRange;
+const setWindowData = child_window.setWindowData;
 const shouldRefocusAfterOverlayHide = runtime.shouldRefocusAfterOverlayHide;
 const std = runtime.std;
-const syncWindowTextUtf8Cached = runtime.syncWindowTextUtf8Cached;
-const syncWindowTextUtf8CachedAfterSet = runtime.syncWindowTextUtf8CachedAfterSet;
+const syncWindowTextUtf8Cached = child_window.syncWindowTextUtf8Cached;
+const syncWindowTextUtf8CachedAfterSet = child_window.syncWindowTextUtf8CachedAfterSet;
 const sys = runtime.sys;
 const win32_uia = runtime.win32_uia;
 const App = test_runtime.App;
@@ -82,40 +66,7 @@ const prompt_ok_label = std.unicode.utf8ToUtf16LeStringLiteral("OK");
 
 const prompt_cancel_label = std.unicode.utf8ToUtf16LeStringLiteral("Cancel");
 
-const host_overlay_command_palette_label_utf8 = "Command:";
-
-const host_overlay_profile_label_utf8 = "Profile:";
-
-const host_overlay_surface_title_label_utf8 = "Window title:";
-
-const host_overlay_tab_title_label_utf8 = "Tab title:";
-
 const host_overlay_command_palette_label = std.unicode.utf8ToUtf16LeStringLiteral("Command:");
-
-const confirm_preview_limit = labels.confirm_preview_limit;
-
-/// What a caller is asking the user to approve. A struct rather than
-/// positional arguments because every string field has the same type:
-/// swapping `title` and `accept_label` used to compile cleanly. Borrows
-/// the caller's strings; `showConfirm` copies what it keeps.
-pub const ConfirmPrompt = struct {
-    title: []const u8,
-    body: []const u8,
-    accept_label: []const u8,
-    cancel_label: []const u8,
-    /// The payload this prompt is about, rendered verbatim in the
-    /// preview pane. Null for prompts with nothing to show, such as
-    /// the close-surface prompt.
-    contents: ?[]const u8 = null,
-    /// A program in the terminal asked (an OSC 52 clipboard read or
-    /// write), not the user. It can send the request right after a key it
-    /// read, so the user's next key lands on the prompt: such a prompt
-    /// opens on Cancel, ignores Allow for its first
-    /// `program_confirm_arming_ms`, and never replaces an open prompt.
-    /// A link prompt (`App.askBeforeOpeningLink`) sets it too, but the
-    /// user's click raises it, so it replaces an open prompt.
-    program_request: bool = false,
-};
 
 pub const ConfirmCancelReason = enum { explicit, dismissed };
 
@@ -131,13 +82,9 @@ pub const ConfirmPayload = struct {
     body: []u8,
     accept_label: []u8,
     cancel_label: []u8,
-    /// Display-capped rendering of `ConfirmPrompt.contents`, built once
-    /// when the prompt opens. This is for the eyes only — Accept
+    /// Rendered once when the prompt opens, for the eyes only: Accept
     /// delivers the Surface's pending clipboard op, never these bytes.
-    preview: ?OverlayConfirmPreview = null,
-    /// How much is being approved, stated next to the body because the
-    /// pane may only show the head of a large payload.
-    preview_caption: ?[]u8 = null,
+    preview: ?confirm_text.Preview = null,
     program_request: bool = false,
     /// `GetTickCount64` before which Allow does nothing; 0 for prompts
     /// the user's own action raised.
@@ -152,7 +99,6 @@ pub const ConfirmPayload = struct {
         alloc.free(self.accept_label);
         alloc.free(self.cancel_label);
         if (self.preview) |*preview| preview.deinit(alloc);
-        if (self.preview_caption) |caption| alloc.free(caption);
     }
 };
 
@@ -186,6 +132,13 @@ pub fn overlayEditText(self: *Host) ![]const u8 {
     defer self.app.core_app.alloc.free(raw);
     try appendOwnedString(self.app.core_app.alloc, &self.cached_overlay_edit, raw);
     return self.cached_overlay_edit orelse "";
+}
+
+/// The overlay's text now, for a sync that writes one of its controls. A
+/// confirm prompt has no query, so it reads no EDIT.
+fn overlayText(self: *Host, arena: Allocator) !overlay_view.Text {
+    const query = if (self.overlay_mode == .confirm) "" else try overlayEditText(self);
+    return overlay_view.compose(arena, self.overlayFacts(query));
 }
 
 fn overlayEditNameThunk(ctx: *anyopaque, buf: []u8) []const u8 {
@@ -778,15 +731,15 @@ pub const HostControls = struct {
         // overlayEditProc key handlers; we still capture keys there
         // so focus on the button is just the initial landing spot).
         const is_confirm = mode == .confirm;
-        const show_accept = overlayAcceptButtonVisible(mode);
-        _ = applyChildVisibility(edit_hwnd, &self.overlay_edit_placement, !is_confirm);
-        _ = applyChildVisibility(accept_hwnd, &self.overlay_accept_placement, show_accept);
+        const shape = overlay_view.shape(mode);
+        _ = applyChildVisibility(edit_hwnd, &self.overlay_edit_placement, shape.edit_visible);
+        _ = applyChildVisibility(accept_hwnd, &self.overlay_accept_placement, shape.accept_visible);
         _ = applyChildVisibility(cancel_hwnd, &self.overlay_cancel_placement, true);
         self.invalidateOverlayTransitionPlacementCache();
 
         const initial_text = initial orelse "";
         _ = try self.setOverlayEditText(initial_text);
-        self.overlay_text_surface = if (overlayTextFollowsActiveSurface(mode)) self.activeSurface() else null;
+        self.overlay_text_surface = if (shape.follows_active_surface) self.activeSurface() else null;
 
         // Keep the syncs: their return values still drive `refreshChrome`,
         // and the control text they write is what the confirm prompt's
@@ -918,7 +871,7 @@ pub const HostControls = struct {
     /// profile).
     pub fn showConfirm(
         self: *Host,
-        prompt: ConfirmPrompt,
+        prompt: confirm_text.Prompt,
         on_accept: *const fn (userdata: ?*anyopaque) void,
         on_cancel: ?*const fn (userdata: ?*anyopaque, reason: ConfirmCancelReason) void,
         userdata: ?*anyopaque,
@@ -937,14 +890,9 @@ pub const HostControls = struct {
 
         // Render the preview once, here, so a megabyte paste costs one
         // capped copy rather than a rebuild on every chrome repaint.
-        var preview: ?OverlayConfirmPreview = null;
+        var preview: ?confirm_text.Preview = null;
         errdefer if (preview) |*value| value.deinit(alloc);
-        var caption: ?[]u8 = null;
-        errdefer if (caption) |value| alloc.free(value);
-        if (prompt.contents) |contents| {
-            preview = try buildConfirmPreview(alloc, contents, confirm_preview_limit);
-            caption = try buildConfirmPreviewCaption(alloc, preview.?);
-        }
+        if (prompt.contents) |contents| preview = try confirm_text.preview(alloc, contents);
 
         // Close any previous overlay so we don't stack. `hideOverlay`
         // frees an existing `confirm_payload` via its own deinit
@@ -960,7 +908,6 @@ pub const HostControls = struct {
             .accept_label = accept_owned,
             .cancel_label = cancel_owned,
             .preview = preview,
-            .preview_caption = caption,
             .program_request = prompt.program_request,
             .armed_at_ms = if (prompt.program_request) sys.GetTickCount64() + program_confirm_arming_ms else 0,
             .on_accept = on_accept,
@@ -1067,185 +1014,69 @@ pub const HostControls = struct {
         self.hideOverlay();
     }
 
+    /// What the overlay's text is made of, for `overlay_view.compose`: the
+    /// one reader of Host, App and terminal state for it. `query` is the
+    /// caller's read of the query EDIT; the facts hold it trimmed.
+    pub fn overlayFacts(self: *Host, query: []const u8) overlay_view.Facts {
+        const surface = self.activeSurface();
+        return .{
+            .mode = self.overlay_mode,
+            .typed = std.mem.trim(u8, query, " \t\r\n"),
+            .banner_kind = self.banner_kind,
+            .banner = self.banner_text,
+            .tab = if (surface) |value| self.app.hostTabStatus(value) else .{},
+            .pane_count = if (self.activeTab()) |tab| tab.leafCount() else 1,
+            .palette = self.palettePresentation(),
+            .recent = for (self.app.palette_mru) |slot| {
+                if (slot) |action| break action;
+            } else null,
+            // An empty list is no list to the picker; discovery state is
+            // only read here, never set.
+            .profiles = if (self.shownProfiles()) |list|
+                if (list.len > 0) .{ .shown = .{
+                    .list = list,
+                    .selected = self.selectedProfileIndex() orelse 0,
+                    .target = self.app.launcher_profile_target,
+                    .pinned = self.app.launcher_quick_slot_keys,
+                } } else .unavailable
+            else if (self.profiles_requested) .detecting else .unavailable,
+            .confirm = if (self.confirm_payload) |payload| .{
+                .title = payload.title,
+                .body = payload.body,
+                .accept = payload.accept_label,
+                .cancel = payload.cancel_label,
+                .caption = if (payload.preview) |preview| preview.caption else "",
+            } else null,
+        };
+    }
+
     pub fn syncOverlayLabel(self: *Host) !bool {
         const label_hwnd = self.overlay_label_hwnd orelse return false;
+        // The search overlay leaves its label as it is.
+        if (self.overlay_mode == .search) return false;
+        // Asking for the list starts discovery when no window has one.
+        if (self.overlay_mode == .profile) _ = self.profilesForChrome();
         const alloc = self.app.core_app.alloc;
-        switch (self.overlay_mode) {
-            .none => return try syncWindowTextUtf8Cached(
-                alloc,
-                label_hwnd,
-                &self.cached_overlay_label,
-                host_overlay_command_palette_label_utf8,
-            ),
-            .profile => {
-                if (!self.profilesForChrome()) {
-                    return try syncWindowTextUtf8Cached(
-                        alloc,
-                        label_hwnd,
-                        &self.cached_overlay_label,
-                        host_overlay_profile_label_utf8,
-                    );
-                }
-                const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
-                const label = try buildProfileOverlayLabel(
-                    alloc,
-                    self.shownProfiles().?,
-                    text,
-                    self.selectedProfileIndex() orelse 0,
-                );
-                defer alloc.free(label);
-                return try syncWindowTextUtf8Cached(
-                    alloc,
-                    label_hwnd,
-                    &self.cached_overlay_label,
-                    label,
-                );
-            },
-            .surface_title => return try syncWindowTextUtf8Cached(
-                alloc,
-                label_hwnd,
-                &self.cached_overlay_label,
-                host_overlay_surface_title_label_utf8,
-            ),
-            .tab_title => return try syncWindowTextUtf8Cached(
-                alloc,
-                label_hwnd,
-                &self.cached_overlay_label,
-                host_overlay_tab_title_label_utf8,
-            ),
-            .command_palette => {
-                const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
-                const label = try buildCommandPaletteOverlayLabel(
-                    alloc,
-                    text,
-                    self.palettePresentation(),
-                );
-                defer alloc.free(label);
-                return try syncWindowTextUtf8Cached(
-                    alloc,
-                    label_hwnd,
-                    &self.cached_overlay_label,
-                    label,
-                );
-            },
-            .search => return false,
-            .tab_overview => {
-                const surface = self.activeSurface();
-                const status = if (surface) |value| self.app.hostTabStatus(value) else HostTabStatus{};
-                const label = try buildTabOverviewOverlayLabel(alloc, status.index, status.total);
-                defer alloc.free(label);
-                return try syncWindowTextUtf8Cached(
-                    alloc,
-                    label_hwnd,
-                    &self.cached_overlay_label,
-                    label,
-                );
-            },
-            .confirm => {
-                // Confirm overlays use the payload's title as the
-                // label text. Falls back to a sensible default if
-                // payload is missing (shouldn't happen; showConfirm
-                // guarantees it).
-                const title = if (self.confirm_payload) |p|
-                    p.title
-                else
-                    "Confirm";
-                return try syncWindowTextUtf8Cached(
-                    alloc,
-                    label_hwnd,
-                    &self.cached_overlay_label,
-                    title,
-                );
-            },
-        }
+        var arena = std.heap.ArenaAllocator.init(alloc);
+        defer arena.deinit();
+        const text = try overlayText(self, arena.allocator());
+        const label = text.label orelse return false;
+        return try syncWindowTextUtf8Cached(alloc, label_hwnd, &self.cached_overlay_label, label);
     }
 
     pub fn syncOverlayButtons(self: *Host) !bool {
         const accept_hwnd = self.overlay_accept_hwnd orelse return false;
         const cancel_hwnd = self.overlay_cancel_hwnd orelse return false;
         const alloc = self.app.core_app.alloc;
-        var changed = false;
-        // Confirm overlays pull labels from the payload directly so
-        // users get the exact wording the caller chose (e.g. "Close"
-        // as a destructive Accept). Skip the generic EDIT-text-driven
-        // label computation below since there is no EDIT input.
-        if (self.overlay_mode == .confirm) {
-            if (self.confirm_payload) |p| {
-                changed = (try syncWindowTextUtf8Cached(
-                    alloc,
-                    accept_hwnd,
-                    &self.cached_overlay_accept,
-                    p.accept_label,
-                )) or changed;
-                changed = (try syncWindowTextUtf8Cached(
-                    alloc,
-                    cancel_hwnd,
-                    &self.cached_overlay_cancel,
-                    p.cancel_label,
-                )) or changed;
-            }
-            return changed;
-        }
-        const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
-        const surface = self.activeSurface();
-        if (self.overlay_mode == .profile) {
-            const accept = try buildProfileAcceptLabel(
-                alloc,
-                self.shownProfiles(),
-                text,
-                self.selectedProfileIndex() orelse 0,
-                self.app.launcher_profile_target,
-            );
-            defer alloc.free(accept);
-            changed = (try syncWindowTextUtf8Cached(
-                alloc,
-                accept_hwnd,
-                &self.cached_overlay_accept,
-                accept,
-            )) or changed;
-            changed = (try syncWindowTextUtf8Cached(
-                alloc,
-                cancel_hwnd,
-                &self.cached_overlay_cancel,
-                overlayCancelLabel(self.overlay_mode),
-            )) or changed;
-            return changed;
-        }
-        const accept = try buildOverlayAcceptLabel(
-            alloc,
-            self.overlay_mode,
-            text,
-            if (surface) |value| value.search_needle else null,
-            if (surface) |value| value.search_total else null,
-            if (surface) |value| value.search_selected else null,
-            self.palettePresentation(),
-        );
-        defer alloc.free(accept);
-        changed = (try syncWindowTextUtf8Cached(
-            alloc,
-            accept_hwnd,
-            &self.cached_overlay_accept,
-            accept,
-        )) or changed;
-        changed = (try syncWindowTextUtf8Cached(
-            alloc,
-            cancel_hwnd,
-            &self.cached_overlay_cancel,
-            overlayCancelLabel(self.overlay_mode),
-        )) or changed;
+        var arena = std.heap.ArenaAllocator.init(alloc);
+        defer arena.deinit();
+        const text = try overlayText(self, arena.allocator());
+        // A confirm prompt's words are its payload's; with the payload gone
+        // the buttons keep their last words.
+        const words = text.buttons orelse return false;
+        var changed = try syncWindowTextUtf8Cached(alloc, accept_hwnd, &self.cached_overlay_accept, words.accept);
+        changed = (try syncWindowTextUtf8Cached(alloc, cancel_hwnd, &self.cached_overlay_cancel, words.cancel)) or changed;
         return changed;
-    }
-
-    /// Prompt text of the active confirm overlay, for the chrome paint
-    /// path. Null while no payload is installed, which makes the label
-    /// builders fall back to their placeholders.
-    pub fn confirmText(self: *const Host) ?OverlayConfirmText {
-        const payload = self.confirm_payload orelse return null;
-        return .{
-            .title = payload.title,
-            .body = payload.body,
-            .preview_caption = payload.preview_caption orelse "",
-        };
     }
 
     /// True when the active confirm prompt has something to show in the
@@ -1292,87 +1123,10 @@ pub const HostControls = struct {
         // Visibility still belongs to `layout`, never to this function:
         // the control must not appear at its 100x18 creation rect at
         // client (0,0) before the first layout pass places it.
-        if (self.overlay_mode == .confirm) {
-            const body = try buildConfirmBodyText(
-                alloc,
-                self.banner_kind,
-                self.banner_text,
-                self.confirmText(),
-            );
-            defer alloc.free(body);
-            return try syncWindowTextUtf8Cached(
-                alloc,
-                hint_hwnd,
-                &self.cached_overlay_hint,
-                body,
-            );
-        }
-        const text = std.mem.trim(u8, try overlayEditText(self), " \t\r\n");
-        if (self.overlay_mode == .command_palette) {
-            var mru_buf: [5][]const u8 = undefined;
-            const hint = try buildCommandPaletteFeedbackText(
-                alloc,
-                text,
-                self.app.paletteMruSlice(&mru_buf),
-                self.palettePresentation(),
-            );
-            defer alloc.free(hint);
-            return try syncWindowTextUtf8Cached(
-                alloc,
-                hint_hwnd,
-                &self.cached_overlay_hint,
-                hint,
-            );
-        }
-        if (self.overlay_mode == .profile) {
-            if (self.profiles == null and self.profiles_requested) {
-                return try syncWindowTextUtf8Cached(
-                    alloc,
-                    hint_hwnd,
-                    &self.cached_overlay_hint,
-                    "Detecting Windows profiles...",
-                );
-            }
-            const hint = try buildProfileHintText(
-                alloc,
-                self.shownProfiles(),
-                text,
-                self.selectedProfileIndex() orelse 0,
-                self.app.launcher_profile_target,
-                self.app.launcher_quick_slot_keys,
-            );
-            defer alloc.free(hint);
-            return try syncWindowTextUtf8Cached(
-                alloc,
-                hint_hwnd,
-                &self.cached_overlay_hint,
-                hint,
-            );
-        }
-        const surface = self.activeSurface();
-        var mru_buf: [5][]const u8 = undefined;
-        const mru = self.app.paletteMruSlice(&mru_buf);
-        const hint = try buildOverlayHintText(
-            alloc,
-            self.overlay_mode,
-            text,
-            if (surface) |value| value.search_needle else null,
-            if (surface) |value| value.search_total else null,
-            if (surface) |value| value.search_selected else null,
-            if (surface) |value| self.app.hostTabStatus(value) else .{},
-            if (self.activeTab()) |tab| tab.leafCount() else 1,
-            self.paletteSnapshot(),
-            mru,
-            // Unreachable for `.confirm`: that mode returns above.
-            null,
-        );
-        defer alloc.free(hint);
-        return try syncWindowTextUtf8Cached(
-            alloc,
-            hint_hwnd,
-            &self.cached_overlay_hint,
-            hint,
-        );
+        var arena = std.heap.ArenaAllocator.init(alloc);
+        defer arena.deinit();
+        const text = try overlayText(self, arena.allocator());
+        return try syncWindowTextUtf8Cached(alloc, hint_hwnd, &self.cached_overlay_hint, text.hint);
     }
 
     pub fn isOverlayButton(self: *const Host, child: HWND) bool {
@@ -1380,7 +1134,7 @@ pub const HostControls = struct {
             (self.overlay_cancel_hwnd != null and child == self.overlay_cancel_hwnd.?);
     }
 
-    pub fn overlayFocusSlot(self: *const Host, child: HWND) ?OverlayFocusSlot {
+    pub fn overlayFocusSlot(self: *const Host, child: HWND) ?overlay_view.Slot {
         if (self.overlay_edit_hwnd != null and child == self.overlay_edit_hwnd.?) return .edit;
         if (self.overlay_preview_hwnd != null and child == self.overlay_preview_hwnd.?) return .preview;
         if (self.overlay_accept_hwnd != null and child == self.overlay_accept_hwnd.?) return .accept;
@@ -1390,15 +1144,12 @@ pub const HostControls = struct {
 
     pub fn focusRelativeOverlayControl(self: *Host, current: HWND, reverse: bool) bool {
         const current_slot = self.overlayFocusSlot(current) orelse return false;
-        const target_slot = nextVisibleOverlayFocusSlot(
-            self.overlay_mode,
-            current_slot,
-            reverse,
-            self.overlay_edit_hwnd != null and sys.IsWindowVisible(self.overlay_edit_hwnd.?) != 0,
-            self.overlay_preview_hwnd != null and sys.IsWindowVisible(self.overlay_preview_hwnd.?) != 0,
-            self.overlay_accept_hwnd != null and sys.IsWindowVisible(self.overlay_accept_hwnd.?) != 0,
-            self.overlay_cancel_hwnd != null and sys.IsWindowVisible(self.overlay_cancel_hwnd.?) != 0,
-        ) orelse return false;
+        const target_slot = overlay_view.nextFocus(self.overlay_mode, current_slot, reverse, .{
+            .edit = self.overlay_edit_hwnd != null and sys.IsWindowVisible(self.overlay_edit_hwnd.?) != 0,
+            .preview = self.overlay_preview_hwnd != null and sys.IsWindowVisible(self.overlay_preview_hwnd.?) != 0,
+            .accept = self.overlay_accept_hwnd != null and sys.IsWindowVisible(self.overlay_accept_hwnd.?) != 0,
+            .cancel = self.overlay_cancel_hwnd != null and sys.IsWindowVisible(self.overlay_cancel_hwnd.?) != 0,
+        }) orelse return false;
         const target = switch (target_slot) {
             .edit => self.overlay_edit_hwnd,
             .preview => self.overlay_preview_hwnd,

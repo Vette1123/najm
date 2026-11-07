@@ -113,14 +113,7 @@ pub const WINDOWPOS = extern struct {
     flags: UINT,
 };
 
-pub const WINDOWPLACEMENT = extern struct {
-    length: UINT,
-    flags: UINT,
-    showCmd: UINT,
-    ptMinPosition: POINT,
-    ptMaxPosition: POINT,
-    rcNormalPosition: RECT,
-};
+pub const WINDOWPLACEMENT = win32_types.WINDOWPLACEMENT;
 
 pub const NCCALCSIZE_PARAMS = extern struct {
     rgrc: [3]RECT,
@@ -130,12 +123,7 @@ pub const NCCALCSIZE_PARAMS = extern struct {
 pub const WNDCLASSEXW = win32_types.WNDCLASSEXW;
 pub const CREATESTRUCTW = win32_types.CREATESTRUCTW;
 
-pub const MONITORINFO = extern struct {
-    cbSize: u32,
-    rcMonitor: RECT,
-    rcWork: RECT,
-    dwFlags: u32,
-};
+pub const MONITORINFO = win32_types.MONITORINFO;
 
 pub const MINMAXINFO = extern struct {
     ptReserved: POINT,
@@ -377,6 +365,8 @@ pub extern "user32" fn GetActiveWindow() callconv(.winapi) ?HWND;
 
 pub extern "user32" fn GetCursorPos(lpPoint: *POINT) callconv(.winapi) BOOL;
 
+pub extern "user32" fn WindowFromPoint(point: POINT) callconv(.winapi) ?HWND;
+
 pub extern "user32" fn GetCaretPos(lpPoint: *POINT) callconv(.winapi) BOOL;
 
 pub extern "user32" fn MonitorFromPoint(pt: POINT, dwFlags: DWORD) callconv(.winapi) ?HMONITOR;
@@ -513,6 +503,14 @@ pub extern "kernel32" fn ConnectNamedPipe(
 ) callconv(.winapi) BOOL;
 
 pub extern "kernel32" fn SetEvent(hEvent: windows.HANDLE) callconv(.winapi) BOOL;
+
+pub extern "kernel32" fn CreateMutexW(
+    lpMutexAttributes: ?*SECURITY_ATTRIBUTES,
+    bInitialOwner: BOOL,
+    lpName: ?LPCWSTR,
+) callconv(.winapi) ?windows.HANDLE;
+
+pub extern "kernel32" fn ReleaseMutex(hMutex: windows.HANDLE) callconv(.winapi) BOOL;
 
 pub extern "kernel32" fn SetNamedPipeHandleState(
     hNamedPipe: windows.HANDLE,
@@ -683,6 +681,42 @@ pub const wglGetCurrentDC = wgl.wglGetCurrentDC;
 pub const wglGetProcAddress = wgl.wglGetProcAddress;
 pub const wglMakeCurrent = wgl.wglMakeCurrent;
 
+pub const BPBF_TOPDOWNDIB: u32 = 2;
+pub const SRCCOPY: u32 = 0x00CC0020;
+
+pub extern "uxtheme" fn BufferedPaintInit() callconv(.winapi) i32;
+
+pub extern "gdi32" fn SaveDC(hdc: HDC) callconv(.winapi) c_int;
+
+pub extern "gdi32" fn GdiFlush() callconv(.winapi) BOOL;
+
+pub extern "gdi32" fn RestoreDC(hdc: HDC, saved: c_int) callconv(.winapi) BOOL;
+
+pub extern "uxtheme" fn BufferedPaintUnInit() callconv(.winapi) i32;
+
+pub extern "gdi32" fn BitBlt(dst: HDC, x: i32, y: i32, width: i32, height: i32, src: HDC, src_x: i32, src_y: i32, rop: u32) callconv(.winapi) BOOL;
+
+pub extern "uxtheme" fn BeginBufferedPaint(hdcTarget: HDC, prcTarget: *const RECT, dwFormat: u32, pPaintParams: ?*const anyopaque, phdc: *HDC) callconv(.winapi) ?*anyopaque;
+
+pub extern "uxtheme" fn EndBufferedPaint(hBufferedPaint: *anyopaque, fUpdateTarget: BOOL) callconv(.winapi) i32;
+
+pub extern "uxtheme" fn GetBufferedPaintBits(hBufferedPaint: *anyopaque, ppbBuffer: *?[*]u32, pcxRow: *i32) callconv(.winapi) i32;
+
+pub extern "uxtheme" fn GetBufferedPaintTargetRect(hBufferedPaint: *anyopaque, prc: *RECT) callconv(.winapi) i32;
+
+pub const DWM_BB_ENABLE: u32 = 0x1;
+pub const DWM_BB_BLURREGION: u32 = 0x2;
+
+/// dwmapi.h declares it under `pshpack1.h`: 20 bytes, no tail padding.
+pub const DWM_BLURBEHIND = extern struct {
+    dwFlags: u32 align(1),
+    fEnable: BOOL align(1),
+    hRgnBlur: ?HRGN align(1),
+    fTransitionOnMaximized: BOOL align(1),
+};
+
+pub extern "dwmapi" fn DwmEnableBlurBehindWindow(hwnd: HWND, pBlurBehind: *const DWM_BLURBEHIND) callconv(.winapi) i32;
+
 pub extern "dwmapi" fn DwmDefWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM, plResult: *LRESULT) callconv(.winapi) BOOL;
 
 pub extern "imm32" fn ImmGetContext(hWnd: HWND) callconv(.winapi) ?*anyopaque;
@@ -733,6 +767,8 @@ pub extern "user32" fn ShowScrollBar(hWnd: HWND, wBar: c_int, bShow: BOOL) callc
 pub extern "user32" fn SetWindowRgn(hWnd: HWND, hRgn: ?HRGN, bRedraw: BOOL) callconv(.winapi) c_int;
 
 pub extern "user32" fn NotifyWinEvent(event: u32, hwnd: HWND, idObject: i32, idChild: i32) callconv(.winapi) void;
+
+pub extern "user32" fn GetClassNameW(hwnd: HWND, name: [*]u16, count: c_int) callconv(.winapi) c_int;
 
 pub extern "user32" fn EnumChildWindows(hWndParent: HWND, lpEnumFunc: *const fn (HWND, LPARAM) callconv(.winapi) BOOL, lParam: LPARAM) callconv(.winapi) BOOL;
 

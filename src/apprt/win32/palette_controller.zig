@@ -10,8 +10,6 @@ const LPARAM = runtime.LPARAM;
 const LRESULT = runtime.LRESULT;
 const PAINTSTRUCT = runtime.PAINTSTRUCT;
 const PaletteCatalog = runtime.PaletteCatalog;
-const PaletteCompletion = runtime.PaletteCompletion;
-const PalettePresentation = runtime.PalettePresentation;
 const PaletteRanked = runtime.PaletteRanked;
 const PaletteSnapshot = runtime.PaletteSnapshot;
 const PaletteStableId = runtime.PaletteStableId;
@@ -19,8 +17,9 @@ const RECT = runtime.RECT;
 const UINT = runtime.UINT;
 const WNDCLASSEXW = runtime.WNDCLASSEXW;
 const WPARAM = runtime.WPARAM;
-const appendOwnedString = runtime.appendOwnedString;
+const appendOwnedString = paint_text.appendOwnedString;
 const c = runtime.c;
+const child_window = @import("child_window.zig");
 const drawRectBorder = runtime.drawRectBorder;
 const fancy_menu = @import("fancy_menu.zig");
 const gdi = @import("gdi.zig");
@@ -33,17 +32,18 @@ const sys_rgn = struct {
 const fillSolidRect = runtime.fillSolidRect;
 const host_overlay_height = runtime.host_overlay_height;
 const lParamBits = runtime.lParamBits;
-const lastError = runtime.lastError;
+const lastError = child_window.lastError;
 const log = runtime.log;
 const overlayEditText = runtime.overlayEditText;
-const ownedStringEquals = runtime.ownedStringEquals;
+const overlay_view = @import("overlay_view.zig");
+const ownedStringEquals = paint_text.ownedStringEquals;
 const paint_text = runtime.paint_text;
-const paletteCompletionText = runtime.paletteCompletionText;
 const palette_catalog_label_bytes = runtime.palette_catalog_label_bytes;
 const palette_list_class_name = runtime.palette_list_class_name;
 const palette_max_visible_rows = runtime.palette_max_visible_rows;
 const palette_row_height = runtime.palette_row_height;
-const profileIndexByKey = runtime.profileIndexByKey;
+const profile_pick = @import("profile_pick.zig");
+const redact = @import("../../os/redact.zig");
 const runUiActionOrLog = runtime.runUiActionOrLog;
 const signedHighWord = runtime.signedHighWord;
 const std = runtime.std;
@@ -56,7 +56,7 @@ const win32_layouts = runtime.win32_layouts;
 const win32_palette = runtime.win32_palette;
 const win32_settings = runtime.win32_settings;
 const win32_uia = runtime.win32_uia;
-const windowData = runtime.windowData;
+const windowData = child_window.windowData;
 const PaletteItem = test_runtime.PaletteItem;
 const PalettePayload = test_runtime.PalettePayload;
 const test_runtime = if (@import("builtin").is_test) win32.palette_controller_test_runtime else struct {};
@@ -86,6 +86,38 @@ const PaletteRowColumns = struct {
     subtitle: RECT,
     shortcut: RECT,
 };
+
+const PaletteCompletion = struct {
+    text: []const u8,
+    id: PaletteStableId,
+};
+
+fn paletteCompletionText(descriptor: win32_palette.catalog.Descriptor) []const u8 {
+    return switch (descriptor.payload) {
+        // A tab transfer has no binding-action text: its title is what the
+        // row says and what the query has to match.
+        .action => |payload| if (payload.tab_transfer != null) descriptor.item.title else payload.action,
+        .recent_command => |payload| payload.action,
+        .profile => |key| key,
+        .theme => |name| name,
+        .layout => |name| name,
+        .accent => descriptor.item.title,
+        // A setting's payload is its internal tag; the title is what the row
+        // says and what the query has to match.
+        .tab, .pane, .help, .setting => descriptor.item.title,
+    };
+}
+
+/// The row a rebuilt palette list starts on: the one a completion just wrote
+/// into the query, found by its stable id, since rows can share a title (each
+/// tab's "Move tab to pane" rows do); else the first. Typing clears the
+/// completion before the list is rebuilt (`syncOverlayCompletionState`), so
+/// only a completion keeps its row.
+fn paletteSelectionAfterRebuild(ranked: []const PaletteRanked, completed: ?PaletteStableId) usize {
+    const id = completed orelse return 0;
+    for (ranked, 0..) |row, index| if (row.id.eql(id)) return index;
+    return 0;
+}
 
 pub fn paletteVisibleRowCapacity(available_height: i32, row_height: i32) usize {
     if (row_height <= 0 or available_height < row_height) return 0;
@@ -439,6 +471,8 @@ test "win32 palette UIA state exposes rows and can select a row" {
     host.palette_list_uia_provider = null;
     host.palette_catalog = null;
     host.palette_theme_preview_original = null;
+    // A pick reads which row a completion wrote; none did here.
+    host.overlay_completion_result_id = null;
 
     const state = host.paletteListUiaStateWithThreading(true);
     try std.testing.expect(state.use_com_threading);
@@ -664,6 +698,87 @@ test "win32 rich palette completion cycles duplicate display text by stable id" 
     try std.testing.expect(!first.id.eql(second.id));
 }
 
+test "win32 rich palette completion fills a tab transfer row's title, not its empty action" {
+    var items: [2]PaletteItem = undefined;
+    var payloads: [2]PalettePayload = undefined;
+    var catalog = try PaletteCatalog.init(&items, &payloads);
+    try catalog.append(.{
+        .item = .{
+            .id = win32_palette.catalog.stableStringId(.action, "move-left"),
+            .title = "Move tab to pane \u{2014} left",
+            .subtitle = "vim",
+            .keywords = "move tab split pane left",
+        },
+        .payload = .{ .action = .{ .tab_transfer = .{ .source_tab = 2, .target_pane = 7, .direction = .left } } },
+    });
+    try catalog.append(.{
+        .item = .{
+            .id = win32_palette.catalog.stableStringId(.action, "new-tab"),
+            .title = "New tab",
+            .keywords = "move new tab",
+        },
+        .payload = .{ .action = .{ .action = "new_tab" } },
+    });
+
+    var host: Host = undefined;
+    host.palette_catalog = catalog;
+    // Completing onto the transfer row writes its title, which still ranks it,
+    // and the next completion moves on from it rather than starting over:
+    // two completions reach both rows, in whichever order they rank.
+    var completion = host.richPaletteCompletionCandidate("move", "move", null, false).?;
+    var seen_transfer = false;
+    var seen_action = false;
+    for (0..2) |_| {
+        if (std.mem.startsWith(u8, completion.text, "Move tab to pane")) {
+            seen_transfer = true;
+            try std.testing.expectEqualStrings("Move tab to pane \u{2014} left", completion.text);
+        } else {
+            seen_action = true;
+            try std.testing.expectEqualStrings("new_tab", completion.text);
+        }
+        completion = host.richPaletteCompletionCandidate("move", completion.text, completion.id, false).?;
+    }
+    try std.testing.expect(seen_transfer and seen_action);
+}
+
+test "win32 a rebuilt palette list keeps the row a completion wrote, among rows that share its title" {
+    var items: [3]PaletteItem = undefined;
+    var payloads: [3]PalettePayload = undefined;
+    var catalog = try PaletteCatalog.init(&items, &payloads);
+    // Each other tab has its own "Move tab to pane" row; the titles match.
+    for ([_]struct { []const u8, u64, []const u8 }{
+        .{ "move-left-2", 2, "logs" },
+        .{ "move-left-3", 3, "vim" },
+        .{ "move-left-4", 4, "build" },
+    }) |row| {
+        try catalog.append(.{
+            .item = .{
+                .id = win32_palette.catalog.stableStringId(.action, row[0]),
+                .title = "Move tab to pane \u{2014} left",
+                .subtitle = row[2],
+                .keywords = "move tab split pane left",
+            },
+            .payload = .{ .action = .{ .tab_transfer = .{ .source_tab = row[1], .target_pane = 7, .direction = .left } } },
+        });
+    }
+    var host: Host = undefined;
+    host.palette_catalog = catalog;
+    // Complete twice: the second completion is a row after the first.
+    const first = host.richPaletteCompletionCandidate("move", "move", null, false).?;
+    const second = host.richPaletteCompletionCandidate("move", first.text, first.id, false).?;
+    try std.testing.expect(!first.id.eql(second.id));
+    // The list rebuilt for the completed title ranks all three rows; it
+    // starts on the completed one, not on whichever ranks first.
+    var ranked_buf: [win32_palette.max_ranked]PaletteRanked = undefined;
+    const ranked = host.palette_catalog.?.rank(second.text, .{ .max_results = ranked_buf.len }, &ranked_buf);
+    try std.testing.expectEqual(@as(usize, 3), ranked.len);
+    const selected = paletteSelectionAfterRebuild(ranked, second.id);
+    try std.testing.expect(ranked[selected].id.eql(second.id));
+    // No completion, or one whose row is gone: the first row.
+    try std.testing.expectEqual(@as(usize, 0), paletteSelectionAfterRebuild(ranked, null));
+    try std.testing.expectEqual(@as(usize, 0), paletteSelectionAfterRebuild(ranked[0..0], second.id));
+}
+
 /// palette-mru.txt holds one key per line, escaped as the contents of a Zig
 /// string (`std.zig.fmtString`). A key is the formatted action
 /// (`Command.cval`), which since upstream #13609 writes a string parameter
@@ -775,14 +890,14 @@ pub const AppControls = struct {
             std.fs.makeDirAbsolute(dir) catch |err| switch (err) {
                 error.PathAlreadyExists => {},
                 else => {
-                    std.log.warn("palette MRU: mkdir failed path={s} err={}", .{ dir, err });
+                    std.log.warn("palette MRU: mkdir failed path={f} err={}", .{ redact.bytes(dir), err });
                     return;
                 },
             };
         }
 
         const file = std.fs.createFileAbsolute(path, .{ .truncate = true }) catch |err| {
-            std.log.warn("palette MRU: create failed path={s} err={}", .{ path, err });
+            std.log.warn("palette MRU: create failed path={f} err={}", .{ redact.bytes(path), err });
             return;
         };
         defer file.close();
@@ -931,7 +1046,7 @@ pub const HostControls = struct {
         );
     }
 
-    pub fn palettePresentation(self: *const Host) PalettePresentation {
+    pub fn palettePresentation(self: *const Host) overlay_view.Facts.Presentation {
         if (self.palette_list_ranked_count == 0) return .{};
         const row = @min(self.palette_list_selected, self.palette_list_ranked_count - 1);
         const catalog = if (self.palette_catalog) |*value| value else return .{
@@ -1140,9 +1255,16 @@ pub const HostControls = struct {
         // stack array. Clamp here instead of relying on the library
         // invariant alone.
         self.palette_list_ranked_count = @min(ranked.len, self.palette_list_ranked.len);
-        self.palette_list_scroll = 0;
         self.palette_wheel_steps = .{};
-        self.palette_list_selected = 0;
+        self.palette_list_selected = paletteSelectionAfterRebuild(
+            self.palette_list_ranked[0..self.palette_list_ranked_count],
+            self.overlay_completion_result_id,
+        );
+        const rows = self.paletteListRowCapacity();
+        self.palette_list_scroll = if (rows > 0 and self.palette_list_selected >= rows)
+            self.palette_list_selected - rows + 1
+        else
+            0;
 
         const transition = paletteListTransition(
             previous_result_count,
@@ -1199,6 +1321,17 @@ pub const HostControls = struct {
         self.previewSelectedPaletteTheme();
     }
 
+    /// A row picked or scrolled to in the list replaces the row a completion
+    /// wrote (`overlay_completion_result_id`), so a later rebuild that is not
+    /// a completion (profiles arriving) does not go back to it. Picking the
+    /// completed row itself keeps it.
+    fn keepCompletedRowOnlyIfSelected(self: *Host) void {
+        const id = self.overlay_completion_result_id orelse return;
+        const selected = self.palette_list_selected;
+        if (selected < self.palette_list_ranked_count and self.palette_list_ranked[selected].id.eql(id)) return;
+        self.overlay_completion_result_id = null;
+    }
+
     pub fn setPaletteListSelection(self: *Host, next: usize) bool {
         if (self.overlay_mode != .command_palette) return false;
         if (next >= self.palette_list_ranked_count) return false;
@@ -1211,6 +1344,7 @@ pub const HostControls = struct {
 
         const changed = self.palette_list_selected != next;
         self.palette_list_selected = next;
+        keepCompletedRowOnlyIfSelected(self);
         if (next < self.palette_list_scroll) {
             self.palette_list_scroll = next;
         } else if (next >= self.palette_list_scroll + visible_rows) {
@@ -1417,12 +1551,12 @@ pub const HostControls = struct {
                     self.abortPaletteAction("Profile is no longer available; reopen the palette.");
                     return;
                 };
-                const index = profileIndexByKey(profiles, key) orelse {
+                const index = profile_pick.byKey(profiles, key) orelse {
                     self.abortPaletteAction("Profile is no longer available; reopen the palette.");
                     return;
                 };
                 _ = self.setSelectedProfileIndex(index) catch |err| {
-                    log.warn("palette profile selection failed key={s} err={}", .{ key, err });
+                    log.warn("palette profile selection failed key={f} err={}", .{ redact.bytes(key), err });
                     self.abortPaletteAction("Profile selection failed; no profile was opened.");
                     return;
                 };
@@ -1433,7 +1567,7 @@ pub const HostControls = struct {
             },
             .layout => |name| {
                 const owned_name = self.app.core_app.alloc.dupe(u8, name) catch |err| {
-                    log.warn("palette layout name copy failed name={s} err={}", .{ name, err });
+                    log.warn("palette layout name copy failed name={f} err={}", .{ redact.bytes(name), err });
                     self.abortPaletteAction("Layout could not be prepared.");
                     return;
                 };
@@ -1457,7 +1591,7 @@ pub const HostControls = struct {
             },
             .theme => |name| {
                 self.commitPaletteTheme(name) catch |err| {
-                    log.warn("palette theme preflight failed theme={s} err={}", .{ name, err });
+                    log.warn("palette theme preflight failed theme={f} err={}", .{ redact.bytes(name), err });
                     self.abortPaletteAction("Theme could not be prepared; no setting was changed.");
                     return;
                 };
@@ -1578,7 +1712,7 @@ pub const HostControls = struct {
         if (limit == 0) return;
 
         const names = win32_layouts.listNamesAlloc(alloc, directory, limit) catch |err| {
-            log.warn("palette layout enumeration failed path={s} err={}", .{ directory, err });
+            log.warn("palette layout enumeration failed path={f} err={}", .{ redact.bytes(directory), err });
             return;
         };
         self.palette_layout_names = names;
@@ -1769,6 +1903,7 @@ pub const HostControls = struct {
         }
         if (self.palette_list_hwnd) |h| _ = sys.InvalidateRect(h, null, 0);
         if (self.palette_list_selected != previous_selection) {
+            keepCompletedRowOnlyIfSelected(self);
             self.announcePaletteSelection();
             self.previewSelectedPaletteTheme();
             self.refreshPalettePresentation();
@@ -1831,6 +1966,43 @@ pub const HostControls = struct {
         host.palette_wheel_steps.remainder = -90;
         try std.testing.expect(host.setPaletteListSelection(3));
         try std.testing.expectEqual(@as(i32, 0), host.palette_wheel_steps.remainder);
+    }
+
+    test "a row picked from the palette list replaces the row a completion wrote" {
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host }},
+        });
+        defer session.deinit();
+        host.overlay_mode = .command_palette;
+        // Three rows that share a title; completion wrote the second.
+        for (0..3) |index| host.palette_list_ranked[index] = .{
+            .index = index,
+            .id = win32_palette.catalog.stableStringId(.action, &.{@as(u8, 'a') + @as(u8, @intCast(index))}),
+            .score = 0,
+            .enabled = true,
+        };
+        host.palette_list_ranked_count = 3;
+        host.palette_list_visible_rows = 3;
+        host.palette_list_selected = 1;
+        host.palette_list_scroll = 0;
+        const completed = host.palette_list_ranked[1].id;
+        host.overlay_completion_result_id = completed;
+        defer host.overlay_completion_result_id = null;
+
+        // Picking the completed row keeps it for a rebuild.
+        _ = host.setPaletteListSelection(1);
+        try std.testing.expect(host.overlay_completion_result_id.?.eql(completed));
+        // Picking another row forgets it: a rebuild with profiles arriving
+        // does not go back to the completed row.
+        try std.testing.expect(host.setPaletteListSelection(0));
+        try std.testing.expectEqual(@as(?PaletteStableId, null), host.overlay_completion_result_id);
+        try std.testing.expectEqual(@as(usize, 0), paletteSelectionAfterRebuild(host.palette_list_ranked[0..3], host.overlay_completion_result_id));
     }
 
     test "chrome pointer gesture resets when palette layout hides the list" {
