@@ -142,7 +142,7 @@ pub const chrome_scene_runtime = .{
     .host_overlay_row_height = host_overlay_row_height,
     .isHighContrastActive = isHighContrastActive,
     .overlayAccentColor = overlayAccentColor,
-    .overlayAccentFor = overlayAccentFor,
+    .overlayAccentFor = win32_theme.overlayAccentFor,
     .overlayActionLayoutForWidth = overlayActionLayoutForWidth,
     .overlayEditBorderColor = overlayEditBorderColor,
     .overlayEditFrameRect = overlayEditFrameRect,
@@ -446,7 +446,6 @@ pub const lightTheme = win32_theme.lightTheme;
 pub const adjustColor = win32_theme.adjustColor;
 pub const buttonColorsFromTheme = win32_theme.buttonColorsFromTheme;
 const overlayAccentColor = win32_theme.overlayAccentColor;
-const overlayAccentFor = win32_theme.overlayAccentFor;
 const overlayEditBorderColor = win32_theme.overlayEditBorderColor;
 const profileChromeAccent = win32_theme.profileChromeAccent;
 pub const applyProfileChromeAccent = win32_theme.applyProfileChromeAccent;
@@ -4862,12 +4861,10 @@ pub fn resolveTheme(config: *const configpkg.Config) ThemeColors {
         .auto => if (isSystemDarkMode()) darkTheme() else lightTheme(),
         .ghostty => darkTheme(),
     };
-    const accent = configuredAccent(config.@"window-accent", config.@"window-accent-color", resolveSystemAccentColor());
+    const accent = configuredAccent(config.@"window-accent", config.@"window-accent-color", win32_theme.systemAccentColor());
     return withSplitDividerColor(withAccent(theme, accent), config.@"split-divider-color");
 }
 
-const resolveSystemAccentColor = win32_theme.systemAccentColor;
-pub const windowAccentPreset = win32_theme.windowAccentPreset;
 
 /// The accent the config asks for, before any readability adjustment, or
 /// null for the theme's own. `window-accent-color` wins over `window-accent`;
@@ -4878,7 +4875,7 @@ fn configuredAccent(accent: configpkg.Config.WindowAccent, color: ?configpkg.Con
         const value = system_accent orelse return null;
         return if (value == 0) null else value;
     }
-    return windowAccentPreset(accent);
+    return win32_theme.windowAccentPreset(accent);
 }
 
 /// DESIGN.md's floor for essential non-text indicators, and for body text.
@@ -4947,7 +4944,7 @@ test "window-accent recolours every accent role and stays readable" {
 
     // A colour that already stands out is kept as chosen.
     const teal = withAccent(darkTheme(), configuredAccent(.teal, null, null));
-    try std.testing.expectEqual(windowAccentPreset(.teal).?, teal.accent);
+    try std.testing.expectEqual(win32_theme.windowAccentPreset(.teal).?, teal.accent);
     try std.testing.expectEqual(teal.accent, teal.pane_divider_focused);
     try std.testing.expectEqual(teal.accent, teal.button_focus_ring);
     try std.testing.expect(teal.accent_custom);
@@ -4964,7 +4961,7 @@ test "window-accent recolours every accent role and stays readable" {
     var colours: [std.meta.fields(configpkg.Config.WindowAccent).len + 2]u32 = undefined;
     var count: usize = 0;
     for (std.enums.values(configpkg.Config.WindowAccent)) |preset| {
-        if (windowAccentPreset(preset)) |value| {
+        if (win32_theme.windowAccentPreset(preset)) |value| {
             colours[count] = value;
             count += 1;
         }
@@ -4985,10 +4982,10 @@ test "window-accent recolours every accent role and stays readable" {
     }
 
     // Pickers follow it; search keeps its own colour.
-    try std.testing.expectEqual(teal.accent, overlayAccentFor(&teal, .command_palette));
-    try std.testing.expectEqual(overlayAccentColor(.search, true), overlayAccentFor(&teal, .search));
+    try std.testing.expectEqual(teal.accent, win32_theme.overlayAccentFor(&teal, .command_palette));
+    try std.testing.expectEqual(overlayAccentColor(.search, true), win32_theme.overlayAccentFor(&teal, .search));
     const plain = darkTheme();
-    try std.testing.expectEqual(overlayAccentColor(.command_palette, true), overlayAccentFor(&plain, .command_palette));
+    try std.testing.expectEqual(overlayAccentColor(.command_palette, true), win32_theme.overlayAccentFor(&plain, .command_palette));
 }
 
 /// `split-divider-color` recolors the gap between split panes; unset, the
@@ -5171,22 +5168,6 @@ pub fn activeTabTheme(theme: *const ThemeColors, background: u32) ThemeColors {
     result.text_secondary = readableOn(result.text_secondary, background, 4.5);
     result.button_active_focus_ring = readableOn(result.button_active_focus_ring, background, 3.0);
     return result;
-}
-
-/// The surface a resting tab's hover fades in.
-pub fn tabHoverSurface(theme: *const ThemeColors) u32 {
-    return if (theme.is_dark)
-        adjustColor(theme.chrome_bg, 16, 16, 19)
-    else
-        adjustColor(theme.chrome_bg, -13, -13, -13);
-}
-
-/// A pressed tab sinks a step past its hover.
-pub fn tabPressedSurface(theme: *const ThemeColors) u32 {
-    return if (theme.is_dark)
-        adjustColor(theme.chrome_bg, 9, 9, 11)
-    else
-        adjustColor(theme.chrome_bg, -21, -21, -21);
 }
 
 /// The active tab's cap: the accent, held to DESIGN.md's 3:1 for an essential

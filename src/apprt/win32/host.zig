@@ -187,8 +187,21 @@ const tabButtonProc = win32.tabButtonProc;
 const tabCloseAction = win32.tabCloseAction;
 const tabContainerProc = win32.tabContainerProc;
 const tabStatusBadgeColor = win32.tabStatusBadgeColor;
-const tabHoverSurface = win32.tabHoverSurface;
-const tabPressedSurface = win32.tabPressedSurface;
+/// The surface a resting tab's hover fades in.
+fn tabHoverSurface(theme: *const ThemeColors) u32 {
+    return if (theme.is_dark)
+        win32_theme.adjustColor(theme.chrome_bg, 16, 16, 19)
+    else
+        win32_theme.adjustColor(theme.chrome_bg, -13, -13, -13);
+}
+
+/// A pressed tab sinks a step past its hover.
+fn tabPressedSurface(theme: *const ThemeColors) u32 {
+    return if (theme.is_dark)
+        win32_theme.adjustColor(theme.chrome_bg, 9, 9, 11)
+    else
+        win32_theme.adjustColor(theme.chrome_bg, -21, -21, -21);
+}
 const tabStatusHeadline = win32.tabStatusHeadline;
 const tabStatusKey = win32.tabStatusKey;
 const tabStripChildVisible = win32.tabStripChildVisible;

@@ -26,7 +26,9 @@ const budget = .{
         .test_support_runtime = 46,
     },
     // The facade's pub declarations: what the files that import it can reach.
-    .facade_pub_decls = 476,
+    // why: Najm's `activeTabCapColor`, which needs the facade's private
+    // `readableOn` contrast floor.
+    .facade_pub_decls = 477,
     // Root declarations of win32.zig whose value is a field access (`a.b`).
     .facade_aliases = 188,
     // Fields of win32.App named `test_*`.
