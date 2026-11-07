@@ -12,7 +12,8 @@ const win32 = @import("../win32.zig");
 const budget = .{
     // Entries in each `pub const *_runtime` bag on the facade.
     .bags = .{
-        .chrome_scene_runtime = 53,
+        // why: Najm's `overlayAccentFor`, the palette's per-row accent picks.
+        .chrome_scene_runtime = 54,
         .chrome_scene_test_runtime = 4,
         .overlay_session_runtime = 26,
         .overlay_session_test_runtime = 5,
@@ -78,8 +79,9 @@ const leaves = .{
         .source = @embedFile("tab_label.zig"),
         // why: `title_glyph` and `withTitleGlyph`, because the window
         // caption shows the bell glyph too, and `tooltip_max_width`, which
-        // sizes Host's tooltip paint buffer.
-        .pub_decls = 11,
+        // sizes Host's tooltip paint buffer. Najm adds `Parts` and `parts`,
+        // which Host's tab paint uses to draw the icon, number and title.
+        .pub_decls = 13,
     },
     .{
         .file = "window_start.zig",

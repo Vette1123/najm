@@ -549,7 +549,8 @@ pub const Section = enum(u32) {
             .appearance => "Fonts, theme, opacity, cursor, and window padding.",
             .terminal => "Scrollback, closing, copying, and clipboard trimming.",
             .shell => "The program a new tab starts, and how Najm works with your shell.",
-            .profiles => "Your own profiles: command lines a new tab can start, each with a name, a starting folder and environment variables. Enter edits the selected field, Insert adds a profile and Delete removes what is selected. Save writes the changes to the config file.",
+            // why: Najm's intro box holds two lines; upstream's longer text took three.
+            .profiles => "Command lines a new tab can start, each with a name, folder and environment. Enter edits a field, Insert adds a profile, Delete removes it.",
             .privacy => "What programs may do with your clipboard, links, and notifications.",
             .updates => "Whether Najm checks for updates, and which releases it follows.",
             .keybindings => "Key bindings are set in the config file. Every binding in effect is listed below: Enter opens the config file, and Ctrl+C copies a binding's lines.",
