@@ -222,6 +222,72 @@ pub fn dividerVisible(lit_here: bool, lit_next: bool) bool {
     return !lit_here and !lit_next;
 }
 
+// ---------------------------------------------------------------------------
+// Active tab silhouette
+// ---------------------------------------------------------------------------
+
+/// How far a quarter-circle corner of `radius` px sits in from its shape's
+/// straight edge on `row`, where row 0 is the row farthest from the corner's
+/// centre (a tab's top row, a flare's bottom row). Measured on the row's
+/// centre line, so the painter can blend the one pixel the curve cuts. Rows
+/// past the corner are 0.
+pub fn cornerInset(radius: i32, row: i32) f32 {
+    if (radius <= 0 or row < 0 or row >= radius) return 0;
+    const r: f32 = @floatFromInt(radius);
+    const d = r - @as(f32, @floatFromInt(row)) - 0.5;
+    return r - @sqrt(r * r - d * d);
+}
+
+/// The active tab's outline inside its button: a body inset by `flare` on
+/// each side with rounded upper corners, whose bottom `flare` rows widen in
+/// concave curves to the button's edges, so the tab flows into the row below
+/// it instead of dropping into it at a right angle.
+pub const Silhouette = struct {
+    top: i32,
+    bottom: i32,
+    body_left: i32,
+    body_right: i32,
+    radius: i32,
+    flare: i32,
+
+    /// Exact left and right edges of `y`'s row, or null outside the shape.
+    pub const Row = struct { left: f32, right: f32 };
+
+    pub fn row(self: Silhouette, y: i32) ?Row {
+        if (y < self.top or y >= self.bottom) return null;
+        const left: f32 = @floatFromInt(self.body_left);
+        const right: f32 = @floatFromInt(self.body_right);
+        const from_top = y - self.top;
+        if (from_top < self.radius) {
+            const inset = cornerInset(self.radius, from_top);
+            return .{ .left = left + inset, .right = right - inset };
+        }
+        const reach = cornerInset(self.flare, self.bottom - 1 - y);
+        return .{ .left = left - reach, .right = right + reach };
+    }
+};
+
+/// The silhouette of a `button` whose shape starts at row `top`, with
+/// `radius` px upper corners and `flare` px bottom flares. Both shrink on a
+/// narrow or short button so the body keeps its width and the corners never
+/// meet the flares; null when nothing is left to draw.
+pub fn silhouette(button: Rect, top: i32, radius: i32, flare: i32) ?Silhouette {
+    const height = button.bottom - top;
+    const width = button.right - button.left;
+    if (height <= 0 or width <= 2) return null;
+    const f = std.math.clamp(flare, 0, @min(@divTrunc(width, 6), @divTrunc(height, 3)));
+    const body = width - 2 * f;
+    const r = std.math.clamp(radius, 0, @min(@divTrunc(body, 2), height - f));
+    return .{
+        .top = top,
+        .bottom = button.bottom,
+        .body_left = button.left + f,
+        .body_right = button.right - f,
+        .radius = r,
+        .flare = f,
+    };
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -439,4 +505,63 @@ test "hoverLineSpan grows from the center and reaches the edges" {
     const part = hoverLineSpan(10, 110, 0.25);
     try std.testing.expect(part.left > 10 and part.left < 60);
     try std.testing.expectEqual(120 - part.left, part.right);
+}
+
+test "cornerInset curves from the radius toward zero and is zero past the corner" {
+    // Row 0 of a 6 px corner sits about 3.6 px in; the last row about 0.
+    try std.testing.expectApproxEqAbs(@as(f32, 3.6), cornerInset(6, 0), 0.05);
+    try std.testing.expect(cornerInset(6, 5) < 0.05);
+    var previous = cornerInset(6, 0);
+    for (1..6) |r| {
+        const now = cornerInset(6, @intCast(r));
+        try std.testing.expect(now < previous);
+        previous = now;
+    }
+    try std.testing.expectEqual(@as(f32, 0), cornerInset(6, 6));
+    try std.testing.expectEqual(@as(f32, 0), cornerInset(6, -1));
+    try std.testing.expectEqual(@as(f32, 0), cornerInset(0, 0));
+}
+
+test "the active tab rounds its top, runs straight, and flares out to the button at the bottom" {
+    const button: Rect = .{ .left = 64, .top = 0, .right = 282, .bottom = 39 };
+    const s = silhouette(button, 0, 6, 4).?;
+    try std.testing.expectEqual(@as(i32, 68), s.body_left);
+    try std.testing.expectEqual(@as(i32, 278), s.body_right);
+    // The top row is pulled in by the corner, symmetrically.
+    const top = s.row(0).?;
+    try std.testing.expect(top.left > 70 and top.left < 72);
+    try std.testing.expectApproxEqAbs(@as(f32, 282 - 64) - (top.right - 64), top.left - 64, 0.001);
+    // The middle is the straight body.
+    const middle = s.row(20).?;
+    try std.testing.expectEqual(@as(f32, 68), middle.left);
+    try std.testing.expectEqual(@as(f32, 278), middle.right);
+    // The flare widens toward the bottom and stays inside the button.
+    const flare_top = s.row(35).?;
+    const last = s.row(38).?;
+    try std.testing.expect(flare_top.left <= 68 and flare_top.left > 67);
+    try std.testing.expect(last.left < flare_top.left);
+    try std.testing.expect(last.left >= 64 and last.right <= 282);
+    try std.testing.expect(s.row(39) == null);
+    try std.testing.expect(s.row(-1) == null);
+}
+
+test "a narrow or short tab shrinks its corners and flares instead of crossing them" {
+    // The narrowest tab: a 40 px button keeps a body at least two thirds wide.
+    const narrow = silhouette(.{ .left = 0, .top = 0, .right = 40, .bottom = 39 }, 0, 12, 8).?;
+    try std.testing.expectEqual(@as(i32, 6), narrow.flare);
+    try std.testing.expect(narrow.body_right - narrow.body_left >= 2 * narrow.radius);
+    // A short button keeps the corner above the flare.
+    const short = silhouette(.{ .left = 0, .top = 0, .right = 200, .bottom = 9 }, 0, 12, 8).?;
+    try std.testing.expect(short.radius + short.flare <= 9);
+    for (0..9) |y| {
+        const r = short.row(@intCast(y)).?;
+        try std.testing.expect(r.left >= 0 and r.right <= 200 and r.left < r.right);
+    }
+    // A restored window starts the shape one row down.
+    const restored = silhouette(.{ .left = 0, .top = 0, .right = 200, .bottom = 39 }, 1, 6, 4).?;
+    try std.testing.expect(restored.row(0) == null);
+    try std.testing.expect(restored.row(1) != null);
+    // Nothing to draw.
+    try std.testing.expect(silhouette(.{ .left = 0, .top = 0, .right = 2, .bottom = 39 }, 0, 6, 4) == null);
+    try std.testing.expect(silhouette(.{ .left = 0, .top = 5, .right = 200, .bottom = 5 }, 5, 6, 4) == null);
 }

@@ -300,6 +300,12 @@ const tab_index_gap: i32 = 7;
 /// `RoundRect` takes the corner's diameter, so 10 draws a 5 DIP radius.
 const tab_corner_diameter: i32 = 10;
 
+/// The active tab's upper corner radius, and how far its sides curve out
+/// into the row below it, in DIPs (`win32_tab_visual.silhouette`).
+const tab_top_radius: i32 = 6;
+
+const tab_flare: i32 = 4;
+
 /// Height of the active tab's accent cap, and of the hairline between
 /// resting tabs, in DIPs.
 const tab_cap_height: i32 = 2;
@@ -458,6 +464,36 @@ fn nextFocusStop(
         if (available(ctx, candidate)) return candidate;
     }
     return null;
+}
+
+/// Paint `shape` in `fill` over `under`: the straight body in one rect, and
+/// the curved rows one at a time, blending the pixel each curved edge cuts.
+fn fillTabSilhouette(hdc: HDC, shape: win32_tab_visual.Silhouette, fill: u32, under: u32) void {
+    const straight_top = shape.top + shape.radius;
+    const straight_bottom = shape.bottom - shape.flare;
+    var y = shape.top;
+    while (y < shape.bottom) : (y += 1) {
+        if (y == straight_top and straight_bottom > straight_top) {
+            fillSolidRect(hdc, .{ .left = shape.body_left, .top = y, .right = shape.body_right, .bottom = straight_bottom }, fill);
+            y = straight_bottom - 1;
+            continue;
+        }
+        const edges = shape.row(y) orelse continue;
+        fillTabRow(hdc, y, edges, fill, under);
+    }
+}
+
+/// One row from `edges.left` to `edges.right`: whole pixels in `fill`, and
+/// each end's partly covered pixel blended over `under` by its coverage.
+fn fillTabRow(hdc: HDC, y: i32, edges: win32_tab_visual.Silhouette.Row, fill: u32, under: u32) void {
+    if (edges.right <= edges.left) return;
+    const solid_left: i32 = @intFromFloat(@ceil(edges.left));
+    const solid_right: i32 = @intFromFloat(@floor(edges.right));
+    if (solid_right > solid_left) fillSolidRect(hdc, .{ .left = solid_left, .top = y, .right = solid_right, .bottom = y + 1 }, fill);
+    const left_cover = @as(f32, @floatFromInt(solid_left)) - edges.left;
+    if (left_cover > 0) fillSolidRect(hdc, .{ .left = solid_left - 1, .top = y, .right = solid_left, .bottom = y + 1 }, blendColorRGB(under, fill, left_cover));
+    const right_cover = edges.right - @as(f32, @floatFromInt(solid_right));
+    if (right_cover > 0 and solid_right >= solid_left) fillSolidRect(hdc, .{ .left = solid_right, .top = y, .right = solid_right + 1, .bottom = y + 1 }, blendColorRGB(under, fill, right_cover));
 }
 
 /// What the tab strip's action buttons are called to UIA and in their hover
@@ -8756,6 +8792,7 @@ pub const Host = struct {
         // A resting tab has no surface of its own: it lies on the band, and
         // the hover fade brings its surface and label up together.
         var tab_lit = false;
+        var tab_leaving = false;
         var tab_fade: f32 = 0;
         const tab_now = sys.GetTickCount64();
         if (tab_button and !disabled and !is_hc) {
@@ -8774,6 +8811,7 @@ pub const Host = struct {
                 tab_fade = if (tab_pressed) 1.0 else hover_fade;
                 const leaving_fade: f32 = if (leaving) 1.0 - slide_progress else 0.0;
                 const fade = @max(tab_fade, leaving_fade);
+                tab_leaving = leaving_fade > hover_fade;
                 const surface = if (tab_pressed)
                     tabPressedSurface(theme)
                 else if (leaving_fade > hover_fade)
@@ -8799,21 +8837,36 @@ pub const Host = struct {
             const corner = self.scaled(tab_corner_diameter);
             const corner_radius = @divTrunc(corner, 2);
             const flush_top = self.tabsFlushWithTop();
-            if (tab_lit or is_hc) gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, corner, flush_top);
-            // Square lower corners and the last row, which the rounded
-            // rectangle's inset leaves to the parent color, so the tab meets
-            // the join below it without a notch.
-            if (tab_background != null) fillSolidRect(draw.hDC, .{
-                .left = draw.rcItem.left + 1,
-                .top = @max(draw.rcItem.top, draw.rcItem.bottom - 1 - corner_radius),
-                .right = draw.rcItem.right - 1,
-                .bottom = draw.rcItem.bottom,
-            }, bg);
+            // A restored window keeps the shape and its cap off row 0, where
+            // they would merge with DWM's border.
+            const shape_top = draw.rcItem.top + @as(i32, if (flush_top) 0 else 1);
+            const shape = win32_tab_visual.silhouette(
+                .{ .left = draw.rcItem.left, .top = draw.rcItem.top, .right = draw.rcItem.right, .bottom = draw.rcItem.bottom },
+                shape_top,
+                self.scaled(tab_top_radius),
+                self.scaled(tab_flare),
+            );
+            // The active tab, and the one the cap is leaving while it fades,
+            // round their top and flare into the row below, so the tab runs
+            // on into its terminal; a hovered resting tab keeps its chip.
+            const silhouetted = !is_hc and shape != null and (tab_background != null or (tab_lit and tab_leaving));
+            if (silhouetted) {
+                fillTabSilhouette(draw.hDC, shape.?, bg, parent_bg);
+            } else {
+                if (tab_lit or is_hc) gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, corner, flush_top);
+                // Square lower corners and the last row, which the rounded
+                // rectangle's inset leaves to the parent color, so the tab
+                // meets the join below it without a notch.
+                if (tab_background != null) fillSolidRect(draw.hDC, .{
+                    .left = draw.rcItem.left + 1,
+                    .top = @max(draw.rcItem.top, draw.rcItem.bottom - 1 - corner_radius),
+                    .right = draw.rcItem.right - 1,
+                    .bottom = draw.rcItem.bottom,
+                }, bg);
+            }
             if (!is_hc and !disabled) if (tab_index) |index| {
                 // The cap marks the active tab now the paint drops the `* `.
-                // It starts past the corners, and a restored window keeps it
-                // off row 0, where it would merge with DWM's border.
-                const cap_top = draw.rcItem.top + @as(i32, if (flush_top) 0 else 1);
+                const cap_top = shape_top;
                 const cap_bottom = cap_top + self.scaled(tab_cap_height);
                 const cap_color = win32.activeTabCapColor(theme.accent, bg, self.window_active);
                 if (tab_fade > 0) {
@@ -8829,8 +8882,21 @@ pub const Host = struct {
                         .bottom = cap_bottom,
                     }, blendColorRGB(bg, cap_color, 0.6));
                 }
-                if (self.tabCapSpan(index, active, draw.rcItem, corner_radius, tab_now)) |cap| {
-                    fillSolidRect(draw.hDC, .{
+                const cap_inset = if (shape) |outline| outline.flare else corner_radius;
+                if (self.tabCapSpan(index, active, draw.rcItem, cap_inset, tab_now)) |cap| {
+                    if (silhouetted) {
+                        const outline = shape.?;
+                        // The cap runs the body's whole width and its ends
+                        // follow the rounded corners.
+                        var y = cap_top;
+                        while (y < cap_bottom) : (y += 1) {
+                            const edges = outline.row(y) orelse continue;
+                            fillTabRow(draw.hDC, y, .{
+                                .left = @max(edges.left, @as(f32, @floatFromInt(cap.left))),
+                                .right = @min(edges.right, @as(f32, @floatFromInt(cap.right))),
+                            }, cap_color, parent_bg);
+                        }
+                    } else fillSolidRect(draw.hDC, .{
                         .left = cap.left,
                         .top = cap_top,
                         .right = cap.right,
@@ -9843,8 +9909,8 @@ pub const Host = struct {
         }
 
         // The active tab's own button: its terminal's background inside and
-        // as its edge (no border), square lower corners meeting the band's
-        // part, and the band showing only at its rounded upper corners.
+        // as its edge (no border), rounded upper corners, and sides that
+        // flare out over its last rows to meet the band's part below.
         const width = active.right - active.left;
         const height = active.bottom - active.top;
         const tab_canvas = try BannerTestCanvas.init(width, height);
@@ -9866,10 +9932,27 @@ pub const Host = struct {
         // The cap, the active tab's mark, on its top rows; the fill below it.
         try std.testing.expect(tab_canvas.pixel(@divTrunc(width, 2), 1) != terminal_bg);
         try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(@divTrunc(width, 2), 5));
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, @divTrunc(height, 2)));
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(1, height - 1));
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(width - 2, height - 1));
+        const outline = win32_tab_visual.silhouette(
+            .{ .left = 0, .top = 0, .right = width, .bottom = height },
+            if (host.tabsFlushWithTop()) 0 else 1,
+            host.scaled(tab_top_radius),
+            host.scaled(tab_flare),
+        ).?;
+        const middle = @divTrunc(height, 2);
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_left, middle));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_right - 1, middle));
+        // Beside the body the band shows, until the flares reach out.
+        try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(0, middle));
+        try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(width - 1, middle));
+        const last = outline.row(height - 1).?;
+        const last_left: i32 = @intFromFloat(@ceil(last.left));
+        const last_right: i32 = @intFromFloat(@floor(last.right));
+        try std.testing.expect(last_left < outline.body_left and last_right > outline.body_right);
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_left, height - 1));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_right - 1, height - 1));
+        // The rounded corner leaves the band at the very top.
         try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(0, 0));
+        try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(outline.body_left, outline.top));
 
         // The label over it reads at 4.5:1 under either window theme, in an
         // active and an inactive window, on the default dark terminal and on
