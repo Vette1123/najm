@@ -13,11 +13,15 @@ const win32_compositor = @import("../win32_compositor.zig");
 const win32_shell = @import("../win32_shell.zig");
 const win32_palette = @import("../win32_palette.zig");
 const win32_undo = @import("../win32_undo.zig");
-const win32_search_bar = @import("../win32_search_bar.zig");
+const docked_search = @import("docked_search.zig");
 const win32_surface_drop_target = @import("../win32_surface_drop_target.zig");
 const types = @import("../win32_types.zig");
 const sys = @import("sys.zig");
 const c = @import("consts.zig");
+const child_window = @import("child_window.zig");
+const paint_text = @import("text.zig");
+const window_state = @import("window_state.zig");
+const win32_input = @import("input.zig");
 const HWND = types.HWND;
 const BOOL = types.BOOL;
 const UINT = types.UINT;
@@ -38,10 +42,15 @@ const WINDOWPLACEMENT = sys.WINDOWPLACEMENT;
 /// that state.
 pub fn Fixtures(comptime runtime: anytype) type {
     return struct {
+        /// The App's own `endPreviews` is private to it (app.zig).
+        fn endSettingsPreviewsThunk(ctx: *anyopaque) void {
+            const app: *App = @ptrCast(@alignCast(ctx));
+            app.endSettingsPreview();
+        }
+
         const App = runtime.App;
         const Host = runtime.Host;
         const Surface = runtime.Surface;
-        const Tab = runtime.Tab;
         const SurfaceInitStage = runtime.SurfaceInitStage;
         const PaletteItem = runtime.PaletteItem;
         const PalettePayload = runtime.PalettePayload;
@@ -52,11 +61,11 @@ pub fn Fixtures(comptime runtime: anytype) type {
         const host_class_name = runtime.host_class_name;
         const palette_list_class_name = runtime.palette_list_class_name;
         const scrollbar_class_name = runtime.scrollbar_class_name;
-        const prompt_label_class = runtime.prompt_label_class;
-        const lastError = runtime.lastError;
-        const appendOwnedString = runtime.appendOwnedString;
+        const prompt_label_class = child_window.prompt_label_class;
+        const lastError = child_window.lastError;
+        const appendOwnedString = paint_text.appendOwnedString;
         const surfaceDropPayloadCallback = runtime.surfaceDropPayloadCallback;
-        const workspaceRectToScreen = runtime.workspaceRectToScreen;
+        const workspaceRectToScreen = window_state.workspaceRectToScreen;
         const monitorInfo = runtime.monitorInfo;
         const settingsAppIconThunk = runtime.settingsAppIconThunk;
         const settingsChromeBgThunk = runtime.settingsChromeBgThunk;
@@ -96,6 +105,12 @@ pub fn Fixtures(comptime runtime: anytype) type {
                         result.* = lastError();
                         return;
                     }
+                    // A new thread's key table starts as a copy of the real
+                    // keyboard's (SETTINGS-F2-TEST-FLAKE), so the body runs
+                    // with an empty keyboard instead of the keys the person
+                    // running the suite holds.
+                    const keyboard = win32_input.TestingKeyboard.pinNone();
+                    defer keyboard.release();
                     body() catch |err| {
                         // The test fails at `return result` on the runner's thread;
                         // this trace shows which check failed.
@@ -280,6 +295,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                         .saveAndReload = &settingsSaveAndReloadThunk,
                         .configRevision = &settingsConfigRevisionThunk,
                         .previewField = &settingsPreviewFieldThunk,
+                        .endPreviews = &endSettingsPreviewsThunk,
                         .notifyConflict = &settingsNotifyConflictThunk,
                         .reconcileDisk = &settingsReconcileDiskThunk,
                         .failureDetail = &settingsFailureDetailThunk,
@@ -297,6 +313,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                     .shell_compositor = win32_compositor.Backend.init(.{}, null),
                     .shell_runtime = win32_shell.runtime.Runtime.init(self.allocator),
                     .shell_runtime_initialized = options.shell_runtime_initialized,
+                    .notifications = .init(self.allocator, null, options.app.notificationPanes()),
                 };
                 self.app = options.app;
                 self.app_initialized = true;
@@ -339,7 +356,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                         // behavior while that guard remains false.
                         .core_surface = uninitializedInertStorage(CoreSurface),
                         .undo_stack = win32_undo.UndoStack.init(undo_allocator),
-                        .search_bar = win32_search_bar.SearchBar.init(self.allocator),
+                        .docked_search = docked_search.DockedSearch.init(self.allocator),
                         .drop_target = try win32_surface_drop_target.DropTarget.create(
                             self.allocator,
                             @ptrCast(surface),
@@ -384,7 +401,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                             record.surface.launch_profile_key = null;
                         }
                         if (record.undo_initialized) record.surface.undo_stack.deinit();
-                        record.surface.search_bar.deinit();
+                        record.surface.docked_search.deinit();
                         if (record.surface.drop_target) |target| target.deinit();
                         record.surface.drop_target = null;
                     }
@@ -415,7 +432,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                     runtime.appDropSettingsPreview(app);
                     app.config.deinit();
                     app.registry.deinit(self.allocator);
-                    app.toast_removals.deinit(self.allocator);
+                    app.notifications.deinit();
                     runtime.appDiscardDeferredOpens(app);
                 }
                 if (self.core_app_initialized) self.core_app.?.deinit();
@@ -437,13 +454,10 @@ pub fn Fixtures(comptime runtime: anytype) type {
             return app;
         }
 
-        /// A hostless surface whose top-level window sits at (`left`, `top`) and is
-        /// 640x480, with every field `inheritWindowStateFrom` copies set.
-        pub fn placementTestSurface(app: *App, left: i32, top: i32) !Surface {
-            var surface: Surface = undefined;
-            surface.app = app;
-            surface.host = null;
-            surface.hwnd = sys.CreateWindowExW(
+        /// A host whose top-level window sits at (`left`, `top`) and is 640x480,
+        /// in the window state a new window starts in. It has no tabs.
+        pub fn placementTestHost(app: *App, left: i32, top: i32) !Host {
+            const hwnd = sys.CreateWindowExW(
                 0,
                 prompt_label_class,
                 std.unicode.utf8ToUtf16LeStringLiteral(""),
@@ -457,19 +471,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                 sys.GetModuleHandleW(null),
                 null,
             ) orelse return lastError();
-            surface.decorations_visible = true;
-            surface.decorations_visible_overridden = false;
-            surface.fullscreen = false;
-            surface.topmost = false;
-            surface.restore_rect = std.mem.zeroes(RECT);
-            surface.restore_placement = std.mem.zeroes(WINDOWPLACEMENT);
-            surface.restore_monitor = null;
-            surface.default_client_size = null;
-            surface.cell_size_pixels = .{ .width = 0, .height = 0 };
-            surface.background_opacity_default = 1.0;
-            surface.background_opacity_force_opaque = false;
-            surface.size_limit = .{ .min_width = 0, .min_height = 0, .max_width = 0, .max_height = 0 };
-            return surface;
+            return .{ .app = app, .id = 0, .hwnd = hwnd };
         }
 
         /// A started app for tests that create real hosts with `createHost`. Safe
@@ -524,7 +526,9 @@ pub fn Fixtures(comptime runtime: anytype) type {
             /// `createHost` put it and a first window at the fixed rect below.
             pub var initial_size: ?apprt.action.InitialSize = null;
 
-            pub const FirstShow = struct { rect: RECT, zoomed: bool, style: u32 };
+            /// `ex_style` and `alpha` are the layered style and alpha the
+            /// window first appeared with (#234: before any show).
+            pub const FirstShow = struct { rect: RECT, zoomed: bool, style: u32, ex_style: u32, alpha: ?u8, background_alpha: ?u8 };
             pub const swp_showwindow: UINT = 0x0040;
 
             pub fn init(self: *WindowStartTestApp) !void {
@@ -597,7 +601,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                         // screen cannot cap it. A clone is otherwise where
                         // `createHost` cascaded it.
                         if (initial_size) |size| {
-                            try runtime.surfaceSetInitialSize(surface, size);
+                            _ = try surface.app.performAction(.{ .surface = surface.core() }, .initial_size, size);
                         } else if (surface.app.registry.hosts.items.len == 1) {
                             const monitor = sys.MonitorFromWindow(hwnd, c.MONITOR_DEFAULTTONEAREST) orelse return lastError();
                             const work = (monitorInfo(monitor) orelse return lastError()).work_area;
@@ -626,6 +630,9 @@ pub fn Fixtures(comptime runtime: anytype) type {
                             .rect = rect,
                             .zoomed = sys.IsZoomed(hwnd) != 0,
                             .style = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_STYLE)))),
+                            .ex_style = testHostExStyle(hwnd),
+                            .alpha = if (testHostIsLayered(hwnd)) testLayeredAlpha(hwnd) else null,
+                            .background_alpha = testBackgroundAlpha(hwnd),
                         };
                         shown = true;
                     }
@@ -647,11 +654,11 @@ pub fn Fixtures(comptime runtime: anytype) type {
                 var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
                 placement.length = @sizeOf(WINDOWPLACEMENT);
                 if (sys.GetWindowPlacement(hwnd, &placement) == 0) return lastError();
-                return workspaceRectToScreen(placement.rcNormalPosition, (try runtime.surfaceWindowMonitor(hwnd)).info);
+                return workspaceRectToScreen(placement.rcNormalPosition, (try window_state.windowMonitor(hwnd)).info);
             }
 
             pub fn monitorRect(hwnd: HWND) !RECT {
-                return (try runtime.surfaceWindowMonitor(hwnd)).info.rcMonitor;
+                return (try window_state.windowMonitor(hwnd)).info.rcMonitor;
             }
 
             pub fn framed(hwnd: HWND) bool {
@@ -677,6 +684,15 @@ pub fn Fixtures(comptime runtime: anytype) type {
             if (sys.GetLayeredWindowAttributes(hwnd, null, &alpha, &flags) == 0) return null;
             if ((flags & c.LWA_ALPHA) == 0) return null;
             return alpha;
+        }
+
+        /// The alpha a host's translucent background shows at under
+        /// blur-behind (`Host.chrome_alpha`, set only once
+        /// `DwmEnableBlurBehindWindow` succeeded: DWM has no call that reads
+        /// blur-behind back), or null without it.
+        pub fn testBackgroundAlpha(hwnd: HWND) ?u8 {
+            const host = child_window.windowData(Host, hwnd) orelse return null;
+            return host.chrome_alpha;
         }
 
         pub fn createTestChromeChild(parent: HWND, class: [*:0]const u16) !HWND {
@@ -721,36 +737,6 @@ pub fn Fixtures(comptime runtime: anytype) type {
                 child = sys.GetWindow(child.?, c.GW_HWNDNEXT);
             }
             try std.testing.expectEqual(@as(?HWND, null), child);
-        }
-
-        /// Assemble the state `Surface.init` has built by the time it calls
-        /// `applyInitialBackgroundOpacity`: a freshly created host window whose
-        /// single tab already focuses this surface. That last part is the gate the
-        /// fix depends on — without it `activeSharedHostWindowHwnd` returns null
-        /// and the call is a silent no-op. Caller owns `host.tabs`.
-        pub fn initTestHostWindowFixture(host: *Host, surface: *Surface, hwnd: HWND) !void {
-            host.id = 234;
-            host.hwnd = hwnd;
-            host.tabs = .empty;
-            host.active_tab = 0;
-            // The caller can only register its own teardown once this returns, so a
-            // precondition that fails below would otherwise leak the Tab and its
-            // split tree and report an allocator leak on top of the real failure.
-            errdefer deinitTestHostWindowFixture(host);
-
-            surface.host = host;
-            surface.host_id = host.id;
-            // Deliberately null: the layered alpha has to land on the top-level host
-            // window, never on the GL child.
-            surface.hwnd = null;
-            surface.background_opacity_default = 1.0;
-            surface.background_opacity_force_opaque = false;
-
-            try host.tabs.append(std.testing.allocator, try runtime.tabInit(std.testing.allocator, 1, surface));
-
-            try std.testing.expectEqual(@as(?*Surface, surface), runtime.hostActiveSurface(host));
-            try std.testing.expectEqual(@as(?HWND, hwnd), runtime.surfaceActiveSharedHostWindowHwnd(surface));
-            try std.testing.expect(!testHostIsLayered(hwnd));
         }
 
         pub fn deinitTestHostWindowFixture(host: *Host) void {

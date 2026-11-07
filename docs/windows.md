@@ -80,8 +80,10 @@ Its blend quantization can differ from hardware/OpenGL at glyph edges by up
 to four channel levels in the default corrected-linear mode. D3D11 does not
 add per-pixel translucency or custom HLSL effects. Its flip-model swap chain is
 composed through DirectComposition beneath the terminal HWND's children, with
-the existing host/sibling clipping. Framebuffer alpha remains ignored; the host
-still owns whole-window opacity. While the notice banner is on screen (about
+the existing host/sibling clipping. Framebuffer alpha remains ignored, so under
+`background-opacity` a window with a D3D11 pane fades as a whole (a layered
+window), where a window whose panes all draw with OpenGL shows only its
+background translucent. While the notice banner is on screen (about
 5 s by default, Windows' notification time), PresentMon on one machine
 (RTX 5070 Ti) showed the pane presented as `Composed: Flip`; the banner is a
 non-layered child over the pane, which the measurement points to as the
@@ -243,6 +245,55 @@ holds data, startup warns that portable mode is using the adjacent data
 instead; nothing is migrated.
 
 ## Shells
+
+To open a specific shell, such as a WSL distribution, in a new tab: press
+`Ctrl+Shift+P`, type `~` and part of its name (`~ubuntu`), and press Enter. The
+[▾] menu next to the new-tab button lists the same profiles and opens the one
+you click in a new tab.
+
+No keybinding opens a named profile in a new tab yet. Besides the two ways
+above:
+
+- Set [`default-profile`](#default-profile-order-and-hidden-profiles), and
+  `Ctrl+Shift+T` opens that profile. A `command` line outranks it (see the
+  table below).
+- Right-click the new-tab button to open the current profile choice in a new
+  window; middle-click opens it in a split. The choice is the last profile you
+  picked, else `default-profile`, else the automatic shell.
+- Bind `launch_layout:<name>` to a key to open a saved
+  [named layout](#named-layouts) in a new window. A layout records the profile
+  each pane was opened with, not the command running in it (typing `wsl` in a
+  PowerShell tab saves PowerShell). Open the tab from the profile (palette `~`
+  or the [▾] menu), then `save_layout:<name>` from a window with that one tab;
+  the layout then opens it on one key press, with no UAC prompt, in the noctty
+  that runs the binding (so at that noctty's own level). This works for
+  profiles that restore, such as a shell or a WSL distribution. A layout never
+  reconnects a detected `ssh:` profile: it is saved without its profile, and
+  the pane comes back as whatever a new tab opens (your `command`, else
+  `default-profile` unless that is SSH, else the automatic shell). A profile
+  you define that runs `ssh.exe` is restored like any other.
+- A profile entry in the taskbar jump list launches noctty with that profile.
+  `new_window_elevated:<profile-key>` bound to a key opens the profile in an
+  elevated window, with a UAC prompt; use it only when you want that. See
+  [Taskbar jump list](#taskbar-jump-list) and
+  [Running elevated](#running-elevated).
+- From a shell, `noctty -e wsl.exe -d Ubuntu` starts a noctty process that runs
+  that command in its first window. Do not use `noctty +new-window -e ...`
+  while noctty is already running: the running instance refuses a forwarded
+  command and the call exits with an error (it only works when no instance is
+  running, where it starts one). The installer, WinGet and Chocolatey do not put
+  `noctty` on `PATH` (Scoop does): run it from the install folder as
+  `.\noctty.com`, or by its full path.
+
+The [▾] menu prints `Ctrl+Shift+1` to `Ctrl+Shift+9` beside the first nine
+profiles. No default keybinding uses those chords, and nothing outside the
+profile picker overlay acts on them. That overlay, with its quick slots
+(`Alt+1` to `Alt+3`), has no keybinding or menu entry: it opens on the first
+window of a launch that restores no session, when the environment variable
+`NOCTTY_WIN32_STARTUP_PROFILE_PICKER` is `1`. Where this page says "profile
+picker", it means that overlay; the palette and the [▾] menu list the same
+profiles. The menu lists the profiles noctty has loaded, so its first opening
+in a new window may show none.
 
 For commands launched through `cmd.exe /C`, noctty sets
 `NoDefaultCurrentDirectoryInExePath` in that wrapper's environment when it is
@@ -1013,9 +1064,55 @@ Limits:
   running noctty was given with `--config-file` is not known to it.
 - A profile that runs `ssh.exe` is restored with the session like any other
   profile; a detected `ssh:` profile is not.
-- The Settings window does not edit the `profile-*` lines; it leaves them,
-  and every line it does not edit, as they are when it saves. Its Shell
-  page sets `default-profile` (see above).
+- The Settings window edits the `profile-*` lines on its Profiles page (see
+  [Editing profiles in Settings](#editing-profiles-in-settings)) and leaves
+  every line it does not edit as it is. Its Shell page sets `default-profile`
+  (see above).
+
+### Editing profiles in Settings
+
+The Profiles page of Settings lists your profiles in the order of their
+`profile-command` lines. Each one's command line, name, starting folder and
+variables are rows of their own. A variable's value is masked in its row
+(`PATH = ••••••`) and shown only while you type into it, since it can hold a
+secret; screen readers get each row's name without its value, and read the
+value on request (a variable's as "value hidden"). Enter types into the
+selected row's field,
+and Enter, Tab or moving elsewhere keeps what you typed, while Escape puts the
+field back. Delete takes a name, a starting folder or a variable out; on a
+profile's own row it removes the profile, after a second Delete and a status
+line that says what removing it does. Insert or Ctrl+N adds a profile: its id
+first, then its command line. An id cannot be changed, because sessions,
+layouts and the jump list name the profile by it; a new id is a new profile.
+Settings refuses what loading would report (see
+[Ids, renaming and removing](#ids-renaming-and-removing)), an empty command
+line, a line break, a value too long for one line of the file, and a variable
+without a name or a value. The status line says why, without repeating the
+value. A field Settings refuses stays open with what you typed: switching
+pages stops at it, and closing Settings or quitting noctty asks about it as
+about any unsaved change. So does a new profile whose id you typed, until you
+type its command line or press Escape to drop it. Like any other setting, these changes are a draft
+until you Save, and Discard changes or closing without saving drops them.
+
+Save writes only what changed, to the file Settings saves to. The line that
+sets a field is changed where it is, a new field goes after its profile's
+lines, and a new profile's lines go at the end of the file. A removed
+profile's lines are deleted. When something else still names its id
+(another file or noctty's command line defines it or sets one of its
+fields, or `profile-order`, `profile-hidden` or `default-profile` names
+it), its `profile-command` line becomes `profile-command = <id>:` instead,
+which removes the profile whatever the other lines say and keeps those
+references from becoming config problems. Comments, other profiles and every other line
+stay as they were. A field that a file read later (one `config-file` names)
+or the command line sets again is saved all the same, and Settings says which
+line wins.
+
+Removing the profile `default-profile` names leaves `default-profile` as it
+is: new tabs then open the automatic shell, and Shell > Default profile shows
+the value marked "(not found)" until you choose another. A profile defined on
+noctty's command line is shown and not changed. `profile-order` and
+`profile-hidden` are not edited there: a hidden profile is marked, and both
+are changed in the config file.
 
 ### Listing profiles
 
@@ -1682,6 +1779,20 @@ path or `light:...,dark:...` pair still works.
 The tab row has a command palette button (a magnifier) and a Settings button
 (a gear) to the right of `+` and the dropdown chevron. They join the tab
 strip's Tab order and have tooltips and UI Automation names.
+`background-opacity` below 0.999 makes only the terminal background
+translucent while every pane of the window draws with OpenGL, the default
+renderer. The window is not layered: `DwmEnableBlurBehindWindow` with an empty
+region lets DWM keep the alpha the renderer draws, and the tab strip, the title
+bar, dividers, the search bar, overlays and controls stay solid (the chrome's
+own background in the terminal lane takes the opacity too). What is behind the
+window shows through unblurred; `background-blur` has no effect. A window with
+a pane on the D3D11 beta fades as a whole instead, as a layered window, because
+DirectComposition presents that pane with its alpha ignored; once every pane
+runs OpenGL (after a fallback), only the background is translucent again.
+`toggle_background_opacity` and the Settings opacity preview change it live,
+and High Contrast shows every window opaque. The visible result was checked on
+one NVIDIA GPU with OpenGL; other GPUs, drivers and HDR displays have not been
+checked.
 
 The dark caption is chosen at runtime, not by build number:
 `DWMWA_USE_IMMERSIVE_DARK_MODE` (20) is tried first and the legacy attribute
@@ -1726,6 +1837,32 @@ and place, or maximized when `maximize` is also set. The settings win over a
 minimized launch (`start /min`, a shortcut set to Run: Minimized): such a
 window starts maximized or fullscreen, not minimized, and the windows opened
 after it (Settings, a new window) are not minimized either.
+
+With `window-show-tab-bar = never` and the OpenGL renderer, a fullscreen
+window covers its monitor plus one physical pixel. Windows can take a window
+whose OpenGL surface covers a monitor exactly out of desktop composition, and
+then every switch back into it (Alt+Tab, an IME candidate window) flashes the
+screen black ([#598](https://github.com/amanthanvi/noctty/issues/598)). The
+extra pixel goes past the first of the bottom, right, top and left edges that
+has no other monitor next to it, so it lands on no screen. A monitor that
+touches only at a corner does not count. With a monitor on every side, or
+when Windows does not report every monitor (or there are more than 16), the
+window covers its monitor exactly, as before. With the Direct3D 11 renderer
+or the tab bar shown, nothing changes. The extra pixel is part of the
+terminal's area: the default padding takes it, but with `window-padding-y`
+(or, at a left or right edge, `window-padding-x`) set to 0 on that edge, the
+terminal's last pixel row or column can be off-screen. The larger rect is
+never what leaving fullscreen returns to, and never what the session saves:
+both start from the window as it was before fullscreen. As before this
+change, when the window's monitor or scaling changed while it was
+fullscreen, that place is moved and scaled to fit where the window is now.
+The choice is made when the window enters fullscreen, or when a window is
+opened from a fullscreen one. These do not redo it while the window stays
+fullscreen: a config reload (`renderer`, `window-show-tab-bar`), a switch
+from Direct3D 11 to OpenGL after a renderer failure, a scaling change, or a
+monitor added, removed or moved. A monitor attached at the extended edge then
+shows a one-pixel line of the window along its edge until you leave
+fullscreen (F11).
 
 The universal palette puts actions, live tabs, panes, Windows profiles,
 named layouts, and native settings in one fuzzy-ranked, keyboard-driven
@@ -2705,6 +2842,17 @@ shortcuts. In-app banners should still appear for important app notices.
 Global hotkey fails: another application or Windows itself owns the same
 hotkey. Pick a different trigger or close the conflicting app, then reload
 config.
+
+A whole family of chords does nothing (for example every Ctrl+Shift letter,
+so Ctrl+Shift+C neither copies nor works in another terminal): another
+program has probably registered them as system-wide hotkeys. Windows hands a
+registered hotkey to the program that registered it before any window sees
+the key. Driver control panels (AMD Radeon Software, NVIDIA, Intel), screen
+recorders and clipboard tools are common owners. noctty registers a
+system-wide hotkey only for `global:` keybinds, so unless you bound one to
+that chord, noctty is not the owner.
+[Hotkey Detective](https://github.com/ITachiLab/hotkey-detective) is one tool
+that can find the owner.
 
 WSL fails to launch: set `command = wsl.exe` explicitly. If it still fails,
 verify the distribution starts in a normal PowerShell session first.

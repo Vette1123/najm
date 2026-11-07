@@ -122,9 +122,12 @@ reading step under [Self-Correction Log](#self-correction-log).
   `src/apprt/win32_theme.zig` owns theme policy; focused modules under
   `src/apprt/win32/` own session capture and restore, the quick terminal host,
   window state, surface presentation, the docked search controls, overlay and
-  palette orchestration, the chrome scene, Win32 constants/externs,
-  labels/input, startup/render tracing, chrome rectangle math, and GDI paint
-  primitives.
+  palette orchestration, the chrome scene, child-control plumbing
+  (`child_window.zig`), Win32 constants/externs, input (`input.zig`), what a
+  confirm prompt, a tab label and the host overlay say (`confirm_text.zig`,
+  `tab_label.zig`, `overlay_view.zig`) and which profile a pick names
+  (`profile_pick.zig`), owned and bounded text (`text.zig`), startup/render
+  tracing, chrome rectangle math, and GDI paint primitives.
 - Windows packaging: `dist/windows/` + `scripts/package-windows.ps1`
 - Najm's website: `web/` (GitHub Pages); `site/` is Noctty's and stays as is
 - libghostty-vt headers: `include/ghostty/`
@@ -243,48 +246,129 @@ that govern each symbol you change, or that none does.
 - [window-frame.md](docs/agents/log/window-frame.md): the top-level window:
   `WM_NCCALCSIZE`/`WM_NCHITTEST` (`win32_nc_layout.zig`), integrated titlebar
   and caption buttons, `window-decoration = none`, resize bands, maximize,
-  fullscreen and restore placement (the `maximize`/`fullscreen` keys at
-  window start: `Surface.applyWindowStart` in `win32/window_state.zig`; what a
-  session saves and restores of a fullscreen window: `WindowState.fullscreen`
-  and `fullscreen_maximized` in `win32_session_state.zig`,
-  `sessionWindowPlacementOn` and `restoreSessionWindow` in
-  `win32/session.zig`), what a new window copies from its source and which
-  forwarded keys it keeps (`inheritWindowStateFrom`, `WindowKeeps`, both in
-  `win32/window_state.zig`), `WM_DPICHANGED` and mixed-DPI moves,
-  `window-width`/`window-height`, `background-opacity` and DWM backdrop, the
+  fullscreen and restore placement (one copy per window, `TopLevel` on
+  `Host.top_level`, changed by `window_state.perform` and `applyConfig`;
+  the `WM_GETMINMAXINFO` reader, `updateMinMaxInfo`; a pane's own metrics,
+  `Surface.metrics`; the rect a fullscreen window covers, one pixel past a
+  free monitor edge for OpenGL with the tab bar hidden (#598):
+  `composedFullscreenRect` in `win32/window_start.zig`,
+  `keepsFullscreenComposed` (its decision, `composesFullscreen` over
+  `PaneRenderer`), `fullscreenRect` and `MonitorRects` in
+  `win32/window_state.zig`;
+  the `maximize`/`fullscreen` keys at window start: `Enter` and
+  `forRestore` in `win32/window_start.zig`; what a session saves and
+  restores of a fullscreen window: `WindowState.fullscreen` and
+  `fullscreen_maximized` in `win32_session_state.zig`,
+  `window_state.sessionPlacement`, the restore stages of
+  `window_state.advance`, and `restoreSessionWindow` in `win32/session.zig`),
+  what a new window copies from its source and which forwarded keys it keeps
+  (`window_state.begin` and `advance`, with its `Origin` and
+  `Host.pending_start`, in `win32/window_state.zig`; the pure `plan`,
+  `place` with its `Occupied`, `returnOn` and `Keeps` in
+  `win32/window_start.zig`; `Registry.newWindowSource` and
+  `windowStartsAt`), `WM_DPICHANGED` and mixed-DPI moves,
+  `window-width`/`window-height`, `background-opacity` and DWM backdrop (how
+  a window shows it: `TopLevel.shows` in `win32/window_start.zig`; blur-behind,
+  the layered fade, the solid child controls and the panes' renderer opacity:
+  `applyBackgroundOpacity`, `refreshBackgroundOpacity`,
+  `retryBackgroundOpacity`, `releaseBackgroundOpacity`, `childCreated` and
+  `solidifies` in `win32/window_state.zig`, with `Host.chrome_alpha` and
+  `Host.blur_behind_failed`; when a window shows it again: the `opacity`
+  argument of `App.reconfigureTheme`, `App.systemColorSetChanged` (every
+  system theme message, `WM_THEMECHANGED`, `WM_SYSCOLORCHANGE` and a
+  theme-affecting `WM_SETTINGCHANGE`, with a light/dark change's reload),
+  `reconfigureSystemTheme` and its two
+  baselines (the rebuild's, `App.system_theme_refresh` and
+  `SystemThemeSnapshot`, which `reconfigureTheme` and `App.init` set; the
+  retry's, `App.system_inputs` and `window_state.SystemInputs`, which only
+  `App.takeSystemInputs`, from `reconfigureSystemTheme` and
+  `systemColorSetChanged`, and `App.init` set), `App.endSettingsPreview`
+  (and the Settings rollback that ends both previews through it:
+  `rollbackPreviews`, the handle's `endPreviews`, App's private
+  `settingsEndPreviewsThunk`), the
+  window half of a config change (the `.surface` and `.app`
+  `config_change` arms, `App.app_wide_config_change`,
+  `App.updateCoreConfig`, `App.updatePaneCoreConfig`, and after a failed
+  update `App.app_wide_windows_applied`, `App.applyWindowsConfig` and
+  `App.reloadKeptConfig`), and
+  `Host.closing` in `Host.closeConfirmed` and `App.windowDestroyed`;
+  `Surface.setBackgroundOpacity`,
+  `rendererSwitchedToOpenGL` and `WM_WINHOSTTY_RENDERER_SWITCHED`; the
+  renderer's `background_opacity_override`; how a pane's frame reaches a
+  window that composes its alpha: `composesAlpha` and `splitDimPass` in
+  `src/renderer/generic.zig`, `OpenGL.composed_alpha`, `presentsComposed`,
+  `OpenGL.present`, `presentComposed`, `drawComposed` and
+  `composedDimUniform` in `src/renderer/OpenGL.zig`, `Target.Options.sampled`,
+  `initSampled` and `Target.composed_dim` in `src/renderer/opengl/Target.zig`,
+  `initPresentComposedPipeline` and the `split_dim` pipeline's flags in
+  `src/renderer/opengl/shaders.zig`, and
+  `src/renderer/shaders/glsl/present_composed.f.glsl`), the
   window menu, the quick terminal (`win32_quick_terminal.zig`,
   `win32/quick_terminal_host.zig`).
 - [chrome-tabs-paint.md](docs/agents/log/chrome-tabs-paint.md): tab buttons
   (`tabButtonProc`, `drawButton`, labels, tooltips, close X, the active tab's
-  join to its terminal, `win32_tab_visual.zig`), `window-show-tab-bar`,
-  chrome theme and system accent (`win32_theme.zig`), focus cues
-  (`win32/focus_cue.zig`), `win32_icons.zig`, titlebar and tab-row icon fonts
-  (`recreateTitlebarIconFonts`, `createIconFontWithGlyphs`,
-  `fontGlyphCoverage`, `drawTitlebarGlyph`), chrome child z-order, host paint
-  and invalidation scopes and text caches (`win32/chrome_scene.zig`:
-  `paintChrome`, `invalidateChrome*`, `repaintTopChrome`; `appendOwnedString`),
-  tweens.
+  join to its terminal, `win32_tab_visual.zig`; what a tab's label, tooltip
+  and UIA name say and which tabs the strip shows: `win32/tab_label.zig`,
+  `key`, `text`, `tooltip`, `uiaName`, `visible`, and `Tab.cachedKey` and
+  `Tab.setCachedKey`), `window-show-tab-bar`, chrome theme and system accent
+  (`win32_theme.zig`), focus cues (`win32/focus_cue.zig`), `win32_icons.zig`,
+  titlebar and tab-row icon fonts (`recreateTitlebarIconFonts`,
+  `createIconFontWithGlyphs`, `fontGlyphCoverage`, `drawTitlebarGlyph`),
+  chrome child z-order, host paint and invalidation scopes and text caches
+  (`win32/chrome_scene.zig`: `paintChrome`, `invalidateChrome*`,
+  `repaintTopChrome`, the alpha a translucent window's GDI paint takes:
+  `AlphaPaint`, `fillLaneBackground`, `fixAlpha`; `appendOwnedString` in
+  `win32/text.zig`), the child
+  placement cache (`ChildPlacement`, `applyChromeChildRect` in
+  `win32/child_window.zig`), tweens.
 - [chrome-overlays.md](docs/agents/log/chrome-overlays.md): the command
-  palette (`win32_palette.zig`, `win32/palette_controller.zig`, ranking, MRU
+  palette (`win32_palette.zig`, `win32/palette_controller.zig`, its live
+  theme preview, one window's at a time (`Host.showOverlay`, which closes
+  every other window's palette; `Surface.toggleTabOverview`, which closes
+  what is open first like every overlay's open; the error
+  `showPaletteThemePreview` logs over another window's live preview),
+  and how a reload ends it
+  (`Host.swapRuntimeConfigFromPalette`, `installRuntimeConfigFromPalette`,
+  `showPaletteThemePreview`, `supersedePaletteThemePreview`,
+  `App.supersedePaletteThemePreviews`, `detachLivePaletteCatalogConfig`, and
+  `App.updateCoreConfig`'s fallback after a failed reload,
+  `App.reloadKeptConfig`, which reloads `app.config` in core's light/dark
+  state), ranking, MRU
   and its `palette-mru.txt` lines: `writePaletteMruLine`, palette list, the
   catalog's capacity and the installed themes that fit it:
   `palette_catalog_capacity`, `appendInstalledThemesToPalette`, and the
   bundled iTerm2 theme pin in `build.zig.zon` that sets their count), the confirm
   overlay (`win32/overlay_session.zig`: `showConfirm`,
-  `invokeConfirmAccept`/`Cancel` lifetime; its paint text in
-  `labels.buildOverlayPaintLabelText`), the profile
-  overlay, host banners and the update notice, overlay EDIT writes
-  (`setOverlayEditText`).
+  `invokeConfirmAccept`/`Cancel` lifetime; what each prompt says and its
+  preview pane's text: `win32/confirm_text.zig`, `Words`, `preview`), the
+  profile overlay, host banners and the update notice, what the overlay
+  says and shows in each mode (`win32/overlay_view.zig`: `compose`, its
+  hint lane against chrome paint's feedback lane, `shape`, `nextFocus`,
+  `bannerLine`; the one reader of Host state for it, `Host.overlayFacts`,
+  and the syncs that write its controls, `syncOverlayLabel`,
+  `syncOverlayHint` and `syncOverlayButtons`, in
+  `win32/overlay_session.zig`), overlay EDIT writes
+  (`setOverlayEditText`, and `syncWindowTextUtf8CachedAfterSet` in
+  `win32/child_window.zig`).
 - [search-scrollbar.md](docs/agents/log/search-scrollbar.md): the docked
-  search bar (`win32_search_bar.zig`, `searchEditProc` in
-  `win32/search_controls.zig`, visible Up/Down versus
-  core `.next`/`.previous`, debounce) and the layered overlay scrollbar
+  search bar (`win32/docked_search.zig`: `DockedSearch.apply`, its
+  `Outcome` and `view`; the adapter `Surface.dockedSearch`,
+  `searchEditProc` and the bar's paint and UIA in
+  `win32/search_controls.zig`; the order of `Surface.endSearch`'s
+  end_search and clears in `src/Surface.zig`; visible Up/Down versus
+  core `.next`/`.previous`, debounce and the host's search timer over
+  every tab: `Host.refreshSearchTimerState`, `tickSearchBars`, the
+  restart after `restoreClosedTabEntryNative` and `redoSplitCreateEntry`,
+  the `test_core_steps` seam of `applyDockedSearch`) and the
+  layered overlay scrollbar
   (`win32_scrollbar_geometry.zig`, heartbeat, alpha, markers).
 - [tabs-panes.md](docs/agents/log/tabs-panes.md): tabs, splits and windows as
   a structure: `Surface.init` ordering, `activateSurface`, showing and hiding
   pane surfaces (occlusion, overlapping WGL children), `windowDestroyed`,
-  close and close-confirm flows, quit teardown (`destroyAllWindows`,
-  `App.destroyPaneOf`), focus after a close, shell reducer effects,
+  close and close-confirm flows (`Host.closeConfirmed` and its
+  `Host.closing`), quit teardown (`destroyAllWindows`,
+  `App.destroyPaneOf`, both in `win32/app.zig`; host and surface lookups in
+  `win32/registry.zig`), focus after a close, shell reducer effects,
   local and structural undo/redo (`win32_undo.zig`,
   `win32_structural_history.zig`, `undo-timeout`, split undo and redo through
   the shell model: `Host.applyCommittedSplitHistory`).
@@ -299,12 +383,27 @@ that govern each symbol you change, or that none does.
   (the X buttons: `win32_input.xMouseButton`, and the button codes
   `src/input/mouse_encode.zig` writes), wheel and context-menu input.
 - [launch-and-paths.md](docs/agents/log/launch-and-paths.md): which process a
-  terminal starts and with what environment: the default `command`, profile
+  terminal starts and with what environment: a new pane's launch
+  (`src/config/pane_launch.zig` `prepare`, its `Origin` and `Stamp`,
+  `defaultApplies`; where `App.createNewTab` and `App.createNewSplit`
+  call it against `applySplitWorkingDirectoryFromSource`), the default
+  `command` (what a config load decides of
+  the launch, in the same file: `finalize`, `default-profile` resolution and
+  its problems, the automatic default, the `Ledger` a load keeps in
+  `Config._launch` (which layer set `command`, the profile places, what
+  `note` records) and why it stays beside `config.origin` with
+  `origin.Derivation` at `.automatic`,
+  `useRecovery`, the queries `defaultProfile`, `nocttyCommand`,
+  `commandLineNamesProfile`, `filesDefine` and `defaultProfileForKey`, and
+  `keepSources`), profile
   discovery and user-defined profiles (`src/config/windows_shell.zig`: the
   `profile-*` keys, `default-profile`, `profile-order`, `profile-hidden`,
-  `verbatimCommandLine`, `arrangeProfiles`; Visual Studio developer shells in
-  `src/config/windows_visual_studio.zig`; `win32_elevation.RelaunchProfile`),
-  safe mode's
+  `verbatimCommandLine`, `arrangeProfiles`, profile key equality
+  `profileKeyEquals`, `storedProfileKeyEquals`, `sshProfileAlias`, and
+  which profile the app picks by it, `src/apprt/win32/profile_pick.zig`:
+  `byKey`, `pinByKey`, `byTyped`, `preferred`, `quickSlot`; Visual Studio
+  developer shells in `src/config/windows_visual_studio.zig`;
+  `win32_elevation.RelaunchProfile`), safe mode's
   `cmd.exe /D`, `CreateProcessW` name resolution, Git Bash discovery, WSL
   (`wsl_env.zig`, the terminfo probe and its cache, `TERM`), the terminfo
   install (`win32_terminfo.zig`), `najm +list-profiles`
@@ -330,11 +429,12 @@ that govern each symbol you change, or that none does.
   `local_path.Found.storedName`, and its hidden-desktop probe
   `test/windows/link-opener-pathext-probe.ps1`; the link prompt:
   `App.openLink`, `askBeforeOpeningLink`, `confirmedLinkScheme`,
-  `linkHandlerName`, `labels.linkPromptBody`,
+  `linkHandlerName`, `Words.link` in `win32/confirm_text.zig`,
   `Surface.setPendingLinkOpen`/`takePendingLinkOpen`).
 - [clipboard.md](docs/agents/log/clipboard.md): clipboard reads and writes,
   CF_HTML (`win32_clipboard_html.zig`), open retries, what a copy puts on the
   clipboard (formats and owner, as Remote Desktop's redirection sees them),
+  the Win32 error a failed copy reports (`clipboard_write.writeCapturing`),
   the empty bracketed paste and the paste of copied files
   (`Surface.completeClipboardPasteWithoutText`, `selectClipboardContents`,
   `win32_ole.extractHdrop`), OSC 52 prompts and
@@ -344,11 +444,14 @@ that govern each symbol you change, or that none does.
   (`win32_settings.zig`, `win32_settings_fields.zig`): its controls and when
   they are made (`SettingsWindow.open`, `materializeSection`), dialog
   manager, viewport, live preview (`App.settings_preview`, `App.shownConfig`,
-  `App.shownBackgroundOpacity`), theming (`SettingsThemeAdapter`,
+  `App.shownBackgroundOpacity`, and its rollback at a close or Discard:
+  `rollbackPreviews` and the handle's `endPreviews`), theming (`SettingsThemeAdapter`,
   `themeChanged`), its own UIA patterns, combo and open traces
   (`NOCTTY_SETTINGS_COMBO_TRACE`, `NOCTTY_SETTINGS_OPEN_TRACE`,
   `win32/bench_trace.zig`), the Default profile row
-  (`field_model.Kind.profile`, `AppHandle.profileChoices`), the
+  (`field_model.Kind.profile`, `AppHandle.profileChoices`, and what the
+  load made of the value: `pane_launch.outcome`, `filesDefaultProfile`,
+  `asWritten`), the
   changed-from-default marks, Reset buttons and row menu (`syncDefaultMarks`,
   `takeResetButton`, `releaseResetButton`, `resetDraftRow`, `showRowMenu`,
   `field_model.effectiveSettingValue`), Settings search (`formItems`,
@@ -356,14 +459,21 @@ that govern each symbol you change, or that none does.
   `revealControl`, `showKeyboardCues`, `placeDiscardButton`, `SearchQuery`),
   where each shown value comes from (`config.origin`,
   `win32_settings_reference.savedOrigin`), the opacity trackbar and the number
-  up-downs, and the save path (`settingsSaveAndReload`, `patchOrAppendEdits`, save
-  target, masked values).
+  up-downs, the Profiles page (`ReferenceList`, `ListKind.profiles`,
+  `win32_settings_profiles.zig`) and the identity patcher that saves it
+  (`win32/settings_patch.zig`, `FileEnd`), the config line reader it shares
+  with the loader (`cli/args.zig` `LineIterator.takes`, `read_failed`,
+  `Config.loadReader`), the keyboard pin in Settings dialog tests
+  (`TestingKeyboard.pinNone`), and the save path (`settingsSaveAndReload`,
+  `patchOrAppendEdits`, save target, masked values, and the digest re-check
+  before the write: `App.settings_check`, `save_target.writeOver`).
 - [accessibility.md](docs/agents/log/accessibility.md): new widgets and UI
   events (adding a native widget, or changing its focus, children or
   notifiable properties); UIA providers under `src/apprt/win32_uia/` (COM
   identity and refcounts, BSTR and VARIANT ownership, `events.zig`); terminal
   text (`win32_terminal_accessibility.zig`, TextPattern, ScrollIntoView, the
-  echo queue), palette and tab-list UIA.
+  echo queue), palette and tab-list UIA (a tab's name: `uiaName` and
+  `Key.sameUiaName` in `win32/tab_label.zig`).
 - [config.md](docs/agents/log/config.md): config loading and reload outside
   the Settings window: the config file reader (`cli/args.zig` `LineIterator`,
   `streamDelimiterEnding`, `parseIntoField`, `ProfileMap`,
@@ -372,10 +482,11 @@ that govern each symbol you change, or that none does.
   `startup_cwd` on reload, diagnostics shown in the GUI, conditional replay
   (`Replay.Iterator`, `Config.finalize`, `loadTheme`,
   `changeConditionalState`), command-line values put
-  back over `config-file` includes (`Config.parseManuallyHook`,
-  `finalizeCliLaunch`), `newConfig` shallow
+  back over `config-file` includes (`Config.parseManuallyHook`, and `note`
+  and `finalizeCliLaunch` in `src/config/pane_launch.zig`), `newConfig` shallow
   clones, what `Surface.DerivedConfig` must own, `RepeatableCommand.clone`
-  and its C mirror (`value_c`, `Command.cval`), `+edit-config` and opening
+  and its C mirror (`value_c`, `Command.cval`), UTF-16 themes
+  (`Config.textReader`, `_undecodable_theme`), `+edit-config` and opening
   the config file, adding config keys.
 - [app-lifecycle.md](docs/agents/log/app-lifecycle.md): `App.init` and
   startup stalls, a cold `--launch-layout` (`App.startup_launch_layout`,
@@ -383,12 +494,16 @@ that govern each symbol you change, or that none does.
   (capture, restore, owner lock and quarantine: `win32/session.zig`) and
   state-file schemas, IPC and single instance (`win32/ipc_server.zig`), AUMID
   and portable identity, the jump list, toasts and desktop notifications
-  (their tab attribution, tags and history removal, `App.showToast`, the COM
-  activator in `win32_toast_activator.zig`), an installer's Restart Manager
-  close and a session end (`App.onQueryEndSession`, `App.onEndSession`,
-  `registerInstallerRestart`, the lifecycle window), the bell, taskbar
-  progress and icon, crash minidumps and Sentry, the COM apartment,
-  default-terminal handoff, the CLI and the `noctty.com` wrapper.
+  (`win32/notifications.zig`: their tab attribution, tags and history
+  removal, `Notifications.show`, `seen`, `panesChanged` and `flush`, what a
+  click presents, `Notifications.click`, the App's `notificationPanes`
+  adapter; the COM activator in `win32_toast_activator.zig`), an installer's
+  Restart Manager close and a session end (`App.onQueryEndSession`,
+  `App.onEndSession`, `registerInstallerRestart`, the lifecycle window), the
+  bell (its title glyph: `title_glyph`, `withTitleGlyph` in
+  `win32/tab_label.zig`), taskbar progress and icon, crash minidumps and
+  Sentry, the COM apartment, default-terminal handoff, the CLI and the
+  `noctty.com` wrapper.
 - [build-release-ci.md](docs/agents/log/build-release-ci.md): `build.zig`
   (including the `bench:*` steps' `addBenchCoreImport`)
   and resources, the Windows target floor (`src/build/Config.zig`,
@@ -413,6 +528,9 @@ that govern each symbol you change, or that none does.
   `test/windows/renderer/Invoke-RendererParity.ps1`, `bench-windows.ps1`'s
   `ForceForeground` and render-trace snapshots, transient captures (a banner,
   the overlay scrollbar) in the visible check `Invoke-VisibleD3D11Check.ps1`,
+  the measure-AUMID builds an A/B compares
+  (`Invoke-InteractiveWin11MeasureBuild` in
+  `scripts/interactive-win11-measure-lib.ps1`),
   the PKG-37, LAT-01 and LAT-02 measurement harnesses on the
   `origin/*-measurement-harness` branches), CI test steps (the raw
   `zig test src/apprt/win32_compositor_native.zig` step, which confines
@@ -420,17 +538,26 @@ that govern each symbol you change, or that none does.
   test runner's probe children and thread tests (`src/pty_transport_probe.zig`,
   `std.Progress.lockStdErr`, the search-thread tests in
   `src/terminal/search/Thread.zig`), the shared Win32 test fixtures
-  (`win32/test_support.zig`, `TestSession`), PSReadLine history isolation
+  (`win32/test_support.zig`, `TestSession`, the private-desktop runners
+  `runOnHiddenDesktop` and `host.zig` `runOnPrivateDesktop` and the empty
+  keyboard they pin), PSReadLine history isolation
   (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a bash
   probe's `HISTFILE`, a suite that seems hung (`scripts/zig-test-stacks.ps1`,
-  the `PageList` test helper `growRows`), and a test count or result that
-  contradicts the code.
+  the `PageList` test helper `growRows`), a failing test's error name (the
+  installed test executable), and a test count or result that contradicts the
+  code.
 - [tooling.md](docs/agents/log/tooling.md): declaring `extern` functions or
   structs, casting Win32 handles and `LPARAM`/`LRESULT` (`@intCast`,
   `@bitCast`, `@ptrFromInt`), passing `[:0]u16` to text APIs, renaming or moving
   Zig declarations (the `src/apprt/win32.zig` split into `win32/*.zig`),
-  `union(enum)` tests, PowerShell language traps, and `gh`,
-  git and codex commands.
+  dropping `pub` from a declaration another file probes by name
+  (`@hasDecl(apprt.Surface, ...)` in `src/Surface.zig` and
+  `src/renderer/Thread.zig`, the runtime hooks such as
+  `noteRendererFollowupCallback`),
+  adding a name to `src/apprt/win32.zig` or to one of its `*_runtime` bags
+  (the budget in `win32/facade_budget.zig`, and the facade importer list in
+  `Contracts.20-Zig.ps1`), `union(enum)` tests, PowerShell language traps, and
+  `gh`, git and codex commands.
 
 A comment that cites AGENTS.md (by date, issue number, symbol or an old line
 number such as `AGENTS.md:75`) means a log entry. Run

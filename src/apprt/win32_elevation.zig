@@ -420,7 +420,7 @@ pub fn isTrustedElevatedPipeServer(identity: PipeServerIdentity) bool {
 }
 
 /// Allocate the effective window title, including the elevation marker when
-/// needed. A missing title uses the same `noctty` fallback as the Win32 host.
+/// needed. A missing title uses the same `Najm` fallback as the Win32 host.
 pub fn allocPrefixedTitle(
     alloc: Allocator,
     title: ?[]const u8,
@@ -1294,7 +1294,7 @@ test "an elevated window names a file-defined profile, which the elevated proces
     try cfg.finalize();
     for (cfg._diagnostics.items()) |diag| std.debug.print("unexpected diagnostic: {s}: {s}\n", .{ diag.key, diag.message });
     try testing.expect(cfg._diagnostics.empty());
-    const profile = cfg._default_profile.?;
+    const profile = configpkg.pane_launch.defaultProfile(&cfg) orelse return error.TestUnexpectedResult;
     try testing.expectEqualStrings("user:py", profile.key);
     // The line as written (cmd's outer-quote idiom kept), its variables, and
     // no included `command` or `initial-command` in the way.

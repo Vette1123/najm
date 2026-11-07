@@ -1,78 +1,58 @@
 //! Session persistence, restore, placement and scrollback snapshots.
 const win32 = @import("../win32.zig");
 const runtime = win32.session_runtime;
-const test_runtime = if (@import("builtin").is_test) win32.session_test_runtime else struct {};
 const killThreadTimer = runtime.killThreadTimer;
 const Allocator = runtime.Allocator;
 const App = runtime.App;
-const CoreApp = runtime.CoreApp;
 const Host = runtime.Host;
-const LPCWSTR = runtime.LPCWSTR;
-const MONITORINFO = runtime.MONITORINFO;
 const RECT = runtime.RECT;
-const ShellProjectionSteps = runtime.ShellProjectionSteps;
 const SplitTreeSurface = runtime.SplitTreeSurface;
 const Surface = runtime.Surface;
-const SurfaceInitOptions = runtime.SurfaceInitOptions;
 const Tab = runtime.Tab;
-const TestSession = win32.test_support.TestSession;
-const UINT_PTR = runtime.UINT_PTR;
-const WINDOWPLACEMENT = runtime.WINDOWPLACEMENT;
-const WindowStart = runtime.WindowStart;
-const WindowStartTestApp = win32.test_support.WindowStartTestApp;
-const WorkAreas = runtime.WorkAreas;
-const appendOwnedString = runtime.appendOwnedString;
-const applyDefaultProfileConfig = runtime.applyDefaultProfileConfig;
-const applyProfileSurfaceConfig = runtime.applyProfileSurfaceConfig;
 const apprt = runtime.apprt;
 const builtin = runtime.builtin;
-const c = runtime.c;
-const cli_args = runtime.cli_args;
 const configpkg = runtime.configpkg;
-const createTestHostWindow = win32.test_support.createTestHostWindow;
-const defaultProfileForKey = runtime.defaultProfileForKey;
 const default_title = runtime.default_title;
 const gl_startup = runtime.gl_startup;
 const internal_os = runtime.internal_os;
-const lastError = runtime.lastError;
-const listProfilesForConfig = runtime.listProfilesForConfig;
 const log = runtime.log;
 const makeParentDirAbsolute = runtime.makeParentDirAbsolute;
 const markRecoveryAttemptAtPath = runtime.markRecoveryAttemptAtPath;
-const placementTestApp = win32.test_support.placementTestApp;
-const placementTestSurface = win32.test_support.placementTestSurface;
-const profileIndexByKey = runtime.profileIndexByKey;
-const recovery_set_aside_suffix = runtime.recovery_set_aside_suffix;
-const rectEqual = runtime.rectEqual;
-const restore_grab = runtime.restore_grab;
-const restoredRectOnScreen = runtime.restoredRectOnScreen;
-const restoresMaximized = runtime.restoresMaximized;
-const runOnHiddenDesktop = win32.test_support.runOnHiddenDesktop;
-const setAsideCrashedSessionState = runtime.setAsideCrashedSessionState;
-const setMinimizedNormalRect = runtime.setMinimizedNormalRect;
-const shouldInheritSplitWorkingDirectory = runtime.shouldInheritSplitWorkingDirectory;
-const shouldResetNewTabWorkingDirectory = runtime.shouldResetNewTabWorkingDirectory;
-const startsWithIgnoreCase = runtime.startsWithIgnoreCase;
-const startupNamesProfile = runtime.startupNamesProfile;
 const std = runtime.std;
 const sys = runtime.sys;
 const terminal = runtime.terminal;
 const terminal_options = runtime.terminal_options;
-const testUserProfileList = test_runtime.testUserProfileList;
-const testVisualStudioList = test_runtime.testVisualStudioList;
 const unixMillis = runtime.unixMillis;
 const win32_session_persistence = runtime.win32_session_persistence;
 const win32_session_state = runtime.win32_session_state;
-const win32_shell = runtime.win32_shell;
+const window_state = @import("window_state.zig");
 const windows = runtime.windows;
-const windows_shell = runtime.windows_shell;
-const workspaceRectToScreen = runtime.workspaceRectToScreen;
 const writePersistentFileAlloc = runtime.writePersistentFileAlloc;
+
+// Test dependencies.
+const CoreApp = @import("../../App.zig");
+const LPCWSTR = win32_types.LPCWSTR;
+const MONITORINFO = sys.MONITORINFO;
+const ShellProjectionSteps = win32.ShellProjectionSteps;
+const SurfaceInitOptions = win32.SurfaceInitOptions;
+const TestSession = win32.test_support.TestSession;
+const UINT_PTR = win32_types.UINT_PTR;
+const WindowStartTestApp = win32.test_support.WindowStartTestApp;
+const c = @import("consts.zig");
+const cli_args = @import("../../cli/args.zig");
+const createTestHostWindow = win32.test_support.createTestHostWindow;
+const placementTestApp = win32.test_support.placementTestApp;
+const placementTestHost = win32.test_support.placementTestHost;
+const runOnHiddenDesktop = win32.test_support.runOnHiddenDesktop;
+const shouldInheritSplitWorkingDirectory = win32.shouldInheritSplitWorkingDirectory;
+const shouldResetNewTabWorkingDirectory = win32.shouldResetNewTabWorkingDirectory;
+const win32_shell = @import("../win32_shell.zig");
+const win32_types = @import("../win32_types.zig");
 
 /// Suffix for a saved session that was restored and then ended by itself
 /// before it was used (`App.setAsideFailedRestore`). Its own slots: these
 /// copies must never take the ones the crash-loop breaker needs.
-pub const restore_ended_suffix = ".restore-ended";
+const restore_ended_suffix = ".restore-ended";
 
 /// Move the saved session at `path` aside, as a restore that ended by itself
 /// before it was used: renamed into a free `.restore-ended` slot, never
@@ -95,6 +75,52 @@ pub fn setAsideSessionStateAt(alloc: Allocator, path: []const u8) bool {
     };
     defer alloc.free(destination);
     log.warn("win32 session: the restored session ended by itself before any input; moved it to {s}", .{destination});
+    return true;
+}
+
+/// Suffix for a saved session that the last launches died restoring.
+pub const recovery_set_aside_suffix = ".restore-failed";
+
+/// Move a saved session aside that the last launches all ended restoring, so
+/// the next normal launch starts fresh instead of ending again. A rename into
+/// a free slot, never a delete or a replace; skipped while another live process
+/// owns the session, and for any file this build would not restore (a newer
+/// build's, an oversized or unreadable one, or one the restore path quarantines
+/// as `.corrupt` anyway). Returns whether the session was moved.
+pub fn setAsideCrashedSessionState(alloc: Allocator, state_path: []const u8) bool {
+    const owner = SessionOwnerLock.acquire(alloc, state_path) catch |err| {
+        log.warn("win32 recovery: session not set aside, ownership lock unavailable err={}", .{err});
+        return false;
+    } orelse {
+        log.warn("win32 recovery: session not set aside, another instance owns it", .{});
+        return false;
+    };
+    defer owner.release();
+    {
+        var current = win32_session_persistence.loadAlloc(
+            alloc,
+            state_path,
+            win32_session_persistence.default_max_state_bytes,
+        );
+        defer current.deinit();
+        if (current != .loaded) {
+            if (current != .missing) log.warn("win32 recovery: session not set aside, not one this build restores ({s})", .{@tagName(current)});
+            return false;
+        }
+    }
+    const destination = win32_session_persistence.quarantineFileAlloc(
+        alloc,
+        state_path,
+        recovery_set_aside_suffix,
+        .keep_source,
+    ) catch |err| {
+        if (err != error.FileNotFound) {
+            log.warn("win32 recovery: session not set aside path={s} err={}", .{ state_path, err });
+        }
+        return false;
+    };
+    defer alloc.free(destination);
+    log.warn("win32 recovery: repeated failures while restoring the saved session; moved it to {s}", .{destination});
     return true;
 }
 
@@ -146,7 +172,7 @@ test "win32 a restore that ended by itself is moved aside, never deleted or repl
     try std.testing.expectEqualStrings(latest, crashed);
 }
 
-pub fn sessionStatePolicyAllows(safe_mode: bool, policy: configpkg.Config.WindowSaveState) bool {
+fn sessionStatePolicyAllows(safe_mode: bool, policy: configpkg.Config.WindowSaveState) bool {
     return !safe_mode and policy != .never;
 }
 
@@ -171,11 +197,11 @@ pub const SessionRestoreTransaction = struct {
         }
     }
 
-    pub fn commit(self: *SessionRestoreTransaction) void {
+    fn commit(self: *SessionRestoreTransaction) void {
         self.committed = true;
     }
 
-    pub fn rollback(self: *SessionRestoreTransaction) void {
+    fn rollback(self: *SessionRestoreTransaction) void {
         if (self.committed) return;
         if (self.app) |app| if (self.host) |host| {
             app.rollbackSessionRestoreHost(host);
@@ -187,7 +213,7 @@ pub const SessionRestoreTransaction = struct {
     }
 };
 
-pub fn sessionRestorePolicyAllows(
+fn sessionRestorePolicyAllows(
     safe_mode: bool,
     policy: configpkg.Config.WindowSaveState,
     initial_window: bool,
@@ -207,7 +233,7 @@ pub const SessionSaveKind = enum { final, checkpoint };
 
 /// How long the session must stay unchanged before a structural change is
 /// saved (`App.scheduleSessionCheckpoint`).
-pub const session_checkpoint_delay_ms: u32 = 1000;
+const session_checkpoint_delay_ms: u32 = 1000;
 
 /// Held for the life of the one process that owns `session-state.json`.
 /// An exclusive byte-range lock on the `.lock` sibling, so the kernel drops
@@ -329,7 +355,7 @@ pub fn sessionRestoreEligible(self: *const App) bool {
         self.config.@"initial-window",
         self.config.@"initial-command" != null,
         self.startup_profile_picker,
-        self.explicit_startup_working_directory or startupNamesProfile(&self.config),
+        self.explicit_startup_working_directory or configpkg.pane_launch.commandLineNamesProfile(&self.config),
     );
 }
 
@@ -432,20 +458,21 @@ pub fn restoreSessionWindow(
 ) !*Surface {
     var transaction = SessionRestoreTransaction.init(self);
     defer transaction.rollback();
+    const saved = savedPlacement(window);
     var host: ?*Host = null;
     var window_surface: ?*Surface = null;
 
     for (window.tabs, 0..) |saved_tab, tab_index| {
         const tab_surface = try self.restoreSessionTab(
             saved_tab,
-            host,
+            if (host) |existing| .{ .host = existing } else .{ .window = saved },
             tab_index,
             &transaction,
         );
         if (host == null) {
             host = tab_surface.host;
             if (host) |created_host| {
-                applyRestoredWindowPlacement(created_host, window) catch |err| {
+                window_state.advance(created_host, .restore_placed) catch |err| {
                     log.warn("win32 session restore: window placement failed err={}", .{err});
                 };
             }
@@ -460,38 +487,41 @@ pub fn restoreSessionWindow(
     restored_host.active_tab = @min(window.selected_tab, restored_host.tabs.items.len - 1);
     const active_tab = &restored_host.tabs.items[restored_host.active_tab];
     const selected = active_tab.focusedSurface() orelse window_surface orelse return error.EmptyTabs;
-    // `maximize` and `fullscreen` apply to a restored window too (#496),
-    // and a launched layout, which has no saved state, takes them as any
-    // new window does. The window has its saved rect by now (as the rect
-    // it returns to, if a minimized launch minimized it), so that is the
-    // normal rect it returns to.
-    var start = WindowStart.fromConfig(&self.config);
-    if (window.state == .fullscreen) {
-        start.fullscreen = true;
-        start.maximize = start.maximize or (window.fullscreen_maximized orelse false);
-    }
-    selected.applyWindowStart(start);
-    // Fullscreen is kept per surface, and every tab shares the window's.
-    if (start.fullscreen and selected.fullscreen) syncRestoredHostWindowState(restored_host, selected);
+    try window_state.advance(restored_host, .restore_complete);
     transaction.commit();
     return selected;
 }
 
-/// Every pane already shares this HWND. Only copy its cached state;
-/// generic window cloning allocates and repeats native placement calls.
-pub fn syncRestoredHostWindowState(host: *Host, source: *const Surface) void {
-    for (host.tabs.items) |*tab| {
-        for (tab.tree.nodes) |node| switch (node) {
-            .leaf => |surface| if (surface != source) surface.copySharedWindowStateFrom(source, .{}),
-            .split => {},
-        };
-    }
+/// Where a restored tab goes: a new window, which starts as it was saved, or
+/// a window restored already.
+pub const RestoreInto = union(enum) {
+    window: window_state.SavedPlacement,
+    host: *Host,
+};
+
+/// How `window` was saved, as a restored window starts (`Origin.restore`). A
+/// rect the file cannot give leaves the window where it is created, and not
+/// maximized; a saved fullscreen still comes back.
+fn savedPlacement(window: win32_session_state.Window) window_state.SavedPlacement {
+    const state = window.state orelse .normal;
+    var saved: window_state.SavedPlacement = .{
+        .rect = null,
+        .maximized = false,
+        .fullscreen = state == .fullscreen,
+        .fullscreen_maximized = window.fullscreen_maximized orelse false,
+    };
+    saved.rect = sessionStateWindowRect(window) catch |err| {
+        log.warn("win32 session restore: window placement failed err={}", .{err});
+        return saved;
+    };
+    saved.maximized = state == .maximized;
+    return saved;
 }
 
 pub fn restoreSessionTab(
     self: *App,
     saved_tab: win32_session_state.Tab,
-    existing_host: ?*Host,
+    into: RestoreInto,
     tab_index: usize,
     transaction: *SessionRestoreTransaction,
 ) !*Surface {
@@ -513,7 +543,7 @@ pub fn restoreSessionTab(
     const first_index = firstSessionLayoutPane(layout, layout.root) orelse return error.EmptyLayout;
     const first = try self.restoreSessionPane(
         layout.nodes[first_index].pane,
-        existing_host,
+        into,
         null,
         tab_index,
         .right,
@@ -530,7 +560,7 @@ pub fn restoreSessionTab(
                 const second_index = firstSessionLayoutPane(layout, split.second) orelse return error.EmptyLayout;
                 const second = try self.restoreSessionPane(
                     layout.nodes[second_index].pane,
-                    existing_host,
+                    into,
                     item.leaf,
                     tab_index,
                     switch (split.axis) {
@@ -661,7 +691,7 @@ test "restoreSessionTab leaves the restored tree to the tab when layout fails" {
     // while the tab kept it, and the session teardown freed it again.
     try std.testing.expectError(error.OutOfMemory, app.restoreSessionTab(
         .{ .selected_leaf = 1, .layout = layout },
-        &host,
+        .{ .host = &host },
         0,
         &transaction,
     ));
@@ -675,13 +705,16 @@ test "restoreSessionTab leaves the restored tree to the tab when layout fails" {
 pub fn restoreSessionPane(
     self: *App,
     pane: win32_session_state.Pane,
-    existing_host: ?*Host,
+    into: RestoreInto,
     tab_surface: ?*Surface,
     tab_index: usize,
     split_direction: SplitTreeSurface.Split.Direction,
     transaction: *SessionRestoreTransaction,
 ) !*Surface {
-    const host = existing_host orelse if (tab_surface) |source| source.host else null;
+    const host = switch (into) {
+        .host => |existing| existing,
+        .window => if (tab_surface) |source| source.host else null,
+    };
     const open_kind: apprt.surface.NewSurfaceContext = if (host == null)
         .window
     else if (tab_surface == null)
@@ -690,22 +723,7 @@ pub fn restoreSessionPane(
         .split;
     var config = try apprt.surface.newConfig(self.core_app, &self.config, open_kind);
     defer config.deinit();
-
-    // `initial-command` (from `-e` or the config option) applies to the
-    // ordinary first window. A restored pane's command comes from its
-    // saved profile, so clear it: otherwise `Surface.init` prefers it
-    // while `app.first` is set and the first pane of a restored session
-    // or a launched layout runs the wrong command.
-    config.@"initial-command" = null;
-
-    // A refused profile (today: SSH) must not leave its key on the surface
-    // either, or a later split of the restored pane would re-resolve it and
-    // launch the connection this restore just declined.
-    const profile_applied = if (pane.profile) |key|
-        try self.applyRestoredProfileConfig(&config, host, key)
-    else
-        false;
-    const default_profile = if (profile_applied) null else try self.applyRestoredDefaultLaunch(&config);
+    const launch = try configpkg.pane_launch.prepare(&config, .{ .restored = pane.profile }, self.launchContext(host));
     if (pane.cwd) |cwd| {
         const alloc = config._arena.?.allocator();
         config.@"working-directory" = .{ .path = try alloc.dupe(u8, cwd) };
@@ -721,14 +739,11 @@ pub fn restoreSessionPane(
         .tab_insert_index = if (host != null and tab_surface == null) tab_index else null,
         .clone_state_from = tab_surface,
         .split_direction = split_direction,
-        // `restoreSessionWindow` applies them once the window is placed.
-        .config_window_start = false,
+        .window = if (host == null) .{ .restore = into.window } else .fresh,
+        .launch = launch,
     });
     transaction.noteSurface(surface);
 
-    if (profile_applied) {
-        try appendOwnedString(self.core_app.alloc, &surface.launch_profile_key, pane.profile.?);
-    } else if (default_profile) |profile| try self.noteProfileLaunch(surface, profile);
     if (pane.title_override) |title| try surface.setTitleOverride(title);
     if (pane.tab_title_override) |title| try surface.setTabTitleOverride(title);
     if (pane.cwd) |cwd| try surface.setPwd(cwd);
@@ -745,92 +760,6 @@ pub fn restoreSessionPane(
         }
     }
     return surface;
-}
-
-pub fn applyRestoredProfileConfig(
-    self: *App,
-    config: *configpkg.Config,
-    host: ?*Host,
-    key: []const u8,
-) !bool {
-    // SSH stays refused below; any other pane of `default-profile`
-    // restores without a list.
-    if (!startsWithIgnoreCase(key, "ssh:")) {
-        if (defaultProfileForKey(&self.config, key)) |profile| {
-            if (!isSessionRestorableProfile(profile)) return false;
-            try applyProfileSurfaceConfig(config, profile);
-            return true;
-        }
-    }
-    if (host) |existing| {
-        const profile = (try existing.profileForKey(key)) orelse return false;
-        if (!isSessionRestorableProfile(profile)) return false;
-        try applyProfileSurfaceConfig(config, profile);
-        return true;
-    }
-
-    const profiles = try listProfilesForConfig(self.core_app.alloc, &self.config, windows_shell.listProfiles);
-    defer windows_shell.deinitProfiles(self.core_app.alloc, profiles);
-    return try applyProfileConfigByKey(config, profiles, key);
-}
-
-pub fn applyRestoredWindowPlacement(
-    host: *Host,
-    window: win32_session_state.Window,
-) !void {
-    const hwnd = host.hwnd orelse return;
-    if (try sessionStateWindowRect(window)) |saved| {
-        // The saved rect is where the window was, not where there is room
-        // for it now: its monitor may be gone.
-        const works = WorkAreas.collect();
-        const dpi_before = sys.GetDpiForWindow(hwnd);
-        var target = restoredRectOnScreen(saved, works.slice(), restore_grab);
-        if (sys.IsIconic(hwnd) != 0) {
-            // A launch that asked for a minimized window (`start /min`,
-            // a shortcut set to Run: Minimized) has Windows minimize the
-            // first window's first show. SetWindowPos on a minimized
-            // window moves its icon, and it would come back from the
-            // taskbar where it was created: give it the rect to return to.
-            try setMinimizedNormalRect(hwnd, target);
-        } else {
-            // The rect is in the pixels of the monitor it was saved on, and is
-            // where the window goes: a crossing from the monitor the host was
-            // created on must not swap in the DPI suggestion's rescaled size.
-            host.restore_placing = true;
-            defer host.restore_placing = false;
-            for (0..3) |attempt| {
-                if (sys.SetWindowPos(
-                    hwnd,
-                    null,
-                    target.left,
-                    target.top,
-                    target.right - target.left,
-                    target.bottom - target.top,
-                    c.SWP_NOZORDER | c.SWP_NOACTIVATE,
-                ) == 0) return lastError();
-                // Windows caps what it is given (a left edge to 16 bits, a
-                // width to the largest window), so whether the title bar can
-                // be reached is judged on the rect the window ended up with.
-                var actual: RECT = undefined;
-                if (sys.GetWindowRect(hwnd, &actual) == 0) return lastError();
-                const moved = restoredRectOnScreen(actual, works.slice(), restore_grab);
-                if (!rectEqual(moved, actual)) {
-                    if (attempt == 2) {
-                        log.warn("win32 session restore: window stayed off every monitor", .{});
-                        break;
-                    }
-                    target = moved;
-                    continue;
-                }
-                // The layout that follows a DPI change can resize it once
-                // more: apply the same rect again once.
-                if (sys.GetDpiForWindow(hwnd) == dpi_before or rectEqual(actual, target)) break;
-            }
-        }
-    }
-    if ((window.state orelse .normal) == .maximized) {
-        _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-    }
 }
 
 /// Whether a window holds tabs the session records (`hostSessionTabs`).
@@ -1016,7 +945,7 @@ pub fn buildSessionWindow(
     };
     // Geometry is restore state, not layout shape.
     if (scope == .layout) return window;
-    if (sessionWindowPlacement(host)) |placed| {
+    if (window_state.sessionPlacement(host, null)) |placed| {
         if (placed.rect) |rect| {
             window.x = rect.left;
             window.y = rect.top;
@@ -1024,7 +953,7 @@ pub fn buildSessionWindow(
             window.height = rect.bottom - rect.top;
         }
         window.state = if (placed.fullscreen) .fullscreen else if (placed.maximized) .maximized else .normal;
-        window.fullscreen_maximized = if (placed.fullscreen) placed.maximized else null;
+        window.fullscreen_maximized = if (placed.fullscreen) placed.fullscreen_maximized else null;
     }
     return window;
 }
@@ -1272,94 +1201,6 @@ pub fn sessionStateWindowRect(window: win32_session_state.Window) !?RECT {
     };
 }
 
-pub const SessionWindowPlacement = struct {
-    /// The window's normal rect in screen coordinates.
-    rect: ?RECT,
-    /// It is, or restores to, maximized.
-    maximized: bool,
-    fullscreen: bool = false,
-};
-
-pub fn sessionWindowPlacement(host: *Host) ?SessionWindowPlacement {
-    return sessionWindowPlacementOn(host, null);
-}
-
-/// `monitor` stands in for the window's monitor, so a test can give it
-/// the taskbar this machine lacks.
-pub fn sessionWindowPlacementOn(host: *Host, monitor: ?MONITORINFO) ?SessionWindowPlacement {
-    const hwnd = host.hwnd orelse return null;
-    // Keep fullscreen separately from the return placement. The popup's
-    // current rect covers its monitor and is not its normal rect.
-    if (host.activeSurface()) |surface| if (surface.fullscreen) {
-        return sessionFullscreenWindowPlacement(surface, surface.fullscreenReturn(hwnd), monitor);
-    };
-    var maximized = sys.IsZoomed(hwnd) != 0;
-    var rect: RECT = undefined;
-    if (maximized or sys.IsIconic(hwnd) != 0) {
-        var placement: WINDOWPLACEMENT = std.mem.zeroes(WINDOWPLACEMENT);
-        placement.length = @sizeOf(WINDOWPLACEMENT);
-        if (sys.GetWindowPlacement(hwnd, &placement) != 0) {
-            maximized = restoresMaximized(hwnd, &placement);
-            // Workspace coordinates, offset from the screen's by a taskbar
-            // on the top or left. Every other state saves screen
-            // coordinates, and restore applies them as such.
-            rect = placement.rcNormalPosition;
-            if (monitor) |info| {
-                rect = workspaceRectToScreen(rect, info);
-            } else if (sys.MonitorFromWindow(hwnd, c.MONITOR_DEFAULTTONEAREST)) |nearest| {
-                var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
-                info.cbSize = @sizeOf(MONITORINFO);
-                if (sys.GetMonitorInfoW(nearest, &info) != 0) rect = workspaceRectToScreen(rect, info);
-            }
-        } else if (sys.GetWindowRect(hwnd, &rect) == 0) {
-            return .{ .rect = null, .maximized = maximized };
-        }
-    } else if (sys.GetWindowRect(hwnd, &rect) == 0) {
-        return .{ .rect = null, .maximized = maximized };
-    }
-
-    if (rect.right <= rect.left or rect.bottom <= rect.top) return .{ .rect = null, .maximized = maximized };
-    return .{ .rect = rect, .maximized = maximized };
-}
-
-/// A failed current-monitor lookup still has the enter-time placement.
-/// Never substitute the fullscreen popup's bounds for its normal rect.
-pub fn sessionFullscreenWindowPlacement(
-    surface: *const Surface,
-    result: anyerror!Surface.FullscreenReturn,
-    monitor: ?MONITORINFO,
-) ?SessionWindowPlacement {
-    const back = result catch |err| fallback: {
-        log.warn("win32 session save: fullscreen window placement failed; using captured placement err={}", .{err});
-        break :fallback Surface.FullscreenReturn{
-            .rect = surface.restore_rect,
-            .placement = surface.restore_placement,
-            .monitor = if (surface.restore_monitor) |source| source.info else null,
-        };
-    };
-    const maximized = back.placement.showCmd == c.SW_MAXIMIZE;
-    var rect = back.rect;
-    if (maximized) {
-        rect = back.placement.rcNormalPosition;
-        if (monitor orelse back.monitor) |info| rect = workspaceRectToScreen(rect, info);
-    }
-    if (rect.right <= rect.left or rect.bottom <= rect.top) return null;
-    return .{ .rect = rect, .maximized = maximized, .fullscreen = true };
-}
-
-/// `applyDefaultProfileLaunch` for a restored pane whose own profile did
-/// not apply, except that restore never connects over SSH by itself: with
-/// an SSH `default-profile` the pane gets the automatic shell, in place
-/// of the SSH command `Config` made the default.
-pub fn applyRestoredDefaultLaunch(self: *const App, config: *configpkg.Config) !?*const windows_shell.Profile {
-    if (self.defaultProfileApplies(config) and config._default_profile.?.kind == .ssh) {
-        config.command = null;
-        try config.resolveWindowsDefaultCommand();
-        return null;
-    }
-    return try self.applyDefaultProfileLaunch(config);
-}
-
 pub fn rollbackSessionRestoreHost(self: *App, host: *Host) void {
     const previous_quitting = self.quitting;
     self.quitting = true;
@@ -1384,7 +1225,7 @@ pub fn rollbackSessionRestoreHost(self: *App, host: *Host) void {
     self.removeHost(host);
 }
 
-pub fn sessionScrollbackLineAllowed(line: []const u8) bool {
+fn sessionScrollbackLineAllowed(line: []const u8) bool {
     const view = std.unicode.Utf8View.init(line) catch return false;
     var it = view.iterator();
     while (it.nextCodepoint()) |codepoint| {
@@ -1396,7 +1237,7 @@ pub fn sessionScrollbackLineAllowed(line: []const u8) bool {
     return true;
 }
 
-pub fn captureTerminalScrollbackSnapshotAlloc(
+fn captureTerminalScrollbackSnapshotAlloc(
     alloc: Allocator,
     scratch_alloc: Allocator,
     terminal_state: *terminal.Terminal,
@@ -1491,7 +1332,7 @@ pub fn captureTerminalScrollbackSnapshotAlloc(
     };
 }
 
-pub fn printSessionSnapshotLine(terminal_state: *terminal.Terminal, line: []const u8) !void {
+fn printSessionSnapshotLine(terminal_state: *terminal.Terminal, line: []const u8) !void {
     var remaining = line;
     while (std.mem.indexOfScalar(u8, remaining, '\t')) |tab_index| {
         try terminal_state.printString(remaining[0..tab_index]);
@@ -1503,7 +1344,7 @@ pub fn printSessionSnapshotLine(terminal_state: *terminal.Terminal, line: []cons
     try terminal_state.linefeed();
 }
 
-pub fn formatSessionSnapshotMarker(
+fn formatSessionSnapshotMarker(
     buf: []u8,
     captured_at_unix_ms: u64,
 ) std.fmt.BufPrintError![]const u8 {
@@ -1541,7 +1382,7 @@ pub fn formatSessionSnapshotMarker(
 /// Used to decide whether a restored snapshot would land on top of a child's
 /// startup output. A shell can return the cursor to the origin after printing
 /// (`ESC[H`), so cursor position is not on its own a usable test.
-pub fn terminalScreenIsUnpainted(screen: *terminal.Screen) bool {
+fn terminalScreenIsUnpainted(screen: *terminal.Screen) bool {
     // A child that only moved the cursor (`ESC[2;2H`) has painted nothing, but
     // restoring would still `scrollClear()` the cursor out from under it while
     // it believes it is at (2,2). Require the origin as well as empty cells.
@@ -1565,7 +1406,7 @@ pub fn terminalScreenIsUnpainted(screen: *terminal.Screen) bool {
     return true;
 }
 
-pub fn restoreTerminalScrollbackSnapshot(
+fn restoreTerminalScrollbackSnapshot(
     terminal_state: *terminal.Terminal,
     snapshot: win32_session_state.ScrollbackSnapshot,
     max_lines_requested: usize,
@@ -1649,29 +1490,6 @@ pub fn restoreTerminalScrollbackSnapshot(
     try printSessionSnapshotLine(terminal_state, marker);
     try terminal_state.screens.active.scrollClear();
     return restored_lines;
-}
-
-pub fn applyProfileConfigByKey(
-    config: *configpkg.Config,
-    profiles: []const windows_shell.Profile,
-    key: []const u8,
-) !bool {
-    if (startsWithIgnoreCase(key, "ssh:")) return false;
-    const index = profileIndexByKey(profiles, key) orelse return false;
-    const profile = &profiles[index];
-    if (!isSessionRestorableProfile(profile)) return false;
-    try applyProfileSurfaceConfig(config, profile);
-    return true;
-}
-
-/// Session restore relaunches a pane's profile unattended at startup. An SSH
-/// profile would dial out with no interaction, so it is refused here.
-///
-/// The key prefix is rejected before lookup so case variants in a persisted
-/// state file cannot bypass the guard. Live SSH profile lookup remains
-/// case-sensitive because OpenSSH host aliases are case-sensitive.
-pub fn isSessionRestorableProfile(profile: *const windows_shell.Profile) bool {
-    return profile.kind != .ssh;
 }
 
 pub fn captureSessionScrollback(
@@ -1808,7 +1626,7 @@ test "win32 a restored tab has the saved shape in the shell model, so closing a 
     var transaction = SessionRestoreTransaction.init(&app);
     const selected = try app.restoreSessionTab(
         .{ .selected_leaf = 2, .layout = .{ .root = 0, .nodes = &nodes } },
-        &host,
+        .{ .host = &host },
         1,
         &transaction,
     );
@@ -1825,211 +1643,6 @@ test "win32 a restored tab has the saved shape in the shell model, so closing a 
     try ShellProjectionSteps.closePane(&app, restored, &surface_c);
     try std.testing.expectEqual(@as(?*Surface, &surface_b), host.tabs.items[1].focusedSurface());
     try app.validateShellNativeMapping();
-}
-
-test "win32 user profiles restore by key, after a rename, with and without a host" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-    const line = "cmd.exe /k \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\Tools\\VsDevCmd.bat\" -startdir=none -arch=x64 -host_arch=x64";
-
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-    const base_alloc = base._arena.?.allocator();
-    try base.@"profile-command".parseCLI(base_alloc, "vs18-cmd: " ++ line);
-    try base.@"profile-name".parseCLI(base_alloc, "vs18-cmd: Old label");
-    try base.finalize();
-    const profiles = try testUserProfileList(alloc, &base);
-    defer windows_shell.deinitProfiles(alloc, profiles);
-
-    // The key a session saved, in any case.
-    for ([_][]const u8{ "user:vs18-cmd", "USER:VS18-CMD" }) |key| {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try applyProfileConfigByKey(&clone, profiles, key));
-        try std.testing.expectEqualStrings("cmd.exe", clone.command.?.direct[0]);
-        try std.testing.expectEqualStrings(line, clone._profile_launch.?.command_line);
-    }
-
-    // Renaming the label keeps the identity.
-    var renamed = try base.clone(alloc);
-    defer renamed.deinit();
-    try renamed.@"profile-name".parseCLI(renamed._arena.?.allocator(), "vs18-cmd: New label");
-    // `%NAME%` reads the `env` lines first, on every path that builds a list.
-    try renamed.env.parseCLI(renamed._arena.?.allocator(), "NOCTTY_TEST_TEAM_DIR=C:\\team");
-    try renamed.@"profile-env".parseCLI(renamed._arena.?.allocator(), "vs18-cmd: SEEN=%noctty_test_team_dir%\\bin");
-    const renamed_profiles = try testUserProfileList(alloc, &renamed);
-    defer windows_shell.deinitProfiles(alloc, renamed_profiles);
-    try std.testing.expectEqualStrings("New label", renamed_profiles[0].label);
-    {
-        var clone = renamed.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try applyProfileConfigByKey(&clone, renamed_profiles, "user:vs18-cmd"));
-    }
-
-    // With a host, restore looks the key up in the host's list.
-    {
-        var host: Host = undefined;
-        host.profiles = profiles;
-        host.selected_profile = 0;
-        var app: App = undefined;
-        app.config._default_profile = null;
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try app.applyRestoredProfileConfig(&clone, &host, "User:Vs18-Cmd"));
-        try std.testing.expectEqualStrings(line, clone._profile_launch.?.command_line);
-    }
-
-    // With no host (a restore before the first window, an elevated window
-    // from no surface), the list is built from the app config: its user
-    // profiles reach the lister, after the local shells, before SSH.
-    {
-        const lister = struct {
-            fn list(a: Allocator, _: bool, user: *const windows_shell.UserProfiles) ![]windows_shell.Profile {
-                const shell = try a.alloc(windows_shell.Profile, 1);
-                const cmd = try a.alloc([:0]const u8, 1);
-                cmd[0] = try a.dupeZ(u8, "C:\\Windows\\System32\\cmd.exe");
-                shell[0] = .{ .kind = .cmd, .key = try a.dupe(u8, "cmd.exe"), .label = try a.dupe(u8, "Command Prompt"), .command = .{ .direct = cmd } };
-                return try windows_shell.appendUserProfiles(a, shell, user.definitions, windows_shell.ProcessEnvironment{});
-            }
-        }.list;
-        const hostless = try listProfilesForConfig(alloc, &renamed, lister);
-        defer windows_shell.deinitProfiles(alloc, hostless);
-        try std.testing.expectEqual(@as(usize, 2), hostless.len);
-        try std.testing.expectEqualStrings("cmd.exe", hostless[0].key);
-        try std.testing.expectEqualStrings("user:vs18-cmd", hostless[1].key);
-        try std.testing.expectEqualStrings("New label", hostless[1].label);
-        const seen = hostless[1].user.?.env;
-        try std.testing.expectEqualStrings("SEEN", seen[seen.len - 1].key);
-        try std.testing.expectEqualStrings("C:\\team\\bin", seen[seen.len - 1].value);
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try applyProfileConfigByKey(&clone, hostless, "USER:vs18-CMD"));
-        try std.testing.expectEqualStrings(line, clone._profile_launch.?.command_line);
-    }
-
-    // A removed id restores nothing, so the pane falls back to the default
-    // and keeps no launch key; SSH stays refused whatever the list holds.
-    var removed = try base.clone(alloc);
-    defer removed.deinit();
-    try removed.@"profile-command".parseCLI(removed._arena.?.allocator(), "vs18-cmd:");
-    try removed.@"profile-command".parseCLI(removed._arena.?.allocator(), "other: other.exe");
-    const removed_profiles = try testUserProfileList(alloc, &removed);
-    defer windows_shell.deinitProfiles(alloc, removed_profiles);
-    for ([_][]const u8{ "user:vs18-cmd", "ssh:prod", "SSH:prod" }) |key| {
-        var clone = removed.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(!(try applyProfileConfigByKey(&clone, removed_profiles, key)));
-        try std.testing.expect(clone.command == null);
-        try std.testing.expect(clone._profile_launch == null);
-    }
-}
-
-test "win32 Visual Studio profiles restore by key, hidden ones too, with and without a host" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-    try base.finalize();
-
-    // With no host, the list is built from the app config, whose
-    // `visual-studio-profiles` reaches the lister.
-    const lister = struct {
-        fn list(a: Allocator, _: bool, user: *const windows_shell.UserProfiles) ![]windows_shell.Profile {
-            return try testVisualStudioList(a, user.visual_studio);
-        }
-    }.list;
-    const hostless = try listProfilesForConfig(alloc, &base, lister);
-    defer windows_shell.deinitProfiles(alloc, hostless);
-    try std.testing.expectEqual(@as(usize, 4), hostless.len);
-    // 2022's pair is hidden under `newest` and still restores; every pair
-    // starts in home.
-    for ([_][]const u8{ "vs:486bb794:cmd", "VS:6BB7CFD9:CMD" }) |key| {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try applyProfileConfigByKey(&clone, hostless, key));
-        try std.testing.expectEqualStrings("/k", clone.command.?.direct[1]);
-        try std.testing.expect(std.mem.startsWith(u8, clone._profile_launch.?.command_line, "C:\\Windows\\System32\\cmd.exe /k \"\"C:\\Program Files\\Microsoft Visual Studio\\"));
-        // Home as a path: a bare `.home` on a launch clone would start in
-        // noctty's own folder.
-        var buf: [std.fs.max_path_bytes]u8 = undefined;
-        if (try internal_os.home(&buf)) |home| try std.testing.expectEqualStrings(home, clone.@"working-directory".?.path);
-    }
-    {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try applyProfileConfigByKey(&clone, hostless, "vs:6bb7cfd9:pwsh"));
-        try std.testing.expectEqualStrings("-Command", clone.command.?.direct[2]);
-        try std.testing.expect(clone._profile_launch == null);
-    }
-
-    // With a host, from its list.
-    {
-        var host: Host = undefined;
-        host.profiles = hostless;
-        host.selected_profile = 0;
-        var app: App = undefined;
-        app.config._default_profile = null;
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        try std.testing.expect(try app.applyRestoredProfileConfig(&clone, &host, "vs:486bb794:pwsh"));
-        try std.testing.expectEqualStrings("-NoExit", clone.command.?.direct[1]);
-    }
-
-    // Under `none` there is no such profile: the pane falls back to the
-    // default and keeps no launch key.
-    var none = try base.clone(alloc);
-    defer none.deinit();
-    none.@"visual-studio-profiles" = .none;
-    const empty = try listProfilesForConfig(alloc, &none, lister);
-    defer windows_shell.deinitProfiles(alloc, empty);
-    try std.testing.expectEqual(@as(usize, 0), empty.len);
-    var clone = none.shallowClone(alloc);
-    defer clone.deinit();
-    try std.testing.expect(!(try applyProfileConfigByKey(&clone, empty, "vs:6bb7cfd9:cmd")));
-    try std.testing.expect(clone.command == null);
-}
-
-test "win32 a restored pane keeps its own profile over default-profile" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-    const arena = base._arena.?.allocator();
-    try base.@"profile-command".parseCLI(arena, "py: cmd.exe /k py");
-    try base.@"profile-env".parseCLI(arena, "py: MODE=profile");
-    base.@"default-profile" = "py";
-    try base.finalize();
-
-    const pwsh_argv = [_][:0]const u8{"pwsh.exe"};
-    var profiles = [_]windows_shell.Profile{.{ .kind = .pwsh, .key = "pwsh.exe", .label = "PowerShell", .command = .{ .direct = &pwsh_argv } }};
-    var host: Host = undefined;
-    host.profiles = &profiles;
-    host.selected_profile = 0;
-    var app: App = undefined;
-    // Only the field restore reads; `base` stays the owner.
-    app.config._default_profile = base._default_profile;
-    var clone = base.shallowClone(alloc);
-    defer clone.deinit();
-    try std.testing.expect(try app.applyRestoredProfileConfig(&clone, &host, "PWSH.EXE"));
-    try std.testing.expectEqualStrings("pwsh.exe", clone.command.?.direct[0]);
-    // Nothing of the default profile is left to apply.
-    try std.testing.expect((try applyDefaultProfileConfig(&clone)) == null);
-    try std.testing.expect(clone.env.map.get("MODE") == null);
-    try std.testing.expect(clone._profile_launch == null);
-
-    // A pane saved from the default profile restores from the profile the
-    // config resolved, though the window's list does not have it (and
-    // without a window, without listing the profiles at all).
-    var restored = base.shallowClone(alloc);
-    defer restored.deinit();
-    try std.testing.expect(try app.applyRestoredProfileConfig(&restored, &host, "USER:PY"));
-    try std.testing.expectEqualStrings("cmd.exe", restored.command.?.direct[0]);
-    try std.testing.expectEqualStrings("profile", restored.env.map.get("MODE") orelse "");
-    try std.testing.expectEqualStrings("cmd.exe /k py", if (restored._profile_launch) |launch| launch.command_line else "");
-    // SSH stays refused whatever the default profile is.
-    var ssh = base.shallowClone(alloc);
-    defer ssh.deinit();
-    try std.testing.expect(!(try app.applyRestoredProfileConfig(&ssh, &host, "ssh:py")));
 }
 
 test "win32 ssh split and session state drop remote cwd" {
@@ -2107,83 +1720,6 @@ test "win32 session and layout snapshots drop network and device cwds" {
             try std.testing.expect(layout.nodes[0].pane.cwd == null);
         }
     }
-}
-
-test "win32 session restore refuses ssh profiles regardless of key case" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const alloc = std.testing.allocator;
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-
-    const argv = try alloc.alloc([:0]const u8, 2);
-    argv[0] = try alloc.dupeZ(u8, "C:\\Windows\\System32\\OpenSSH\\ssh.exe");
-    argv[1] = try alloc.dupeZ(u8, "prod");
-    const cmd_argv = try alloc.alloc([:0]const u8, 1);
-    cmd_argv[0] = try alloc.dupeZ(u8, "cmd.exe");
-    var profiles = [_]windows_shell.Profile{
-        .{
-            .kind = .cmd,
-            .key = try alloc.dupe(u8, "cmd.exe"),
-            .label = try alloc.dupe(u8, "Command Prompt"),
-            .command = .{ .direct = cmd_argv },
-        },
-        .{
-            .kind = .ssh,
-            .key = try alloc.dupe(u8, "ssh:prod"),
-            .label = try alloc.dupe(u8, "SSH: prod"),
-            .command = .{ .direct = argv },
-        },
-    };
-    defer for (&profiles) |*profile| profile.deinit(alloc);
-
-    // Live SSH profile lookup is case-sensitive, so a state file naming
-    // "SSH:prod" does not resolve `ssh:prod`. The refusal must key on the
-    // prefix before lookup, or a case
-    // variant could bypass the guard and dial out at startup with no interaction.
-    for ([_][]const u8{ "ssh:prod", "SSH:prod", "Ssh:PROD" }) |key| {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        if (std.mem.eql(u8, key, "ssh:prod")) {
-            try std.testing.expect(profileIndexByKey(&profiles, key) != null);
-        } else {
-            try std.testing.expect(profileIndexByKey(&profiles, key) == null);
-        }
-        try std.testing.expect(!(try applyProfileConfigByKey(&clone, &profiles, key)));
-        try std.testing.expect(clone.command == null);
-    }
-
-    // A local profile still restores.
-    var clone = base.shallowClone(alloc);
-    defer clone.deinit();
-    try std.testing.expect(try applyProfileConfigByKey(&clone, &profiles, "CMD.EXE"));
-    try std.testing.expectEqualStrings("cmd.exe", clone.command.?.direct[0]);
-}
-
-test "win32 applyProfileConfigByKey applies saved first-pane profile before host exists" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var base = try configpkg.Config.default(std.testing.allocator);
-    defer base.deinit();
-    const base_alloc = base._arena.?.allocator();
-    base.command = .{ .shell = try base_alloc.dupeZ(u8, "pwsh.exe") };
-
-    var clone = base.shallowClone(std.testing.allocator);
-    defer clone.deinit();
-
-    var profile: windows_shell.Profile = .{
-        .kind = .cmd,
-        .key = try std.testing.allocator.dupe(u8, "cmd.exe"),
-        .label = try std.testing.allocator.dupe(u8, "Command Prompt"),
-        .command = .{ .shell = try std.testing.allocator.dupeZ(u8, "cmd.exe") },
-    };
-    defer profile.deinit(std.testing.allocator);
-    const profiles = [_]windows_shell.Profile{profile};
-
-    try std.testing.expect(try applyProfileConfigByKey(&clone, &profiles, "cmd.exe"));
-
-    try std.testing.expect(clone.command != null);
-    try std.testing.expectEqualStrings("cmd.exe", clone.command.?.shell);
 }
 
 test "win32 session state scrollback capture enforces line cap budget and secure redaction" {
@@ -2953,10 +2489,9 @@ test "win32 session state is saved only by the process that owns it" {
     app.embedding_mode = false;
     app.startup_profile_picker = false;
     app.explicit_startup_working_directory = false;
+    app.config = .{};
     app.config.@"window-save-state" = .always;
     app.config.@"initial-window" = true;
-    app.config.@"initial-command" = null;
-    app.config._default_profile_cli = null;
 
     // A launch that forwarded to the primary, lost the IPC race or failed
     // before its first window never took the session, and must not save
@@ -3026,10 +2561,9 @@ test "win32 a structural change arms one session checkpoint, only in the session
     app.embedding_mode = false;
     app.startup_profile_picker = false;
     app.explicit_startup_working_directory = false;
+    app.config = .{};
     app.config.@"window-save-state" = .always;
     app.config.@"initial-window" = true;
-    app.config.@"initial-command" = null;
-    app.config._default_profile_cli = null;
     app.session_state_excluded_for_elevation = false;
     app.session_ending = false;
     app.session_state_saved_before_last_host_close = false;
@@ -3235,63 +2769,26 @@ test "win32 session state window rect requires complete geometry" {
     try std.testing.expectEqual(@as(i32, 220), rect.bottom);
 }
 
-test "win32 fullscreen session placement retains captured geometry after lookup failure" {
-    var surface: Surface = undefined;
-    const normal: RECT = .{ .left = 100, .top = 200, .right = 740, .bottom = 680 };
-    surface.restore_rect = normal;
-    surface.restore_placement = std.mem.zeroes(WINDOWPLACEMENT);
-    surface.restore_placement.showCmd = 1; // SW_SHOWNORMAL
-    surface.restore_monitor = .{
-        .monitor = @ptrFromInt(1),
-        .dpi = 96,
-        .info = .{
-            .cbSize = @sizeOf(MONITORINFO),
-            .rcMonitor = .{ .left = 0, .top = 0, .right = 1920, .bottom = 1080 },
-            .rcWork = .{ .left = 48, .top = 0, .right = 1920, .bottom = 1080 },
-            .dwFlags = 0,
-        },
-    };
-    var placed = App.sessionFullscreenWindowPlacement(&surface, error.Unexpected, null).?;
-    try std.testing.expect(placed.fullscreen and !placed.maximized);
-    try std.testing.expectEqualDeep(normal, placed.rect.?);
-
-    // A captured maximized normal rect is in the source's workspace.
-    surface.restore_placement.showCmd = c.SW_MAXIMIZE;
-    surface.restore_placement.rcNormalPosition = .{ .left = 52, .top = 200, .right = 692, .bottom = 680 };
-    placed = App.sessionFullscreenWindowPlacement(&surface, error.Unexpected, null).?;
-    try std.testing.expect(placed.fullscreen and placed.maximized);
-    try std.testing.expectEqualDeep(normal, placed.rect.?);
-
-    // No trustworthy return rect: omit placement instead of persisting
-    // fullscreen with an invented normal rect or saving popup bounds.
-    surface.restore_placement.rcNormalPosition = std.mem.zeroes(RECT);
-    try std.testing.expect(App.sessionFullscreenWindowPlacement(&surface, error.Unexpected, null) == null);
-    surface.restore_placement.showCmd = 1; // SW_SHOWNORMAL
-    surface.restore_rect = std.mem.zeroes(RECT);
-    try std.testing.expect(App.sessionFullscreenWindowPlacement(&surface, error.Unexpected, null) == null);
-}
-
 test "win32 session placement saves the normal rect in screen coordinates for every window state" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     try runOnHiddenDesktop(struct {
         fn body() !void {
             _ = sys.SetThreadDpiAwarenessContext(-4);
             var app = placementTestApp();
-            const surface = try placementTestSurface(&app, 120, 140);
-            defer _ = sys.DestroyWindow(surface.hwnd.?);
-            const hwnd = surface.hwnd.?;
-            var host: Host = .{ .app = &app, .id = 1, .hwnd = hwnd };
+            var host = try placementTestHost(&app, 120, 140);
+            const hwnd = host.hwnd.?;
+            defer _ = sys.DestroyWindow(hwnd);
             _ = sys.ShowWindow(hwnd, c.SW_SHOWNOACTIVATE);
             var normal: RECT = undefined;
             try std.testing.expect(sys.GetWindowRect(hwnd, &normal) != 0);
 
-            var placed = App.sessionWindowPlacement(&host).?;
+            var placed = window_state.sessionPlacement(&host, null).?;
             try std.testing.expectEqualDeep(normal, placed.rect.?);
             try std.testing.expect(!placed.maximized);
 
             // Maximized, the rect is still the one to un-maximize to.
             _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-            placed = App.sessionWindowPlacement(&host).?;
+            placed = window_state.sessionPlacement(&host, null).?;
             try std.testing.expectEqualDeep(normal, placed.rect.?);
             try std.testing.expect(placed.maximized);
 
@@ -3304,7 +2801,7 @@ test "win32 session placement saves the normal rect in screen coordinates for ev
                 .rcWork = .{ .left = 48, .top = 0, .right = 1920, .bottom = 1080 },
                 .dwFlags = 0,
             };
-            placed = App.sessionWindowPlacementOn(&host, left_taskbar).?;
+            placed = window_state.sessionPlacement(&host, left_taskbar).?;
             try std.testing.expectEqual(normal.left + 48, placed.rect.?.left);
             try std.testing.expectEqual(normal.top, placed.rect.?.top);
             try std.testing.expectEqual(normal.right - normal.left, placed.rect.?.right - placed.rect.?.left);
@@ -3313,7 +2810,7 @@ test "win32 session placement saves the normal rect in screen coordinates for ev
             // what the session has to say. `IsZoomed` alone said normal.
             _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
             try std.testing.expect(sys.IsIconic(hwnd) != 0);
-            placed = App.sessionWindowPlacement(&host).?;
+            placed = window_state.sessionPlacement(&host, null).?;
             try std.testing.expectEqualDeep(normal, placed.rect.?);
             try std.testing.expect(placed.maximized);
 
@@ -3323,14 +2820,14 @@ test "win32 session placement saves the normal rect in screen coordinates for ev
             _ = sys.ShowWindow(hwnd, c.SW_RESTORE);
             try std.testing.expect(sys.IsZoomed(hwnd) == 0 and sys.IsIconic(hwnd) == 0);
             _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
-            placed = App.sessionWindowPlacement(&host).?;
+            placed = window_state.sessionPlacement(&host, null).?;
             try std.testing.expectEqualDeep(normal, placed.rect.?);
             try std.testing.expect(!placed.maximized);
         }
     }.body);
 }
 
-test "win32 session placement roundtrips fullscreen and the window it leaves fullscreen to" {
+test "win32 session placement roundtrips every window state, fullscreen with the window it leaves fullscreen to" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     try runOnHiddenDesktop(struct {
         fn body() !void {
@@ -3344,12 +2841,26 @@ test "win32 session placement roundtrips fullscreen and the window it leaves ful
             const Case = struct {
                 maximize: bool = false,
                 fullscreen: bool = false,
-                /// Maximized by the user before it enters fullscreen.
+                /// Maximized by the user.
                 zoomed: bool = false,
+                /// Made fullscreen by the user.
+                enter: bool = false,
+                /// Minimized when the session is saved.
+                minimized: bool = false,
             };
-            // Entered from a normal window and from a maximized one, and
-            // started fullscreen by the settings, alone and with `maximize`.
-            for ([_]Case{ .{}, .{ .zoomed = true }, .{ .fullscreen = true }, .{ .maximize = true, .fullscreen = true } }) |case| {
+            // Normal, maximized and minimized from each; fullscreen entered
+            // from a normal window and from a maximized one, and started
+            // fullscreen by the settings, alone and with `maximize`.
+            for ([_]Case{
+                .{},
+                .{ .zoomed = true },
+                .{ .minimized = true },
+                .{ .zoomed = true, .minimized = true },
+                .{ .enter = true },
+                .{ .zoomed = true, .enter = true },
+                .{ .fullscreen = true },
+                .{ .maximize = true, .fullscreen = true },
+            }) |case| {
                 app.config.maximize = case.maximize;
                 app.config.fullscreen = if (case.fullscreen) .true else .false;
                 try app.createWindow(default_title);
@@ -3358,47 +2869,56 @@ test "win32 session placement roundtrips fullscreen and the window it leaves ful
                 const host = surface.host.?;
                 const created = Fixture.hidden_rect;
                 const maximized = case.zoomed or case.maximize;
+                const fullscreen = case.enter or case.fullscreen;
                 if (case.zoomed) _ = sys.ShowWindow(hwnd, c.SW_MAXIMIZE);
-                if (!case.fullscreen) try surface.toggleFullscreen(.native);
-                try std.testing.expect(surface.fullscreen);
-                try std.testing.expectEqualDeep(try Fixture.monitorRect(hwnd), try Fixture.screenRect(hwnd));
+                if (case.enter) try std.testing.expect(try window_state.perform(host, surface, .toggle_fullscreen, .native));
+                try std.testing.expectEqual(fullscreen, host.top_level.isFullscreen());
 
-                // Not a normal window over the whole monitor, which it was
-                // saved as before, and came back as.
-                var placed = App.sessionWindowPlacement(host).?;
+                // A fullscreen window is not saved as a normal window over
+                // the whole monitor, which it was before, and came back as.
+                if (fullscreen) try std.testing.expectEqualDeep(try Fixture.monitorRect(hwnd), try Fixture.screenRect(hwnd));
+                var placed = window_state.sessionPlacement(host, null).?;
                 try std.testing.expectEqualDeep(created, placed.rect.?);
-                try std.testing.expectEqual(maximized, placed.maximized);
-                try std.testing.expect(placed.fullscreen);
-                // Minimized while fullscreen, the same.
-                _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
-                placed = App.sessionWindowPlacement(host).?;
-                try std.testing.expectEqualDeep(created, placed.rect.?);
-                try std.testing.expectEqual(maximized, placed.maximized);
-                try std.testing.expect(placed.fullscreen);
+                try std.testing.expectEqual(fullscreen, placed.fullscreen);
+                try std.testing.expectEqual(maximized, if (fullscreen) placed.fullscreen_maximized else placed.maximized);
+                // Minimized, the same.
+                if (case.minimized or fullscreen) {
+                    _ = sys.ShowWindow(hwnd, c.SW_SHOWMINNOACTIVE);
+                    try std.testing.expectEqual(placed, window_state.sessionPlacement(host, null).?);
+                }
 
                 // Exercise the real snapshot, JSON codec and restore path,
-                // with fullscreen disabled in config on the next launch.
+                // with maximize and fullscreen off in the config of the next
+                // launch.
                 var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
                 defer arena.deinit();
                 const state = try app.buildSessionState(arena.allocator(), 0);
                 const encoded = try win32_session_state.encodeAlloc(arena.allocator(), state);
                 var parsed = try win32_session_state.parseAlloc(std.testing.allocator, encoded);
                 defer parsed.deinit();
-                try std.testing.expectEqualStrings("fullscreen", @tagName(parsed.value.windows[0].state.?));
-                try std.testing.expectEqual(@as(?bool, maximized), parsed.value.windows[0].fullscreen_maximized);
+                const saved = parsed.value.windows[0];
+                try std.testing.expectEqualStrings(if (fullscreen) "fullscreen" else if (maximized) "maximized" else "normal", @tagName(saved.state.?));
+                try std.testing.expectEqual(if (fullscreen) @as(?bool, maximized) else null, saved.fullscreen_maximized);
                 fixture.closeWindows();
                 app.config.maximize = false;
                 app.config.fullscreen = .false;
-                // Create at a different size so skipping saved placement
-                // cannot accidentally return to the right rectangle.
+                // Created at another size, so a restore that skipped the
+                // saved placement cannot land on the right rect by chance.
                 Fixture.initial_size = .{ .width = 400, .height = 300 };
                 defer Fixture.initial_size = null;
-                const restored = try app.restoreSessionWindow(parsed.value.windows[0]);
+                const restored = try app.restoreSessionWindow(saved);
                 try std.testing.expect(!std.meta.eql(created, Fixture.hidden_rect));
                 const restored_hwnd = restored.windowHwnd().?;
-                try std.testing.expect(restored.fullscreen);
-                try std.testing.expectEqualDeep(try Fixture.monitorRect(restored_hwnd), try Fixture.screenRect(restored_hwnd));
-                try restored.toggleFullscreen(.native);
+                // What it saves is what it was saved as.
+                placed = window_state.sessionPlacement(restored.host.?, null).?;
+                try std.testing.expectEqualDeep(created, placed.rect.?);
+                try std.testing.expectEqual(fullscreen, placed.fullscreen);
+                try std.testing.expectEqual(maximized, if (fullscreen) placed.fullscreen_maximized else placed.maximized);
+                try std.testing.expectEqual(fullscreen, restored.host.?.top_level.isFullscreen());
+                if (fullscreen) {
+                    try std.testing.expectEqualDeep(try Fixture.monitorRect(restored_hwnd), try Fixture.screenRect(restored_hwnd));
+                    try std.testing.expect(try window_state.perform(restored.host.?, restored, .toggle_fullscreen, .native));
+                }
                 try std.testing.expectEqual(maximized, sys.IsZoomed(restored_hwnd) != 0);
                 try std.testing.expectEqualDeep(created, try Fixture.normalRect(restored_hwnd));
                 if (maximized) _ = sys.ShowWindow(restored_hwnd, c.SW_RESTORE);
@@ -3415,12 +2935,11 @@ test "win32 session restore keeps a window on a monitor and brings one back from
         fn body() !void {
             _ = sys.SetThreadDpiAwarenessContext(-4);
             var app = placementTestApp();
-            const surface = try placementTestSurface(&app, 120, 140);
-            defer _ = sys.DestroyWindow(surface.hwnd.?);
-            const hwnd = surface.hwnd.?;
-            var host: Host = .{ .app = &app, .id = 1, .hwnd = hwnd };
+            var host = try placementTestHost(&app, 120, 140);
+            const hwnd = host.hwnd.?;
+            defer _ = sys.DestroyWindow(hwnd);
             _ = sys.ShowWindow(hwnd, c.SW_SHOWNOACTIVATE);
-            const works = WorkAreas.collect();
+            const works = window_state.WorkAreas.collect();
             try std.testing.expect(works.count > 0);
             const work = works.slice()[0];
 
@@ -3434,7 +2953,7 @@ test "win32 session restore keeps a window on a monitor and brings one back from
                 .selected_tab = 0,
                 .tabs = &.{},
             };
-            try App.applyRestoredWindowPlacement(&host, window);
+            try placeAsSaved(&app, &host, window);
             var rect: RECT = undefined;
             try std.testing.expect(sys.GetWindowRect(hwnd, &rect) != 0);
             try std.testing.expectEqualDeep(RECT{ .left = work.left + 40, .top = work.top + 50, .right = work.left + 680, .bottom = work.top + 530 }, rect);
@@ -3442,7 +2961,7 @@ test "win32 session restore keeps a window on a monitor and brings one back from
             // Saved where no monitor is: on one, at the size it had.
             window.x = 30_000;
             window.y = 30_000;
-            try App.applyRestoredWindowPlacement(&host, window);
+            try placeAsSaved(&app, &host, window);
             try std.testing.expect(sys.GetWindowRect(hwnd, &rect) != 0);
             try std.testing.expect(insideAWorkArea(rect, works.slice()));
             try std.testing.expectEqual(@as(i32, 640), rect.right - rect.left);
@@ -3456,19 +2975,26 @@ test "win32 session restore keeps a window on a monitor and brings one back from
             window.y = work.top + 50;
             window.width = 2_100_000_000;
             window.height = 480;
-            try App.applyRestoredWindowPlacement(&host, window);
+            try placeAsSaved(&app, &host, window);
             try std.testing.expect(sys.GetWindowRect(hwnd, &rect) != 0);
-            try std.testing.expect(rectEqual(restoredRectOnScreen(rect, works.slice(), restore_grab), rect));
+            try std.testing.expect(insideAWorkArea(rect, works.slice()));
             try std.testing.expect(rect.right - rect.left <= work.right - work.left);
 
             // The rect a maximized window comes back to is on a monitor too.
             window.x = -30_000;
             window.y = -30_000;
             window.state = .maximized;
-            try App.applyRestoredWindowPlacement(&host, window);
+            try placeAsSaved(&app, &host, window);
             try std.testing.expect(sys.IsZoomed(hwnd) != 0);
-            const normal = App.sessionWindowPlacement(&host).?.rect.?;
+            const normal = window_state.sessionPlacement(&host, null).?.rect.?;
             try std.testing.expect(insideAWorkArea(normal, works.slice()));
+        }
+
+        /// What restore does with the first tab of a window saved as
+        /// `window` (`.restore_placed`), on a stand-in for that window.
+        fn placeAsSaved(app: *App, host: *Host, window: win32_session_state.Window) !void {
+            host.pending_start = try window_state.begin(app, &app.config, .{ .restore = savedPlacement(window) });
+            try window_state.advance(host, .restore_placed);
         }
 
         fn insideAWorkArea(rect: RECT, works: []const RECT) bool {
@@ -3491,7 +3017,7 @@ test "win32 a restored window and a launched layout take maximize and fullscreen
             defer fixture.deinit();
             const app = &fixture.app;
             const Fixture = WindowStartTestApp;
-            const works = WorkAreas.collect();
+            const works = window_state.WorkAreas.collect();
             try std.testing.expect(works.count > 0);
             const work = works.slice()[0];
             const saved: RECT = .{ .left = work.left + 60, .top = work.top + 70, .right = work.left + 760, .bottom = work.top + 570 };
@@ -3571,33 +3097,12 @@ test "win32 a restored window and a launched layout take maximize and fullscreen
                 // As `restoreSessionState` does next.
                 app.activateSurface(surface);
                 try std.testing.expect(sys.IsIconic(hwnd) == 0);
-                for (host.tabs.items) |*each| {
-                    try std.testing.expectEqual(case.fullscreen or case.state == .fullscreen, each.focusedSurface().?.fullscreen);
-                }
+                // One window state, whichever tab shows.
+                try std.testing.expectEqual(case.fullscreen or case.state == .fullscreen, host.top_level.isFullscreen());
                 if (case.fullscreen or case.state == .fullscreen) {
-                    // Same-host synchronization must finish even when the
-                    // app allocator cannot collect a generic clone list.
-                    {
-                        const alloc = app.core_app.alloc;
-                        app.core_app.alloc = std.testing.failing_allocator;
-                        defer app.core_app.alloc = alloc;
-                        for (host.tabs.items) |*each| {
-                            const other = each.focusedSurface().?;
-                            if (other == surface) continue;
-                            other.fullscreen = false;
-                            other.restore_rect = std.mem.zeroes(RECT);
-                        }
-                        App.syncRestoredHostWindowState(host, surface);
-                        for (host.tabs.items) |*each| {
-                            const other = each.focusedSurface().?;
-                            try std.testing.expect(other.fullscreen);
-                            try std.testing.expectEqualDeep(surface.restore_rect, other.restore_rect);
-                            try std.testing.expectEqualDeep(surface.restore_placement, other.restore_placement);
-                        }
-                    }
                     try std.testing.expectEqualDeep(try Fixture.monitorRect(hwnd), try Fixture.screenRect(hwnd));
                     try std.testing.expect(sys.IsZoomed(hwnd) == 0);
-                    try surface.toggleFullscreen(.native);
+                    try std.testing.expect(try window_state.perform(host, surface, .toggle_fullscreen, .native));
                     try std.testing.expect(Fixture.framed(hwnd));
                 }
                 try std.testing.expectEqual(case.maximized, sys.IsZoomed(hwnd) != 0);

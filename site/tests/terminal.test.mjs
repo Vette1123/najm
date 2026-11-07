@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEMO_KEYS,
   PALETTE_KEYS,
+  PALETTE_MATCH_COUNT,
   PALETTE_PICK,
   PALETTE_RESULTS,
   observeElementVisibility,
@@ -23,7 +24,7 @@ const windowsKeybinds = readFileSync(
   'utf8',
 );
 const windowsDocs = readFileSync(join(repoDir, 'docs/windows.md'), 'utf8');
-const win32Labels = readFileSync(join(repoDir, 'src/apprt/win32/labels.zig'), 'utf8');
+const win32OverlayView = readFileSync(join(repoDir, 'src/apprt/win32/overlay_view.zig'), 'utf8');
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -168,20 +169,20 @@ test('the demo palette rows are real commands with their real defaults', () => {
 
 test('the demo palette status line uses the app format', () => {
   assert.ok(
-    win32Labels.includes('"{d} matches. Selected: {s} — {s}{s} Up/Down selects; Enter activates."'),
-    'labels.zig no longer carries the status format the demo copies',
+    win32OverlayView.includes('"{d} matches. Selected: {s} — {s}{s} Up/Down selects; Enter activates."'),
+    'overlay_view.zig no longer carries the status format the demo copies',
   );
   const pick = PALETTE_RESULTS.find((entry) => entry.title === PALETTE_PICK);
   assert.equal(
-    paletteStatus(48, pick),
-    '48 matches. Selected: Split Right — Split the terminal to the right. Up/Down selects; Enter activates.',
+    paletteStatus(PALETTE_MATCH_COUNT, pick),
+    `${PALETTE_MATCH_COUNT} matches. Selected: Split Right — Split the terminal to the right. Up/Down selects; Enter activates.`,
   );
 });
 
 test('every key chip on the landing page is a shipped Windows default', () => {
   // The palette's own keys are not bindings; its status line names them.
   for (const key of PALETTE_KEYS) {
-    assert.ok(win32Labels.includes(`${key} activates`), `labels.zig no longer says "${key} activates"`);
+    assert.ok(win32OverlayView.includes(`${key} activates`), `overlay_view.zig no longer says "${key} activates"`);
   }
   const chips = [
     ...indexHtml.matchAll(/<(?:kbd|span class="nc-kbd"[^>]*)>([^<]+)<\/(?:kbd|span)>/g),
@@ -228,8 +229,8 @@ test('each demo key chip shows the key its step presses', () => {
 test('the demo status line adds a full stop only where the app does', () => {
   const tab = PALETTE_RESULTS.find((entry) => entry.tab);
   assert.equal(
-    paletteStatus(48, tab),
-    '48 matches. Selected: api — api. Up/Down selects; Enter activates.',
+    paletteStatus(PALETTE_MATCH_COUNT, tab),
+    `${PALETTE_MATCH_COUNT} matches. Selected: api — api. Up/Down selects; Enter activates.`,
   );
-  assert.match(win32Labels, /fn sentenceStop\(text: \[\]const u8\) \[\]const u8 \{[\s\S]*?'\.', '!', '\?' => "",/);
+  assert.match(win32OverlayView, /fn sentenceStop\(text: \[\]const u8\) \[\]const u8 \{[\s\S]*?'\.', '!', '\?' => "",\s*else => "\.",/);
 });

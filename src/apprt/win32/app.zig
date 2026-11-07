@@ -4,11 +4,9 @@ const ATOM = win32.ATOM;
 const Allocator = win32.Allocator;
 const AppDelivery = win32.AppDelivery;
 const ClipboardSource = win32.ClipboardSource;
-const CloseScope = win32.CloseScope;
-const ColdToastCapture = win32.ColdToastCapture;
+const CloseScope = confirm_text.CloseScope;
 const ConfirmCancelReason = @import("overlay_session.zig").ConfirmCancelReason;
 const CoreApp = @import("../../App.zig");
-const CoreSurface = @import("../../Surface.zig");
 const DWORD = win32.DWORD;
 const GlobalHotkeySpec = win32.GlobalHotkeySpec;
 const HDC = win32.HDC;
@@ -18,15 +16,14 @@ const HWND = win32.HWND;
 const Host = win32.Host;
 const Registry = @import("registry.zig").Registry;
 const HostBannerKind = win32.HostBannerKind;
-const HostTabStatus = win32.HostTabStatus;
 const LPARAM = win32.LPARAM;
 const LPCWSTR = win32.LPCWSTR;
 const MSG = win32.MSG;
 const NONCLIENTMETRICSW = win32.NONCLIENTMETRICSW;
 const OpenGLStartupStep = win32.OpenGLStartupStep;
+const OpenTarget = profile_pick.OpenTarget;
 const PaletteCatalog = win32.PaletteCatalog;
 const ProfileDiscoveryCompletion = win32.ProfileDiscoveryCompletion;
-const ProfileOpenTarget = win32.ProfileOpenTarget;
 const RECT = win32.RECT;
 const RecoveryLedgerLock = win32.RecoveryLedgerLock;
 const RecoveryStartup = win32.RecoveryStartup;
@@ -38,31 +35,23 @@ const SurfaceInitOptions = win32.SurfaceInitOptions;
 const SystemWheelSettings = win32.SystemWheelSettings;
 const Tab = win32.Tab;
 const ThemeColors = win32.ThemeColors;
-const ToastRequest = win32.ToastRequest;
-const ToastSink = win32.ToastSink;
 const UINT = win32.UINT;
 const UINT_PTR = win32.UINT_PTR;
 const UpdateCheckCompletion = win32.UpdateCheckCompletion;
 const UpdateCheckRequest = win32.UpdateCheckRequest;
 const UpdateNotice = win32.UpdateNotice;
 const WNDCLASSEXW = win32.WNDCLASSEXW;
-const WindowKeeps = win32.WindowKeeps;
 const activeTabAfterRemoval = win32.activeTabAfterRemoval;
 const adoptedInitialShow = win32.adoptedInitialShow;
 const appLifecycleWindowProc = win32.appLifecycleWindowProc;
 const appMessageWindowProc = win32.appMessageWindowProc;
 const appQuitConfirmAccept = win32.appQuitConfirmAccept;
-const appendOwnedString = win32.appendOwnedString;
+const appendOwnedString = paint_text.appendOwnedString;
 const applyAutomationWorkingDirectory = win32.applyAutomationWorkingDirectory;
-const applyDefaultProfileConfig = win32.applyDefaultProfileConfig;
 const applyDwmThemeWithBuild = win32.applyDwmThemeWithBuild;
 const applyNewWindowArguments = win32.applyNewWindowArguments;
-const applyProfileLaunchConfig = win32.applyProfileLaunchConfig;
-const applyProfileSurfaceConfig = win32.applyProfileSurfaceConfig;
 const applyQuickSlotPreferenceOrder = win32.applyQuickSlotPreferenceOrder;
 const applySplitWorkingDirectoryFromSource = win32.applySplitWorkingDirectoryFromSource;
-const applySshLaunchHardening = win32.applySshLaunchHardening;
-const applyUserLaunchConfig = win32.applyUserLaunchConfig;
 const apprt = @import("../../apprt.zig");
 const automationHostFocused = win32.automationHostFocused;
 const automationTextAllowed = win32.automationTextAllowed;
@@ -71,10 +60,10 @@ const beginOpenGLStartupDiagnostics = win32.beginOpenGLStartupDiagnostics;
 const beginRecoveryStartup = win32.beginRecoveryStartup;
 const bench_trace = @import("bench_trace.zig");
 const buildInstallerApplyArgs = win32.buildInstallerApplyArgs;
-const buildToastLaunchForSurface = win32.buildToastLaunchForSurface;
 const build_config = @import("../../build_config.zig");
 const builtin = @import("builtin");
 const c = @import("consts.zig");
+const child_window = @import("child_window.zig");
 const claimSharedIdentity = win32.claimSharedIdentity;
 const class_name = win32.class_name;
 const cliClass = win32.cliClass;
@@ -86,10 +75,9 @@ const closeThisTabConfirmAccept = win32.closeThisTabConfirmAccept;
 const config_edit = @import("../../config/edit.zig");
 const config_file_load = @import("../../config/file_load.zig");
 const configpkg = @import("../../config.zig");
-const configuredHostWindowPosition = win32.configuredHostWindowPosition;
+const confirm_text = @import("confirm_text.zig");
 const currentInstallDir = win32.currentInstallDir;
 const darkTheme = win32.darkTheme;
-const defaultProfileForKey = win32.defaultProfileForKey;
 const default_title = win32.default_title;
 const deinitImeWindowFormsTracePath = win32.deinitImeWindowFormsTracePath;
 const desiredMoveIndex = win32.desiredMoveIndex;
@@ -98,9 +86,9 @@ const detectDefaultProfileHint = win32.detectDefaultProfileHint;
 const detectDefaultProfileTarget = win32.detectDefaultProfileTarget;
 const detectExplicitStartupWorkingDirectory = win32.detectExplicitStartupWorkingDirectory;
 const detectStartupProfilePicker = win32.detectStartupProfilePicker;
+const docked_search = @import("docked_search.zig");
 const elevatedProfileKey = win32.elevatedProfileKey;
 const elevatesBySelector = win32.elevatesBySelector;
-const findLauncherQuickSlotOrdinal = win32.findLauncherQuickSlotOrdinal;
 const forwardedActivationExtraArgCount = win32.forwardedActivationExtraArgCount;
 const forwardedArgvRejection = win32.forwardedArgvRejection;
 const forwardedArgvSetsKey = win32.forwardedArgvSetsKey;
@@ -121,10 +109,7 @@ const isPortableModeActive = win32.isPortableModeActive;
 const isSafeStartupCwd = win32.isSafeStartupCwd;
 const isSystemDarkMode = win32.isSystemDarkMode;
 const jumpListRebuildThreadMain = win32.jumpListRebuildThreadMain;
-const keepExplicitWorkingDirectory = win32.keepExplicitWorkingDirectory;
-const keepProfileSources = win32.keepProfileSources;
-const labels = @import("labels.zig");
-const lastError = win32.lastError;
+const lastError = child_window.lastError;
 const launcherQuickSlotAssignmentNeedsChange = win32.launcherQuickSlotAssignmentNeedsChange;
 const launcherQuickSlotPinsAlreadyClear = win32.launcherQuickSlotPinsAlreadyClear;
 const layoutActionResult = win32.layoutActionResult;
@@ -135,19 +120,20 @@ const log = win32.log;
 const logBackgroundBlurUnsupported = win32.logBackgroundBlurUnsupported;
 const logForwardedArgvRejection = win32.logForwardedArgvRejection;
 const markRecoveryAttemptAtPath = win32.markRecoveryAttemptAtPath;
-const nextTabInspectorVisible = win32.nextTabInspectorVisible;
+const notifications = @import("notifications.zig");
 const onHostCloakEvent = win32.onHostCloakEvent;
-const ownedBytesEquals = win32.ownedBytesEquals;
+const ownedBytesEquals = paint_text.ownedBytesEquals;
+const paint_text = @import("text.zig");
 const palette_controller = @import("palette_controller.zig");
+const pane_launch = configpkg.pane_launch;
 const persistMergedRecoveryReadyAtPath = win32.persistMergedRecoveryReadyAtPath;
 const persistSettings = win32.persistSettings;
 const pixel_format = @import("pixel_format.zig");
 const probeWindowsBuild = win32.probeWindowsBuild;
 const processDeferredUiaDisconnect = win32.processDeferredUiaDisconnect;
 const profileDiscoveryThreadMain = win32.profileDiscoveryThreadMain;
-const profileIndexByKey = win32.profileIndexByKey;
+const profile_pick = @import("profile_pick.zig");
 const ptypkg = @import("../../pty.zig");
-const pumpUntilColdToastActivation = win32.pumpUntilColdToastActivation;
 const queueTerminalHandoff = win32.queueTerminalHandoff;
 const quickSelectProc = win32.quickSelectProc;
 const quick_select_class_name = win32.quick_select_class_name;
@@ -170,7 +156,6 @@ const requestedTabInsertIndex = win32.requestedTabInsertIndex;
 const resolveIpcPipeNameForTarget = win32.resolveIpcPipeNameForTarget;
 const resolveTheme = win32.resolveTheme;
 const restart_max_cmd_line = win32.restart_max_cmd_line;
-const restoreRequestedHostWindowStyle = win32.restoreRequestedHostWindowStyle;
 const retainToastDelivery = win32.retainToastDelivery;
 const runUiActionOrLog = win32.runUiActionOrLog;
 const scanForwardedToastActivation = win32.scanForwardedToastActivation;
@@ -187,7 +172,7 @@ const sendNewTabIpc = win32.sendNewTabIpc;
 const sendNewWindowIpc = win32.sendNewWindowIpc;
 const sendPerformActionIpc = win32.sendPerformActionIpc;
 const session_module = @import("session.zig");
-const setWindowData = win32.setWindowData;
+const setWindowData = child_window.setWindowData;
 const setWindowIcon = win32.setWindowIcon;
 const settingsAppIconThunk = win32.settingsAppIconThunk;
 const settingsChromeBgThunk = win32.settingsChromeBgThunk;
@@ -226,10 +211,7 @@ const shouldResetNewTabWorkingDirectory = win32.shouldResetNewTabWorkingDirector
 const shouldUseIntegratedTitlebar = win32.shouldUseIntegratedTitlebar;
 const splitDirectionFromAction = win32.splitDirectionFromAction;
 const splitTreeEquivalent = win32.splitTreeEquivalent;
-const sshProfileAlias = win32.sshProfileAlias;
-const startupHostWindowStyle = win32.startupHostWindowStyle;
 const std = @import("std");
-const storedProfileKeyEquals = win32.storedProfileKeyEquals;
 const suppressStartupLoaderErrorDialogs = win32.suppressStartupLoaderErrorDialogs;
 const surfaceActivationNeedsHostSync = win32.surfaceActivationNeedsHostSync;
 const surfaceFocusStateChanged = win32.surfaceFocusStateChanged;
@@ -241,14 +223,11 @@ const tabSeenByUser = win32.tabSeenByUser;
 const tabSeenWithForeground = win32.tabSeenWithForeground;
 const tabStatusHeadline = win32.tabStatusHeadline;
 const tabTooltipProc = win32.tabTooltipProc;
+const tab_label = @import("tab_label.zig");
 const tab_tooltip_class_name = win32.tab_tooltip_class_name;
 const tabsCloseConfirmCount = win32.tabsCloseConfirmCount;
 const tabsCloseConfirmCountNoWait = win32.tabsCloseConfirmCountNoWait;
 const toastActivatorSink = win32.toastActivatorSink;
-const toastGroup = win32.toastGroup;
-const toastTag = win32.toastTag;
-const toast_group_max = win32.toast_group_max;
-const undecoratedKeepsFrame = win32.undecoratedKeepsFrame;
 const unixMillis = win32.unixMillis;
 const updateApplyConfirmAccept = win32.updateApplyConfirmAccept;
 const updateApplyFailureMessage = win32.updateApplyFailureMessage;
@@ -272,11 +251,13 @@ const win32_recovery = @import("../win32_recovery.zig");
 const win32_session_persistence = @import("../win32_session_persistence.zig");
 const win32_session_state = @import("../win32_session_state.zig");
 const win32_settings = @import("../win32_settings.zig");
+const settings_reference = @import("../win32_settings_reference.zig");
+const settings_patch = @import("settings_patch.zig");
+const save_target = @import("save_target.zig");
 const win32_shell = @import("../win32_shell.zig");
 const win32_structural_history = @import("../win32_structural_history.zig");
 const win32_taskbar_progress = @import("../win32_taskbar_progress.zig");
 const win32_terminal_handoff = @import("../win32_terminal_handoff.zig");
-const win32_theme = @import("../win32_theme.zig");
 const win32_toast_activation = @import("../win32_toast_activation.zig");
 const win32_toast_activator = @import("../win32_toast_activator.zig");
 const win32_toast_winrt = @import("../win32_toast_winrt.zig");
@@ -294,21 +275,20 @@ const writePersistentFileAlloc = win32.writePersistentFileAlloc;
 const LRESULT = win32.LRESULT;
 const WPARAM = win32.WPARAM;
 const palette_list_class_name = win32.palette_list_class_name;
-const prompt_label_class = win32.prompt_label_class;
+const prompt_label_class = child_window.prompt_label_class;
 const TestSession = win32.TestSession;
 const createTestChromeChild = win32.createTestChromeChild;
 const BOOL = win32.BOOL;
-const InitialShow = win32.InitialShow;
+const InitialShow = window_state.InitialShow;
 const POINT = win32.POINT;
-const TestToastRecorder = win32.TestToastRecorder;
 const ToastTestWindow = win32.ToastTestWindow;
+const toastTestSplit = win32.toastTestSplit;
 const cliConfigFileOverrideArgs = win32.cliConfigFileOverrideArgs;
 const cli_args = @import("../../cli/args.zig");
 const createTestHostWindow = win32.createTestHostWindow;
 const lightTheme = win32.lightTheme;
 const runOnHiddenDesktop = win32.runOnHiddenDesktop;
 const settingChangeAffectsTheme = win32.settingChangeAffectsTheme;
-const settingsDefaultProfileOutcome = win32.settingsDefaultProfileOutcome;
 const settingsDraftProfileLabel = win32.settingsDraftProfileLabel;
 const terminalAccessibilityCapture = win32.terminalAccessibilityCapture;
 const terminalAccessibilityDeferProviderRelease = win32.terminalAccessibilityDeferProviderRelease;
@@ -493,6 +473,188 @@ test "a rate-limited warning logs once per interval and counts the rest" {
     try std.testing.expectEqual(@as(?u32, null), warning.take(61_001, 60_000));
 }
 
+fn nextTabInspectorVisible(active_tab_has_inspector: bool, mode: apprt.action.Inspector) bool {
+    return switch (mode) {
+        .toggle => !active_tab_has_inspector,
+        .show => true,
+        .hide => false,
+    };
+}
+
+test "win32 tab inspector toggle hides any active pane inspector" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expect(nextTabInspectorVisible(false, .toggle));
+    try std.testing.expect(!nextTabInspectorVisible(true, .toggle));
+    try std.testing.expect(nextTabInspectorVisible(false, .show));
+    try std.testing.expect(nextTabInspectorVisible(true, .show));
+    try std.testing.expect(!nextTabInspectorVisible(false, .hide));
+    try std.testing.expect(!nextTabInspectorVisible(true, .hide));
+}
+
+/// A link or path the opener refused: missing, a program or script, or on the
+/// network.
+const open_refused_banner = "Not opened: only known link types and existing documents or folders can be opened.";
+
+/// The banner for the last tab of a window being closed. It names the key bound
+/// to `undo` (the first one found, in the way a hint is written: `Ctrl+Shift+Z`)
+/// and falls back when `undo` is unbound or customization makes dispatch ambiguous.
+/// With `undo-timeout = 0` nothing can be restored, so it offers nothing.
+fn tabClosedMessage(set: *const input.Binding.Set, options: struct { has_modifier_remaps: bool = false, us_layout: bool = false, undo_available: bool = true }, buf: []u8) []const u8 {
+    if (!options.undo_available) return "Tab closed.";
+    const fallback = "Tab closed. Use undo to restore it.";
+    if (options.has_modifier_remaps) return fallback;
+    var it = set.bindings.iterator();
+    const trigger = while (it.next()) |entry| {
+        switch (entry.value_ptr.*) {
+            .leaf => |leaf| if (leaf.action == .undo) break entry.key_ptr.*,
+            else => {},
+        }
+    } else return fallback;
+
+    switch (trigger.key) {
+        .unicode => |cp| {
+            // Only the exact US layout establishes these physical/text
+            // identities. Other layouts (including US-International and
+            // Turkish Q) can produce this letter from a different key or
+            // different shifted text, so use generic wording there.
+            if (!options.us_layout) return fallback;
+            if (cp < 'a' or cp > 'z') return fallback;
+            var overrides = set.bindings.iterator();
+            while (overrides.next()) |entry| {
+                if (!entry.key_ptr.mods.binding().equal(trigger.mods.binding())) continue;
+                switch (entry.key_ptr.key) {
+                    .physical => |key| if (key == input.Key.fromASCII(@intCast(cp)).?) return fallback,
+                    .unicode => |other| if (other == std.ascii.toUpper(@intCast(cp)) or
+                        (trigger.mods.ctrl and other == (cp & 0x1f))) return fallback,
+                    .catch_all => {},
+                }
+            }
+        },
+        .physical => |key| if (key.printable()) return fallback,
+        .catch_all => return fallback,
+    }
+
+    var writer: std.Io.Writer = .fixed(buf);
+    writer.writeAll("Tab closed. Press ") catch return fallback;
+    const key_start = writer.end;
+    writer.print("{f}", .{trigger}) catch return fallback;
+    // `Trigger.format` writes the config spelling, `ctrl+shift+z`.
+    for (buf[key_start..writer.end], key_start..) |*byte, i| {
+        if (i == key_start or buf[i - 1] == '+') byte.* = std.ascii.toUpper(byte.*);
+    }
+    writer.writeAll(" to undo.") catch return fallback;
+    return writer.buffered();
+}
+
+test "tabClosedMessage names the key bound to undo" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var buf: [96]u8 = undefined;
+
+    var set: input.Binding.Set = .{};
+    try std.testing.expectEqualStrings(
+        "Tab closed. Use undo to restore it.",
+        tabClosedMessage(&set, .{ .us_layout = true }, &buf),
+    );
+
+    try set.put(arena.allocator(), .{ .key = .{ .unicode = 't' }, .mods = .{ .ctrl = true } }, .{ .new_tab = {} });
+    try std.testing.expectEqualStrings(
+        "Tab closed. Use undo to restore it.",
+        tabClosedMessage(&set, .{ .us_layout = true }, &buf),
+    );
+
+    try set.putFlags(
+        arena.allocator(),
+        .{ .key = .{ .unicode = 'z' }, .mods = .{ .ctrl = true, .shift = true } },
+        .{ .undo = {} },
+        .{ .performable = true },
+    );
+    try std.testing.expectEqualStrings(
+        "Tab closed. Press Ctrl+Shift+Z to undo.",
+        tabClosedMessage(&set, .{ .us_layout = true }, &buf),
+    );
+
+    // `undo-timeout = 0`: bound or not, there is nothing to undo.
+    try std.testing.expectEqualStrings(
+        "Tab closed.",
+        tabClosedMessage(&set, .{ .us_layout = true, .undo_available = false }, &buf),
+    );
+    var unbound: input.Binding.Set = .{};
+    try std.testing.expectEqualStrings(
+        "Tab closed.",
+        tabClosedMessage(&unbound, .{ .undo_available = false }, &buf),
+    );
+
+    // A physical key, and a buffer too small for the hint.
+    var other: input.Binding.Set = .{};
+    try other.put(arena.allocator(), .{ .key = .{ .physical = .f9 }, .mods = .{ .alt = true } }, .{ .undo = {} });
+    try std.testing.expectEqualStrings(
+        "Tab closed. Press Alt+F9 to undo.",
+        tabClosedMessage(&other, .{ .us_layout = true }, &buf),
+    );
+    var tiny: [8]u8 = undefined;
+    try std.testing.expectEqualStrings(
+        "Tab closed. Use undo to restore it.",
+        tabClosedMessage(&other, .{ .us_layout = true }, &tiny),
+    );
+}
+
+test "PKG32 tabClosedMessage does not advertise a shadowed or remapped undo chord" {
+    var cfg = try @import("../../config.zig").Config.default(std.testing.allocator);
+    defer cfg.deinit();
+    var buf: [96]u8 = undefined;
+    const fallback = "Tab closed. Use undo to restore it.";
+    const set = &cfg.keybind.set;
+    try set.put(cfg._arena.?.allocator(), .{
+        .key = .{ .physical = .key_z },
+        .mods = .{ .ctrl = true, .shift = true },
+    }, .ignore);
+    try std.testing.expectEqualStrings(fallback, tabClosedMessage(set, .{ .us_layout = true }, &buf));
+
+    // Restore an unambiguous default, then introduce an actual modifier map.
+    set.remove(cfg._arena.?.allocator(), .{ .key = .{ .physical = .key_z }, .mods = .{ .ctrl = true, .shift = true } });
+    try std.testing.expectEqualStrings("Tab closed. Press Ctrl+Shift+Z to undo.", tabClosedMessage(set, .{ .us_layout = true }, &buf));
+    for ([_]u21{ 'Z', 0x1a }) |cp| {
+        const trigger: input.Binding.Trigger = .{ .key = .{ .unicode = cp }, .mods = .{ .ctrl = true, .shift = true } };
+        try set.put(cfg._arena.?.allocator(), trigger, .ignore);
+        try std.testing.expectEqualStrings(fallback, tabClosedMessage(set, .{ .us_layout = true }, &buf));
+        set.remove(cfg._arena.?.allocator(), trigger);
+    }
+    try cfg.@"key-remap".parse(cfg._arena.?.allocator(), "ctrl=alt");
+    try std.testing.expectEqualStrings(
+        fallback,
+        tabClosedMessage(set, .{ .us_layout = true, .has_modifier_remaps = cfg.@"key-remap".map.count() != 0 }, &buf),
+    );
+}
+
+test "PKG32 tabClosedMessage falls back for layout-dependent physical and text overrides" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    var set: input.Binding.Set = .{};
+    const mods: input.Mods = .{ .ctrl = true, .shift = true };
+    try set.put(alloc, .{ .key = .{ .unicode = 'i' }, .mods = mods }, .undo);
+    const physical: input.Binding.Trigger = .{ .key = .{ .physical = .quote }, .mods = mods };
+    try set.put(alloc, physical, .ignore);
+    // Turkish Q: the dotted i is VK_OEM_7 and its shifted text is U+0130.
+    const event: input.KeyEvent = .{
+        .action = .press,
+        .key = .quote,
+        .mods = mods,
+        .unshifted_codepoint = 'i',
+        .utf8 = "İ",
+    };
+    var buf: [96]u8 = undefined;
+    const fallback = "Tab closed. Use undo to restore it.";
+    try std.testing.expectEqual(input.Binding.Action.ignore, set.getEvent(event).?.value_ptr.leaf.action);
+    try std.testing.expectEqualStrings(fallback, tabClosedMessage(&set, .{}, &buf));
+    set.remove(alloc, physical);
+    try set.put(alloc, .{ .key = .{ .unicode = 'İ' }, .mods = mods }, .ignore);
+    try std.testing.expectEqual(input.Binding.Action.ignore, set.getEvent(event).?.value_ptr.leaf.action);
+    try std.testing.expectEqualStrings(fallback, tabClosedMessage(&set, .{}, &buf));
+}
+
 pub const App = struct {
     pub const must_draw_from_app_thread = true;
     pub const renderer_pacing_clock = win32_power.renderer_clock;
@@ -516,11 +678,29 @@ pub const App = struct {
     /// persistence.
     session_state_excluded_for_elevation: bool = false,
     config_revision: u64 = 1,
+    /// Set while a config change goes to every pane and then to the app
+    /// (`updateCoreConfig`; the palette's theme swap,
+    /// `Host.swapRuntimeConfigFromPalette`). A pane's `.surface`
+    /// `config_change` then leaves the window half to the app-wide step,
+    /// which applies it for every window once, after the theme's frame write
+    /// (`window_state.applyConfig`).
+    app_wide_config_change: bool = false,
+    /// Set once an app-wide change reaches the `.app` arm's window pass, so
+    /// `updateCoreConfig` knows whether an update that failed before it
+    /// still owes the windows their half.
+    app_wide_windows_applied: bool = false,
     resolved_theme: ThemeColors = darkTheme(),
     /// Completed `reconfigureTheme` passes; a test reads it to prove that a
     /// settings preview which cannot change the theme does not run one.
     theme_rebuilds: u32 = 0,
     system_theme_refresh: SystemThemeRefresh = .{},
+    /// The system's own theme inputs at the last system theme message (or
+    /// at `init`): a failed blur-behind tries again only when they changed.
+    /// Set by `init` and `takeSystemInputs`, which a system theme message
+    /// runs (`reconfigureSystemTheme`, and `systemColorSetChanged` before a
+    /// light/dark reload). Unlike `system_theme_refresh`, no rebuild of the
+    /// app's own (a reload, a Settings preview) moves it.
+    system_inputs: ?window_state.SystemInputs = null,
     hinstance: HINSTANCE,
     class_atom: ATOM = 0,
     host_class_atom: ATOM = 0,
@@ -544,7 +724,10 @@ pub const App = struct {
     ) anyerror!*Surface = null,
     /// Test-only seam that stands in for the GL context and the core surface
     /// in `Surface.init`, neither of which a unit test can create. The window,
-    /// tab, shell and unwind steps around them run for real.
+    /// tab, shell and unwind steps around them run for real. A pane it made
+    /// has no core to update a config of, so while it is set a config update
+    /// (`updatePaneCoreConfig`, `updateCoreConfig`) gives each pane what
+    /// core's update ends in for it: its `.surface` `config_change`.
     test_surface_init_stage: ?*const fn (surface: *Surface, stage: Surface.InitStage) anyerror!void = null,
     /// Test-only seam for automation snapshots built without a live core
     /// surface. Returned strings are owned by the caller.
@@ -579,8 +762,8 @@ pub const App = struct {
     activations: u64 = 0,
     launcher_profile_key: ?[:0]const u8 = null,
     launcher_profile_hint: ?[:0]const u8 = null,
-    launcher_quick_slot_keys: [3]?[:0]const u8 = .{ null, null, null },
-    launcher_profile_target: ProfileOpenTarget = .tab,
+    launcher_quick_slot_keys: [profile_pick.quick_slots]?[:0]const u8 = @splat(null),
+    launcher_profile_target: OpenTarget = .tab,
     startup_profile_picker: bool = false,
     /// True when argv explicitly selects a working directory. Such cold-start
     /// flows must create their requested window rather than restore a saved
@@ -743,9 +926,9 @@ pub const App = struct {
     update_apply_queued: bool = false,
     update_startup_ready: bool = false,
     /// Most-recently-used command palette actions; newest first. Strings
-    /// are owned by `core_app.alloc` and freed in `App.deinit`. Surfaced
-    /// by `commandPaletteBannerText` when the query is empty so users
-    /// see their own recent picks instead of the static onboarding hint.
+    /// are owned by `core_app.alloc` and freed in `App.deinit`. The
+    /// palette's hint names the newest when the query is empty
+    /// (`overlay_view.compose`, through `Host.overlayFacts`).
     palette_mru: [5]?[:0]const u8 = .{null} ** 5,
     /// Singleton settings window. Lazily created by the `open_config`
     /// action; `App.terminate` destroys the HWND if still alive.
@@ -795,24 +978,13 @@ pub const App = struct {
     link_hover_tracker: win32_link_preview.HoverTracker = undefined,
     /// Windows Action Center toast notifier. `null` when WinRT init
     /// fails (e.g. corporate lockdown, missing combase.dll), in which
-    /// case `showToast` falls back to the in-app banner path. One
+    /// case `notifications` falls back to the in-app banner path. One
     /// notifier per App, released in `App.terminate`.
     winrt_toast: ?win32_toast_winrt.WinrtToast = null,
-    /// Where `showToast` sends toasts: `winrt_toast` in the product, a
-    /// recorder in tests, so no test can reach Action Center. `null`
-    /// sends every notification to the banner fallback.
-    toast_sink: ?ToastSink = null,
-    /// Panes (core surface ids, never pointers) whose toast is to be taken
-    /// out of Action Center, oldest first. Flushed from the posted
-    /// `WM_WINHOSTTY_TOAST_REMOVALS`: a history call is a cross-process COM
-    /// call that can pump messages, so it never runs inside the window
-    /// activation, focus or close that queued it.
-    toast_removals: std.ArrayListUnmanaged(u64) = .empty,
-    /// `WM_WINHOSTTY_TOAST_REMOVALS` is posted and not yet handled.
-    toast_removals_posted: bool = false,
-    /// This process showed a tagged toast, so its group may hold toasts
-    /// to remove at exit.
-    toast_group_used: bool = false,
+    /// What noctty tells the user through toasts, and when a toast leaves
+    /// Action Center (`notifications.zig`), with `winrt_toast` as its sink
+    /// once `init` has one.
+    notifications: notifications.Notifications = .disabled,
     /// Taskbar progress COM object. `null` when the taskbar API is
     /// unavailable, in which case progress continues to render only in
     /// the window title/status text.
@@ -842,6 +1014,12 @@ pub const App = struct {
     /// The config keys the last Settings save wrote that a later layer
     /// overrides, comma separated, for its status line and notification.
     settings_masked_keys: win32_settings.FailureDetail = .{},
+    /// What the check before a Settings save (`settingsReconcileDisk`) read of
+    /// the file the save writes, and whether that check may apply a changed
+    /// file (the window's, which offers the choice) or only refuse (the
+    /// palette's theme pick). The save takes it: an edit another program made
+    /// in between is not written over (SETTINGS-SAVE-TOCTOU).
+    settings_check: ?SettingsCheck = null,
     /// What the config last loaded (startup, reload, Settings save) found
     /// wrong, and the fonts it names that no installed font matches. Copies:
     /// the config that held the diagnostics is gone after a reload.
@@ -857,14 +1035,6 @@ pub const App = struct {
     /// chdir back to this value around `settingsSaveAndReload`'s
     /// reload so argv-relative paths re-resolve identically.
     startup_cwd: ?[]u8 = null,
-    /// A toast activation waiting for a window: the one a cold
-    /// `-ToastActivated` start received (`awaitColdToastActivation`), a
-    /// `wgh://activate?...` argument, or one that arrived while no surface
-    /// existed. Consumed once after the first window spawns. Its ids are
-    /// resolved only when its pid is this process's
-    /// (`resolveToastActivationSurface`); otherwise the primary surface is
-    /// presented.
-    pending_toast_activation: ?win32_toast_activation.ActivationTarget = null,
     /// Started by COM for a click in Action Center (`win32_toast_activator`,
     /// argv `-ToastActivated -Embedding`): `run` waits for the launch string
     /// before deciding whether to forward it or start locally.
@@ -873,11 +1043,9 @@ pub const App = struct {
     /// instance in place of this process's argv
     /// (`ipc_server.tryForwardStartupToExistingInstance`).
     cold_toast_activation: ?win32_toast_activation.ActivationTarget = null,
-    /// Drops the second delivery of one click (popup handler and COM).
-    toast_click_filter: win32_toast_activation.RepeatFilter = .{},
     /// `run` has made its startup windows (or decided on none), so a toast
     /// click with no surface to present opens one
-    /// (`receiveToastActivation`).
+    /// (`openWindowForToastClick`).
     startup_windows_opened: bool = false,
     /// The command line's one-shot `--launch-layout=<name>`, which `run`
     /// opens instead of the first window (or forwards to the running
@@ -974,7 +1142,7 @@ pub const App = struct {
                 errdefer config.deinit();
                 // Recovery runs `cmd /D`, which loads no profile and skips AutoRun,
                 // and so needs no PATH search.
-                try config.useWindowsRecoveryCommand();
+                try pane_launch.useRecovery(&config);
                 try config.finalize();
                 break :config config;
             } else try configpkg.Config.load(core_app.alloc),
@@ -1011,21 +1179,6 @@ pub const App = struct {
         self.cli_class = cliClass(core_app.alloc) catch null;
         // Snapshot the startup cwd for reload-time restoration.
         self.startup_cwd = std.process.getCwdAlloc(core_app.alloc) catch null;
-        // A `wgh://activate?...` argument on the command line. Windows never
-        // starts noctty with one: a click in Action Center reaches a cold
-        // start through COM (`-ToastActivated`, `awaitColdToastActivation`).
-        // It is honored for a launch by hand or a script, and the same string
-        // is what a cold start forwards to a running instance. Silent on
-        // absence or malformed input.
-        self.pending_toast_activation = scanToastActivationArg(core_app.alloc);
-        if (self.pending_toast_activation) |target| {
-            log.info("toast activation received surface={?} tab={?} window={?} action={?}", .{
-                target.surface_id,
-                target.tab_id,
-                target.window_id,
-                target.action,
-            });
-        }
         // AUMID registration MUST precede any HWND creation so
         // taskbar-grouping / toast attribution picks up our identity
         // on the first window. Both swallow failures (warn +
@@ -1057,17 +1210,33 @@ pub const App = struct {
         }
 
         // Boot the WinRT toast notifier. Failure falls back to the
-        // host banner/log path in `showToast`.
+        // host banner/log path in `notifications`.
         // MUST run AFTER `setProcessAumid` so `CreateToastNotifierWithId`
         // attributes toasts to our AUMID. A test build never creates one, so
-        // no test can reach Action Center; tests install a recorder as
-        // `toast_sink` instead.
+        // no test can reach Action Center; tests give `notifications` a
+        // recorder as its sink instead.
         const aumid_utf16 = std.unicode.utf8ToUtf16LeStringLiteral("io.github.vette1123.najm");
         self.winrt_toast = if (builtin.is_test) null else win32_toast_winrt.WinrtToast.init(core_app.alloc, aumid_utf16) catch |err| blk: {
             std.log.warn("winrt toast init failed err={}; falling back to host notifications", .{err});
             break :blk null;
         };
-        if (self.winrt_toast) |*toast| self.toast_sink = .winrt(toast);
+        const sink: ?notifications.ToastSink = if (self.winrt_toast) |*toast| .winrt(toast) else null;
+        self.notifications = .init(core_app.alloc, sink, self.notificationPanes());
+        // A `wgh://activate?...` argument on the command line. Windows never
+        // starts noctty with one: a click in Action Center reaches a cold
+        // start through COM (`-ToastActivated`, `awaitColdToastActivation`).
+        // It is honored for a launch by hand or a script, and the same string
+        // is what a cold start forwards to a running instance. Silent on
+        // absence or malformed input.
+        if (scanToastActivationArg(core_app.alloc)) |target| {
+            log.info("toast activation received surface={?} tab={?} window={?} action={?}", .{
+                target.surface_id,
+                target.tab_id,
+                target.window_id,
+                target.action,
+            });
+            _ = self.notifications.click(.{ .start = target });
+        }
 
         // Install the PowerShell shell-integration script into
         // %LOCALAPPDATA%\noctty\shell-integration\powershell\
@@ -1124,7 +1293,12 @@ pub const App = struct {
         };
         self.refreshSystemWheelSettings();
         self.refreshSystemScrollbarPreference();
-        self.resolved_theme = resolveTheme(&self.config);
+        // The first system theme message compares with the theme the app
+        // starts in, as later ones do with the last rebuild.
+        const start_theme = SystemThemeSnapshot.capture(&self.config);
+        self.system_theme_refresh.previous = start_theme;
+        self.resolved_theme = start_theme.theme;
+        self.system_inputs = window_state.SystemInputs.capture();
         self.loadPaletteMru();
         self.settings_window = win32_settings.SettingsWindow.init(.{
             .ctx = @ptrCast(self),
@@ -1136,12 +1310,14 @@ pub const App = struct {
             .textPrimary = &settingsTextPrimaryThunk,
             .themeColors = &settingsThemeColorsThunk,
             .highContrast = &settingsHighContrastThunk,
+            .os_build = self.os_build,
             .openInEditor = &settingsOpenInEditorThunk,
             .copyText = &settingsCopyTextThunk,
             .currentConfig = &settingsCurrentConfigThunk,
             .saveAndReload = &settingsSaveAndReloadThunk,
             .configRevision = &settingsConfigRevisionThunk,
             .previewField = &settingsPreviewFieldThunk,
+            .endPreviews = &settingsEndPreviewsThunk,
             .notifyConflict = &settingsNotifyConflictThunk,
             .reconcileDisk = &settingsReconcileDiskThunk,
             .failureDetail = &settingsFailureDetailThunk,
@@ -1150,6 +1326,9 @@ pub const App = struct {
             .configSource = &settingsConfigSourceThunk,
             .configProblems = &settingsConfigProblemsThunk,
             .profileChoices = &settingsProfileChoicesThunk,
+            .pageProfiles = &settingsProfileChoicesThunk,
+            .findAllProfiles = &settingsFindAllProfiles,
+            .profileListsForeign = &settingsProfileListsForeign,
             .notifySuccess = &settingsNotifySuccessThunk,
             .customUiaProvidersEnabled = &settingsCustomUiaProvidersEnabledThunk,
             .deferUiaDisconnect = &settingsDeferUiaDisconnectThunk,
@@ -1318,7 +1497,7 @@ pub const App = struct {
             const activation = self.awaitColdToastActivation();
             self.cold_toast_activation = activation;
             // Forwarded below, or presented once the first window exists.
-            self.pending_toast_activation = activation;
+            _ = self.notifications.click(.{ .start = activation });
         }
 
         const forwarded = if (self.embedding_mode or self.safe_mode)
@@ -1681,16 +1860,17 @@ pub const App = struct {
         // The window rolls its previews back as it goes, and the hosts and
         // windows a redraw walks are gone by now: nothing to show it to.
         self.settings_window.handle.previewField = null;
+        self.settings_window.handle.endPreviews = null;
         self.settings_window.deinit();
         self.dropSettingsPreview();
         const uia_disconnect_hr = win32_uia.disconnectAllProviders();
         if (uia_disconnect_hr != 0) {
             log.warn("win32 UIA disconnect-all failed hr=0x{x}", .{@as(u32, @bitCast(uia_disconnect_hr))});
         }
-        // After `destroyAllWindows`, whose closes queued their panes' toasts:
+        // After `destroyAllWindows`, whose closes left their panes' toasts:
         // one call removes them all, while the notifier is still alive.
-        self.removeOwnToasts();
-        self.toast_sink = null;
+        self.notifications.deinit();
+        self.notifications = .disabled;
         if (self.winrt_toast) |*toast| {
             toast.deinit();
             self.winrt_toast = null;
@@ -2604,15 +2784,9 @@ pub const App = struct {
 
     pub const restoreSessionWindow = session_module.restoreSessionWindow;
 
-    pub const syncRestoredHostWindowState = session_module.syncRestoredHostWindowState;
-
     pub const restoreSessionTab = session_module.restoreSessionTab;
 
     pub const restoreSessionPane = session_module.restoreSessionPane;
-
-    pub const applyRestoredProfileConfig = session_module.applyRestoredProfileConfig;
-
-    pub const applyRestoredWindowPlacement = session_module.applyRestoredWindowPlacement;
 
     pub const hasSessionWindows = session_module.hasSessionWindows;
 
@@ -2647,14 +2821,6 @@ pub const App = struct {
     pub const buildRestoredSessionSplitTree = session_module.buildRestoredSessionSplitTree;
 
     pub const sessionStateWindowRect = session_module.sessionStateWindowRect;
-
-    pub const SessionWindowPlacement = session_module.SessionWindowPlacement;
-
-    pub const sessionWindowPlacement = session_module.sessionWindowPlacement;
-
-    pub const sessionWindowPlacementOn = session_module.sessionWindowPlacementOn;
-
-    pub const sessionFullscreenWindowPlacement = session_module.sessionFullscreenWindowPlacement;
 
     pub const pushPaletteMru = palette_controller.AppControls.pushPaletteMru;
 
@@ -3140,6 +3306,35 @@ pub const App = struct {
         _ = host.profilesForChrome();
         const profiles = host.profiles orelse return null;
         return .{ .profiles = profiles, .complete = host.profiles_complete };
+    }
+
+    /// `AppHandle.findAllProfiles`: the Profiles page needs the whole list to
+    /// move or hide a profile, and no window has it (a discovery ended
+    /// without it: a probe timed out, the SSH config was busy). The first
+    /// window asks the discovery worker again, unless it is waiting for one;
+    /// the list reaches the page through `profilesChanged`. A window that
+    /// has the whole list already is read at once.
+    fn settingsFindAllProfiles(ctx: *anyopaque) void {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        for (self.registry.hosts.items) |host| if (host.profiles_complete and host.profiles != null) {
+            return self.settings_window.profilesChanged();
+        };
+        if (self.registry.hosts.items.len == 0) return;
+        const host = self.registry.hosts.items[0];
+        if (!host.profiles_requested) host.requestProfiles();
+    }
+
+    /// `AppHandle.profileListsForeign`: whether another layer than the file a
+    /// Save writes sets the profiles' order or visibility in the running
+    /// config (`settings_patch.listsForeign`). A check that cannot be made
+    /// (no memory, no path) counts as refused.
+    fn settingsProfileListsForeign(ctx: *anyopaque) ?settings_patch.ListsForeign {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        const alloc = self.core_app.alloc;
+        // The path only: looking must not create the file or its folder.
+        const target = self.settingsTargetPathForDisplay(alloc) catch return .unread;
+        defer alloc.free(target);
+        return settings_patch.listsForeign(&self.config, target, &settings_reference.samePath) catch .unread;
     }
 
     fn anyHostRequestedProfiles(self: *const App) bool {
@@ -3739,6 +3934,14 @@ pub const App = struct {
         if (self.running and !self.hasLiveUiWindows()) self.startQuitTimer();
     }
 
+    /// A core search action for the pane `target` names. `anyerror`: the
+    /// pane's search calls the core, which reports back through here.
+    fn dockedSearchFor(self: *App, target: apprt.Target, in: docked_search.Input) anyerror!bool {
+        const surface = self.registry.findSurfaceForTarget(target) orelse return false;
+        _ = try surface.dockedSearch(in);
+        return true;
+    }
+
     fn ensureMessageQueue() void {
         var msg: MSG = undefined;
         _ = sys.PeekMessageW(&msg, null, 0, 0, c.PM_NOREMOVE);
@@ -3771,10 +3974,10 @@ pub const App = struct {
                         }
                         // A cold start forwards a click this process may
                         // also have had from the toast's popup handler.
-                        if (!self.admitToastActivation(activation)) return true;
-                        if (self.handleToastActivation(activation)) return true;
-                        self.pending_toast_activation = activation;
-                        forwarded_arguments = null;
+                        switch (self.notifications.click(.{ .target = activation })) {
+                            .done => return true,
+                            .needs_window => forwarded_arguments = null,
+                        }
                     },
                 }
                 var config = try apprt.surface.newConfig(
@@ -3793,10 +3996,7 @@ pub const App = struct {
                         return true;
                     }
                 }
-                const default_profile = self.applyNewWindowLaunch(
-                    &config,
-                    forwarded_arguments,
-                ) catch |err| switch (err) {
+                applyNewWindowArguments(self.core_app.alloc, &config, forwarded_arguments) catch |err| switch (err) {
                     // Defense in depth: `applyNewWindowArguments` enforces
                     // the same filter independently. Treat a rejection as
                     // handled so it cannot abort the app tick. Logged here
@@ -3811,27 +4011,37 @@ pub const App = struct {
                     },
                     else => return err,
                 };
+                // The launch comes after the arguments: with a theme set,
+                // their `finalize` builds the config again from its replay
+                // steps, which would drop the profile's variables, line and
+                // directory. That rebuild replays the files as they were last
+                // read, which during a palette theme preview are newer than
+                // the app config's profiles and launch, so those are put back
+                // before it; the arguments cannot set any of them
+                // (`forwardedKeyAllowed`).
+                if (forwarded_arguments) |argv| if (argv.len > 0) try pane_launch.keepSources(&config, &self.config);
+                const launch = try pane_launch.prepare(&config, .{ .fresh = .{
+                    .named_directory = if (forwarded_arguments) |argv| forwardedArgvSetsKey(argv, "working-directory") else false,
+                } }, self.launchContext(null));
                 if (config.@"launch-layout") |name| {
                     const banner_host = if (self.registry.findSurfaceForTarget(target)) |source| source.host else null;
                     _ = self.launchNamedLayout(name, banner_host);
                     return true;
                 }
                 const source = self.registry.newWindowSource(target);
-                const window_surface = self.createWindowSurface(&config, default_title, .{
-                    .clone_state_from = source,
-                    .forwarded_arguments = forwarded_arguments,
+                _ = self.createWindowSurface(&config, default_title, .{
+                    .window = .from(source, forwarded_arguments orelse &.{}),
+                    .launch = launch,
                 }) catch |err| {
                     // A request forwarded by another process was acknowledged
                     // when it was queued, so say here that nothing opened.
                     // The first host still shows a banner while its last tab
                     // is detached for undo, when it has no surface.
-                    const banner_host: ?*Host = if (source) |surface|
-                        surface.host
-                    else if (self.registry.hosts.items.len > 0) self.registry.hosts.items[0] else null;
+                    const banner_host: ?*Host = source orelse
+                        if (self.registry.hosts.items.len > 0) self.registry.hosts.items[0] else null;
                     if (banner_host) |host| host.setBanner(.err, "New window could not be opened.") catch {};
                     return err;
                 };
-                if (default_profile) |profile| try self.noteProfileLaunch(window_surface, profile);
                 return true;
             },
 
@@ -3968,6 +4178,7 @@ pub const App = struct {
             .config_change => {
                 switch (target) {
                     .app => {
+                        if (builtin.is_test and test_app_config_clone_fails) return error.OutOfMemory;
                         var config = try value.config.clone(self.core_app.alloc);
                         // Profile lists are built from these keys, so a change to
                         // any of them drops every list the hosts and the jump
@@ -3991,11 +4202,16 @@ pub const App = struct {
                         forgetLaunchLayout(&config);
                         // Palette theme preview owns a reversible baseline
                         // around the app-global config. An external/settings
-                        // config change supersedes that transaction: dismiss
-                        // the palette first so it reverts and resets every
-                        // borrowed catalog before the incoming config replaces
-                        // the baseline. A later Escape can never resurrect the
+                        // config change supersedes that transaction: it ends
+                        // (`updateCoreConfig` ended it already, before core
+                        // gave the panes this config) with nothing shown of
+                        // the baseline, which every pane and window would
+                        // otherwise take after or before this config, and the
+                        // palette is dismissed so it resets every borrowed
+                        // catalog before the incoming config replaces the
+                        // baseline. A later Escape can never resurrect the
                         // stale pre-reload config.
+                        self.supersedePaletteThemePreviews();
                         for (self.registry.hosts.items) |host| {
                             if (host.overlay_mode == .command_palette) host.hideOverlay();
                         }
@@ -4028,9 +4244,33 @@ pub const App = struct {
                             self.jump_list.?.requestProfileDiscovery();
                         }
                         self.scheduleGlobalHotkeySync();
-                        self.reconfigureTheme();
+                        self.reconfigureTheme(.caller_applies);
+                        // Every value is stored before the first step that
+                        // can fail, and the windows' decorations and opacity
+                        // go before the panes' scrollbar refresh, as each
+                        // pane's config change once ordered them. This is
+                        // each window's one apply in a reload (the panes'
+                        // `.surface` arms leave it here), a window kept empty
+                        // for undo included, after the theme's frame write.
+                        for (self.registry.windows.items) |surface| surface.takeRuntimeConfig(&self.config);
+                        // Every window has its apply, past one that fails:
+                        // the theme left the opacity to this loop, so a
+                        // window it skipped would show none of the reload.
+                        // Then every pane's scrollbar, past one that fails,
+                        // after a window's failure too: the refresh, still
+                        // after the window pass, does not need a window's
+                        // opacity to have applied. The config is
+                        // installed either way, so the steps after them run
+                        // (Settings hears of it), and the first failure, a
+                        // window's before a pane's, is returned last.
+                        self.app_wide_windows_applied = true;
+                        const windows_applied = self.applyWindowsConfig(&self.config);
+                        var scrollbars: @TypeOf(Surface.refreshScrollbarWindow(undefined)) = {};
                         for (self.registry.windows.items) |surface| {
-                            try surface.applyRuntimeConfig(&self.config);
+                            surface.refreshScrollbarWindow() catch |err| {
+                                log.warn("win32 scrollbar refresh after a config change failed err={}", .{err});
+                                if (scrollbars) |_| scrollbars = err else |_| {}
+                            };
                         }
                         // A reload that turns automatic checks on in a process
                         // that started with them off (or on another channel).
@@ -4042,12 +4282,21 @@ pub const App = struct {
                         } else {
                             self.stopQuitTimer();
                         }
+                        try windows_applied;
+                        try scrollbars;
                     },
                     .surface => |core_surface| {
                         const surface = self.registry.findSurfaceByCore(core_surface) orelse return false;
-                        try surface.applyRuntimeConfig(value.config);
+                        // The pane stores its config first. A pane's own
+                        // config change gives its window the config only from
+                        // the pane the window shows, before the pane's
+                        // fallible scrollbar refresh. One that is part of an
+                        // app-wide change leaves the window to the app's
+                        // step, which applies it for every window once.
+                        surface.takeRuntimeConfig(value.config);
                         surface.setTabBackground(value.config.background);
-                        try self.syncHostWindowState(surface);
+                        if (!self.app_wide_config_change) if (surface.host) |host| if (host.activeSurface() == surface) try window_state.applyConfig(host, value.config);
+                        try surface.refreshScrollbarWindow();
                     },
                 }
                 return true;
@@ -4060,7 +4309,7 @@ pub const App = struct {
                 if (self.safe_mode) return true;
                 if (value.soft) {
                     switch (target) {
-                        .app => try self.core_app.updateConfig(self, &self.config),
+                        .app => try self.updateCoreConfig(&self.config),
                         .surface => |core_surface| try core_surface.updateConfig(&self.config),
                     }
                     return true;
@@ -4092,7 +4341,7 @@ pub const App = struct {
 
                 var config = try configpkg.Config.load(self.core_app.alloc);
                 defer config.deinit();
-                try self.core_app.updateConfig(self, &config);
+                try self.updateCoreConfig(&config);
                 // A reload that found problems says so, whatever
                 // `app-notifications` allows: "reloaded" would be false.
                 // The config in effect, not the one just read: the app
@@ -4102,7 +4351,7 @@ pub const App = struct {
                 // font checks; explicitly re-announce without scanning twice.
                 if (self.reportRecordedConfigProblems()) return true;
                 if (self.config.@"app-notifications".@"config-reload") {
-                    try self.showDesktopNotification(.app, "Najm", "Configuration reloaded");
+                    self.notifications.show(.app, "Najm", "Configuration reloaded");
                 }
                 return true;
             },
@@ -4143,16 +4392,6 @@ pub const App = struct {
                     if (self.registry.shownSurfaceForTarget(target)) |surface| self.activateSurface(surface);
                 }
                 return true;
-            },
-
-            .toggle_background_opacity => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    const changed = try surface.toggleBackgroundOpacity();
-                    if (!changed) return false;
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
             },
 
             .goto_window => {
@@ -4200,73 +4439,23 @@ pub const App = struct {
                 return true;
             },
 
-            .toggle_maximize => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    surface.toggleMaximize();
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .toggle_fullscreen => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.toggleFullscreen(value);
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .toggle_window_decorations => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.toggleDecorations();
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .float_window => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.setFloatWindow(value);
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .initial_size => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.setInitialSize(value);
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .reset_window_size => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.resetWindowSize();
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
-            },
-
-            .size_limit => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    surface.setSizeLimit(value);
-                    try self.syncHostWindowState(surface);
-                    return true;
-                }
-                return false;
+            .toggle_maximize,
+            .toggle_fullscreen,
+            .toggle_window_decorations,
+            .float_window,
+            .toggle_background_opacity,
+            .initial_size,
+            .reset_window_size,
+            .size_limit,
+            => {
+                const surface = self.registry.findSurfaceForTarget(target) orelse return false;
+                const host = surface.host orelse return false;
+                return window_state.perform(host, surface, action, value);
             },
 
             .cell_size => {
                 if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    surface.setCellSize(value);
-                    try self.syncHostWindowState(surface);
+                    surface.metrics.cell_size_pixels = value;
                     return true;
                 }
                 return false;
@@ -4410,45 +4599,18 @@ pub const App = struct {
                 return true;
             },
 
-            .start_search => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.showSearchOverlay(value.needle);
-                    return true;
-                }
-                return false;
-            },
+            .start_search => return try self.dockedSearchFor(target, .{ .open = value.needle }),
 
-            .end_search => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.closeDockedSearchBar(false, false);
-                    return true;
-                }
-                return false;
-            },
+            .end_search => return try self.dockedSearchFor(target, .{ .core = .ended }),
 
-            .search_total => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.setSearchTotal(value.total, value.invalid);
-                    return true;
-                }
-                return false;
-            },
+            .search_total => return try self.dockedSearchFor(target, .{ .core = .{ .total = .{
+                .total = value.total,
+                .invalid = value.invalid,
+            } } }),
 
-            .search_selected => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.setSearchSelected(value.selected);
-                    return true;
-                }
-                return false;
-            },
+            .search_selected => return try self.dockedSearchFor(target, .{ .core = .{ .selected = value.selected } }),
 
-            .search_match_rows => {
-                if (self.registry.findSurfaceForTarget(target)) |surface| {
-                    try surface.setSearchMatchRows(value.rows);
-                    return true;
-                }
-                return false;
-            },
+            .search_match_rows => return try self.dockedSearchFor(target, .{ .core = .{ .rows = value.rows } }),
 
             .secure_input => {
                 if (self.registry.findSurfaceForTarget(target)) |surface| {
@@ -4601,7 +4763,7 @@ pub const App = struct {
                 self.openLink(target, value.url) catch |err| {
                     // A click that does nothing reads as a broken terminal.
                     if (err == error.OpenUrlRejected) {
-                        _ = self.showHostBanner(target, .info, labels.open_refused_banner) catch false;
+                        _ = self.showHostBanner(target, .info, open_refused_banner) catch false;
                     }
                     return err;
                 };
@@ -4634,7 +4796,7 @@ pub const App = struct {
             },
 
             .desktop_notification => {
-                try self.showDesktopNotification(target, value.title, value.body);
+                self.notifications.show(.of(target), value.title, value.body);
                 return true;
             },
 
@@ -5163,65 +5325,138 @@ pub const App = struct {
         title: LPCWSTR,
         opts: SurfaceInitOptions,
     ) !*Surface {
-        if (self.test_create_window_surface) |hook| {
-            return try hook(self, config, title, opts);
-        }
-        const surface = try self.core_app.alloc.create(Surface);
-        errdefer self.core_app.alloc.destroy(surface);
-
-        try surface.init(self, title, config, opts);
-        if (opts.host_id == null) self.consumePendingToastActivation();
+        // What the surface keeps of its launch is copied before the surface
+        // exists: once it does it is its window's, so nothing after it may
+        // fail (a restore's transaction learns the window only from the
+        // surface returned, and a forwarded new window says it could not be
+        // opened when this fails).
+        const alloc = self.core_app.alloc;
+        const key = if (opts.launch.key) |value| try alloc.dupeZ(u8, value) else null;
+        errdefer if (key) |value| alloc.free(value);
+        const tab_title = if (opts.launch.title) |value| try alloc.dupeZ(u8, value) else null;
+        errdefer if (tab_title) |value| alloc.free(value);
+        const surface = if (self.test_create_window_surface) |hook|
+            try hook(self, config, title, opts)
+        else blk: {
+            const created = try alloc.create(Surface);
+            errdefer alloc.destroy(created);
+            try created.init(self, title, config, opts);
+            if (opts.host_id == null) _ = self.notifications.click(.window_opened);
+            break :blk created;
+        };
+        recordLaunch(alloc, surface, key, opts.launch.ssh, tab_title);
         return surface;
     }
 
-    /// `applyDefaultProfileConfig`, unless this is the surface that runs
-    /// `initial-command` (`-e`): the first one of the process, whichever path
-    /// creates it. A restore clears `initial-command` first.
-    pub fn applyDefaultProfileLaunch(self: *const App, config: *configpkg.Config) !?*const windows_shell.Profile {
-        if (!self.defaultProfileApplies(config)) return null;
-        return try applyDefaultProfileConfig(config);
+    /// What a surface keeps of its launch: the key that splits, session
+    /// restore and elevation look its profile up by, whether it connects
+    /// over SSH, and the SSH alias as its tab title. It takes `key` and
+    /// `tab_title`, copies in `alloc`, and cannot fail.
+    fn recordLaunch(alloc: Allocator, surface: *Surface, key: ?[:0]const u8, ssh: bool, tab_title: ?[:0]const u8) void {
+        if (key) |value| adoptOwnedString(alloc, &surface.launch_profile_key, value);
+        if (ssh) surface.launched_ssh = true;
+        if (tab_title) |value| adoptOwnedString(alloc, &surface.tab_title_override, value);
     }
 
-    /// A new window's forwarded arguments (`applyNewWindowArguments`), then
-    /// `applyDefaultProfileLaunch`. In that order: with a theme set, the
-    /// arguments' `finalize` builds the config again from its replay steps,
-    /// which would drop the profile's variables, line and directory. A
-    /// directory the arguments carry still wins over the profile's own,
-    /// except an SSH profile's (`keepExplicitWorkingDirectory`).
-    /// That rebuild replays the files as they were last read, which during a
-    /// palette theme preview is newer than the app config's profiles and
-    /// launch (`keepProfileSources`), so those are put back after it; the
-    /// arguments cannot set any of them (`forwardedKeyAllowed`).
-    pub fn applyNewWindowLaunch(
-        self: *const App,
-        config: *configpkg.Config,
-        arguments: ?[]const [:0]const u8,
-    ) !?*const windows_shell.Profile {
-        try applyNewWindowArguments(self.core_app.alloc, config, arguments);
-        if (arguments) |argv| if (argv.len > 0) try keepProfileSources(config, &self.config);
-        const forwarded_directory = if (arguments) |argv| forwardedArgvSetsKey(argv, "working-directory") else false;
-        const directory = config.@"working-directory";
-        const profile = try self.applyDefaultProfileLaunch(config);
-        if (forwarded_directory) keepExplicitWorkingDirectory(config, profile, directory);
-        return profile;
-    }
-
-    pub const applyRestoredDefaultLaunch = session_module.applyRestoredDefaultLaunch;
-
-    pub fn defaultProfileApplies(self: *const App, config: *const configpkg.Config) bool {
-        if (!config._command_defaulted or config._default_profile == null) return false;
-        return !(config.@"initial-command" != null and self.core_app.first);
-    }
-
-    /// What a surface launched from `profile` keeps: the key that splits,
-    /// session restore and elevation look the profile up by, and for SSH
-    /// the alias as its tab title.
-    pub fn noteProfileLaunch(self: *App, surface: *Surface, profile: *const windows_shell.Profile) !void {
-        try appendOwnedString(self.core_app.alloc, &surface.launch_profile_key, profile.key);
-        surface.launched_ssh = profile.kind == .ssh;
-        if (sshProfileAlias(profile)) |alias| {
-            try appendOwnedString(self.core_app.alloc, &surface.tab_title_override, alias);
+    /// Put `value`, allocated in `alloc`, in `target`, as `appendOwnedString`
+    /// puts a copy: an equal string already there stays, and `value` is
+    /// freed.
+    fn adoptOwnedString(alloc: Allocator, target: *?[:0]const u8, value: [:0]const u8) void {
+        if (target.*) |old| {
+            if (std.mem.eql(u8, old, value)) return alloc.free(value);
+            alloc.free(old);
         }
+        target.* = value;
+    }
+
+    test "a surface's launch is copied before the surface exists, so a failure leaves no surface" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var created: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .surfaces = &.{.{ .storage = &created, .free_launch_profile_key_on_deinit = true }},
+        });
+        defer session.deinit();
+        defer appendOwnedString(std.testing.allocator, &created.tab_title_override, null) catch unreachable;
+
+        const Hook = struct {
+            var surface: *Surface = undefined;
+            var calls: usize = 0;
+
+            fn createSurface(_: *App, _: *const configpkg.Config, _: LPCWSTR, _: SurfaceInitOptions) anyerror!*Surface {
+                calls += 1;
+                return surface;
+            }
+        };
+        Hook.surface = &created;
+        Hook.calls = 0;
+        app.test_create_window_surface = &Hook.createSurface;
+
+        const launch: pane_launch.Stamp = .{ .key = "ssh:prod", .ssh = true, .title = "prod" };
+        // The key's copy fails, then the title's: no surface is made, so a
+        // restore's transaction never misses one, and nothing leaks.
+        for (0..2) |fail_index| {
+            var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = fail_index });
+            core_app.alloc = failing.allocator();
+            defer core_app.alloc = std.testing.allocator;
+            try std.testing.expectError(error.OutOfMemory, app.createWindowSurface(&app.config, default_title, .{ .launch = launch }));
+            try std.testing.expectEqual(@as(usize, 0), Hook.calls);
+        }
+        // Past the copies nothing allocates: a surface made is a whole one.
+        var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = 2 });
+        core_app.alloc = failing.allocator();
+        defer core_app.alloc = std.testing.allocator;
+        const surface = try app.createWindowSurface(&app.config, default_title, .{ .launch = launch });
+        try std.testing.expectEqual(@as(usize, 1), Hook.calls);
+        try std.testing.expectEqualStrings("ssh:prod", surface.launch_profile_key orelse "");
+        try std.testing.expect(surface.launched_ssh);
+        try std.testing.expectEqualStrings("prod", surface.tab_title_override orelse "");
+    }
+
+    /// What `pane_launch.prepare` asks of the app about a new pane.
+    pub const LaunchContext = struct {
+        app: *App,
+        /// The window the pane opens in; null for a new one.
+        host: ?*Host,
+        /// The process's first pane, which runs `initial-command` (`-e`).
+        first: bool,
+
+        pub fn windowed(self: LaunchContext) bool {
+            return self.host != null;
+        }
+
+        pub fn listed(self: LaunchContext, key: []const u8) !?*const windows_shell.Profile {
+            const host = self.host orelse return null;
+            return try host.profileForKey(key);
+        }
+
+        pub fn discover(self: LaunchContext, alloc: Allocator) ![]windows_shell.Profile {
+            return try listProfilesForConfig(alloc, &self.app.config, windows_shell.listProfiles);
+        }
+
+        pub fn automatic(_: LaunchContext, alloc: Allocator) !configpkg.Command {
+            return try windows_shell.defaultCommand(alloc);
+        }
+    };
+
+    pub fn launchContext(self: *App, host: ?*Host) LaunchContext {
+        return .{ .app = self, .host = host, .first = self.core_app.first };
+    }
+
+    /// What `surface` launched, for a pane that repeats its launch or starts
+    /// its profile.
+    fn launchSource(surface: *const Surface) pane_launch.Source {
+        return .{
+            .command = surface.launch_command,
+            .user = surface.launch_user,
+            .key = surface.launch_profile_key,
+            .ssh = surface.launched_ssh,
+        };
     }
 
     fn createNewTab(
@@ -5233,7 +5468,6 @@ pub const App = struct {
     ) !*Surface {
         var config = try apprt.surface.newConfig(self.core_app, &self.config, .tab);
         defer config.deinit();
-        var inherited_profile_key: ?[]const u8 = null;
 
         if (shouldResetNewTabWorkingDirectory(
             explicit_window_target,
@@ -5245,14 +5479,18 @@ pub const App = struct {
             // source also needs the reset because its live cwd is remote.
             config.@"working-directory" = self.config.@"working-directory";
         }
+        // newConfig inherits only the focused surface's working directory;
+        // Launch command selection is app-runtime state and must be
+        // inherited from the source snapshot rather than re-resolved from
+        // mutable global/profile configuration. It comes before the
+        // explicit target's directory, which reads the command for its WSL
+        // fallback.
+        const inherited: ?*Surface = if (inherit_launch_config) source else null;
+        var launch: pane_launch.Stamp = if (inherited) |surface|
+            try pane_launch.prepare(&config, .{ .inherit = launchSource(surface) }, self.launchContext(surface.host))
+        else
+            .{};
         if (source) |surface| {
-            // newConfig inherits only the focused surface's working directory;
-            // Launch command selection is app-runtime state and must be
-            // inherited from the source snapshot rather than re-resolved from
-            // mutable global/profile configuration.
-            if (inherit_launch_config) {
-                inherited_profile_key = try applyLaunchConfigFromSource(&config, surface);
-            }
             if (explicit_window_target and shouldInheritSplitWorkingDirectory(surface.launched_ssh)) {
                 const split_inherit = config.@"split-inherit-working-directory";
                 {
@@ -5262,9 +5500,8 @@ pub const App = struct {
                 }
             }
         }
-
         // A tab that inherits no launch runs the default profile, if any.
-        const default_profile = try self.applyDefaultProfileLaunch(&config);
+        if (inherited == null) launch = try pane_launch.prepare(&config, .{ .fresh = .{} }, self.launchContext(null));
         if (working_directory) |cwd| try applyAutomationWorkingDirectory(&config, cwd);
         const surface = try self.createWindowSurface(&config, default_title, .{
             .host_id = if (source) |value| value.host_id else null,
@@ -5273,16 +5510,8 @@ pub const App = struct {
             else
                 null else null,
             .clone_state_from = source,
+            .launch = launch,
         });
-        if (inherited_profile_key) |key| try appendOwnedString(
-            self.core_app.alloc,
-            &surface.launch_profile_key,
-            key,
-        );
-        if (inherit_launch_config) {
-            if (source) |value| surface.launched_ssh = value.launched_ssh;
-        }
-        if (default_profile) |profile| try self.noteProfileLaunch(surface, profile);
         if (source) |value| value.invalidateRedoForUnsupportedTabStructuralAction();
         self.activateSurface(surface);
         return surface;
@@ -5299,16 +5528,14 @@ pub const App = struct {
         var config = try apprt.surface.newConfig(self.core_app, &self.config, .split);
         defer config.deinit();
         config.@"working-directory" = self.config.@"working-directory";
-        const inherited_profile_key = if (inherit_launch_config)
-            try applyLaunchConfigFromSource(&config, source)
+        const origin: pane_launch.Origin = if (inherit_launch_config)
+            .{ .inherit = launchSource(source) }
         else
-            try applySplitProfileConfigFromSource(&config, source);
-        // A split of a pane that runs no profile runs the default one.
-        const default_profile = try self.applyDefaultProfileLaunch(&config);
-        // An SSH default keeps its hardened directory, as an SSH source's
-        // split does: a local pane's directory means nothing to ssh.exe.
-        const default_ssh = if (default_profile) |profile| profile.kind == .ssh else false;
-        if (shouldInheritSplitWorkingDirectory(source.launched_ssh or default_ssh)) {
+            .{ .split = source.launch_profile_key };
+        const launch = try pane_launch.prepare(&config, origin, self.launchContext(source.host));
+        // An SSH launch keeps its hardened directory, an SSH default's too:
+        // a local pane's directory means nothing to ssh.exe.
+        if (shouldInheritSplitWorkingDirectory(source.launched_ssh or launch.ssh)) {
             _ = try applySplitWorkingDirectoryFromSource(self, &config, source, self.startup_cwd);
         }
         if (working_directory) |cwd| try applyAutomationWorkingDirectory(&config, cwd);
@@ -5317,16 +5544,8 @@ pub const App = struct {
             .tab_id = tab_info.tab.id,
             .clone_state_from = source,
             .split_direction = direction,
+            .launch = launch,
         });
-        if (inherited_profile_key) |key| try appendOwnedString(
-            self.core_app.alloc,
-            &surface.launch_profile_key,
-            key,
-        );
-        if (inherit_launch_config or inherited_profile_key != null) {
-            surface.launched_ssh = source.launched_ssh;
-        }
-        if (default_profile) |profile| try self.noteProfileLaunch(surface, profile);
         tab_info.tab.clearRedoHistory();
         if (tab_info.host.pushStructuralUndo(.{
             .kind = .split_create,
@@ -5347,40 +5566,165 @@ pub const App = struct {
         return surface;
     }
 
-    pub fn applyLaunchConfigFromSource(
-        config: *configpkg.Config,
-        source: *Surface,
-    ) !?[]const u8 {
-        if (source.launch_command) |command| {
-            config.command = try command.clone(config._arena.?.allocator());
-            config._command_defaulted = false;
-            // The snapshot, not the current definition: a reload since the
-            // source started does not change what an inherited launch runs.
-            if (source.launch_user) |launch| try applyUserLaunchConfig(config, launch);
-            if (source.launched_ssh) try applySshLaunchHardening(config);
-            return source.launch_profile_key;
-        }
+    test "an automation tab or split repeats the source pane's launch as it started, before its directory" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-        // Headless fixtures may not have a captured command. Preserve the
-        // previous profile fallback for those tests.
-        const key = source.launch_profile_key orelse return null;
-        const host = source.host orelse return null;
-        const profile = (try host.profileForKey(key)) orelse return null;
-        try applyProfileLaunchConfig(config, profile);
-        return profile.key;
-    }
-
-    pub fn applySplitProfileConfigFromSource(
-        config: *configpkg.Config,
-        source: *Surface,
-    ) !?[]const u8 {
-        const key = source.launch_profile_key orelse return null;
-        const profile = defaultProfileForKey(config, key) orelse profile: {
-            const host = source.host orelse return null;
-            break :profile (try host.profileForKey(key)) orelse return null;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var source: Surface = undefined;
+        var created: [4]Surface = undefined;
+        var surfaces: [1 + created.len]TestSession.SurfaceOptions = undefined;
+        surfaces[0] = .{ .storage = &source, .host = &host, .register = true };
+        for (&created, 1..) |*storage, index| surfaces[index] = .{
+            .storage = storage,
+            .host = &host,
+            .window_visible = false,
+            .host_active = false,
+            .free_launch_profile_key_on_deinit = true,
         };
-        try applyProfileLaunchConfig(config, profile);
-        return profile.key;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host, .register = true, .next_tab_id = 2 }},
+            .surfaces = &surfaces,
+            .tabs = &.{.{ .host = &host, .surface = &source, .id = 1 }},
+        });
+        defer session.deinit();
+        const alloc = app.core_app.alloc;
+
+        // The definition after a reload changed it, which a split of the
+        // source would start.
+        const arena = app.config._arena.?.allocator();
+        try app.config.@"profile-command".parseCLI(arena, "tool: new.exe");
+        try app.config.@"profile-env".parseCLI(arena, "tool: MODE=new");
+        app.config.@"tab-inherit-working-directory" = true;
+        try app.config.finalize();
+        // A live directory that is noctty's own start directory.
+        var startup = "C:\\startup".*;
+        app.startup_cwd = &startup;
+        defer app.startup_cwd = null;
+
+        const Seen = struct {
+            program: []const u8,
+            arg: []const u8,
+            mode: []const u8,
+            line: []const u8,
+            integration: configpkg.Config.ShellIntegration,
+            dir: []const u8,
+        };
+        const Hook = struct {
+            var seen_arena: std.heap.ArenaAllocator = undefined;
+            var seen: Seen = undefined;
+            var storage: []Surface = undefined;
+            var next: usize = 0;
+
+            fn pwd(a: Allocator, _: *Surface) anyerror!?[]const u8 {
+                return try a.dupe(u8, "C:\\startup");
+            }
+
+            fn createSurface(hook_app: *App, config: *const configpkg.Config, _: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
+                const a = seen_arena.allocator();
+                const argv = switch (config.command orelse return error.TestUnexpectedResult) {
+                    .direct => |words| words,
+                    .shell => return error.TestUnexpectedResult,
+                };
+                seen = .{
+                    .program = try a.dupe(u8, argv[0]),
+                    .arg = if (argv.len > 1) try a.dupe(u8, argv[1]) else "",
+                    .mode = if (config.env.map.get("MODE")) |value| try a.dupe(u8, value) else "",
+                    .line = if (opts.launch.user) |launch| try a.dupe(u8, launch.command_line) else "",
+                    .integration = config.@"shell-integration",
+                    .dir = if (config.@"working-directory") |dir| switch (dir) {
+                        .path => |path| try a.dupe(u8, path),
+                        .home => "~",
+                        .inherit => "",
+                    } else "",
+                };
+                const surface = &storage[next];
+                next += 1;
+                const tab_host = hook_app.registry.findHostById(opts.host_id orelse return surface) orelse return surface;
+                try hook_app.registry.addWindow(hook_app.core_app.alloc, surface);
+                if (opts.tab_id != null) {
+                    const found = Host.findTabForSurface(@constCast(opts.clone_state_from orelse return error.TestUnexpectedResult)) orelse return error.TestUnexpectedResult;
+                    var inserted = try SplitTreeSurface.init(hook_app.core_app.alloc, surface);
+                    defer inserted.deinit();
+                    const tree = try found.tab.tree.split(hook_app.core_app.alloc, found.tab.focused, opts.split_direction, 0.5, &inserted);
+                    found.tab.tree.deinit();
+                    found.tab.tree = tree;
+                } else {
+                    try tab_host.tabs.insert(
+                        hook_app.core_app.alloc,
+                        opts.tab_insert_index orelse tab_host.tabs.items.len,
+                        try Tab.init(hook_app.core_app.alloc, tab_host.nextTabId(), surface),
+                    );
+                }
+                return surface;
+            }
+        };
+        Hook.seen_arena = .init(std.testing.allocator);
+        defer Hook.seen_arena.deinit();
+        Hook.storage = &created;
+        Hook.next = 0;
+        app.test_create_window_surface = &Hook.createSurface;
+        app.test_automation_pwd = &Hook.pwd;
+
+        // What a user profile's pane started, line and variables with it:
+        // `+new-tab --window-id` and `+new-split` run that, not `tool` as it
+        // is now.
+        const started = [_][:0]const u8{ "old.exe", "/x" };
+        const started_env = [_]windows_shell.EnvEntry{.{ .key = "MODE", .value = "old" }};
+        source.launch_command = .{ .direct = &started };
+        source.launch_user = .{ .command_line = "old.exe /x", .env = &started_env };
+        source.launch_profile_key = "user:tool";
+        defer {
+            source.launch_command = null;
+            source.launch_user = null;
+            source.launch_profile_key = null;
+        }
+        const Expect = struct {
+            fn snapshot(surface: *const Surface) !void {
+                try std.testing.expectEqualStrings("old.exe", Hook.seen.program);
+                try std.testing.expectEqualStrings("/x", Hook.seen.arg);
+                try std.testing.expectEqualStrings("old", Hook.seen.mode);
+                try std.testing.expectEqualStrings("old.exe /x", Hook.seen.line);
+                try std.testing.expectEqualStrings("user:tool", surface.launch_profile_key orelse "");
+                try std.testing.expect(!surface.launched_ssh);
+            }
+        };
+        _ = try app.createNewTab(&source, null, true, true);
+        try Expect.snapshot(&created[0]);
+        // The window's tab takes the pane's live directory.
+        try std.testing.expectEqualStrings("C:\\startup", Hook.seen.dir);
+        _ = try app.createNewSplit(&source, .right, null, true);
+        try Expect.snapshot(&created[1]);
+
+        // An SSH pane's: hardened again, and still SSH.
+        const ssh = [_][:0]const u8{ "C:\\Windows\\System32\\OpenSSH\\ssh.exe", "prod" };
+        source.launch_command = .{ .direct = &ssh };
+        source.launch_user = null;
+        source.launch_profile_key = "ssh:prod";
+        source.launched_ssh = true;
+        _ = try app.createNewTab(&source, null, true, true);
+        try std.testing.expectEqualStrings("prod", Hook.seen.arg);
+        try std.testing.expectEqual(configpkg.Config.ShellIntegration.none, Hook.seen.integration);
+        try std.testing.expectEqualStrings("ssh:prod", created[2].launch_profile_key orelse "");
+        try std.testing.expect(created[2].launched_ssh);
+
+        // A WSL pane whose live directory is noctty's start directory: the
+        // explicit target's directory step reads the inherited command, so
+        // the tab falls back to the pane's last reported folder.
+        const wsl = [_][:0]const u8{ "wsl.exe", "-d", "Ubuntu" };
+        source.launch_command = .{ .direct = &wsl };
+        source.launch_profile_key = "wsl:Ubuntu";
+        source.launched_ssh = false;
+        try appendOwnedString(alloc, &source.pwd, "C:\\cached");
+        defer appendOwnedString(alloc, &source.pwd, null) catch unreachable;
+        _ = try app.createNewTab(&source, null, true, true);
+        try std.testing.expectEqualStrings("wsl.exe", Hook.seen.program);
+        try std.testing.expectEqualStrings("C:\\cached", Hook.seen.dir);
+        try std.testing.expectEqual(created.len, Hook.next);
     }
 
     /// The profile `new_window_elevated` runs for `key`: `default-profile`'s
@@ -5393,11 +5737,11 @@ pub const App = struct {
         key: []const u8,
         temporary: *?[]windows_shell.Profile,
     ) !?*const windows_shell.Profile {
-        if (defaultProfileForKey(&self.config, key)) |profile| return profile;
+        if (pane_launch.defaultProfileForKey(&self.config, key)) |profile| return profile;
         if (source_host) |host| return try host.profileForKey(key);
         const profiles = try listProfilesForConfig(self.core_app.alloc, &self.config, windows_shell.listProfiles);
         temporary.* = profiles;
-        const index = profileIndexByKey(profiles, key) orelse return null;
+        const index = profile_pick.byKey(profiles, key) orelse return null;
         return &profiles[index];
     }
 
@@ -5405,7 +5749,7 @@ pub const App = struct {
         self: *App,
         target: apprt.Target,
         profile: *const windows_shell.Profile,
-        open_target: ProfileOpenTarget,
+        open_target: OpenTarget,
     ) !*Surface {
         const source = self.registry.findSurfaceForTarget(target);
         var config = try apprt.surface.newConfig(
@@ -5418,7 +5762,7 @@ pub const App = struct {
             },
         );
         defer config.deinit();
-        try applyProfileSurfaceConfig(&config, profile);
+        const launch = try pane_launch.prepare(&config, .{ .chosen = profile }, self.launchContext(null));
 
         const tab_id = switch (open_target) {
             .split => blk: {
@@ -5429,36 +5773,37 @@ pub const App = struct {
             else => null,
         };
 
-        const surface_title = sshProfileAlias(profile) orelse profile.label;
+        const surface_title = launch.title orelse profile.label;
         const title_w = try std.unicode.utf8ToUtf16LeAllocZ(self.core_app.alloc, surface_title);
         defer self.core_app.alloc.free(title_w);
-        const surface = try self.createWindowSurface(&config, title_w.ptr, .{
+        return try self.createWindowSurface(&config, title_w.ptr, .{
             .host_id = if (open_target == .window) null else if (source) |v| v.host_id else null,
             .tab_insert_index = if (open_target == .tab and source != null and source.?.host != null)
                 windowNewTabInsertIndex(source.?.host.?, self.config.@"window-new-tab-position")
             else
                 null,
             .tab_id = tab_id,
-            .clone_state_from = if (open_target == .window) self.registry.newWindowSource(target) else source,
+            .window = if (open_target == .window) .from(self.registry.newWindowSource(target), &.{}) else .fresh,
+            .clone_state_from = if (open_target == .window) null else source,
+            .launch = launch,
         });
-        try self.noteProfileLaunch(surface, profile);
-        return surface;
     }
 
     pub fn createWindow(self: *App, title: LPCWSTR) !void {
-        if (!self.defaultProfileApplies(&self.config)) {
+        // The first window runs the app config itself, and a clone only when
+        // a default profile's variables, line and directory go on it.
+        if (!pane_launch.defaultApplies(&self.config, self.core_app.first)) {
             _ = try self.createWindowSurface(&self.config, title, .{});
             return;
         }
         var config = try apprt.surface.newConfig(self.core_app, &self.config, .window);
         defer config.deinit();
-        const directory = config.@"working-directory";
-        const profile = try self.applyDefaultProfileLaunch(&config);
         // Explorer's "Open in noctty" and a jump-list folder start a first
         // window with `--working-directory=` when no instance runs.
-        if (self.explicit_startup_working_directory) keepExplicitWorkingDirectory(&config, profile, directory);
-        const surface = try self.createWindowSurface(&config, title, .{});
-        if (profile) |value| try self.noteProfileLaunch(surface, value);
+        const launch = try pane_launch.prepare(&config, .{ .fresh = .{
+            .named_directory = self.explicit_startup_working_directory,
+        } }, self.launchContext(null));
+        _ = try self.createWindowSurface(&config, title, .{ .launch = launch });
     }
 
     fn createAdoptedWindow(
@@ -5475,7 +5820,7 @@ pub const App = struct {
         defer self.core_app.alloc.free(title_w);
         _ = try self.createWindowSurface(&config, title_w.ptr, .{
             .adopted_session = pending,
-            .show = adoptedInitialShow(pending.startup_flags, pending.show_window),
+            .window = .{ .adopted = adoptedInitialShow(pending.startup_flags, pending.show_window) },
         });
         win32_terminal_handoff.appendHandoffMilestone(self.core_app.alloc, "adopted_window_created");
     }
@@ -5509,7 +5854,7 @@ pub const App = struct {
                 opts: SurfaceInitOptions,
             ) anyerror!*Surface {
                 title_pinned = config.title != null;
-                show = opts.show;
+                show = opts.window.adopted;
                 return created_ref;
             }
         };
@@ -5681,6 +6026,14 @@ pub const App = struct {
         try std.testing.expectEqual(@as(?i32, c.SW_SHOWMINNOACTIVE), InitialShow.minimized.showCommand());
     }
 
+    /// Settings ends every preview at once (a close, Discard): one end, the
+    /// theme before the opacity, so each window shows its opacity once, at
+    /// the saved value (`endSettingsPreview`).
+    fn settingsEndPreviewsThunk(ctx: *anyopaque) void {
+        const app: *App = @ptrCast(@alignCast(ctx));
+        app.endSettingsPreview();
+    }
+
     pub fn refreshSystemWheelSettings(self: *App) void {
         self.wheel_settings = .{
             .lines = readSystemWheelSetting(c.SPI_GETWHEELSCROLLLINES, self.wheel_settings.lines),
@@ -5697,40 +6050,247 @@ pub const App = struct {
         }
     }
 
+    /// A system theme message (`WM_THEMECHANGED`, `WM_SYSCOLORCHANGE`, a
+    /// `WM_SETTINGCHANGE` that can change the theme, "ImmersiveColorSet"
+    /// among them): the message's part (`reconfigureSystemTheme`) and the
+    /// light/dark reload (`syncSystemColorScheme`) as one change, whichever
+    /// message of a light/dark change arrives first, so each window applies
+    /// its opacity once, at the value it ends at. Where a reload follows, it
+    /// rebuilds the theme and applies every window, so the message's part
+    /// goes into it: the system's inputs are taken first, and where they
+    /// changed every failed blur-behind is unlatched, so the reload's apply
+    /// is its one try. The message after the reload then finds both
+    /// baselines current (it still rebuilds a missing resource), after a
+    /// reload that failed at a pane's step too (`updateCoreConfig` rebuilds
+    /// the theme then). Without a reload the message runs as before, then
+    /// the sync: where the light/dark state did not change, it changes
+    /// nothing (a pane's `colorSchemeCallback` and core's `colorSchemeEvent`
+    /// return at once on an unchanged scheme); in safe mode with a changed
+    /// one, they still move each pane's and core's light/dark state, and
+    /// only the reload core asks for does nothing (the `.reload_config` arm
+    /// returns in safe mode), as on the "ImmersiveColorSet" path before.
+    pub fn systemColorSetChanged(self: *App) void {
+        const scheme: configpkg.ConditionalState.Theme = if (isSystemDarkMode()) .dark else .light;
+        const reloads = !self.safe_mode and self.core_app.config_conditional_state.theme != scheme;
+        if (reloads) {
+            if (self.takeSystemInputs()) for (self.registry.hosts.items) |host| {
+                host.blur_behind_failed = false;
+            };
+        } else self.reconfigureSystemTheme();
+        self.syncSystemColorScheme() catch |err| {
+            log.warn("win32 color scheme sync failed err={}", .{err});
+        };
+        if (reloads) self.reconfigureSystemTheme();
+    }
+
     pub fn syncSystemColorScheme(self: *App) !void {
         const scheme: apprt.ColorScheme = if (isSystemDarkMode()) .dark else .light;
 
         // Surface state must change before the app-wide reload because
         // App.updateConfig applies each surface's own conditional state and
         // Termio reports mode 2031 only after installing that derived config.
-        for (self.registry.windows.items) |surface| {
+        // (A test pane with no core has no state to change.)
+        if (!(builtin.is_test and self.test_surface_init_stage != null)) for (self.registry.windows.items) |surface| {
             surface.core().colorSchemeCallback(scheme);
-        }
+        };
         try self.core_app.colorSchemeEvent(self, scheme);
     }
 
-    pub fn reconfigureSystemTheme(self: *App) void {
-        const snapshot = SystemThemeSnapshot.capture(self.shownConfig());
-        const changed = self.system_theme_refresh.accept(snapshot) or !std.meta.eql(snapshot.theme, self.resolved_theme);
-        if (!changed) {
-            const missing_resources = for (self.registry.hosts.items) |host| {
-                if (host.hwnd != null and (host.chrome_brush == null or
-                    host.overlay_brush == null or host.edit_brush == null or
-                    host.chrome_font == null or host.preview_font == null or
-                    (!host.titlebar_icons_geometric and
-                        (host.titlebar_caption_icon_font == null or host.titlebar_action_icon_font == null)) or
-                    // The search font stays lazy. Only a failed attempt, not
-                    // its intentionally unused state, needs another chance.
-                    (host.search_icon_font_resolved and host.search_icon_font == null))) break true;
-            } else false;
-            if (!missing_resources) return;
+    /// Every update of the app's config from here: core `App.updateConfig`,
+    /// which updates each pane (its `.surface` `config_change`) and then the
+    /// app (the `.app` one), as one app-wide change
+    /// (`app_wide_config_change`), so each window applies its half once, in
+    /// the app's step.
+    ///
+    /// A pane's step that fails ends core's update before the app's, which
+    /// never installs `config`: the panes before the failing one took it,
+    /// the others kept what they had (a palette preview the update ended,
+    /// among them), and the panes left the windows to the app's step. And
+    /// core's light/dark state may have moved already (a light/dark reload
+    /// sets it first), while `app.config` is still in the state it was
+    /// installed in. Then the update ends as a soft reload of the config
+    /// the app keeps, in core's order, past a pane that fails: every pane
+    /// takes `app.config` in its own light/dark state, and the app's step
+    /// installs `app.config` replayed in the app's (its own config files
+    /// as last read, nothing of the failed update), so the panes, the
+    /// theme, Settings and every window, each once, agree on it, the arm
+    /// telling Settings past a window or pane that fails; any open palette
+    /// closes, as in every reload. A pane whose step fails again keeps what
+    /// that step did not reach (its scrollbar refresh, say). Where the arm
+    /// cannot take the config at all (its clone runs out of memory), every
+    /// palette still closes and the theme and every window show `app.config`
+    /// as it is, needing no other clone. The pane's error is returned.
+    /// The system theme message a light/dark reload runs after it
+    /// (`systemColorSetChanged`) finds the theme current and applies no
+    /// window again.
+    pub fn updateCoreConfig(self: *App, config: *const configpkg.Config) !void {
+        // Before core reads `config`, which is the app config itself in a
+        // soft reload: the reload starts from the config a preview replaced.
+        self.supersedePaletteThemePreviews();
+        const outer = self.app_wide_config_change;
+        const outer_applied = self.app_wide_windows_applied;
+        self.app_wide_config_change = true;
+        self.app_wide_windows_applied = false;
+        defer {
+            self.app_wide_config_change = outer;
+            self.app_wide_windows_applied = outer_applied;
         }
-        self.reconfigureTheme();
+        self.coreConfigUpdate(config) catch |err| {
+            if (!self.app_wide_windows_applied) self.reloadKeptConfig();
+            return err;
+        };
     }
 
-    pub fn reconfigureTheme(self: *App) void {
-        self.reconfigureThemeWith(.{});
+    /// The `.app` `config_change` arm's clone of the config fails in a test,
+    /// as it can when memory runs out.
+    pub var test_app_config_clone_fails = false;
+
+    /// `updateCoreConfig`'s end after an update that failed before the app's
+    /// step: core's order with `app.config`, logging a step that fails and
+    /// going on. Still inside the app-wide change, so each pane leaves its
+    /// window to the app's step.
+    fn reloadKeptConfig(self: *App) void {
+        for (self.registry.windows.items) |pane| {
+            self.updatePaneCoreConfig(pane, &self.config) catch |err| {
+                log.warn("win32 pane config restore after a failed update failed err={}", .{err});
+            };
+        }
+        // In the app's light/dark state, as core gives the app its config,
+        // or as it is if that fails, as core goes on then. The arm clones
+        // what it is given before it frees `app.config`.
+        var kept_ = self.config.changeConditionalState(self.core_app.config_conditional_state) catch null;
+        defer if (kept_) |*kept| kept.deinit();
+        _ = self.performAction(.app, .config_change, .{ .config = if (kept_) |*kept| kept else &self.config }) catch |err| {
+            log.warn("win32 app config restore after a failed update failed err={}", .{err});
+        };
+        // The arm ends before its window pass only where it could not take
+        // the config (its clone ran out of memory), and then nothing shows
+        // `app.config`: a palette preview the update ended stays on screen,
+        // with no preview left for its palette to revert. Then every
+        // palette still closes, and the theme and every window show
+        // `app.config` as it is, once. None of it needs another clone or an
+        // allocation to succeed: a palette's mode, catalog and preview are
+        // reset first, and its layout and text, and a theme resource
+        // rebuild, are best effort (each logs a failure and goes on).
+        if (!self.app_wide_windows_applied) {
+            for (self.registry.hosts.items) |host| {
+                if (host.overlay_mode == .command_palette) host.hideOverlay();
+            }
+            self.reconfigureTheme(.caller_applies);
+            self.applyWindowsConfig(&self.config) catch |err| {
+                log.warn("win32 window config apply after a failed update failed err={}", .{err});
+            };
+        }
     }
+
+    /// A reload replaces the app config: a palette's live theme preview
+    /// ends without being reverted on screen
+    /// (`Host.supersedePaletteThemePreview`), and the palette closes in the
+    /// `.app` `config_change` arm.
+    fn supersedePaletteThemePreviews(self: *App) void {
+        for (self.registry.hosts.items) |host| host.supersedePaletteThemePreview();
+    }
+
+    /// `updateCoreConfig` without its window pass after a failure.
+    fn coreConfigUpdate(self: *App, config: *const configpkg.Config) !void {
+        if (builtin.is_test and self.test_surface_init_stage != null) {
+            // Core's order, for panes with no core: each pane, then the app
+            // in the app's light/dark state, as core puts it.
+            for (self.core_app.surfaces.items) |pane| try self.updatePaneCoreConfig(pane, config);
+            var applied_ = config.changeConditionalState(self.core_app.config_conditional_state) catch null;
+            defer if (applied_) |*applied| applied.deinit();
+            _ = try self.performAction(.app, .config_change, .{ .config = if (applied_) |*applied| applied else config });
+            return;
+        }
+        try self.core_app.updateConfig(self, config);
+    }
+
+    /// The window half of an app-wide change (`window_state.applyConfig`)
+    /// for every window, past one that fails: a later failure is logged, the
+    /// first is returned once every window had its turn.
+    fn applyWindowsConfig(self: *App, config: *const configpkg.Config) @TypeOf(window_state.applyConfig(undefined, undefined)) {
+        var applied: @TypeOf(window_state.applyConfig(undefined, undefined)) = {};
+        for (self.registry.hosts.items) |host| {
+            window_state.applyConfig(host, config) catch |err| {
+                if (applied) |_| {
+                    applied = err;
+                } else |_| log.warn("win32 window config apply failed err={}", .{err});
+            };
+        }
+        return applied;
+    }
+
+    /// Core's config update of `pane` alone (`Surface.updateConfig`), which
+    /// ends in its `.surface` `config_change`.
+    pub fn updatePaneCoreConfig(self: *App, pane: *Surface, config: *const configpkg.Config) anyerror!void {
+        if (builtin.is_test and self.test_surface_init_stage != null) {
+            // In the pane's light/dark state, as core's `Surface.updateConfig`
+            // puts it; `syncSystemColorScheme` makes that the app's.
+            var applied_ = config.changeConditionalState(self.core_app.config_conditional_state) catch null;
+            defer if (applied_) |*applied| applied.deinit();
+            _ = try self.performAction(.{ .surface = pane.core() }, .config_change, .{ .config = if (applied_) |*applied| applied else config });
+            return;
+        }
+        try pane.core().updateConfig(config);
+    }
+
+    /// Takes the system's own theme inputs as the baseline a system theme
+    /// message compares with (`system_inputs`), and returns whether they
+    /// changed since the last message took them.
+    fn takeSystemInputs(self: *App) bool {
+        const inputs = window_state.SystemInputs.capture();
+        defer self.system_inputs = inputs;
+        const last = self.system_inputs orelse return true;
+        return !std.meta.eql(last, inputs);
+    }
+
+    pub fn reconfigureSystemTheme(self: *App) void {
+        // A rebuild when the snapshot differs from the last rebuild's,
+        // whatever made that one (each takes it again), or a resource is
+        // missing.
+        const snapshot = SystemThemeSnapshot.capture(self.shownConfig());
+        const changed = self.system_theme_refresh.accept(snapshot) or !std.meta.eql(snapshot.theme, self.resolved_theme);
+        const rebuild = changed or for (self.registry.hosts.items) |host| {
+            if (host.hwnd != null and (host.chrome_brush == null or
+                host.overlay_brush == null or host.edit_brush == null or
+                host.chrome_font == null or host.preview_font == null or
+                (!host.titlebar_icons_geometric and
+                    (host.titlebar_caption_icon_font == null or host.titlebar_action_icon_font == null)) or
+                // The search font stays lazy. Only a failed attempt, not
+                // its intentionally unused state, needs another chance.
+                (host.search_icon_font_resolved and host.search_icon_font == null))) break true;
+        } else false;
+        // A retry when the system's own inputs differ from the last system
+        // theme message's. Not from the snapshot: a reload or a Settings
+        // preview between a system change and its message rebuilds with the
+        // change, and the message then finds the snapshot as it left it.
+        // Resources a message finds missing are GDI's, not DWM's.
+        const system_changed = self.takeSystemInputs();
+        if (rebuild) {
+            self.reconfigureTheme(if (system_changed) .retry else .refresh);
+        } else if (system_changed) {
+            // Nothing to rebuild: an app rebuild already took the change in,
+            // or the change needs none (light/dark under a fixed
+            // `window-theme`). Either way every window whose blur-behind had
+            // not failed shows its opacity; only a failed one tries again.
+            for (self.registry.hosts.items) |host| {
+                if (host.blur_behind_failed) window_state.retryBackgroundOpacity(host);
+            }
+        }
+    }
+
+    /// Rebuilds every window's chrome, frame and DWM attributes for the
+    /// theme and `window-show-tab-bar`; then, after the frame write, `opacity`:
+    /// - `retry`: each window shows its opacity again, and one whose
+    ///   blur-behind failed tries it once more;
+    /// - `refresh`: each window shows its opacity again;
+    /// - `caller_applies`: none does; the caller's `window_state.applyConfig`
+    ///   applies it next, at the value it will show.
+    pub fn reconfigureTheme(self: *App, opacity: ThemeOpacity) void {
+        self.reconfigureThemeWith(opacity, .{});
+    }
+
+    pub const ThemeOpacity = enum { retry, refresh, caller_applies };
 
     /// What a theme change rebuilds beyond colours.
     pub const ThemeChange = struct {
@@ -5740,7 +6300,7 @@ pub const App = struct {
         fonts: bool = true,
     };
 
-    pub fn reconfigureThemeWith(self: *App, change: ThemeChange) void {
+    pub fn reconfigureThemeWith(self: *App, opacity: ThemeOpacity, change: ThemeChange) void {
         const previous_integrated_titlebar = self.use_integrated_titlebar;
         self.use_integrated_titlebar = shouldUseIntegratedTitlebar(
             self.os_build,
@@ -5756,7 +6316,13 @@ pub const App = struct {
             previous_tab_bar_visible != self.tab_bar_visible;
         // The theme as Settings previews it.
         const shown = self.shownConfig();
-        self.resolved_theme = resolveTheme(shown);
+        // What the next system theme message compares with to decide on a
+        // rebuild is this rebuild, whatever asked for it (Settings' preview,
+        // a reload, the palette's theme). Whether a failed blur-behind tries
+        // again it decides from `system_inputs`, which this leaves alone.
+        const snapshot = SystemThemeSnapshot.capture(shown);
+        self.system_theme_refresh.previous = snapshot;
+        self.resolved_theme = snapshot.theme;
         for (self.registry.hosts.items) |host| {
             host.rebuildThemeBrushes();
             if (change.fonts) host.recreateChromeFont();
@@ -5783,6 +6349,16 @@ pub const App = struct {
                         c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_NOZORDER | c.SWP_NOACTIVATE | c.SWP_FRAMECHANGED,
                     );
                     host.scheduleCaptionUiaSync();
+                }
+                // High Contrast shows every window opaque, and a window that
+                // had blur-behind asserts it again across the theme change,
+                // after the frame write above, as fullscreen and the
+                // decorations toggle do (not every frame write does: open
+                // item (d) of the OPACITY-640-FOLLOWUPS log entry).
+                switch (opacity) {
+                    .retry => window_state.retryBackgroundOpacity(host),
+                    .refresh => window_state.refreshBackgroundOpacity(host),
+                    .caller_applies => {},
                 }
                 if (chrome_layout_changed) {
                     runUiActionOrLog("theme update layout failed", host.layout());
@@ -5814,11 +6390,11 @@ pub const App = struct {
     }
 
     /// The opacity a window applies along with `config`
-    /// (`Surface.applyRuntimeConfig`): Settings' preview of it while one is
-    /// shown, whatever `config` is. A reload reaches each terminal's own
-    /// config before the app's (`CoreApp.updateConfig`), so a window that
-    /// took the saved value there would show it until the app's
-    /// `config_change` put the preview back, a theme rebuild later.
+    /// (`window_state.applyConfig`): Settings' preview of it while one is
+    /// shown, whatever `config` is, so neither a pane's own config change
+    /// (its `.surface` `config_change` outside an app-wide change) nor a
+    /// reload's app-wide step shows a window the saved value under a
+    /// preview.
     pub fn shownBackgroundOpacity(self: *const App, config: *const configpkg.Config) f64 {
         if (self.settings_preview) |*preview| {
             if (preview.@"background-opacity" != self.config.@"background-opacity") return preview.@"background-opacity";
@@ -5847,11 +6423,18 @@ pub const App = struct {
     pub fn refreshSettingsPreview(self: *App, effect: win32_settings.PreviewEffect) void {
         switch (effect) {
             .none => {},
-            .theme => self.reconfigureTheme(),
-            .opacity => for (self.registry.windows.items) |surface| {
-                surface.applyRuntimeConfig(&self.config) catch |err| {
-                    log.warn("settings live preview apply failed err={}", .{err});
-                };
+            .theme => self.reconfigureTheme(.refresh),
+            .opacity => {
+                for (self.registry.windows.items) |surface| {
+                    surface.applyRuntimeConfig(&self.config) catch |err| {
+                        log.warn("settings live preview apply failed err={}", .{err});
+                    };
+                }
+                for (self.registry.hosts.items) |host| {
+                    window_state.applyConfig(host, &self.config) catch |err| {
+                        log.warn("settings live preview apply failed err={}", .{err});
+                    };
+                }
             },
         }
     }
@@ -5881,9 +6464,11 @@ pub const App = struct {
     }
 
     /// Settings previews nothing any more: a save wrote every draft, or the
-    /// window closed. Normally nothing is left to end: a save's reload shows
-    /// no preview (`livePreviews` is empty while a save is in flight) and a
-    /// close rolls its previews back. A save without a reload (safe mode)
+    /// window rolled its previews back (a close, Discard: its `endPreviews`
+    /// hook, `settingsEndPreviewsThunk`, so a theme and an opacity reverted
+    /// together show each window once). A save's reload shows no preview
+    /// (`livePreviews` is empty while a save is in flight), so normally a
+    /// save leaves nothing to end; a save without a reload (safe mode)
     /// leaves the overlay, and the transaction ends its previews at a save
     /// without a rollback effect, so the windows go to the saved config here.
     pub fn endSettingsPreview(self: *App) void {
@@ -5896,8 +6481,22 @@ pub const App = struct {
             if (effect == .none) continue;
             if (!std.meta.eql(win32_settings.settingValue(&previous, field), win32_settings.settingValue(&self.config, field))) changed.insert(effect);
         }
+        // The theme before the opacity: `EnumSet` iterates in tag order,
+        // which is `PreviewEffect`'s declaration order. An opacity that ends
+        // with the theme is applied by the opacity's own `applyConfig`, for
+        // every window, so the theme does not show the previewed opacity
+        // first.
+        comptime {
+            if (@intFromEnum(win32_settings.PreviewEffect.theme) > @intFromEnum(win32_settings.PreviewEffect.opacity)) {
+                @compileError("endSettingsPreview ends the theme before the opacity: PreviewEffect must declare .theme before .opacity");
+            }
+        }
         var effects = changed.iterator();
-        while (effects.next()) |effect| self.refreshSettingsPreview(effect);
+        while (effects.next()) |effect| {
+            if (effect == .theme and changed.contains(.opacity)) {
+                self.reconfigureTheme(.caller_applies);
+            } else self.refreshSettingsPreview(effect);
+        }
     }
 
     /// Where the picker starts when nothing was chosen or hinted: the profile
@@ -5906,8 +6505,8 @@ pub const App = struct {
     pub fn defaultShellProfileIndex(self: *const App, profiles: []const windows_shell.Profile) ?usize {
         // A `default-profile` the picker does not show (hidden) leaves the
         // choice to the caller rather than to its command's shell.
-        if (!self.config._command_defaulted or self.config._default_profile != null) return null;
-        return windows_shell.profileIndexForDefaultCommand(profiles, self.config.command orelse return null);
+        if (pane_launch.defaultProfile(&self.config) != null) return null;
+        return windows_shell.profileIndexForDefaultCommand(profiles, pane_launch.nocttyCommand(&self.config) orelse return null);
     }
 
     pub fn applyLauncherQuickSlotPreferences(self: *App, profiles: []windows_shell.Profile) void {
@@ -5919,32 +6518,22 @@ pub const App = struct {
     }
 
     pub fn launcherQuickSlotOrdinal(self: *const App, key: []const u8) ?usize {
-        return findLauncherQuickSlotOrdinal(self.launcher_quick_slot_keys, key);
+        return profile_pick.pinByKey(&self.launcher_quick_slot_keys, key);
     }
 
     pub fn setLauncherQuickSlotPreference(self: *App, slot_ordinal: usize, key: []const u8) !void {
         if (slot_ordinal >= self.launcher_quick_slot_keys.len) return;
         if (!launcherQuickSlotAssignmentNeedsChange(self.launcher_quick_slot_keys, slot_ordinal, key)) return;
-        var duplicate_slot: ?usize = null;
-        for (self.launcher_quick_slot_keys, 0..) |existing, index| {
-            if (existing) |value| {
-                if (storedProfileKeyEquals(value, key)) {
-                    duplicate_slot = index;
-                    break;
-                }
-            }
-        }
-
-        if (duplicate_slot) |index| {
-            if (index != slot_ordinal) {
-                if (self.launcher_quick_slot_keys[slot_ordinal]) |current| {
-                    try appendOwnedString(self.core_app.alloc, &self.launcher_quick_slot_keys[index], current);
-                } else {
-                    runUiActionOrLog(
-                        "quick slot deduplication failed",
-                        appendOwnedString(self.core_app.alloc, &self.launcher_quick_slot_keys[index], null),
-                    );
-                }
+        // The key is pinned in another slot, never this one (the guard above):
+        // that slot takes this slot's key.
+        if (profile_pick.pinByKey(&self.launcher_quick_slot_keys, key)) |index| {
+            if (self.launcher_quick_slot_keys[slot_ordinal]) |current| {
+                try appendOwnedString(self.core_app.alloc, &self.launcher_quick_slot_keys[index], current);
+            } else {
+                runUiActionOrLog(
+                    "quick slot deduplication failed",
+                    appendOwnedString(self.core_app.alloc, &self.launcher_quick_slot_keys[index], null),
+                );
             }
         }
 
@@ -5954,6 +6543,9 @@ pub const App = struct {
             runUiActionOrLog("quick slot profile refresh failed", host.reapplyLauncherProfilePreferences());
             host.refreshProfileChrome();
         }
+        // The Profiles page keeps the pinned profiles first, as the picker
+        // now shows them.
+        self.settings_window.profilesChanged();
     }
 
     test "setLauncherQuickSlotPreference keeps the other slot's key when the copy fails" {
@@ -6118,13 +6710,11 @@ pub const App = struct {
     }
 
     /// A hidden top-level window for the window `Surface.init` creates with
-    /// `config` and `opts`: placed and decorated as that window's own config
-    /// says (a forwarded launch's keys included, see `WindowKeeps`), or as
-    /// the window it is opened from.
-    pub fn createHost(self: *App, title: LPCWSTR, config: *const configpkg.Config, opts: SurfaceInitOptions) !*Host {
-        const clone_state_from = opts.clone_state_from;
-        const quick_terminal = opts.quick_terminal;
-        const keeps = WindowKeeps.forNewSurface(config, opts);
+    /// `config`, started as `origin` says (`window_state.begin`): placed and
+    /// decorated as that window's own config says, a forwarded launch's keys
+    /// included, or as the window it is opened from.
+    pub fn createHost(self: *App, title: LPCWSTR, config: *const configpkg.Config, origin: window_state.Origin) !*Host {
+        const start = try window_state.begin(self, config, origin);
         try self.ensureHostWindowClass();
         try self.ensurePaletteListClass();
         try self.ensureScrollbarClass();
@@ -6135,7 +6725,9 @@ pub const App = struct {
         host.* = .{
             .app = self,
             .id = self.allocateHostId(),
-            .quick_terminal = quick_terminal,
+            .quick_terminal = origin == .quick_terminal,
+            .top_level = start.plan.top_level,
+            .pending_start = start,
         };
         host.palette_catalog = try PaletteCatalog.init(
             &host.palette_catalog_items,
@@ -6146,22 +6738,13 @@ pub const App = struct {
             try appendOwnedString(self.core_app.alloc, &host.selected_profile_key, key);
         }
 
-        const position = configuredHostWindowPosition(config);
-        const startup_decorations_visible = Surface.initialDecorationsVisible(config, opts);
-        host.cached_decorations_visible = startup_decorations_visible;
-        // A window with a size of its own starts framed, so core init sizes
-        // the window it leaves fullscreen to.
-        const startup_fullscreen = if (clone_state_from) |source| source.fullscreen and !keeps.size else false;
-        const keeps_frame = startup_decorations_visible or undecoratedKeepsFrame(self.os_build, quick_terminal);
-        const startup_style = startupHostWindowStyle(keeps_frame, startup_fullscreen);
-
         const hwnd = sys.CreateWindowExW(
             0,
             host_class_name,
             title,
-            startup_style,
-            if (position) |v| v.x else c.CW_USEDEFAULT,
-            if (position) |v| v.y else c.CW_USEDEFAULT,
+            start.plan.style,
+            if (start.plan.position) |at| at.x else c.CW_USEDEFAULT,
+            if (start.plan.position) |at| at.y else c.CW_USEDEFAULT,
             1280,
             800,
             null,
@@ -6172,9 +6755,6 @@ pub const App = struct {
         host.hwnd = hwnd;
         setWindowIcon(hwnd, self.hinstance);
         applyDwmThemeWithBuild(hwnd, &self.resolved_theme, self.shownConfig(), self.os_build);
-        if (!startup_decorations_visible and keeps_frame) {
-            win32_theme.WindowThemeAdapter.setHostBorderVisible(hwnd, false);
-        }
         host.current_dpi = sys.GetDpiForWindow(hwnd);
         if (host.current_dpi == 0) host.current_dpi = 96;
         host.chrome_font = host.createChromeFont();
@@ -6185,13 +6765,6 @@ pub const App = struct {
         };
 
         self.attachShellCompositorWindow(hwnd);
-        // On Windows 10, an undecorated host comes back from
-        // `CreateWindowEx` with a caption it did not ask for. Take it off
-        // while the host is still hidden and has no tabs. This goes after the
-        // compositor attach because the frame change resizes the client area,
-        // and the host's WM_SIZE resizes its compositor target (when a
-        // compositor is running), which must exist by then.
-        restoreRequestedHostWindowStyle(hwnd, startup_style);
 
         try self.registry.addHost(self.core_app.alloc, host);
         host_registered = true;
@@ -6206,9 +6779,10 @@ pub const App = struct {
             self.removeHost(host);
         }
         if (self.jump_list) |*jump_list| jump_list.scheduleIfStartupPending();
-        if (clone_state_from) |source| {
-            if (source.host) |existing| try self.inheritHostWindowState(host, existing, keeps.position);
-        }
+        // After the compositor attach: the hidden window's style is put back
+        // over what `CreateWindowEx` gave it, and a copy is moved to where
+        // it will show.
+        try window_state.advance(host, .created);
 
         host.power_notifications = win32_power.Notifications.init(hwnd);
 
@@ -6333,8 +6907,6 @@ pub const App = struct {
         try std.testing.expectEqual(@as(u32, 0), app.shell_compositor.status().active_target_count);
     }
 
-    pub const inheritHostWindowState = window_state.inheritHostWindowState;
-
     pub fn automationDefaultSurface(self: *App) ?*Surface {
         if (self.core_app.focusedSurface()) |core_surface| {
             if (self.registry.findSurfaceByCore(core_surface)) |surface| return surface;
@@ -6435,7 +7007,7 @@ pub const App = struct {
         return try self.setInspectorActionForSurface(surface, .toggle);
     }
 
-    pub fn hostTabStatus(self: *App, surface: *const Surface) HostTabStatus {
+    pub fn hostTabStatus(self: *App, surface: *const Surface) tab_label.TabStatus {
         _ = self;
         const host = surface.host orelse return .{};
         const total = host.tabs.items.len;
@@ -6451,13 +7023,11 @@ pub const App = struct {
         _ = self;
         const host = surface.host orelse return;
         const tab_info = Host.findTabForSurface(surface) orelse return;
-        const previous_surface = host.activeSurface();
         const previous_tab_id = if (host.active_tab < host.tabs.items.len)
             host.tabs.items[host.active_tab].id
         else
             null;
         host.active_tab = tab_info.index;
-        surface.syncSharedHostWindowState(previous_surface);
         host.prepareActiveTabVisibility(tab_info.index);
         host.showTabPanes(tab_info.tab);
         // Same-host tab creation reaches this path before its first layout.
@@ -6619,32 +7189,12 @@ pub const App = struct {
         };
     }
 
-    fn handleToastActivation(self: *App, activation: win32_toast_activation.ActivationTarget) bool {
-        if (activation.action) |action| switch (action) {
-            .focus => {},
-        };
-
-        const surface = self.registry.resolveToastActivationSurface(activation) orelse return false;
-        surface.present();
-        return true;
-    }
-
-    /// Whether `activation` is a new click, not the second delivery of one
-    /// (the popup's in-process handler and the COM activator both report a
-    /// popup click when both exist).
-    fn admitToastActivation(self: *App, activation: win32_toast_activation.ActivationTarget) bool {
-        return self.toast_click_filter.admit(activation, std.time.milliTimestamp());
-    }
-
-    /// A click from the toast's popup handler or the COM activator. With no
-    /// surface to present (`initial-window = false`, or the last window
-    /// closed under `quit-after-last-window-closed = false`), it asks for a
-    /// window the way a forwarded click does, and that window presents it
-    /// (`consumePendingToastActivation`), as a cold start's would.
-    pub fn receiveToastActivation(self: *App, activation: win32_toast_activation.ActivationTarget) void {
-        if (!self.admitToastActivation(activation)) return;
-        if (self.handleToastActivation(activation)) return;
-        self.pending_toast_activation = activation;
+    /// A toast click with nothing to present (`initial-window = false`, or
+    /// the last window closed under `quit-after-last-window-closed = false`)
+    /// asks for a window the way a forwarded click does, and that window
+    /// presents it (`Notifications.click(.window_opened)`), as a cold
+    /// start's would.
+    pub fn openWindowForToastClick(self: *App) void {
         // Before the startup windows exist the first of them takes it, and a
         // terminal handoff server's windows come only from handoffs.
         if (!self.startup_windows_opened or self.embedding_mode) return;
@@ -6682,22 +7232,15 @@ pub const App = struct {
             log.info("toast activation start in a copy that registers no activator", .{});
             return .{};
         }
-        var capture: ColdToastCapture = .{};
+        var capture: notifications.ColdToastCapture = .{};
         win32_toast_activator.bind(capture.sink());
         // `startToastActivator` binds the App channel once it exists.
         defer win32_toast_activator.bind(null);
         win32_toast_activator.register() catch return .{};
 
-        if (!pumpUntilColdToastActivation(&capture, cold_toast_activation_wait_ms))
+        if (!notifications.pumpUntilColdToastActivation(&capture, cold_toast_activation_wait_ms))
             log.warn("toast activation start: no activation within {d} ms", .{cold_toast_activation_wait_ms});
-        return capture.target();
-    }
-
-    fn consumePendingToastActivation(self: *App) void {
-        const activation = self.pending_toast_activation orelse return;
-        if (self.handleToastActivation(activation)) {
-            self.pending_toast_activation = null;
-        }
+        return capture.activation;
     }
 
     /// Like `activateSurface`, but neither shows, raises nor focuses the
@@ -6756,8 +7299,6 @@ pub const App = struct {
         return changed;
     }
 
-    const syncHostWindowState = window_state.syncHostWindowState;
-
     pub fn removeHost(self: *App, host: *Host) void {
         if (!self.registry.detachHost(host)) return;
         host.deinit();
@@ -6767,7 +7308,7 @@ pub const App = struct {
     pub fn windowDestroyed(self: *App, surface: *Surface) void {
         self.registry.removeWindow(surface);
         // A closed pane's toast can no longer focus anything.
-        self.forgetSurfaceToast(surface);
+        self.notifications.panesChanged();
         if (surface.host) |host| {
             if (self.session_restore_rollback_host == host) return;
             const previous_tab_id = if (host.active_tab < host.tabs.items.len)
@@ -6869,21 +7410,27 @@ pub const App = struct {
                     if (host.hwnd) |hwnd| _ = sys.DestroyWindow(hwnd);
                     self.removeHost(host);
                 }
-            } else if (self.running) {
-                // A close never restores, raises or takes focus from a
-                // window the user is not looking at, and moves focus only
-                // when the pane that had it closed.
-                if (host.activeTab()) |tab| if (tab.focusedSurface()) |replacement| {
-                    if (was_active_surface and tabSeenByUser(host, host.active_tab))
-                        self.activateSurface(replacement)
-                    else
-                        self.activateSurfaceNoFocus(replacement);
-                };
-                // Relayout after tab removal because the chrome
-                // reservation may have changed. In this fork,
-                // `.auto` still shows the row since it carries the
-                // essential host controls (+, overflow).
-                runUiActionOrLog("surface close layout failed", host.layout());
+            } else {
+                // The last D3D11 pane may have closed. Not in a window that
+                // closes whole (`Host.closing`), which would show a mode for
+                // the moment before it goes.
+                if (!self.quitting and !host.closing) window_state.refreshBackgroundOpacity(host);
+                if (self.running) {
+                    // A close never restores, raises or takes focus from a
+                    // window the user is not looking at, and moves focus only
+                    // when the pane that had it closed.
+                    if (host.activeTab()) |tab| if (tab.focusedSurface()) |replacement| {
+                        if (was_active_surface and tabSeenByUser(host, host.active_tab))
+                            self.activateSurface(replacement)
+                        else
+                            self.activateSurfaceNoFocus(replacement);
+                    };
+                    // Relayout after tab removal because the chrome
+                    // reservation may have changed. In this fork,
+                    // `.auto` still shows the row since it carries the
+                    // essential host controls (+, overflow).
+                    runUiActionOrLog("surface close layout failed", host.layout());
+                }
             }
             if (shell_mapping_changed and shell_mapping_stable) {
                 self.auditShellNativeMapping("surface-close");
@@ -7122,7 +7669,7 @@ pub const App = struct {
             var hint_buf: [96]u8 = undefined;
             runUiActionOrLog(
                 "tab close banner failed",
-                host.setBanner(.info, labels.tabClosedMessage(
+                host.setBanner(.info, tabClosedMessage(
                     &self.config.keybind.set,
                     .{
                         .has_modifier_remaps = self.config.@"key-remap".map.count() != 0,
@@ -7627,16 +8174,10 @@ pub const App = struct {
         errdefer alloc.free(owned);
         const handler = linkHandlerName(alloc, scheme, internal_os.windows.AssocQueryStringW);
         defer if (handler == .app) alloc.free(handler.app);
-        const body = try labels.linkPromptBody(alloc, handler, scheme);
-        defer alloc.free(body);
-        try host.showConfirm(.{
-            .title = labels.link_prompt_title,
-            .body = body,
-            .accept_label = labels.link_prompt_accept_label,
-            .cancel_label = "Cancel",
-            .contents = link,
-            .program_request = true,
-        }, &linkConfirmAccept, &linkConfirmCancel, surface);
+        var words: confirm_text.Words = .{};
+        defer words.deinit(alloc);
+        const prompt = try words.link(alloc, .{ .url = link, .scheme = scheme, .handler = handler });
+        try host.showConfirm(prompt, &linkConfirmAccept, &linkConfirmCancel, surface);
         // After showConfirm: replacing this pane's earlier prompt released
         // the link that one held.
         surface.setPendingLinkOpen(owned);
@@ -7669,7 +8210,7 @@ pub const App = struct {
     /// `.none` when no app is set. Unlike ShellExecuteW it delivers no
     /// window messages (measured with posted and sent ones), so the
     /// click's window procedure may call it.
-    fn linkHandlerName(alloc: Allocator, scheme: []const u8, comptime query: anytype) labels.LinkHandler {
+    fn linkHandlerName(alloc: Allocator, scheme: []const u8, comptime query: anytype) confirm_text.LinkHandler {
         var scheme_w: [16:0]u16 = @splat(0);
         if (scheme.len > scheme_w.len) return .unnamed;
         for (scheme, 0..) |byte, i| scheme_w[i] = byte;
@@ -7917,7 +8458,7 @@ pub const App = struct {
                 .url = target,
             }));
             try std.testing.expectEqual(HostBannerKind.info, host.banner_kind);
-            try std.testing.expectEqualStrings(labels.open_refused_banner, host.banner_text.?);
+            try std.testing.expectEqualStrings(open_refused_banner, host.banner_text.?);
             try std.testing.expectEqual(@as(usize, 0), app.deferred_opens.items.len);
         }
 
@@ -7940,7 +8481,7 @@ pub const App = struct {
                 .url = alias,
             }));
             try std.testing.expectEqual(HostBannerKind.info, host.banner_kind);
-            try std.testing.expectEqualStrings(labels.open_refused_banner, host.banner_text.?);
+            try std.testing.expectEqualStrings(open_refused_banner, host.banner_text.?);
             try std.testing.expectEqual(@as(usize, 0), app.deferred_opens.items.len);
         }
 
@@ -7955,10 +8496,10 @@ pub const App = struct {
 
         // Quick select says why nothing happened, in the same banner.
         try host.setBanner(.none, null);
-        surface.showQuickSelectNotice(labels.quick_select_no_targets_banner);
-        try std.testing.expectEqualStrings(labels.quick_select_no_targets_banner, host.banner_text.?);
-        surface.showQuickSelectNotice(labels.quick_select_too_many_banner);
-        try std.testing.expectEqualStrings(labels.quick_select_too_many_banner, host.banner_text.?);
+        surface.showQuickSelectNotice(Surface.quick_select_no_targets_banner);
+        try std.testing.expectEqualStrings(Surface.quick_select_no_targets_banner, host.banner_text.?);
+        surface.showQuickSelectNotice(Surface.quick_select_too_many_banner);
+        try std.testing.expectEqualStrings(Surface.quick_select_too_many_banner, host.banner_text.?);
     }
 
     test "a link past the web and mail schemes opens only once its prompt is accepted" {
@@ -8038,9 +8579,10 @@ pub const App = struct {
             // opens it now: a machine's handler is no fixed answer.
             const handler = linkHandlerName(alloc, scheme, internal_os.windows.AssocQueryStringW);
             defer if (handler == .app) alloc.free(handler.app);
-            const body = try labels.linkPromptBody(alloc, handler, scheme);
-            defer alloc.free(body);
-            try std.testing.expectEqualStrings(body, payload.body);
+            var words: confirm_text.Words = .{};
+            defer words.deinit(alloc);
+            const asked = try words.link(alloc, .{ .url = link, .scheme = scheme, .handler = handler });
+            try std.testing.expectEqualStrings(asked.body, payload.body);
             // As upstream's alert, it opens on Cancel.
             try std.testing.expect(payload.program_request);
             try std.testing.expect(!app.runDeferredOpens());
@@ -8143,7 +8685,7 @@ pub const App = struct {
         };
         const alloc = std.testing.allocator;
         const W = std.unicode.utf8ToUtf16LeStringLiteral;
-        for ([_]struct { []const u16, u32, windows.HRESULT, labels.LinkHandler }{
+        for ([_]struct { []const u16, u32, windows.HRESULT, confirm_text.LinkHandler }{
             .{ W("PuTTY\x00"), 6, 0, .{ .app = "PuTTY" } },
             // No app is set (ERROR_NO_ASSOCIATION); S_FALSE names none.
             .{ W("PuTTY\x00"), 6, c.HRESULT_NO_ASSOCIATION, .none },
@@ -8482,6 +9024,18 @@ pub const App = struct {
     /// surfacing the failure. `pending` is borrowed, not consumed —
     /// the caller still owns its arena.
     pub fn settingsSaveAndReload(self: *App, pending: *const configpkg.Config, original: *const configpkg.Config) win32_settings.SaveError!void {
+        // A baseline no group of which has followed the file since it was
+        // read: each record is as `original` gives it.
+        const baselines: settings_patch.Baselines = .of(original);
+        return self.settingsSaveAndReloadFrom(pending, original, &baselines);
+    }
+
+    /// `settingsSaveAndReload`, with the draft's baseline for each group of
+    /// profile keys (`baselines`, the Settings window's, which may have
+    /// followed the file since `original` was read): the check for another
+    /// program's change compares each with its own record
+    /// (`settings_patch.changedUnder`).
+    pub fn settingsSaveAndReloadFrom(self: *App, pending: *const configpkg.Config, original: *const configpkg.Config, baselines: *const settings_patch.Baselines) win32_settings.SaveError!void {
         const alloc = self.core_app.alloc;
 
         // Target file selection:
@@ -8511,17 +9065,76 @@ pub const App = struct {
         // default-drop would strip the reset line, and the include
         // would re-apply its non-default value on next reload.
         const user_edited = settingsUserEditedKeys(original, pending);
-        // No-op short-circuit: if the user pressed Save without
-        // changing anything, don't touch the filesystem. On a
-        // first-run machine with no existing config file, the write
-        // would otherwise create a zero-byte file that then fires
-        // `error.FileIsEmpty` warnings on every subsequent load.
-        // On an existing file, skipping also avoids an unnecessary
-        // mtime bump.
-        if (user_edited.count() == 0) return;
+        // The profile editor's changes, by field (`settings_patch`): what the
+        // file must hold for `pending`'s profiles, worked out against the
+        // layers `original` was read from.
+        var profile_arena: std.heap.ArenaAllocator = .init(alloc);
+        defer profile_arena.deinit();
+        // In the light/dark state the app applies now, which may have
+        // changed since Settings opened (`settings_patch.editsForSave`).
+        const state = self.core_app.config_conditional_state;
+        // What the check before this save read of the file, taken here so a
+        // later save without one compares nothing stale.
+        var check: SettingsCheck = self.settings_check orelse .{ .read_as = null, .apply = true };
+        self.settings_check = null;
+        var checked_again = false;
+        var profile_edits: []settings_patch.Edit = undefined;
+        while (true) {
+            _ = profile_arena.reset(.retain_capacity);
+            profile_edits = settings_patch.editsForSave(profile_arena.allocator(), alloc, &.{&self.config}, state, original, pending, target_path, &settings_reference.samePath) catch |err|
+                return settingsProfileEditsFailed(err);
+            // Whether another file still names a removed profile decides a
+            // tombstone or a deletion, and `self.config` is as of the last
+            // reload: a file that gained the profile since, with no reload,
+            // would be missed and the profile come back. With profile edits to
+            // make, the layers are read from disk again
+            // (`settingsProfileEditsFromDisk`), a check of their own: the file
+            // is compared with what it held as they were read, unless the
+            // check before the save read it first.
+            if (profile_edits.len != 0) {
+                if (check.read_as == null) check.read_as = try self.settingsDigest(alloc, target_path);
+                // Every fresh read: the profile fields the draft changes
+                // have no Keep mine / Use disk, so one another program
+                // changed since Settings read the config stops the save
+                // (before the save, or while it ran); an edit to anything
+                // else is saved on top of, as an ordinary one is. Not in
+                // recovery: its baseline is the recovery config, not the
+                // file, so a repair would read as a change (the file's
+                // digests are still compared).
+                const compare: ?ProfileCompare = if (self.safe_mode) null else .{ .edits = profile_edits, .baselines = baselines };
+                profile_edits = try settingsProfileEditsFromDisk(profile_arena.allocator(), alloc, &self.settings_failure_detail, self.loadConfigAtStartupCwd(), &self.config, state, original, pending, target_path, compare);
+            }
+            // No-op short-circuit: if the user pressed Save without
+            // changing anything, don't touch the filesystem. On a
+            // first-run machine with no existing config file, the write
+            // would otherwise create a zero-byte file that then fires
+            // `error.FileIsEmpty` warnings on every subsequent load.
+            // On an existing file, skipping also avoids an unnecessary
+            // mtime bump.
+            if (user_edited.count() == 0 and profile_edits.len == 0) return;
 
-        self.settings_failure_detail.clear(alloc);
-        try persistSettings(alloc, target_path, pending, user_edited, &self.settings_failure_detail);
+            self.settings_failure_detail.clear(alloc);
+            persistSettings(alloc, target_path, pending, user_edited, profile_edits, &self.settings_failure_detail, check.read_as) catch |err| {
+                if (err != error.DiskChanged or checked_again) return err;
+                // In recovery there is no baseline from the file to check it
+                // against (`settingsCheckDisk` skips recovery), so a retry
+                // would write over the edit it just found. Nothing is
+                // written; the person saves again to write over it.
+                if (self.safe_mode) return err;
+                // Another program edited the file after the check read it, and
+                // nothing was written. It is checked again, as before the save:
+                // an edit under an edited setting goes to the window's choice
+                // (Keep mine or Use disk), or refuses the palette's pick, and
+                // any other edit is kept by saving once more on top of it.
+                log.info("settings save: the config file changed after the check; checking it again", .{});
+                checked_again = true;
+                if (try self.settingsCheckDisk(pending, original, check.apply)) return error.DiskChanged;
+                check = self.settings_check orelse .{ .read_as = null, .apply = check.apply };
+                self.settings_check = null;
+                continue;
+            };
+            break;
+        }
 
         // Saving can repair the config on disk, but recovery applies it only
         // after restart, as the safe-mode banner promises.
@@ -8530,7 +9143,9 @@ pub const App = struct {
         // Mirror the `.reload_config` hard-reload path: re-read from disk and
         // push through CoreApp so every surface's next frame picks up the
         // new values.
-        var reloaded = self.loadConfigAtStartupCwd() catch return error.ReloadFailed;
+        // The file is written: a reload that cannot be read (no memory)
+        // applies nothing, and the save is done (`SavedNotApplied`).
+        var reloaded = self.loadConfigAtStartupCwd() catch |err| return savedNotApplied("read", err);
         defer reloaded.deinit();
 
         // Post-save validation: detect fields the user GUI-edited
@@ -8544,16 +9159,261 @@ pub const App = struct {
         // generic write failure. The status line names the fields.
         self.settings_masked_keys.clear(alloc);
         var masked_buf: [settings_masked_keys_capacity]u8 = undefined;
-        const masked = settingsMaskedKeyNames(&masked_buf, user_edited, pending, &reloaded);
+        // The keys, then each profile field the reload does not hold, by
+        // name only (`settings_patch.writeEditName`).
+        var masked_text: std.Io.Writer.Allocating = .init(alloc);
+        defer masked_text.deinit();
+        // The settings and profile fields as `updateConfig` will apply them,
+        // in the app's light/dark state: a theme can set a key, or define a
+        // profile, in one state only (a dark theme's `default-profile` takes
+        // over when Automatic deletes the file's line).
+        // One that cannot be put in that state (no memory) applies nothing:
+        // the light reading is not what the app runs, and `updateConfig`
+        // would read the theme again, unchecked. The file is written, so
+        // the save is done, and the window says to reload
+        // (`SavedNotApplied`).
+        var reloaded_applied: ?configpkg.Config = reloaded.changeConditionalState(self.core_app.config_conditional_state) catch |err|
+            return savedNotApplied("put in the app's light/dark state", err);
+        defer if (reloaded_applied) |*value| value.deinit();
+        const applied: *const configpkg.Config = if (reloaded_applied) |*value| value else &reloaded;
+        // From here on as well, a failure is the save's outcome, never a
+        // failed save: the file is written. Nothing is applied yet.
+        postWriteStep(.masked_check);
+        masked_text.writer.writeAll(settingsMaskedKeyNames(&masked_buf, user_edited, pending, applied)) catch |err|
+            return savedNotApplied("checked for overridden settings", err);
+        // A file the reload could not read whole: what it missed is no
+        // override, and the save says that instead, naming the file.
+        postWriteStep(.report);
+        // A later layer's alias for a profile the save hid hides nothing
+        // more: the windows' profiles tell (`settings_patch.listCheck`), when
+        // a window has them all. A list that missed some cannot tell what an
+        // alias names, so without the whole list that check is unavailable.
+        const listed = self.settingsProfileList(false);
+        for (profile_edits) |*edit| if (edit.field.isList()) {
+            if (listed) |found| if (found.complete) {
+                // With the profiles the save adds, which no window has yet.
+                edit.profiles = settings_patch.withDraftProfiles(profile_arena.allocator(), found.profiles, pending) catch |err|
+                    return savedNotApplied("checked for overridden settings", err);
+                continue;
+            };
+            edit.profiles_complete = false;
+        };
+        const report = settings_patch.reloadReport(&masked_text.writer, profile_edits, applied, &reloaded, masked_text.written().len > 0) catch |err|
+            return savedNotApplied("checked for overridden settings", err);
+        switch (report) {
+            .unread => |unread| {
+                // Without the memory to name the file, the status says it
+                // without the name.
+                postWriteStep(.describe);
+                if (unread.describe(alloc)) |text| {
+                    defer alloc.free(text);
+                    self.settings_failure_detail.set(alloc, text);
+                } else |_| self.settings_failure_detail.clear(alloc);
+                // The file is written, but the reload is partial: applied, it
+                // would run the app without what it missed (keybinds, colors)
+                // until the next reload. The running config stays, and the
+                // status says to reload once the file can be read whole.
+                log.warn("settings save: saved, but the reload could not read a config file whole; the running settings are kept", .{});
+                return error.SavedButUnread;
+            },
+            .held, .masked, .unchecked => {},
+        }
+        const masked = masked_text.written();
         if (masked.len > 0) {
             std.log.warn("settings save: saved but masked by a later config-file layer: {s}", .{masked});
             self.settings_masked_keys.set(alloc, masked);
         }
 
-        self.core_app.updateConfig(self, &reloaded) catch return error.ReloadFailed;
+        // The reading checked above, already in the app's light/dark state:
+        // `updateConfig` installs it as it is. Handed the light reload, it
+        // would put it in that state again, reading the theme again,
+        // unchecked, and a theme that had become unreadable in between would
+        // be installed partly read. It updates each terminal and then the
+        // app (`SavedPartlyApplied` either way): a terminal's step that
+        // fails leaves the running settings as they were (`updateCoreConfig`
+        // reloads the app config in place), and a failure in the app's step
+        // after the install leaves only the failing window's apply or pane's
+        // scrollbar refresh undone (the step goes on past it and runs its
+        // tail before it returns the failure).
+        postWriteStep(.apply);
+        self.updateCoreConfig(applied) catch |err| {
+            log.warn("settings save: saved, but applying the reload failed; the running settings are the previous ones, or partly updated after a late failure err={}", .{err});
+            return error.SavedPartlyApplied;
+        };
         // The reload read the file again, so what is wrong in it is news.
         _ = self.reportRecordedConfigProblems();
         if (masked.len > 0) return error.SavedButMasked;
+        // Nothing found masked, and a hidden list could not be checked.
+        if (report == .unchecked) return error.SavedListsUnchecked;
+    }
+
+    /// Tests only: the hook before a step after the write
+    /// (`settings_patch.test_post_write`).
+    fn postWriteStep(step: settings_patch.PostWriteStep) void {
+        if (builtin.is_test) if (settings_patch.test_post_write) |hook| hook(step);
+    }
+
+    /// A failure after the save wrote the file and before anything of its
+    /// reload is applied (`what` failed; no memory): the save is done, and
+    /// the running settings are kept (`SavedNotApplied`).
+    fn savedNotApplied(comptime what: []const u8, err: anyerror) win32_settings.SaveError {
+        log.warn("settings save: saved, but the reload could not be " ++ what ++ "; the running settings are kept err={}", .{err});
+        return error.SavedNotApplied;
+    }
+
+    /// What the file the save writes holds now (`save_target.digestNow`), for
+    /// the comparisons before the write. A read that fails stops the save:
+    /// without it, an edit another program made later would be written over
+    /// with nothing to compare (SETTINGS-SAVE-TOCTOU).
+    fn settingsDigest(self: *App, alloc: Allocator, target_path: []const u8) win32_settings.SaveError!save_target.Digest {
+        return save_target.digestNow(alloc, target_path) catch |err| switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            error.DanglingLink => error.DanglingLink,
+            error.ReadFailed, error.TooLarge, error.Unstable => {
+                log.warn("settings save: could not read the config file to check it for edits err={}", .{err});
+                const text = std.fmt.allocPrint(alloc, "the config file {s}", .{target_path}) catch return error.OutOfMemory;
+                defer alloc.free(text);
+                self.settings_failure_detail.set(alloc, text);
+                return error.FileUnopenable;
+            },
+        };
+    }
+
+    /// `settingsSaveAndReload` checking the file again: whether another
+    /// program changed a profile field the draft changes (`edits`, and both
+    /// lists when either is written), from `now`: the fresh reading in the
+    /// app's light/dark state, already known to be whole,
+    /// `settingsProfileEditsFromDisk` (one that missed a file would read what
+    /// that file gives as changed). `settings_patch.changedUnder` compares it
+    /// in the state the baseline was read in. One it did stops the save,
+    /// naming the field (its key, profile and variable; never a value); a
+    /// reading it could not put in that state stops it too.
+    fn settingsProfilesUnchanged(
+        alloc: Allocator,
+        detail: *win32_settings.FailureDetail,
+        now: *const configpkg.Config,
+        pending: *const configpkg.Config,
+        compare: ProfileCompare,
+        target_path: []const u8,
+    ) win32_settings.SaveError!void {
+        const found = settings_patch.changedUnder(compare.edits, compare.baselines, pending, now, target_path, &settings_reference.samePath) catch |err|
+            return settingsProfileEditsFailed(err);
+        const edit = found orelse return;
+        var name: std.Io.Writer.Allocating = .init(alloc);
+        defer name.deinit();
+        settings_patch.writeEditName(&name.writer, edit) catch return error.OutOfMemory;
+        detail.set(alloc, name.written());
+        log.warn("settings save: another program changed a profile field the draft changes; nothing saved", .{});
+        return error.ProfileChanged;
+    }
+
+    /// What a save's check for another program's change compares
+    /// (`settingsProfilesUnchanged`): the draft's profile edits, and the
+    /// baseline of each group of keys they belong to.
+    const ProfileCompare = struct {
+        edits: []const settings_patch.Edit,
+        baselines: *const settings_patch.Baselines,
+    };
+
+    /// The profile edits a save makes, worked out against the config layers
+    /// read again from disk (`fresh`, the read's result, owned here) and
+    /// against `held`, the config as last read, in `state`
+    /// (`settings_patch.editsForSave`): a removal keeps its line when either
+    /// shows another layer naming it, or could have missed one.
+    ///
+    /// The fresh read is held to the rule the disk check before an ordinary
+    /// save holds it to (`settingsDiskVerdict`), and its reading in `state`
+    /// to `settings_patch.unreadConfigFile`: a file it could not open, read
+    /// whole or decode stops the save. Of the held config switched to `state`
+    /// here, only what that switch read itself, its theme
+    /// (`settings_patch.unreadTheme`), stops it; its config-file and include
+    /// problems are from its last read, possibly repaired since, and keep a
+    /// removed profile's tombstone instead (`referencedElsewhere`).
+    ///
+    /// With `compare` (the draft's edits and the baseline of each group of
+    /// profile keys; null in recovery, whose baseline is not the file), a
+    /// profile field they change that another program changed too stops the
+    /// save (`settingsProfilesUnchanged`), judged on the reading in `state`
+    /// this decides the edits from, once it is known to be whole, put in the
+    /// state of the field's own baseline (`settings_patch.changedUnder`; a
+    /// theme that switch cannot read stops the save). A read that fails stops
+    /// the save. Nothing is written then, and `detail` names the file or the
+    /// field.
+    fn settingsProfileEditsFromDisk(
+        arena: Allocator,
+        alloc: Allocator,
+        detail: *win32_settings.FailureDetail,
+        fresh: anyerror!configpkg.Config,
+        held: *const configpkg.Config,
+        state: configpkg.ConditionalState,
+        original: *const configpkg.Config,
+        pending: *const configpkg.Config,
+        target_path: []const u8,
+        compare: ?ProfileCompare,
+    ) win32_settings.SaveError![]settings_patch.Edit {
+        var disk = fresh catch |err| {
+            log.warn("settings save: could not read the config files again for the profile edits err={}", .{err});
+            return error.ReloadFailed;
+        };
+        defer disk.deinit();
+        detail.clear(alloc);
+        _ = try settingsDiskVerdict(alloc, detail, original, pending, &disk, state, .initEmpty());
+        // Each reading in the app's state first: switching it reads the
+        // selected theme again, and that read is what the removal is decided
+        // from, so it is the one whose problems count. A reading already in
+        // that state is used as it is.
+        var disk_now = disk.changeConditionalState(state) catch |err| return settingsProfileEditsFailed(err);
+        defer if (disk_now) |*value| value.deinit();
+        var held_now = held.changeConditionalState(state) catch |err| return settingsProfileEditsFailed(err);
+        defer if (held_now) |*value| value.deinit();
+        const readings = [_]*const configpkg.Config{
+            if (disk_now) |*value| value else &disk,
+            if (held_now) |*value| value else held,
+        };
+        // The fresh read, whole; and of the held config switched here, what
+        // the switch read itself: its theme. The held config's other
+        // problems are from its last read, and the files may have been
+        // repaired since: they do not stop the save, but count as naming a
+        // removed profile, which keeps its tombstone
+        // (`settings_patch.referencedElsewhere`).
+        for (readings[0..if (held_now != null) 2 else 1], 0..) |reading, i| {
+            const found = if (i == 0) settings_patch.unreadConfigFile(reading) else settings_patch.unreadTheme(reading);
+            if (found) |unread| {
+                // A file the reading skipped as UTF-16 that does not decode
+                // (the held config's theme, read again in `state`, is one):
+                // named as the check before a save names one.
+                const text = (if (unread.undecodable)
+                    std.fmt.allocPrint(alloc, "the file {s}", .{unread.path})
+                else
+                    unread.describe(alloc)) catch return error.OutOfMemory;
+                defer alloc.free(text);
+                detail.set(alloc, text);
+                return if (unread.undecodable) error.UnsupportedEncoding else error.FileUnopenable;
+            }
+        }
+        // A move or a hide writes both lists into the file: not while
+        // another layer sets them in the layers read now (the window checked
+        // when it built the page; a reload since may have changed that).
+        if (settings_patch.listsChanged(original, pending)) {
+            const foreign = settings_patch.listsForeign(&disk, target_path, &settings_reference.samePath) catch |err| return settingsProfileEditsFailed(err);
+            if (foreign) |why| {
+                detail.set(alloc, why.text());
+                log.warn("settings save: another layer sets the profile order or the hidden profiles ({t}); nothing saved", .{why});
+                return error.ProfileListsForeign;
+            }
+        }
+        if (compare) |what| try settingsProfilesUnchanged(alloc, detail, readings[0], pending, what, target_path);
+        return settings_patch.editsForSave(arena, alloc, &readings, state, original, pending, target_path, &settings_reference.samePath) catch |err|
+            settingsProfileEditsFailed(err);
+    }
+
+    /// The profile edits could not be worked out: no memory, or the layers
+    /// could not be put in the app's light/dark state, which would decide a
+    /// removal blind. Nothing is saved.
+    fn settingsProfileEditsFailed(err: anyerror) win32_settings.SaveError {
+        if (err == error.OutOfMemory) return error.OutOfMemory;
+        log.warn("settings save: the profile edits could not be worked out err={}", .{err});
+        return error.ReloadFailed;
     }
 
     fn settingsTargetPath(self: *App, alloc: Allocator) win32_settings.SaveError![]const u8 {
@@ -8593,6 +9453,7 @@ pub const App = struct {
     /// return short-circuited the restore, leaving the process pinned to
     /// `startup_cwd` whenever a reload hit a broken config file.
     fn loadConfigAtStartupCwd(self: *App) !configpkg.Config {
+        if (builtin.is_test) if (settings_patch.test_config_load) |load| return load(self.core_app.alloc);
         var startup_cwd = self.enterStartupCwd();
         defer startup_cwd.restore();
         return configpkg.Config.load(self.core_app.alloc);
@@ -8764,28 +9625,51 @@ pub const App = struct {
         original: *const configpkg.Config,
         apply: bool,
     ) win32_settings.SaveError!void {
+        _ = try self.settingsCheckDisk(pending, original, apply);
+    }
+
+    /// What a check before a Settings save leaves for the save
+    /// (`settings_check`).
+    const SettingsCheck = struct { read_as: ?save_target.Digest, apply: bool };
+
+    /// `settingsReconcileDisk`, saying whether the file changed under an
+    /// edited setting (then applied, when `apply`). It leaves for the save
+    /// that follows what it read of the file (`settings_check`), taken before
+    /// the load it judges: an edit after that is a difference the save sees.
+    fn settingsCheckDisk(
+        self: *App,
+        pending: *const configpkg.Config,
+        original: *const configpkg.Config,
+        apply: bool,
+    ) win32_settings.SaveError!bool {
+        self.settings_check = .{ .read_as = null, .apply = apply };
         // Recovery may repair the file, but must never apply its settings live,
         // including through conflict reconciliation before the save.
-        if (self.safe_mode) return;
+        if (self.safe_mode) return false;
         const alloc = self.core_app.alloc;
         self.settings_failure_detail.clear(alloc);
         const user_edited = settingsUserEditedKeys(original, pending);
-        if (user_edited.count() == 0) return;
+        if (user_edited.count() == 0) return false;
         const target_path = try self.settingsTargetPath(alloc);
         defer alloc.free(target_path);
         try settingsFileOpenable(alloc, &self.settings_failure_detail, "the config file", target_path);
+        const read_as = try self.settingsDigest(alloc, target_path);
         var disk = self.loadConfigAtStartupCwd() catch |err| {
             log.warn("settings save: could not read the config file to check it for edits err={}", .{err});
             return error.ReloadFailed;
         };
         defer disk.deinit();
-        if (!try settingsDiskVerdict(alloc, &self.settings_failure_detail, original, pending, &disk, self.core_app.config_conditional_state, user_edited)) return;
+        if (!try settingsDiskVerdict(alloc, &self.settings_failure_detail, original, pending, &disk, self.core_app.config_conditional_state, user_edited)) {
+            self.settings_check = .{ .read_as = read_as, .apply = apply };
+            return false;
+        }
         if (!apply) return error.DiskChanged;
         log.info("settings save: the config file changed on disk under an edited setting; offering the choice", .{});
-        self.core_app.updateConfig(self, &disk) catch |err| {
+        self.updateCoreConfig(&disk) catch |err| {
             log.warn("settings save: applying the changed config file failed err={}", .{err});
             return error.ReloadFailed;
         };
+        return true;
     }
 
     /// Open the configuration as text. Kept alive for Advanced pane
@@ -8820,6 +9704,2177 @@ pub const App = struct {
             .path = owned,
             .from_settings = self.settings_window.hwnd != null,
         } });
+    }
+
+    test "settings a profile save's fresh read stops the save when a file was not read whole, and decides from it and the held config otherwise" {
+        const alloc = std.testing.allocator;
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "profile-command = py: python.exe\n" });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        var held = try configpkg.Config.default(alloc);
+        defer held.deinit();
+        try held.loadFile(alloc, path);
+        var pending = try held.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        var detail: win32_settings.FailureDetail = .{};
+        defer detail.clear(alloc);
+        var arena: std.heap.ArenaAllocator = .init(alloc);
+        defer arena.deinit();
+
+        // A file whose read fails partway through: the save stops, naming it.
+        {
+            var fresh = try configpkg.Config.default(alloc);
+            errdefer fresh.deinit();
+            var buf: [16]u8 = undefined;
+            var failing = @import("../../cli/args.zig").TestFailingReader.init("profile-command = py: python.exe\nprofile-na", &buf);
+            try fresh.loadReader(alloc, &failing.interface, path);
+            try std.testing.expectError(error.FileUnopenable, App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, .{}, &held, &pending, path, null));
+            const expected = try std.fmt.allocPrint(alloc, "the included file {s}", .{path});
+            defer alloc.free(expected);
+            try std.testing.expect(std.mem.eql(u8, expected, detail.text.?));
+        }
+        // A read that fails: the save stops.
+        try std.testing.expectError(error.ReloadFailed, App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, error.AccessDenied, &held, .{}, &held, &pending, path, null));
+        // A whole read: the edits, and nothing else names `py`, so its line goes.
+        {
+            var fresh = try configpkg.Config.default(alloc);
+            errdefer fresh.deinit();
+            try fresh.loadFile(alloc, path);
+            const edits = try App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, .{}, &held, &pending, path, null);
+            try std.testing.expectEqual(@as(usize, 4), edits.len);
+            try std.testing.expect(edits[0].field == .command and edits[0].op == .delete);
+        }
+    }
+
+    test "settings a profile save stops when the theme of the app's light/dark state cannot be read whole as that state is applied" {
+        const alloc = std.testing.allocator;
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, dark });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        const load = struct {
+            fn config(a: Allocator, file: []const u8) !configpkg.Config {
+                var cfg = try configpkg.Config.default(a);
+                errdefer cfg.deinit();
+                try cfg.loadFile(a, file);
+                try cfg.loadRecursiveFiles(a);
+                try cfg.finalize();
+                return cfg;
+            }
+        }.config;
+        // The config as last read, in the dark state the app is in, from
+        // before the dark theme defined `py`; the draft removes `py`.
+        var loaded = try load(alloc, path);
+        defer loaded.deinit();
+        var held = (try loaded.changeConditionalState(.{ .theme = .dark })).?;
+        defer held.deinit();
+        var pending = try held.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        // The dark theme defines `py` now.
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "profile-command = py: python.exe -X dark\n" });
+        const before = try tmp.dir.readFileAlloc(alloc, "config", 1 << 16);
+        defer alloc.free(before);
+        var detail: win32_settings.FailureDetail = .{};
+        defer detail.clear(alloc);
+        var arena: std.heap.ArenaAllocator = .init(alloc);
+        defer arena.deinit();
+        const dark_state: configpkg.ConditionalState = .{ .theme = .dark };
+
+        // Another program locks the dark theme's bytes: it opens, which the
+        // disk check sees, and its read fails, which only applying the dark
+        // state reads. The theme loader opens its file itself, so a reader
+        // cannot be put in its place; std's `.lock` is the byte-range lock
+        // that does this.
+        {
+            var lock = try tmp.dir.openFile("dark", .{ .mode = .read_write, .lock = .exclusive });
+            defer lock.close();
+            const fresh = try load(alloc, path);
+            try std.testing.expectError(error.FileUnopenable, App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, dark_state, &held, &pending, path, null));
+            const expected = try std.fmt.allocPrint(alloc, "the theme file {s}", .{dark});
+            defer alloc.free(expected);
+            try std.testing.expect(std.mem.eql(u8, expected, detail.text.?));
+        }
+        // Nothing was written.
+        const after = try tmp.dir.readFileAlloc(alloc, "config", 1 << 16);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, before, after));
+        // Read whole: the dark theme's `py` keeps the tombstone.
+        const fresh = try load(alloc, path);
+        const edits = try App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, dark_state, &held, &pending, path, null);
+        for (edits) |e| if (e.field == .command) try std.testing.expect(e.op == .unset);
+    }
+
+    /// The App's Settings save over files in a scratch directory: the config
+    /// loads from `files` in that order (`test_config_load`), the save writes
+    /// `files`' last (`cli_config_override_path`), and nothing reaches the real
+    /// profile. `hook` stands in for another program (`save_target`).
+    const SaveTest = struct {
+        threadlocal var files: []const []const u8 = &.{};
+        /// What the other program writes into `hook_path`, appended or in
+        /// place of what is there, just before the save compares the file.
+        threadlocal var hook_path: []const u8 = "";
+        threadlocal var hook_text: []const u8 = "";
+        threadlocal var hook_append: bool = false;
+        /// A file the other program holds locked from then on.
+        threadlocal var lock_path: []const u8 = "";
+        threadlocal var lock: ?std.fs.File = null;
+        /// A lock taken while a read is under way (`lockDuringRead`), let go
+        /// before the next load.
+        threadlocal var brief_lock: ?std.fs.File = null;
+        /// What happens to the load after the write (`starveNext` or
+        /// `failNext`, set as `hook` is; `starvedLoad`): it is read whole and
+        /// from then on its allocator has no memory, so a light/dark switch
+        /// of it fails; or it fails itself.
+        threadlocal var starve: enum { none, after_read, read, app_after_read } = .none;
+        threadlocal var starving: std.testing.FailingAllocator = undefined;
+        /// The App's allocator in a test of what follows the write (`.app_after_read`).
+        threadlocal var fail_next: ?*FailNext = null;
+        /// The step after the write whose first allocation fails
+        /// (`failAt`, `settings_patch.test_post_write`).
+        threadlocal var fail_step: ?settings_patch.PostWriteStep = null;
+
+        fn failAt(step: settings_patch.PostWriteStep) void {
+            if (fail_step != step) return;
+            fail_step = null;
+            if (fail_next) |failing| failing.armed = true;
+        }
+
+        /// An allocator that fails its next allocation once armed, and only
+        /// that one; everything else goes to `parent`, so what it allocates
+        /// is `parent`'s to free.
+        const FailNext = struct {
+            parent: Allocator,
+            armed: bool = false,
+
+            fn allocator(self: *FailNext) Allocator {
+                return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+            }
+
+            fn alloc(ctx: *anyopaque, len: usize, alignment: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
+                const self: *FailNext = @ptrCast(@alignCast(ctx));
+                if (self.armed) {
+                    self.armed = false;
+                    return null;
+                }
+                return self.parent.rawAlloc(len, alignment, ret_addr);
+            }
+
+            fn resize(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
+                const self: *FailNext = @ptrCast(@alignCast(ctx));
+                return self.parent.rawResize(memory, alignment, new_len, ret_addr);
+            }
+
+            fn remap(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
+                const self: *FailNext = @ptrCast(@alignCast(ctx));
+                return self.parent.rawRemap(memory, alignment, new_len, ret_addr);
+            }
+
+            fn free(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
+                const self: *FailNext = @ptrCast(@alignCast(ctx));
+                self.parent.rawFree(memory, alignment, ret_addr);
+            }
+        };
+
+        fn load(alloc: Allocator) anyerror!configpkg.Config {
+            if (brief_lock) |file| file.close();
+            brief_lock = null;
+            var cfg = try configpkg.Config.default(alloc);
+            errdefer cfg.deinit();
+            for (files) |file| try cfg.loadFile(alloc, file);
+            try cfg.loadRecursiveFiles(alloc);
+            try cfg.finalize();
+            return cfg;
+        }
+
+        fn hook() void {
+            save_target.test_before_compare = null;
+            if (hook_path.len != 0) {
+                const file = (if (hook_append) std.fs.openFileAbsolute(hook_path, .{ .mode = .read_write }) else std.fs.createFileAbsolute(hook_path, .{})) catch return;
+                defer file.close();
+                if (hook_append) file.seekFromEnd(0) catch return;
+                file.writeAll(hook_text) catch return;
+            }
+            if (lock_path.len != 0) lock = std.fs.openFileAbsolute(lock_path, .{ .mode = .read_write, .lock = .exclusive }) catch null;
+        }
+
+        fn starveNext() void {
+            save_target.test_before_compare = null;
+            starve = .after_read;
+        }
+
+        fn failNext() void {
+            save_target.test_before_compare = null;
+            starve = .read;
+        }
+
+        fn failAppNext() void {
+            save_target.test_before_compare = null;
+            starve = .app_after_read;
+        }
+
+        fn starvedLoad(alloc: Allocator) anyerror!configpkg.Config {
+            const how = starve;
+            starve = .none;
+            switch (how) {
+                .none => return load(alloc),
+                .read => return error.OutOfMemory,
+                .app_after_read => {
+                    const cfg = try load(alloc);
+                    if (fail_next) |failing| failing.armed = true;
+                    return cfg;
+                },
+                .after_read => {
+                    starving = .init(alloc, .{});
+                    const cfg = try load(starving.allocator());
+                    starving.fail_index = starving.alloc_index;
+                    return cfg;
+                },
+            }
+        }
+
+        fn lockDuringRead() void {
+            save_target.test_during_read = null;
+            brief_lock = std.fs.openFileAbsolute(lock_path, .{ .mode = .read_write, .lock = .exclusive }) catch null;
+        }
+
+        fn begin(app: *App, target: []const u8) !void {
+            errdefer end(app);
+            settings_patch.test_config_load = load;
+            app.cli_config_override_path = @constCast(target);
+            var loaded = try load(std.testing.allocator);
+            defer loaded.deinit();
+            try app.updateCoreConfig(&loaded);
+        }
+
+        fn end(app: *App) void {
+            app.cli_config_override_path = null;
+            app.settings_failure_detail.clear(std.testing.allocator);
+            app.settings_masked_keys.clear(std.testing.allocator);
+            save_target.test_before_compare = null;
+            save_target.test_during_read = null;
+            settings_patch.test_config_load = null;
+            if (brief_lock) |file| file.close();
+            brief_lock = null;
+            starve = .none;
+            fail_next = null;
+            fail_step = null;
+            settings_patch.test_post_write = null;
+            files = &.{};
+            hook_path = "";
+            hook_text = "";
+            hook_append = false;
+            lock_path = "";
+            if (lock) |file| file.close();
+            lock = null;
+        }
+
+        fn read(path: []const u8) ![]u8 {
+            const file = try std.fs.openFileAbsolute(path, .{});
+            defer file.close();
+            return file.readToEndAlloc(std.testing.allocator, 1 << 20);
+        }
+    };
+
+    test "win32 settings save does not write over an edit another program made after the check, and offers the choice" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const path = blk: {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+            break :blk try tmp.dir.realpathAlloc(alloc, "config");
+        };
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+
+        const Case = enum { between, before_write };
+        for ([_]Case{ .between, .before_write }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+            {
+                var loaded = try SaveTest.load(alloc);
+                defer loaded.deinit();
+                try app.updateCoreConfig(&loaded);
+            }
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            pending.@"font-size" = 15;
+            // The check finds the file as the window last read it.
+            try app.settingsReconcileDisk(&pending, &original, true);
+            // Another program sets the same setting: between the check and
+            // the save, or as the save is about to put its bytes in place.
+            switch (case) {
+                .between => try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 20\n" }),
+                .before_write => {
+                    SaveTest.hook_path = path;
+                    SaveTest.hook_text = "font-size = 20\n";
+                    save_target.test_before_compare = SaveTest.hook;
+                },
+            }
+            // Nothing is written over it: the save stops, and the file is
+            // applied as a reload, which hands the window its choice.
+            try std.testing.expectError(error.DiskChanged, app.settingsSaveAndReload(&pending, &original));
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            try std.testing.expectEqualStrings("font-size = 20\n", after);
+            try std.testing.expectEqual(@as(f32, 20), app.config.@"font-size");
+        }
+
+        // An edit to another setting is kept: the file is checked again, and
+        // the save goes on top of it.
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+        {
+            var loaded = try SaveTest.load(alloc);
+            defer loaded.deinit();
+            try app.updateCoreConfig(&loaded);
+        }
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        pending.@"font-size" = 15;
+        try app.settingsReconcileDisk(&pending, &original, true);
+        SaveTest.hook_path = path;
+        SaveTest.hook_text = "copy-on-select = true\n";
+        SaveTest.hook_append = true;
+        save_target.test_before_compare = SaveTest.hook;
+        try app.settingsSaveAndReload(&pending, &original);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expectEqualStrings("font-size = 15\ncopy-on-select = true\n", after);
+        try std.testing.expectEqual(@as(f32, 15), app.config.@"font-size");
+        try std.testing.expect(app.config.@"copy-on-select" == .true);
+    }
+
+    test "win32 settings save checking the file again stops on a profile field another program changed, and saves over one it did not" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const raw = "font-size = 12\nprofile-command = py: python.exe\nprofile-command = node: node.exe\n";
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = raw });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        const Case = struct { other: []const u8, refused: bool };
+        for ([_]Case{
+            // The same profile's command: refused.
+            .{ .other = "font-size = 12\nprofile-command = py: python.exe -O\nprofile-command = node: node.exe\n", .refused = true },
+            // Another profile's: saved over, the other edit kept.
+            .{ .other = "font-size = 12\nprofile-command = py: python.exe\nprofile-command = node: node.exe --inspect\n", .refused = false },
+        }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = raw });
+            {
+                var loaded = try SaveTest.load(alloc);
+                defer loaded.deinit();
+                try app.updateCoreConfig(&loaded);
+            }
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            pending.@"font-size" = 15;
+            try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py: python.exe -X");
+            try app.settingsReconcileDisk(&pending, &original, true);
+            // Another program writes the file as the save is about to put
+            // its bytes in place.
+            SaveTest.hook_path = path;
+            SaveTest.hook_text = case.other;
+            SaveTest.hook_append = false;
+            save_target.test_before_compare = SaveTest.hook;
+            if (case.refused) {
+                try std.testing.expectError(error.ProfileChanged, app.settingsSaveAndReload(&pending, &original));
+                const after = try SaveTest.read(path);
+                defer alloc.free(after);
+                try std.testing.expect(std.mem.eql(u8, case.other, after));
+                try std.testing.expect(std.mem.eql(u8, "profile-command py", app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+            } else {
+                try app.settingsSaveAndReload(&pending, &original);
+                const after = try SaveTest.read(path);
+                defer alloc.free(after);
+                try std.testing.expect(std.mem.eql(u8, "font-size = 15\nprofile-command = py: python.exe -X\nprofile-command = node: node.exe --inspect\n", after));
+            }
+        }
+    }
+
+    test "win32 settings profile save stops on a field another program changed before the save, and not on what a removal covers" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "# a file loaded first\n" });
+        const lower = try tmp.dir.realpathAlloc(alloc, "lower.conf");
+        defer alloc.free(lower);
+        const raw = "font-size = 12\nprofile-command = py: python.exe\nprofile-env = py: Path=C:\\bin\n";
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = raw });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{ lower, path };
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        const Case = enum { same_field, lower_label, renamed_variable };
+        for ([_]Case{ .same_field, .lower_label, .renamed_variable }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "# a file loaded first\n" });
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = raw });
+            {
+                var loaded = try SaveTest.load(alloc);
+                defer loaded.deinit();
+                try app.updateCoreConfig(&loaded);
+            }
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            switch (case) {
+                // The draft changes py's command line.
+                .same_field => try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py: python.exe -X"),
+                // The draft removes py.
+                .lower_label, .renamed_variable => try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:"),
+            }
+            try app.settingsReconcileDisk(&pending, &original, true);
+            // Before Save, another program edits the files.
+            switch (case) {
+                .same_field => try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\nprofile-command = py: python.exe -O\nprofile-env = py: Path=C:\\bin\n" }),
+                .lower_label => try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "profile-name = py: Python\nprofile-env = py: MODE=1\n" }),
+                .renamed_variable => try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\nprofile-command = py: python.exe\nprofile-env = py: PATH=C:\\bin\n" }),
+            }
+            const before = try SaveTest.read(path);
+            defer alloc.free(before);
+            switch (case) {
+                // The field the draft changes: refused, the file as the other
+                // program left it.
+                .same_field => {
+                    try std.testing.expectError(error.ProfileChanged, app.settingsSaveAndReload(&pending, &original));
+                    const after = try SaveTest.read(path);
+                    defer alloc.free(after);
+                    try std.testing.expect(std.mem.eql(u8, before, after));
+                    try std.testing.expect(std.mem.eql(u8, "profile-command py", app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+                },
+                // A lower layer gives the removed profile a label and a
+                // variable, and a variable's name changed case: none is a
+                // field the draft changes. The removal is saved.
+                .lower_label, .renamed_variable => {
+                    app.settingsSaveAndReload(&pending, &original) catch |err| switch (err) {
+                        error.SavedButMasked => {},
+                        else => return err,
+                    };
+                    const after = try SaveTest.read(path);
+                    defer alloc.free(after);
+                    try std.testing.expect(std.mem.indexOf(u8, after, "python.exe") == null);
+                    // The lower layer names `py` now: a tombstone, not a
+                    // deletion, or `py` would come back from it.
+                    if (case == .lower_label) try std.testing.expect(std.mem.indexOf(u8, after, "profile-command = py:\n") != null);
+                },
+            }
+        }
+    }
+
+    test "win32 settings profile save names an include it could not read, not a change to the profile it defines" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "profile-command = py: python.exe\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py: python.exe -X");
+        // Another program locks the include's bytes as the save reads the
+        // layers again: `py` is missing from that reading, which is the
+        // file's doing, not another program's edit of `py`.
+        {
+            var lock = try tmp.dir.openFile("more.conf", .{ .mode = .read_write, .lock = .exclusive });
+            defer lock.close();
+            try std.testing.expectError(error.FileUnopenable, app.settingsSaveAndReload(&pending, &original));
+        }
+        const expected = try std.fmt.allocPrint(alloc, "the included file {s}", .{more});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, text, after));
+    }
+
+    test "win32 settings profile save in recovery writes a repair, and does not apply it" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        const raw = "profile-command = py: python.exe\n";
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = raw });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        // Recovery: the running config is the recovery one, not the file.
+        app.safe_mode = true;
+        try configpkg.pane_launch.useRecovery(&app.config);
+        SaveTest.files = &.{path};
+        settings_patch.test_config_load = SaveTest.load;
+        app.cli_config_override_path = @constCast(path);
+        defer SaveTest.end(&app);
+        const revision = app.config_revision;
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // The person repairs `py`, which the file already defines.
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py: python.exe -X");
+        try app.settingsReconcileDisk(&pending, &original, true);
+        try app.settingsSaveAndReload(&pending, &original);
+        // Written,
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, "profile-command = py: python.exe -X\n", after));
+        // and not applied: the running config is still the recovery one.
+        try std.testing.expectEqual(revision, app.config_revision);
+        try std.testing.expect(app.config.@"profile-command".get("py") == null);
+    }
+
+    test "win32 settings save in recovery does not write over a file another program changed while it saved" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        // Recovery: the running config is the recovery one, not the file.
+        app.safe_mode = true;
+        try configpkg.pane_launch.useRecovery(&app.config);
+        SaveTest.files = &.{path};
+        settings_patch.test_config_load = SaveTest.load;
+        app.cli_config_override_path = @constCast(path);
+        defer SaveTest.end(&app);
+        const revision = app.config_revision;
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        pending.@"font-size" = 15;
+        try app.settingsReconcileDisk(&pending, &original, true);
+        // Another program sets the same setting as the save is about to put
+        // its bytes in place.
+        SaveTest.hook_path = path;
+        SaveTest.hook_text = "font-size = 20\n";
+        save_target.test_before_compare = SaveTest.hook;
+        // There is no baseline from the file to decide by: nothing is
+        // written, and nothing is applied.
+        try std.testing.expectError(error.DiskChanged, app.settingsSaveAndReload(&pending, &original));
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expectEqualStrings("font-size = 20\n", after);
+        try std.testing.expectEqual(revision, app.config_revision);
+        try std.testing.expectEqual(@as(f32, 15), pending.@"font-size");
+        // Saved again, it writes over the edit, knowingly.
+        try app.settingsSaveAndReload(&pending, &original);
+        const again = try SaveTest.read(path);
+        defer alloc.free(again);
+        try std.testing.expectEqualStrings("font-size = 15\n", again);
+        try std.testing.expectEqual(revision, app.config_revision);
+    }
+
+    test "win32 settings save stops when its check cannot read the file it compares" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        pending.@"font-size" = 15;
+        // Another program locks the file's bytes while the check reads it,
+        // and lets go before the check's load: nothing to compare later.
+        SaveTest.lock_path = path;
+        save_target.test_during_read = SaveTest.lockDuringRead;
+        try std.testing.expectError(error.FileUnopenable, app.settingsReconcileDisk(&pending, &original, true));
+        const expected = try std.fmt.allocPrint(alloc, "the config file {s}", .{path});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+        // The check stopped before its load, which would have let go.
+        if (SaveTest.brief_lock) |file| file.close();
+        SaveTest.brief_lock = null;
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expectEqualStrings("font-size = 12\n", after);
+    }
+
+    test "win32 settings save whose reload skips an include that no longer decodes keeps the running settings" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "copy-on-select = true\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        pending.@"font-size" = 15;
+        try app.settingsReconcileDisk(&pending, &original, true);
+        // Another program rewrites the include as UTF-16 that does not
+        // decode, after the check: the reload skips it whole.
+        SaveTest.hook_path = more;
+        SaveTest.hook_text = "\xff\xfe\x00\xd8a\x00";
+        save_target.test_before_compare = SaveTest.hook;
+        try std.testing.expectError(error.SavedButUnread, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqual(@as(f32, 12), app.config.@"font-size");
+        try std.testing.expect(app.config.@"copy-on-select" == .true);
+        const expected = try std.fmt.allocPrint(alloc, "the included file {s}", .{more});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+    }
+
+    test "win32 palette theme pick whose reload reads a file only partly says so and keeps the running settings" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "copy-on-select = true\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // Another program locks the include's bytes once the pick's check is
+        // done: the save's reload reads part of it.
+        SaveTest.lock_path = more;
+        save_target.test_before_compare = SaveTest.hook;
+        try host.commitPaletteTheme(picked);
+        // Saved,
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.indexOf(u8, after, picked) != null);
+        // the running settings kept, and the window says why.
+        try std.testing.expect(app.config.@"copy-on-select" == .true);
+        try std.testing.expectEqualStrings("Theme saved, but a config file could not be read whole. Reload the configuration once it can be read.", host.banner_text orelse return error.TestExpectedBanner);
+    }
+
+    test "win32 palette theme pick whose reload cannot be applied says it saved and keeps the running settings" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        // An include names a light/dark pair, so the reload after the pick has
+        // a switch to make; the app runs dark.
+        const more_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\n", .{ light, dark });
+        defer alloc.free(more_text);
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = more_text });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        app.core_app.config_conditional_state = .{ .theme = .dark };
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // The reload after the write is read whole, and the switch to the
+        // dark state runs out of memory.
+        settings_patch.test_config_load = SaveTest.starvedLoad;
+        save_target.test_before_compare = SaveTest.starveNext;
+        try host.commitPaletteTheme(picked);
+        // Saved,
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.indexOf(u8, after, picked) != null);
+        // and the window says so, and to reload, rather than that the save
+        // failed. (The running values cannot tell: the include's theme wins
+        // over the pick whether the reload is applied, kept or rolled back.)
+        try std.testing.expectEqualStrings("Theme saved, but the saved settings could not be applied. Reload the configuration to use them.", host.banner_text orelse return error.TestExpectedBanner);
+    }
+
+    test "settings save whose checks or apply fail after the write says it saved, never that it failed" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // The include overrides `font-size`, so a save of it has a masked
+        // setting to name; `cursor-style` is overridden by nothing.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "font-size = 20\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // The App's allocator, which fails its next allocation once the
+        // reload after the write is read.
+        var fail_next: SaveTest.FailNext = .{ .parent = app.core_app.alloc };
+        const real = app.core_app.alloc;
+        app.core_app.alloc = fail_next.allocator();
+        defer app.core_app.alloc = real;
+        const Case = enum { masked_check, apply };
+        for ([_]Case{ .masked_check, .apply }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            SaveTest.fail_next = &fail_next;
+            settings_patch.test_config_load = SaveTest.starvedLoad;
+            save_target.test_before_compare = SaveTest.failAppNext;
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            // Naming the overridden setting is the first thing after the
+            // read that allocates; with nothing overridden, it is
+            // `updateConfig`, which may have updated some terminals.
+            switch (case) {
+                .masked_check => pending.@"font-size" = 15,
+                .apply => pending.@"cursor-style" = .underline,
+            }
+            // The window shows a preview, as while a draft changes opacity.
+            settingsPreviewFieldThunk(&app, .background_opacity, .{ .background_opacity = 0.5 });
+            try std.testing.expect(app.settings_preview != null);
+            // The save, as the window makes it: done, and said so.
+            const result = settingsSaveAndReloadThunk(&app, &pending, &original, &.of(&original));
+            try std.testing.expectError(switch (case) {
+                .masked_check => error.SavedNotApplied,
+                .apply => error.SavedPartlyApplied,
+            }, result);
+            try std.testing.expect(!fail_next.armed);
+            try std.testing.expect(app.settings_preview == null);
+            // Written.
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            try std.testing.expect(std.mem.indexOf(u8, after, switch (case) {
+                .masked_check => "font-size = 15\n",
+                .apply => "cursor-style = underline\n",
+            }) != null);
+        }
+    }
+
+    test "win32 palette theme pick whose checks fail after the write says it saved, rather than roll back" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "other", .data = "font-size = 14\n" });
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        const other = try tmp.dir.realpathAlloc(alloc, "other");
+        defer alloc.free(other);
+        // An include names another theme, so the pick is overridden and the
+        // check after the write has a setting to name.
+        const more_text = try std.fmt.allocPrint(alloc, "theme = {s}\n", .{other});
+        defer alloc.free(more_text);
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = more_text });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var fail_next: SaveTest.FailNext = .{ .parent = app.core_app.alloc };
+        const real = app.core_app.alloc;
+        app.core_app.alloc = fail_next.allocator();
+        defer app.core_app.alloc = real;
+        SaveTest.fail_next = &fail_next;
+        settings_patch.test_config_load = SaveTest.starvedLoad;
+        save_target.test_before_compare = SaveTest.failAppNext;
+        try host.commitPaletteTheme(picked);
+        try std.testing.expect(!fail_next.armed);
+        // Saved,
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.indexOf(u8, after, picked) != null);
+        // and the window says so, and to reload, rather than that the save
+        // failed.
+        try std.testing.expectEqualStrings("Theme saved, but the saved settings could not be applied. Reload the configuration to use them.", host.banner_text orelse return error.TestExpectedBanner);
+    }
+
+    test "win32 palette theme pick whose write fails rolls back, and holds the config the palette lists from until the palette closes" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        const text = "font-size = 12\n";
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        const Case = enum { no_preview, preview };
+        for ([_]Case{ .no_preview, .preview }) |case| {
+            if (case == .preview) {
+                try host.previewPaletteTheme(picked);
+                try std.testing.expectEqual(@as(f32, 20), app.config.@"font-size");
+            }
+            // Another program locks the file's bytes as the save is about to
+            // put its own in place: the save's last read of it fails, and
+            // nothing is written.
+            SaveTest.lock_path = path;
+            save_target.test_before_compare = SaveTest.hook;
+            try host.commitPaletteTheme(picked);
+            if (SaveTest.lock) |file| file.close();
+            SaveTest.lock = null;
+            SaveTest.lock_path = "";
+            // Rolled back: the config from before the pick (and its preview)
+            // runs, and the file is as it was.
+            try std.testing.expectEqual(@as(f32, 12), app.config.@"font-size");
+            try std.testing.expectEqualStrings("Theme save failed; reverted preview.", host.banner_text orelse return error.TestExpectedBanner);
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            try std.testing.expectEqualStrings(text, after);
+            // The palette stays open with the banner, and so keeps the config
+            // its list was built from (`palette_catalog_retained_config`):
+            // what a test that leaves it open reports as leaked. Closing the
+            // palette releases it, as `Host.deinit` does for a window that
+            // goes with the palette open.
+            try std.testing.expect(host.palette_catalog_retained_config != null);
+            host.hideOverlay();
+            try std.testing.expect(host.palette_catalog_retained_config == null);
+        }
+    }
+
+    test "win32 palette theme pick with a preview whose reload cannot be read keeps the preview running" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\n" });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // The palette previews the theme: it runs.
+        try host.previewPaletteTheme(picked);
+        try std.testing.expectEqual(@as(f32, 20), app.config.@"font-size");
+        // The pick is saved, and the reload after the write cannot be read.
+        settings_patch.test_config_load = SaveTest.starvedLoad;
+        save_target.test_before_compare = SaveTest.failNext;
+        try host.commitPaletteTheme(picked);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.indexOf(u8, after, picked) != null);
+        // The previewed theme keeps running, rather than being rolled back
+        // to the config from before the preview.
+        try std.testing.expectEqual(@as(f32, 20), app.config.@"font-size");
+        try std.testing.expectEqualStrings("Theme saved, but the saved settings could not be applied. Reload the configuration to use them.", host.banner_text orelse return error.TestExpectedBanner);
+    }
+
+    test "settings save whose report, file naming or apply fails after the write says it saved" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // The include overrides `font-size` and py's label.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "font-size = 20\nprofile-name = py: Other\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nprofile-command = py: python.exe\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // The App's allocator, which fails the first allocation of the step
+        // a case names.
+        var fail_next: SaveTest.FailNext = .{ .parent = app.core_app.alloc };
+        const real = app.core_app.alloc;
+        app.core_app.alloc = fail_next.allocator();
+        defer app.core_app.alloc = real;
+        const Case = enum { report, describe, apply };
+        for ([_]Case{ .report, .describe, .apply }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            SaveTest.fail_next = &fail_next;
+            SaveTest.fail_step = switch (case) {
+                .report => .report,
+                .describe => .describe,
+                .apply => .apply,
+            };
+            settings_patch.test_post_write = SaveTest.failAt;
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            switch (case) {
+                // A profile label the include overrides: the report names
+                // it, and that is the step's first allocation.
+                .report => try pending.@"profile-name".parseCLI(pending._arena.?.allocator(), "py: Python"),
+                // The include is locked as the save is about to put its
+                // bytes in place: the reload reads it only partly, and the
+                // file's name is the step's first allocation.
+                .describe => {
+                    pending.@"cursor-style" = .underline;
+                    SaveTest.lock_path = more;
+                    save_target.test_before_compare = SaveTest.hook;
+                },
+                // An overridden setting, and one that is not.
+                .apply => {
+                    pending.@"font-size" = 15;
+                    pending.@"cursor-style" = .underline;
+                },
+            }
+            const result = settingsSaveAndReloadThunk(&app, &pending, &original, &.of(&original));
+            if (SaveTest.lock) |file| file.close();
+            SaveTest.lock = null;
+            SaveTest.lock_path = "";
+            try std.testing.expect(!fail_next.armed);
+            try std.testing.expect(SaveTest.fail_step == null);
+            switch (case) {
+                .report => try std.testing.expectError(error.SavedNotApplied, result),
+                // Saved, and the status says the reload read a file only
+                // partly, without its name.
+                .describe => {
+                    try std.testing.expectError(error.SavedButUnread, result);
+                    try std.testing.expect(app.settings_failure_detail.text == null);
+                },
+                // Saved, maybe partly applied; the overridden setting is
+                // named for the status, since a reload does not apply it.
+                .apply => {
+                    try std.testing.expectError(error.SavedPartlyApplied, result);
+                    try std.testing.expectEqualStrings("font-size", app.settings_masked_keys.text orelse return error.TestExpectedMaskedKeys);
+                },
+            }
+        }
+    }
+
+    test "win32 palette theme pick whose apply fails after the write says it may be only partly applied, and names a mask" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "picked", .data = "font-size = 20\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "other", .data = "font-size = 14\n" });
+        const picked = try tmp.dir.realpathAlloc(alloc, "picked");
+        defer alloc.free(picked);
+        const other = try tmp.dir.realpathAlloc(alloc, "other");
+        defer alloc.free(other);
+        const more_text = try std.fmt.allocPrint(alloc, "theme = {s}\n", .{other});
+        defer alloc.free(more_text);
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "font-size = 12\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        const path = blk: {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            break :blk try tmp.dir.realpathAlloc(alloc, "config");
+        };
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var fail_next: SaveTest.FailNext = .{ .parent = app.core_app.alloc };
+        const real = app.core_app.alloc;
+        app.core_app.alloc = fail_next.allocator();
+        defer app.core_app.alloc = real;
+        const Case = enum { plain, masked };
+        for ([_]Case{ .plain, .masked }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            // The include names another theme, so it masks the pick.
+            try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = if (case == .masked) more_text else "\n" });
+            // The app runs the files as they are now, so the pick's check
+            // finds no change on disk.
+            {
+                var loaded = try SaveTest.load(alloc);
+                defer loaded.deinit();
+                try app.updateCoreConfig(&loaded);
+            }
+            SaveTest.fail_next = &fail_next;
+            SaveTest.fail_step = .apply;
+            settings_patch.test_post_write = SaveTest.failAt;
+            try host.commitPaletteTheme(picked);
+            try std.testing.expect(SaveTest.fail_step == null);
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            try std.testing.expect(std.mem.indexOf(u8, after, picked) != null);
+            try std.testing.expectEqualStrings(switch (case) {
+                .plain => "Theme saved, but the saved settings may be only partly applied. Reload the configuration to apply all of them.",
+                .masked => "Theme saved, but the saved settings may be only partly applied, and a later config layer masks the theme, so a reload does not apply it.",
+            }, host.banner_text orelse return error.TestExpectedBanner);
+        }
+    }
+
+    test "win32 settings save whose reload reads a file only partly keeps the running settings and names the file" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "copy-on-select = true\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const Case = enum { ordinary, profile };
+        for ([_]Case{ .ordinary, .profile }) |case| {
+            const text = try std.fmt.allocPrint(alloc, "font-size = 12\nprofile-command = py: python.exe\nconfig-file = {s}\n", .{more});
+            defer alloc.free(text);
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            const path = try tmp.dir.realpathAlloc(alloc, "config");
+            defer alloc.free(path);
+            SaveTest.files = &.{path};
+            try SaveTest.begin(&app, path);
+            defer SaveTest.end(&app);
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            switch (case) {
+                .ordinary => pending.@"font-size" = 15,
+                .profile => try pending.@"profile-name".parseCLI(pending._arena.?.allocator(), "py: Python"),
+            }
+            // The window shows a preview of the opacity, as it does while a
+            // draft changes it.
+            if (case == .ordinary) {
+                settingsPreviewFieldThunk(&app, .background_opacity, .{ .background_opacity = 0.5 });
+                try std.testing.expect(app.settings_preview != null);
+            }
+            try app.settingsReconcileDisk(&pending, &original, true);
+            // Another program locks the include's bytes once the check is
+            // done: the save's reload opens it and reads part of it.
+            SaveTest.lock_path = more;
+            save_target.test_before_compare = SaveTest.hook;
+            // The save, as the window makes it.
+            try std.testing.expectError(error.SavedButUnread, settingsSaveAndReloadThunk(&app, &pending, &original, &.of(&original)));
+            // The preview ends with it: the running settings are what show.
+            try std.testing.expect(app.settings_preview == null);
+            // Written,
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            switch (case) {
+                .ordinary => try std.testing.expect(std.mem.indexOf(u8, after, "font-size = 15\n") != null),
+                .profile => try std.testing.expect(std.mem.indexOf(u8, after, "profile-name = py: Python\n") != null),
+            }
+            // but the partial reload is not applied: the running settings,
+            // the include's among them, stay as they were.
+            try std.testing.expectEqual(@as(f32, 12), app.config.@"font-size");
+            try std.testing.expect(app.config.@"copy-on-select" == .true);
+            try std.testing.expect(app.config.@"profile-name".get("py") == null);
+            // And the status names the file.
+            const expected = try std.fmt.allocPrint(alloc, "the included file {s}", .{more});
+            defer alloc.free(expected);
+            try std.testing.expect(std.mem.eql(u8, expected, app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+        }
+    }
+
+    test "win32 settings save judges what overrides an ordinary setting in the app's light/dark state" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "# light\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "default-profile = pwsh.exe\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\ndefault-profile = cmd.exe\n", .{ light, dark });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        // The app runs dark.
+        core_app.config_conditional_state = .{ .theme = .dark };
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        try std.testing.expectEqualStrings("cmd.exe", app.config.@"default-profile" orelse return error.TestExpectedProfile);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // Automatic: the file's line goes, and in the dark state the dark
+        // theme's value takes over, which the light reading does not see.
+        pending.@"default-profile" = null;
+        try std.testing.expectError(error.SavedButMasked, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqualStrings("default-profile", app.settings_masked_keys.text orelse return error.TestExpectedMasked);
+        // In the light state nothing overrides it.
+        app.settings_masked_keys.clear(alloc);
+        core_app.config_conditional_state = .{};
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        {
+            var loaded = try SaveTest.load(alloc);
+            defer loaded.deinit();
+            try app.updateCoreConfig(&loaded);
+        }
+        var light_original = try app.config.clone(alloc);
+        defer light_original.deinit();
+        var light_pending = try app.config.clone(alloc);
+        defer light_pending.deinit();
+        light_pending.@"default-profile" = null;
+        try app.settingsSaveAndReload(&light_pending, &light_original);
+        try std.testing.expect(app.settings_masked_keys.text == null);
+    }
+
+    test "settings save of the profiles' order and visibility writes both lists whole, which the app then picks by" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // A file loaded first orders and hides profiles of its own.
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "profile-order = cmd.exe\nprofile-hidden = pwsh.exe\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "profile-command = py: python.exe\n" });
+        const lower = try tmp.dir.realpathAlloc(alloc, "lower.conf");
+        defer alloc.free(lower);
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{ lower, path };
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // The page's order: py, PowerShell, Command Prompt, with Command
+        // Prompt hidden.
+        try settings_profiles.setOrder(&pending, &.{ "user:py", "pwsh.exe", "cmd.exe" });
+        try settings_profiles.setHidden(&pending, &.{"cmd.exe"});
+        try app.settingsSaveAndReload(&pending, &original);
+        // The file: its own line, then both lists whole, each after its clear.
+        {
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            // Compared without printing: the file holds a command line.
+            try std.testing.expect(std.mem.eql(u8, "profile-command = py: python.exe\n\nprofile-order =\nprofile-order = user:py\nprofile-order = pwsh.exe\nprofile-order = cmd.exe\n\nprofile-hidden =\nprofile-hidden = cmd.exe\n", after));
+        }
+        // The clears take what the lower file gave: the app's lists are the
+        // page's, and picking by them gives the page's order.
+        var profiles = [_]windows_shell.Profile{
+            .{ .kind = .cmd, .key = "cmd.exe", .label = "Command Prompt", .command = .{ .direct = &.{} } },
+            .{ .kind = .pwsh, .key = "pwsh.exe", .label = "PowerShell", .command = .{ .direct = &.{} } },
+            .{ .kind = .user, .key = "user:py", .label = "py", .command = .{ .direct = &.{} } },
+        };
+        var order: [8][]const u8 = undefined;
+        var hidden: [8][]const u8 = undefined;
+        for (app.config.@"profile-order".list.items, 0..) |value, at| order[at] = value;
+        for (app.config.@"profile-hidden".list.items, 0..) |value, at| hidden[at] = value;
+        windows_shell.arrangeProfiles(&profiles, order[0..app.config.@"profile-order".list.items.len], hidden[0..app.config.@"profile-hidden".list.items.len]);
+        for ([_][]const u8{ "user:py", "pwsh.exe", "cmd.exe" }, profiles) |key, profile| try std.testing.expectEqualStrings(key, profile.key);
+        try std.testing.expect(!profiles[0].hidden and !profiles[1].hidden and profiles[2].hidden);
+    }
+
+    test "settings save of the profiles' order that a later file comes to clear while it is saved says so, and one another program changed stops" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // An include, read after the file. Settings refuses to change the
+        // lists while it sets one (`settings_patch.listsForeign`), so here it
+        // comes to clear the order and give one of its own only while the
+        // save runs, after that check.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# nothing yet\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "profile-command = py: python.exe\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        {
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            try settings_profiles.setOrder(&pending, &.{ "user:py", "cmd.exe" });
+            SaveTest.hook_path = more;
+            SaveTest.hook_text = "profile-order =\nprofile-order = cmd.exe\n";
+            SaveTest.hook_append = false;
+            save_target.test_before_compare = SaveTest.hook;
+            // Saved, and the order said to be overridden.
+            try std.testing.expectError(error.SavedButMasked, app.settingsSaveAndReload(&pending, &original));
+            try std.testing.expect(std.mem.indexOf(u8, app.settings_masked_keys.text orelse return error.TestExpectedMaskedKeys, "profile-order") != null);
+        }
+        // Another program hides a profile while Settings has the page's
+        // visibility changed: nothing is saved, and the status names the key.
+        // The include sets no list again.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# nothing yet\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        {
+            var loaded = try SaveTest.load(alloc);
+            defer loaded.deinit();
+            try app.updateCoreConfig(&loaded);
+        }
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        try settings_profiles.setHidden(&pending, &.{"pwsh.exe"});
+        const changed = try std.fmt.allocPrint(alloc, "{s}profile-hidden = wsl\n", .{text});
+        defer alloc.free(changed);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = changed });
+        try std.testing.expectError(error.ProfileChanged, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqualStrings("profile-hidden", app.settings_failure_detail.text orelse return error.TestExpectedDetail);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, changed, after));
+    }
+
+    test "settings save of the hidden profiles checks a later file's alias only against a whole list of profiles, and says when it could not" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // An include, read after the file, comes to hide PowerShell by its
+        // alias while the save runs (Settings refuses to change the lists
+        // while a later file sets one, `settings_patch.listsForeign`).
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# nothing yet\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "profile-command = py: python.exe\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        const path = try tmp.dir.realpathAlloc(alloc, ".");
+        defer alloc.free(path);
+        const config_path = try std.fs.path.join(alloc, &.{ path, "config" });
+        defer alloc.free(config_path);
+        // The save hides PowerShell by its key, so the alias hides nothing
+        // more, as a list with every profile tells; a list that missed some,
+        // or none, cannot tell what `pwsh` names.
+        const profiles = [_]windows_shell.Profile{
+            .{ .kind = .pwsh, .key = "pwsh.exe", .label = "PowerShell", .command = .{ .direct = &.{} } },
+            .{ .kind = .cmd, .key = "cmd.exe", .label = "Command Prompt", .command = .{ .direct = &.{} } },
+        };
+        try app.registry.addHost(alloc, &host);
+        defer _ = app.registry.detachHost(&host);
+        const Case = enum { whole, partial, none };
+        for ([_]Case{ .whole, .partial, .none }) |case| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# nothing yet\n" });
+            SaveTest.files = &.{config_path};
+            try SaveTest.begin(&app, config_path);
+            defer SaveTest.end(&app);
+            SaveTest.hook_path = more;
+            SaveTest.hook_text = "profile-hidden = pwsh\n";
+            SaveTest.hook_append = false;
+            save_target.test_before_compare = SaveTest.hook;
+            // The window's list, as discovery leaves it: a changed profile
+            // setting drops it (`Host.invalidateProfiles`), the save's reload
+            // too, after the check.
+            host.profiles = try windows_shell.cloneProfiles(app.core_app.alloc, &profiles);
+            defer if (host.profiles) |owned| {
+                windows_shell.deinitProfiles(app.core_app.alloc, owned);
+                host.profiles = null;
+            };
+            host.profiles_complete = case == .whole;
+            if (case == .none) _ = app.registry.detachHost(&host);
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            try settings_profiles.setHidden(&pending, &.{"pwsh.exe"});
+            const result = app.settingsSaveAndReload(&pending, &original);
+            switch (case) {
+                .whole => try result,
+                .partial, .none => try std.testing.expectError(error.SavedListsUnchecked, result),
+            }
+            try std.testing.expect(app.settings_masked_keys.text == null);
+        }
+    }
+
+    test "settings save checks each group of profile keys in the light/dark state of its own baseline, after the window followed a dark reload" {
+        // The lists are refused when a theme gives them otherwise in the two
+        // states (`settings_patch.listsForeign`); a theme's profile field is
+        // not, and its record's state decides the check.
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // The dark theme labels py; the light one gives nothing.
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "# light\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "profile-name = py: Python (dark)\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, dark });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // Settings reads the config while the app is light.
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        var baselines: settings_patch.Baselines = .of(&original);
+        // The app goes dark, and the window follows its reload: the
+        // profiles, and their record, are the dark ones now.
+        app.core_app.config_conditional_state = .{ .theme = .dark };
+        {
+            var loaded = try SaveTest.load(alloc);
+            defer loaded.deinit();
+            var switched = (try loaded.changeConditionalState(.{ .theme = .dark })) orelse return error.TestExpectedSwitch;
+            defer switched.deinit();
+            try app.updateCoreConfig(&switched);
+        }
+        try settings_profiles.followFile(&original, &pending, &app.config, &baselines);
+        try std.testing.expect(baselines.profiles.values.name.get("py") != null);
+        try std.testing.expect(baselines.profiles.state.theme == .dark);
+        // py's label: no file changed, so nothing stops the save.
+        try pending.@"profile-name".parseCLI(pending._arena.?.allocator(), "py: Python 3");
+        try app.settingsSaveAndReloadFrom(&pending, &original, &baselines);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.indexOf(u8, after, "profile-name = py: Python 3\n") != null);
+    }
+
+    test "settings save of a move writes an earlier file's lists whole into a file that is empty, comments only or not there" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // A file read first defines py and orders the profiles.
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "profile-command = py: python.exe\nprofile-order = cmd.exe\n" });
+        const lower = try tmp.dir.realpathAlloc(alloc, "lower.conf");
+        defer alloc.free(lower);
+        const dir = try tmp.dir.realpathAlloc(alloc, ".");
+        defer alloc.free(dir);
+        const path = try std.fs.path.join(alloc, &.{ dir, "config" });
+        defer alloc.free(path);
+        // The layers as the app reads its default files: the file Settings
+        // saves to gives nothing while it is empty or not there.
+        const Layers = struct {
+            threadlocal var lower_path: []const u8 = "";
+            threadlocal var target_path: []const u8 = "";
+
+            fn load(a: Allocator) anyerror!configpkg.Config {
+                var cfg = try configpkg.Config.default(a);
+                errdefer cfg.deinit();
+                try cfg.loadFile(a, lower_path);
+                cfg.loadFile(a, target_path) catch |err| {
+                    if (err != error.FileNotFound and err != error.FileIsEmpty) return err;
+                };
+                try cfg.loadRecursiveFiles(a);
+                try cfg.finalize();
+                return cfg;
+            }
+        };
+        Layers.lower_path = lower;
+        Layers.target_path = path;
+        const Target = enum { empty, comments, missing };
+        for ([_]Target{ .empty, .comments, .missing }) |target| {
+            tmp.dir.deleteFile("config") catch {};
+            switch (target) {
+                .empty => try tmp.dir.writeFile(.{ .sub_path = "config", .data = "" }),
+                .comments => try tmp.dir.writeFile(.{ .sub_path = "config", .data = "# Settings saves here\n" }),
+                .missing => {},
+            }
+            SaveTest.files = if (target == .comments) &.{ lower, path } else &.{lower};
+            try SaveTest.begin(&app, path);
+            defer SaveTest.end(&app);
+            settings_patch.test_config_load = &Layers.load;
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            try settings_profiles.setOrder(&pending, &.{ "user:py", "cmd.exe" });
+            try app.settingsSaveAndReload(&pending, &original);
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            try std.testing.expect(std.mem.indexOf(u8, after, "profile-order =\nprofile-order = user:py\nprofile-order = cmd.exe\n") != null);
+        }
+    }
+
+    test "settings save of a move stops when an included file orders the profiles and then clears config-file, and says why" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // The file Settings saves to includes one that orders the profiles
+        // and then clears `config-file` (Terra's case): it still loads after
+        // the file, and would override a saved order on every launch.
+        try tmp.dir.writeFile(.{ .sub_path = "later.conf", .data = "profile-order =\nprofile-order = cmd.exe\nconfig-file =\n" });
+        const later = try tmp.dir.realpathAlloc(alloc, "later.conf");
+        defer alloc.free(later);
+        const text = try std.fmt.allocPrint(alloc, "profile-command = py: python.exe\nconfig-file = {s}\n", .{later});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        try settings_profiles.setOrder(&pending, &.{ "user:py", "cmd.exe" });
+        try std.testing.expectError(error.ProfileListsForeign, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqualStrings(settings_patch.ListsForeign.unordered.text(), app.settings_failure_detail.text orelse return error.TestExpectedDetail);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, text, after));
+    }
+
+    test "settings save of a move stops when a later config file sets the profile order, and says so" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "profile-command = py: python.exe\nprofile-hidden = cmd.exe\n" });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        try settings_profiles.setOrder(&pending, &.{ "user:py", "pwsh.exe" });
+        // Since the page was built, the file has come to include one that
+        // orders the profiles.
+        try tmp.dir.writeFile(.{ .sub_path = "later.conf", .data = "profile-order = cmd.exe\n" });
+        const later = try tmp.dir.realpathAlloc(alloc, "later.conf");
+        defer alloc.free(later);
+        const text = try std.fmt.allocPrint(alloc, "profile-command = py: python.exe\nprofile-hidden = cmd.exe\nconfig-file = {s}\n", .{later});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        try std.testing.expectError(error.ProfileListsForeign, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqualStrings(settings_patch.ListsForeign.later_file.text(), app.settings_failure_detail.text orelse return error.TestExpectedDetail);
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, text, after));
+    }
+
+    test "settings save of a new profile hidden by its id is not called overridden by a later file's bare name for it" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app, .hosts = &.{.{ .storage = &host }} });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        // An include, read after the file, comes to hide `dev` by its bare
+        // id while the save runs.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# nothing yet\n" });
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "profile-command = py: python.exe\nconfig-file = {s}\n", .{more});
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        // The window's whole list, from before the save: no `dev` in it.
+        const profiles = [_]windows_shell.Profile{
+            .{ .kind = .pwsh, .key = "pwsh.exe", .label = "PowerShell", .command = .{ .direct = &.{} } },
+            .{ .kind = .user, .key = "user:py", .label = "py", .command = .{ .direct = &.{} } },
+        };
+        try app.registry.addHost(alloc, &host);
+        defer _ = app.registry.detachHost(&host);
+        host.profiles = try windows_shell.cloneProfiles(app.core_app.alloc, &profiles);
+        defer if (host.profiles) |owned| {
+            windows_shell.deinitProfiles(app.core_app.alloc, owned);
+            host.profiles = null;
+        };
+        host.profiles_complete = true;
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // The save adds `dev` and hides it by its key.
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "dev: dev.exe");
+        try settings_profiles.setHidden(&pending, &.{"user:dev"});
+        SaveTest.hook_path = more;
+        SaveTest.hook_text = "profile-hidden = dev\n";
+        SaveTest.hook_append = false;
+        save_target.test_before_compare = SaveTest.hook;
+        try app.settingsSaveAndReload(&pending, &original);
+        try std.testing.expect(app.settings_masked_keys.text == null);
+    }
+
+    test "settings save of the profiles' order stops when another program hid a profile in a file loaded first, which the save's clear would show again" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        const settings_profiles = @import("../win32_settings_profiles.zig");
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "# a file loaded first\n" });
+        const text = "profile-command = py: python.exe\n";
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const lower = try tmp.dir.realpathAlloc(alloc, "lower.conf");
+        defer alloc.free(lower);
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{ lower, path };
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // Only the order changes. Both lists are written, the hidden one
+        // after a clear that drops what the lower file gives it.
+        try settings_profiles.setOrder(&pending, &.{ "user:py", "pwsh.exe", "cmd.exe" });
+        try std.testing.expect(pending.@"profile-hidden".equal(original.@"profile-hidden"));
+        // Before Save, another program hides PowerShell in the lower file.
+        const hides = "profile-hidden = pwsh.exe\n";
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = hides });
+        try std.testing.expectError(error.ProfileChanged, app.settingsSaveAndReload(&pending, &original));
+        try std.testing.expectEqualStrings("profile-hidden", app.settings_failure_detail.text orelse return error.TestExpectedDetail);
+        // Nothing is written: both files are as they were left.
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, text, after));
+        const lower_after = try SaveTest.read(lower);
+        defer alloc.free(lower_after);
+        try std.testing.expect(std.mem.eql(u8, hides, lower_after));
+    }
+
+    test "win32 settings save of a profile removal reads the layers again: a lower file that gained the profile keeps a tombstone" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "# a file loaded first\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = "font-size = 12\nprofile-command = py: python.exe\n" });
+        const lower = try tmp.dir.realpathAlloc(alloc, "lower.conf");
+        defer alloc.free(lower);
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{ lower, path };
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        // The draft removes `py`, which only the target file defines as the
+        // app last read the files.
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        // While Settings is open, the file loaded first gains `py`, with no
+        // reload.
+        try tmp.dir.writeFile(.{ .sub_path = "lower.conf", .data = "profile-command = py: other.exe\n" });
+        try app.settingsSaveAndReload(&pending, &original);
+        // Deleting the line would bring `py` back from the lower file: the
+        // save read the layers again and wrote a tombstone.
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, "font-size = 12\nprofile-command = py:\n", after));
+        try std.testing.expect(app.config.@"profile-command".get("py") == null);
+    }
+
+    test "settings profile save stops when the held config's theme, read again in the app's state, no longer decodes" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "old-dark", .data = "profile-command = py: python.exe -X dark\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "new-dark", .data = "\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const old_dark = try tmp.dir.realpathAlloc(alloc, "old-dark");
+        defer alloc.free(old_dark);
+        const new_dark = try tmp.dir.realpathAlloc(alloc, "new-dark");
+        defer alloc.free(new_dark);
+        const load = struct {
+            fn config(a: Allocator, file: []const u8) !configpkg.Config {
+                var cfg = try configpkg.Config.default(a);
+                errdefer cfg.deinit();
+                try cfg.loadFile(a, file);
+                try cfg.loadRecursiveFiles(a);
+                try cfg.finalize();
+                return cfg;
+            }
+        }.config;
+        // The config as last read (light), naming the old dark theme, which
+        // defines `py`; the draft removes `py`.
+        const held_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, old_dark });
+        defer alloc.free(held_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = held_text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        var held = try load(alloc, path);
+        defer held.deinit();
+        var pending = try held.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        // Since then the file names a new dark theme, and the old one is
+        // UTF-16 that does not decode. The app runs dark.
+        const fresh_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, new_dark });
+        defer alloc.free(fresh_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = fresh_text });
+        try tmp.dir.writeFile(.{ .sub_path = "old-dark", .data = "\xff\xfe\x00\xd8a\x00" });
+        var detail: win32_settings.FailureDetail = .{};
+        defer detail.clear(alloc);
+        var arena: std.heap.ArenaAllocator = .init(alloc);
+        defer arena.deinit();
+        const fresh = try load(alloc, path);
+        // The fresh reading is whole; the held one, read again dark, skips
+        // its theme, and a removal decided from it could delete where the
+        // old theme still defines `py`: nothing is worked out.
+        try std.testing.expectError(error.UnsupportedEncoding, App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, .{ .theme = .dark }, &held, &pending, path, null));
+        const expected = try std.fmt.allocPrint(alloc, "the file {s}", .{old_dark});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+        // The file is as it was.
+        const after = try tmp.dir.readFileAlloc(alloc, "config", 1 << 16);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, fresh_text, after));
+    }
+
+    test "settings save stops when the held config's theme, read again in the app's state, no longer decodes, and writes nothing" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "old-dark", .data = "profile-command = py: python.exe -X dark\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "new-dark", .data = "\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const old_dark = try tmp.dir.realpathAlloc(alloc, "old-dark");
+        defer alloc.free(old_dark);
+        const new_dark = try tmp.dir.realpathAlloc(alloc, "new-dark");
+        defer alloc.free(new_dark);
+        // The config as the app last read it (light), naming the old dark
+        // theme, which defines `py`; the draft removes `py`.
+        const held_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, old_dark });
+        defer alloc.free(held_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = held_text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        var original = try app.config.clone(alloc);
+        defer original.deinit();
+        var pending = try app.config.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        // The app runs dark now, with the config as last read (a switch that
+        // failed keeps it). Since then the file names a new dark theme, which
+        // decodes, and the old one is UTF-16 that does not.
+        app.core_app.config_conditional_state = .{ .theme = .dark };
+        const fresh_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ light, new_dark });
+        defer alloc.free(fresh_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = fresh_text });
+        try tmp.dir.writeFile(.{ .sub_path = "old-dark", .data = "\xff\xfe\x00\xd8a\x00" });
+        // A removal decided from the held config read dark could delete the
+        // line where the old theme still defines `py`: the save stops and
+        // names that theme.
+        try std.testing.expectError(error.UnsupportedEncoding, app.settingsSaveAndReload(&pending, &original));
+        const expected = try std.fmt.allocPrint(alloc, "the file {s}", .{old_dark});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, app.settings_failure_detail.text orelse return error.TestExpectedDetail));
+        // The file is as it was.
+        const after = try SaveTest.read(path);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, fresh_text, after));
+    }
+
+    test "settings save while the app runs dark is applied whole when only the light theme cannot be read" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nfont-size = 12\n", .{ light, dark });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        app.core_app.config_conditional_state = .{ .theme = .dark };
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        const Case = enum { undecodable, unopenable };
+        for ([_]Case{ .undecodable, .unopenable }, [_]f32{ 15, 16 }) |case, size| {
+            // The light theme, which the app does not apply, cannot be read:
+            // UTF-16 that does not decode, or held by another program with no
+            // sharing. The dark theme reads whole.
+            try tmp.dir.writeFile(.{ .sub_path = "light", .data = switch (case) {
+                .undecodable => "\xff\xfe\x00\xd8a\x00",
+                .unopenable => "\n",
+            } });
+            var held: ?std.os.windows.HANDLE = null;
+            defer if (held) |handle| std.os.windows.CloseHandle(handle);
+            if (case == .unopenable) {
+                const wide = try std.os.windows.sliceToPrefixedFileW(null, light);
+                const handle = std.os.windows.kernel32.CreateFileW(wide.span().ptr, std.os.windows.GENERIC_READ, 0, null, std.os.windows.OPEN_EXISTING, 0, null);
+                if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.CouldNotHoldFile;
+                held = handle;
+            }
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            pending.@"font-size" = size;
+            // The save, and its reload in the dark state, apply the edit.
+            try app.settingsSaveAndReload(&pending, &original);
+            try std.testing.expectEqual(size, app.config.@"font-size");
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            const line = try std.fmt.allocPrint(alloc, "font-size = {d}\n", .{size});
+            defer alloc.free(line);
+            try std.testing.expect(std.mem.indexOf(u8, after, line) != null);
+        }
+    }
+
+    test "settings save whose reload cannot be put in the app's light/dark state applies nothing" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var session: TestSession = .{};
+        try session.init(.{ .core_app = &core_app, .app = &app });
+        defer session.deinit();
+        defer testFreeConfigProblems(&app, alloc);
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nfont-size = 12\n", .{ light, dark });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        app.core_app.config_conditional_state = .{ .theme = .dark };
+        SaveTest.files = &.{path};
+        try SaveTest.begin(&app, path);
+        defer SaveTest.end(&app);
+        const Case = enum { switch_fails, read_fails };
+        for ([_]Case{ .switch_fails, .read_fails }, [_]f32{ 15, 16 }) |case, size| {
+            try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+            // The reload after the write is read whole, and from then on its
+            // allocator has no memory, so the switch to the dark state
+            // fails; or the reload cannot be read at all.
+            settings_patch.test_config_load = SaveTest.starvedLoad;
+            save_target.test_before_compare = switch (case) {
+                .switch_fails => SaveTest.starveNext,
+                .read_fails => SaveTest.failNext,
+            };
+            var original = try app.config.clone(alloc);
+            defer original.deinit();
+            var pending = try app.config.clone(alloc);
+            defer pending.deinit();
+            pending.@"font-size" = size;
+            // The window shows a preview of the opacity, as it does while a
+            // draft changes it.
+            settingsPreviewFieldThunk(&app, .background_opacity, .{ .background_opacity = 0.5 });
+            try std.testing.expect(app.settings_preview != null);
+            // The file is written; the running settings are kept, rather
+            // than the light reading, or one `updateConfig` would switch
+            // unchecked. The save is done: it says so, and the preview ends
+            // with it.
+            try std.testing.expectError(error.SavedNotApplied, settingsSaveAndReloadThunk(&app, &pending, &original, &.of(&original)));
+            try std.testing.expect(app.settings_preview == null);
+            try std.testing.expectEqual(@as(f32, 12), app.config.@"font-size");
+            const after = try SaveTest.read(path);
+            defer alloc.free(after);
+            const line = try std.fmt.allocPrint(alloc, "font-size = {d}\n", .{size});
+            defer alloc.free(line);
+            try std.testing.expect(std.mem.indexOf(u8, after, line) != null);
+        }
+    }
+
+    test "settings profile removal keeps a tombstone when the config as last read, already in the app's state, skipped a theme" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "old-light", .data = "\xff\xfe\x00\xd8a\x00" });
+        try tmp.dir.writeFile(.{ .sub_path = "new-light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        const old_light = try tmp.dir.realpathAlloc(alloc, "old-light");
+        defer alloc.free(old_light);
+        const new_light = try tmp.dir.realpathAlloc(alloc, "new-light");
+        defer alloc.free(new_light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const load = struct {
+            fn config(a: Allocator, file: []const u8) !configpkg.Config {
+                var cfg = try configpkg.Config.default(a);
+                errdefer cfg.deinit();
+                try cfg.loadFile(a, file);
+                try cfg.loadRecursiveFiles(a);
+                try cfg.finalize();
+                return cfg;
+            }
+        }.config;
+        // The config as last read, in the light state the app runs in: its
+        // light theme did not decode, so whatever that theme defined is
+        // missing from it. The draft removes `py`.
+        const held_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ old_light, dark });
+        defer alloc.free(held_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = held_text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        var held = try load(alloc, path);
+        defer held.deinit();
+        try std.testing.expect(held._undecodable_theme != null);
+        var pending = try held.clone(alloc);
+        defer pending.deinit();
+        try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+        // Since then the file names a readable light theme.
+        const fresh_text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\n", .{ new_light, dark });
+        defer alloc.free(fresh_text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = fresh_text });
+        var detail: win32_settings.FailureDetail = .{};
+        defer detail.clear(alloc);
+        var arena: std.heap.ArenaAllocator = .init(alloc);
+        defer arena.deinit();
+        const fresh = try load(alloc, path);
+        // Nothing names `py` in the fresh reading, but the held one could
+        // not read everything, so it may have missed what does: the line
+        // becomes a tombstone, not a deletion. The save is not refused for a
+        // marker that may be stale.
+        const edits = try App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, &held, .{}, &held, &pending, path, null);
+        var command: ?settings_patch.Edit = null;
+        for (edits) |e| if (e.field == .command and std.mem.eql(u8, "py", e.id)) {
+            command = e;
+        };
+        try std.testing.expect((command orelse return error.TestExpectedEdit).op == .unset);
+    }
+
+    test "settings profile removal keeps a tombstone when the config as last read skipped an include, across a light/dark switch" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const alloc = std.testing.allocator;
+        var tmp = std.testing.tmpDir(.{});
+        defer tmp.cleanup();
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\n" });
+        try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\n" });
+        // The include, as the app last read it: UTF-16 that does not decode,
+        // so whatever it defined is missing from that reading.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "\xff\xfe\x00\xd8a\x00" });
+        const light = try tmp.dir.realpathAlloc(alloc, "light");
+        defer alloc.free(light);
+        const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+        defer alloc.free(dark);
+        const more = try tmp.dir.realpathAlloc(alloc, "more.conf");
+        defer alloc.free(more);
+        const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\nprofile-command = py: python.exe\nconfig-file = {s}\n", .{ light, dark, more });
+        defer alloc.free(text);
+        try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+        const path = try tmp.dir.realpathAlloc(alloc, "config");
+        defer alloc.free(path);
+        const load = struct {
+            fn config(a: Allocator, file: []const u8) !configpkg.Config {
+                var cfg = try configpkg.Config.default(a);
+                errdefer cfg.deinit();
+                try cfg.loadFile(a, file);
+                try cfg.loadRecursiveFiles(a);
+                try cfg.finalize();
+                return cfg;
+            }
+        }.config;
+        var loaded = try load(alloc, path);
+        defer loaded.deinit();
+        try std.testing.expect(loaded._undecodable_file != null);
+        // The app config after a live switch to dark: that switch does not
+        // carry the record of the skipped include.
+        var live = (try loaded.changeConditionalState(.{ .theme = .dark })) orelse return error.TestExpectedSwitch;
+        defer live.deinit();
+        try std.testing.expect(live._undecodable_file == null);
+        // Since then the include decodes, and names nothing.
+        try tmp.dir.writeFile(.{ .sub_path = "more.conf", .data = "# repaired\n" });
+        const Case = enum { switched_here, switched_live };
+        for ([_]Case{ .switched_here, .switched_live }) |case| {
+            // The held config: the light reading, switched to dark here; or
+            // the app's, already switched live.
+            const held: *const configpkg.Config = switch (case) {
+                .switched_here => &loaded,
+                .switched_live => &live,
+            };
+            var pending = try held.clone(alloc);
+            defer pending.deinit();
+            try pending.@"profile-command".parseCLI(pending._arena.?.allocator(), "py:");
+            var detail: win32_settings.FailureDetail = .{};
+            defer detail.clear(alloc);
+            var arena: std.heap.ArenaAllocator = .init(alloc);
+            defer arena.deinit();
+            const fresh = try load(alloc, path);
+            // Nothing names `py` in the fresh reading, but the held one may
+            // have missed what the include named: the line becomes a
+            // tombstone, not a deletion. Not refused: that record is from the
+            // held config's last read, and the include decodes now.
+            const edits = try App.settingsProfileEditsFromDisk(arena.allocator(), alloc, &detail, fresh, held, .{ .theme = .dark }, held, &pending, path, null);
+            var command: ?settings_patch.Edit = null;
+            for (edits) |e| if (e.field == .command and std.mem.eql(u8, "py", e.id)) {
+                command = e;
+            };
+            try std.testing.expect((command orelse return error.TestExpectedEdit).op == .unset);
+        }
     }
 
     test "SET editor request stays deferred, rechecks safety and reports host failure" {
@@ -9106,259 +12161,71 @@ pub const App = struct {
         try std.testing.expect(!surface.bell_ringing);
     }
 
-    /// Show a toast; when none can be shown, a banner in the target's
-    /// window; failing that, a log line. `sender_title` is the title the
-    /// notification arrived with, which the banner uses: a toast titled by
-    /// its tab names that tab in its attribution line already. Returns
-    /// whether Windows took the toast.
-    fn showToast(
-        self: *App,
-        target: apprt.Target,
-        request: ToastRequest,
-        sender_title: []const u8,
-    ) !bool {
-        var shown = request;
-        if (shown.title.len == 0) shown.title = "Najm";
-
-        // Primary path: an Action Center toast. It persists in Action
-        // Center history and surfaces system-level badging. On success we
-        // SKIP the in-app banner: showing both would double-notify on the
-        // same event. A show error (notifications turned off for noctty or
-        // for the user, the runtime unavailable, XML rejected) falls back
-        // to the banner so the user still gets feedback. Under Focus Assist
-        // (Do not disturb) Windows may instead accept the toast and file it
-        // in Action Center without a popup, and then no banner appears;
-        // which of the two it does has not been measured for noctty.
-        if (self.toast_sink) |sink| {
-            if (sink.show(sink.ctx, shown)) |_| {
-                return true;
-            } else |err| {
-                // test/windows/interactive-win11-command-finish.ps1 matches
-                // this line's opening words; keep them.
-                std.log.warn("winrt toast show failed err={}; falling back to banner", .{err});
-            }
-        }
-
-        var message: std.Io.Writer.Allocating = .init(self.core_app.alloc);
-        defer message.deinit();
-        composeToastFallback(&message.writer, sender_title, request.body, request.attribution) catch
-            return error.OutOfMemory;
-        if (try self.showHostBanner(target, .info, message.written())) return false;
-        // Final local fallback: pass the composed message as the body so
-        // notifications with an empty `body` (e.g. settings-save success,
-        // where title alone carries the signal) still render something
-        // readable.
-        const caption = if (toastFallbackTitled(sender_title)) sender_title else "Najm";
-        try showInfoMessage(target, caption, message.written());
-        return false;
+    /// The App's side of `notifications.Panes`.
+    pub fn notificationPanes(self: *App) notifications.Panes {
+        return .{
+            .ctx = self,
+            .find = findNotificationPane,
+            .present = presentNotificationTarget,
+            .banner = notificationBanner,
+            .wake = wakeNotificationFlush,
+        };
     }
 
-    fn toastFallbackTitled(title: []const u8) bool {
-        return title.len > 0 and !std.mem.eql(u8, title, "Najm");
-    }
-
-    /// The banner says what the toast would have: `<title>: <body>`, the
-    /// body alone when the title is empty or just "Najm", and the tab
-    /// the toast came from after a dash.
-    fn composeToastFallback(
-        writer: *std.Io.Writer,
-        title: []const u8,
-        body: []const u8,
-        attribution: ?[]const u8,
-    ) std.Io.Writer.Error!void {
-        const titled = toastFallbackTitled(title);
-        if (titled) try writer.writeAll(title);
-        if (body.len > 0) {
-            if (titled) try writer.writeAll(": ");
-            try writer.writeAll(body);
-        }
-        if (attribution) |line| try writer.print(" \u{2014} {s}", .{line});
-    }
-
-    /// A notification a program asked for (OSC 9, OSC 777), one noctty
-    /// shows about a pane (the core's clipboard-copy notices, titled
-    /// "Najm"), or one noctty shows for itself (an `.app` target, such as
-    /// a config reload). One from a pane names its tab and focuses the pane
-    /// when clicked. The core sends both kinds a pane can cause the same
-    /// way, so they are not told apart; by the title they could not be, as
-    /// a program can send an OSC 777 titled "Najm" too.
-    pub fn showDesktopNotification(
-        self: *App,
-        target: apprt.Target,
-        title: []const u8,
-        body: []const u8,
-    ) !void {
-        switch (target) {
-            .app => {},
-            .surface => if (self.registry.findSurfaceForTarget(target)) |surface| {
-                return self.showSurfaceToast(surface, title, body);
-            },
-        }
-        _ = try self.showToast(target, .{ .title = title, .body = body }, title);
-    }
-
-    /// The most of a tab's title a toast shows, in bytes, before the
-    /// ellipsis.
-    const toast_tab_title_max = 64;
-
-    /// Show a toast from `surface` that says which tab it came from and
-    /// focuses `surface` when clicked. An untitled one (OSC 9 has no title)
-    /// is titled by its tab, as Windows Terminal does. Showing a toast is a
-    /// cross-process COM call that can pump messages: callers must not
-    /// touch `surface` after it.
-    fn showSurfaceToast(
-        self: *App,
-        surface: *Surface,
-        title: []const u8,
-        body: []const u8,
-    ) !void {
-        var title_buf: [toast_tab_title_max + "\u{2026}".len]u8 = undefined;
-        var tab_title: std.Io.Writer = .fixed(&title_buf);
-        var context_buf: [160]u8 = undefined;
-        var context: std.Io.Writer = .fixed(&context_buf);
-        const attribution: ?[]const u8 = if (Host.findTabForSurface(surface)) |found| context: {
-            const name = toastTabName(found.tab, surface);
-            try self.writeToastContext(&context, found.host, found.index, name);
-            if (title.len == 0) {
-                try win32_program_status.writeSanitized(&tab_title, name, toast_tab_title_max);
-            }
-            break :context context.buffered();
+    /// Windows first, then the tabs' trees (`Registry.findSurfaceById`), and
+    /// the tab through the pane's own host, so a pane in undo history, or
+    /// one whose window already left the registry, has a window and no tab.
+    fn findNotificationPane(ctx: *anyopaque, pane: u64) ?notifications.Pane {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        const surface = self.registry.findSurfaceById(pane) orelse return null;
+        const tab: ?notifications.Pane.Tab = if (Host.findTabForSurface(surface)) |found| .{
+            .id = found.tab.id,
+            .index = found.index,
+            .name = toastTabName(found.tab, surface),
+            .window = self.notificationWindow(found.host),
         } else null;
-
-        const launch = try buildToastLaunchForSurface(self.core_app.alloc, surface);
-        defer self.core_app.alloc.free(launch);
-
-        // Tagged by pane and grouped by process: a newer toast from this
-        // pane replaces its older one in Action Center, and seeing the tab,
-        // closing the pane or exiting takes it out (`queueToastRemoval`).
-        const surface_id = surface.core().id;
-        var tag_buf: [16]u8 = undefined;
-        var group_buf: [toast_group_max]u8 = undefined;
-        // A removal still queued for the pane's older toast would take this
-        // one, which replaces it, away too. Taken off before the show, which
-        // can pump messages that flush the queue; put back if Windows
-        // refuses this toast, since the older one is then still there.
-        const was_queued = self.cancelToastRemoval(surface_id);
-        const shown = self.showToast(.{ .surface = surface.core() }, .{
-            .title = if (title.len > 0) title else tab_title.buffered(),
-            .body = body,
-            .attribution = attribution,
-            .launch = launch,
-            .tag = toastTag(&tag_buf, surface_id),
-            .group = toastGroup(&group_buf),
-        }, title) catch |err| {
-            if (was_queued) self.restoreToastRemoval(surface_id);
-            return err;
-        };
-        if (shown) {
-            // One queued while the show pumped messages (the tab seen) was
-            // for the older toast too, which this one has replaced.
-            _ = self.cancelToastRemoval(surface_id);
-            self.noteToastShown(surface_id);
-        } else if (was_queued) {
-            self.restoreToastRemoval(surface_id);
-        }
+        return .{ .window_id = surface.host_id, .tab = tab };
     }
 
-    /// A toast tagged `surface_id` is in Action Center now. The show may
-    /// have pumped messages that closed the pane or put its tab in undo
-    /// history, so it is found again by id; a pane not in a live tab has
-    /// its toast removed at once.
-    fn noteToastShown(self: *App, surface_id: u64) void {
-        self.toast_group_used = true;
-        if (self.registry.findLiveSurfaceById(surface_id)) |surface| {
-            surface.toast_outstanding = surface_id;
-        } else {
-            // Failing that, exit's group removal takes it.
-            _ = self.queueToastRemoval(surface_id);
-        }
-    }
-
-    /// The pane's toast, if it may still be in Action Center, is to be
-    /// removed: its tab was seen, the pane closed, or the tab went into
-    /// undo history. Queued by id and done from a posted message
-    /// (`flushToastRemovals`), so nothing here calls into Windows.
-    pub fn forgetSurfaceToast(self: *App, surface: *Surface) void {
-        const surface_id = surface.toast_outstanding orelse return;
-        if (self.queueToastRemoval(surface_id)) surface.toast_outstanding = null;
-    }
-
-    pub fn forgetTabToasts(self: *App, tab: *const Tab) void {
-        var it = tab.tree.iterator();
-        while (it.next()) |entry| self.forgetSurfaceToast(entry.view);
-    }
-
-    /// Returns false when the id could not be queued; the caller then keeps
-    /// it outstanding, so a later chance retries.
-    fn queueToastRemoval(self: *App, surface_id: u64) bool {
-        if (std.mem.indexOfScalar(u64, self.toast_removals.items, surface_id) == null) {
-            self.toast_removals.append(self.core_app.alloc, surface_id) catch {
-                log.warn("toast removal not queued: out of memory", .{});
-                return false;
-            };
-        }
-        if (!self.toast_removals_posted) {
-            // No message window (before `run` creates it, after it closes
-            // at exit): exit's `removeOwnToasts` takes the whole group.
-            if (self.registry.message_hwnd) |hwnd| {
-                self.toast_removals_posted = sys.PostMessageW(hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, 0, 0) != 0;
-            }
-        }
+    fn presentNotificationTarget(ctx: *anyopaque, which: notifications.Present) bool {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        const surface = self.notificationTargetSurface(which) orelse return false;
+        surface.present();
         return true;
     }
 
-    /// Returns whether a removal was queued for the pane.
-    fn cancelToastRemoval(self: *App, surface_id: u64) bool {
-        const i = std.mem.indexOfScalar(u64, self.toast_removals.items, surface_id) orelse return false;
-        _ = self.toast_removals.orderedRemove(i);
+    /// The pane `which` names. Pane ids are looked up in the windows first,
+    /// then the tabs' trees (`Registry.findSurfaceById`).
+    fn notificationTargetSurface(self: *App, which: notifications.Present) ?*Surface {
+        return switch (which) {
+            .pane => |id| self.registry.findSurfaceById(id),
+            .tab => |tab| if (self.registry.findHostById(tab.window)) |host| host.focusedSurfaceForTab(tab.tab) else null,
+            .window => |id| if (self.registry.findHostById(id)) |host| host.activeSurface() else null,
+            .primary => self.registry.primarySurface(),
+        };
+    }
+
+    fn notificationBanner(ctx: *anyopaque, from: notifications.From, text: []const u8) bool {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        const surface = switch (from) {
+            .app => self.registry.primarySurface(),
+            .pane => |id| self.registry.findSurfaceById(id),
+        } orelse return false;
+        const host = surface.host orelse return false;
+        host.setBanner(.info, text) catch |err| {
+            log.warn("notification banner failed err={}", .{err});
+            return false;
+        };
         return true;
     }
 
-    /// Queue again the removal a refused show took off (`showSurfaceToast`),
-    /// by id only: the show may have pumped messages that closed the pane.
-    /// A toast the pane showed meanwhile is outstanding and replaced the
-    /// older one, so its removal waits for the next chance.
-    fn restoreToastRemoval(self: *App, surface_id: u64) void {
-        const surface = self.registry.findSurfaceById(surface_id);
-        if (surface) |pane| if (pane.toast_outstanding != null) return;
-        if (self.queueToastRemoval(surface_id)) return;
-        // Out of memory: kept outstanding, so a later chance retries.
-        if (surface) |pane| pane.toast_outstanding = surface_id;
-    }
-
-    /// Remove the queued panes' toasts from Action Center. Each id is taken
-    /// off the live queue before its call: a history call can pump
-    /// messages, and a toast shown meanwhile for a pane still queued takes
-    /// that pane off the queue (`cancelToastRemoval`), so it survives.
-    pub fn flushToastRemovals(self: *App) void {
-        self.toast_removals_posted = false;
-        const sink = self.toast_sink orelse {
-            self.toast_removals.clearRetainingCapacity();
-            return;
-        };
-        var group_buf: [toast_group_max]u8 = undefined;
-        const group = toastGroup(&group_buf);
-        while (self.toast_removals.items.len > 0) {
-            const surface_id = self.toast_removals.orderedRemove(0);
-            var tag_buf: [16]u8 = undefined;
-            sink.remove_tag(sink.ctx, toastTag(&tag_buf, surface_id), group) catch |err| {
-                log.warn("toast removal failed err={}", .{err});
-            };
-        }
-    }
-
-    /// At exit: take this process's toasts out of Action Center, all at
-    /// once by its group, and never the other noctty processes'.
-    fn removeOwnToasts(self: *App) void {
-        self.toast_removals.clearAndFree(self.core_app.alloc);
-        self.toast_removals_posted = false;
-        if (!self.toast_group_used) return;
-        self.toast_group_used = false;
-        const sink = self.toast_sink orelse return;
-        var group_buf: [toast_group_max]u8 = undefined;
-        sink.remove_group(sink.ctx, toastGroup(&group_buf)) catch |err| {
-            log.warn("toast group removal at exit failed err={}", .{err});
-        };
+    /// No message window (before `run` creates it, after it closes at
+    /// exit): the flush waits for the next chance, and exit takes the
+    /// whole group.
+    fn wakeNotificationFlush(ctx: *anyopaque) bool {
+        const self: *App = @ptrCast(@alignCast(ctx));
+        const hwnd = self.registry.message_hwnd orelse return false;
+        return sys.PostMessageW(hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, 0, 0) != 0;
     }
 
     /// What the user knows a tab by: the title of its focused pane.
@@ -9367,37 +12234,18 @@ pub const App = struct {
         return shown.effectiveTitle() orelse "Najm";
     }
 
-    /// The line a toast from tab `index` of `host` carries, naming the
-    /// tab: `Tab N: <title>`, `Tab N of window M: <title>` while more than
-    /// one window is open, or `Tab N of the quick terminal: <title>`. The
-    /// quick terminal is not counted as a window, so a window and an idle
-    /// quick terminal don't number the window. The numbers are noctty's
-    /// own, so a program can't pass for another tab; the title is
-    /// sanitized and cut to `toast_tab_title_max` bytes.
-    fn writeToastContext(
-        self: *const App,
-        writer: *std.Io.Writer,
-        host: *const Host,
-        index: usize,
-        tab_name: []const u8,
-    ) std.Io.Writer.Error!void {
-        try writer.print("Tab {d}", .{index + 1});
-        if (host.quick_terminal) {
-            try writer.writeAll(" of the quick terminal");
-        } else {
-            var window_count: usize = 0;
-            var number: ?usize = null;
-            for (self.registry.hosts.items) |item| {
-                if (item.quick_terminal) continue;
-                window_count += 1;
-                if (item == host) number = window_count;
-            }
-            if (window_count > 1) {
-                if (number) |n| try writer.print(" of window {d}", .{n});
-            }
+    /// The window `host` is, as a toast from it names it. Every host but the
+    /// quick terminal counts, a window kept empty for undo included.
+    fn notificationWindow(self: *const App, host: *const Host) notifications.Window {
+        if (host.quick_terminal) return .quick_terminal;
+        var open: u32 = 0;
+        var number: ?u32 = null;
+        for (self.registry.hosts.items) |item| {
+            if (item.quick_terminal) continue;
+            open += 1;
+            if (item == host) number = open;
         }
-        try writer.writeAll(": ");
-        try win32_program_status.writeSanitized(writer, tab_name, toast_tab_title_max);
+        return .{ .ordinary = .{ .number = number, .open = open } };
     }
 
     fn showChildExited(
@@ -9484,7 +12332,7 @@ pub const App = struct {
             );
         defer self.core_app.alloc.free(body);
 
-        try self.showSurfaceToast(surface, "Command finished", body);
+        self.notifications.show(.{ .pane = surface.core().id }, "Command finished", body);
     }
 
     /// Apply a program status event (OSC 7501) to `surface`'s records, then
@@ -9542,9 +12390,9 @@ pub const App = struct {
             entry.view.program_status_notified_ms = null;
             entry.view.program_status_notify_pending = false;
             if (entry.view.program_status.acknowledge()) changed = true;
-            // Its toasts have been seen too. Only queued here: this runs
+            // Its toasts have been seen too. Only marked here: this runs
             // inside WM_ACTIVATE and focus handling.
-            self.forgetSurfaceToast(entry.view);
+            self.notifications.seen(entry.view.core().id);
         }
         if (!changed) return;
         host.refreshTabStatus(index);
@@ -9603,7 +12451,7 @@ pub const App = struct {
         }
 
         log.debug("program status notification tab={d} title={s}", .{ index + 1, title.buffered() });
-        try self.showSurfaceToast(surface, title.buffered(), body.buffered());
+        self.notifications.show(.{ .pane = surface.core().id }, title.buffered(), body.buffered());
     }
 
     /// Deliver program status notifications the rate limit held back: for
@@ -9831,49 +12679,56 @@ pub const App = struct {
 };
 
 test "win32 Settings' profile choices follow what the loaded config made of the value" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
     const alloc = std.testing.allocator;
+    const fixtures = pane_launch.fixtures;
+    // No window, so no window's list at all.
     var app: App = undefined;
     app.registry.hosts = .empty;
-    app.config = try configpkg.Config.default(alloc);
-    defer app.config.deinit();
-    const arena = app.config._arena.?.allocator();
-    app.config.@"default-profile" = try arena.dupeZ(u8, "ssh:box");
 
-    // Looked up and not found (no ssh.exe here): not found, not "SSH: box",
-    // with no window's list at all.
-    app.config._default_profile_failure = .not_found;
-    var failed = try settingsProfileChoicesThunk(&app, alloc, "ssh:box", null, false);
-    defer failed.deinit(alloc);
-    try std.testing.expect(failed.saved_label == null);
-    try std.testing.expect(failed.saved_not_found);
+    // Looked up and not found (the test machine has no ssh.exe): not found,
+    // not "SSH: box".
+    {
+        app.config = try fixtures.load(alloc, .{ .file = "default-profile = ssh:box\n" });
+        defer app.config.deinit();
+        var failed = try settingsProfileChoicesThunk(&app, alloc, "ssh:box", null, false);
+        defer failed.deinit(alloc);
+        try std.testing.expect(failed.saved_label == null);
+        try std.testing.expect(failed.saved_not_found);
+    }
 
     // Visual Studio did not answer: apart from every row, and not missing.
-    app.config.@"default-profile" = try arena.dupeZ(u8, "vs:newest:cmd");
-    app.config._default_profile_failure = .unavailable;
-    try std.testing.expect(settingsDefaultProfileOutcome(&app.config, "vs:newest:cmd") == .unavailable);
-    try std.testing.expect(settingsDefaultProfileOutcome(&app.config, "vs:6bb7cfd9:cmd") == .untried);
-    var unavailable = try settingsProfileChoicesThunk(&app, alloc, "vs:newest:cmd", null, false);
-    defer unavailable.deinit(alloc);
-    try std.testing.expectEqual(@as(?usize, null), unavailable.selected);
-    try std.testing.expect(unavailable.saved_label == null);
-    try std.testing.expect(!unavailable.saved_not_found);
-    app.config.@"default-profile" = try arena.dupeZ(u8, "ssh:box");
+    {
+        app.config = try fixtures.loadWith(alloc, "default-profile = vs:newest:cmd\n", .{ .visual_studio_answers = false });
+        defer app.config.deinit();
+        var unavailable = try settingsProfileChoicesThunk(&app, alloc, "vs:newest:cmd", null, false);
+        defer unavailable.deinit(alloc);
+        try std.testing.expectEqual(@as(?usize, null), unavailable.selected);
+        try std.testing.expect(unavailable.saved_label == null);
+        try std.testing.expect(!unavailable.saved_not_found);
+    }
 
     // Resolved: the label it starts under.
-    app.config._default_profile_failure = .none;
-    app.config._default_profile = .{ .kind = .ssh, .key = "ssh:box", .label = "SSH: box", .command = .{ .direct = &.{} } };
-    var resolved = try settingsProfileChoicesThunk(&app, alloc, "ssh:box", null, false);
-    defer resolved.deinit(alloc);
-    try std.testing.expectEqualStrings("SSH: box", resolved.saved_label.?);
+    {
+        app.config = try fixtures.load(alloc, .{ .file = "profile-command = py: cmd.exe /k py.cmd\nprofile-name = py: Python\ndefault-profile = py\n" });
+        defer app.config.deinit();
+        var resolved = try settingsProfileChoicesThunk(&app, alloc, "py", null, false);
+        defer resolved.deinit(alloc);
+        try std.testing.expectEqualStrings("Python", resolved.saved_label orelse "");
+        try std.testing.expect(!resolved.saved_not_found);
+    }
 
-    // The files' value in a window whose command line named another: the
-    // load did not look it up, so neither answer above is about it.
-    app.config._default_profile = null;
-    app.config._default_profile_failure = .not_found;
-    app.config.@"default-profile" = try arena.dupeZ(u8, "user:py312");
-    var untried = try settingsProfileChoicesThunk(&app, alloc, "ssh:box", null, false);
-    defer untried.deinit(alloc);
-    try std.testing.expectEqualStrings("SSH: box", untried.saved_label.?);
+    // The files' value in a window whose command line named another (which
+    // the lookup found nothing for): the load did not look the files' value
+    // up, so it gets the label it starts under.
+    {
+        app.config = try fixtures.load(alloc, .{ .file = "default-profile = ssh:box\n", .argv = &.{"--default-profile=user:py312"} });
+        defer app.config.deinit();
+        var untried = try settingsProfileChoicesThunk(&app, alloc, "ssh:box", null, false);
+        defer untried.deinit(alloc);
+        try std.testing.expectEqualStrings("SSH: box", untried.saved_label orelse "");
+        try std.testing.expect(!untried.saved_not_found);
+    }
 }
 
 test "win32 Settings names a staged ssh: profile the list left out by its label" {
@@ -9973,6 +12828,22 @@ test "CHROME57 system broadcasts rebuild once and retain font and accessibility 
     inline for (.{ "Environment", "intl", "Policy" }) |name| {
         try std.testing.expect(!settingChangeAffectsTheme(@bitCast(@intFromPtr(std.unicode.utf8ToUtf16LeStringLiteral(name)))));
     }
+}
+
+test "CHROME57 a system theme message that changed nothing since startup rebuilds nothing" {
+    // Without a baseline, the first message after startup counted as a
+    // change: a theme rebuild, and a retry of a failed blur-behind.
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: win32.test_support.SafeModeAppFixture = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const rebuilds = fixture.app.theme_rebuilds;
+            fixture.app.reconfigureSystemTheme();
+            try std.testing.expectEqual(rebuilds, fixture.app.theme_rebuilds);
+        }
+    }.body);
 }
 
 test "CHROME57 repeated host system messages apply the app theme only once" {
@@ -10081,6 +12952,79 @@ test "PKG-39 a Settings preview is shown without reaching the config terminals a
     try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
 }
 
+test "PKG-39 App.terminate takes both Settings preview hooks away before the window rolls its previews back, with both previews live" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try runOnHiddenDesktop(struct {
+        fn body() !void {
+            const core = try CoreApp.create(std.testing.allocator);
+            defer core.destroy();
+            var app: App = undefined;
+            try app.init(core, .{ .safe_mode = true });
+            const hinstance = app.hinstance;
+            defer {
+                _ = sys.UnregisterClassW(host_class_name, hinstance);
+                _ = sys.UnregisterClassW(palette_list_class_name, hinstance);
+                _ = sys.UnregisterClassW(scrollbar_class_name, hinstance);
+            }
+            const settings_class = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings");
+            const viewport_class = std.unicode.utf8ToUtf16LeStringLiteral("noctty.win32.settings.viewport");
+            defer {
+                _ = sys.UnregisterClassW(settings_class, hinstance);
+                _ = sys.UnregisterClassW(viewport_class, hinstance);
+            }
+            // A step below that fails, the skip included, still tears the
+            // app down, before its window classes go; the end of the test
+            // terminates it once.
+            var terminated = false;
+            errdefer if (!terminated) app.terminate();
+            if (!app.com_initialized) return error.SkipZigTest;
+            try std.testing.expect(app.settings_window.handle.previewField != null);
+            try std.testing.expect(app.settings_window.handle.endPreviews != null);
+
+            // Settings open with an opacity and a theme preview, made through
+            // its own controls, so its rollback has both to end.
+            app.settings_window.handle.deferUiaDisconnect = null;
+            try app.settings_window.open();
+            _ = sys.SetWindowTextW(app.settings_window.fields.edit_bg_opacity.?, std.unicode.utf8ToUtf16LeStringLiteral("0.5"));
+            const combo = app.settings_window.fields.combo_window_theme.?;
+            const field_model = @import("../win32_settings_fields.zig");
+            const cb_setcursel = 0x014E;
+            const cbn_selchange = 1;
+            _ = sys.SendMessageW(combo, cb_setcursel, field_model.Combo(.window_theme).toIndex(.light), 0);
+            const id: usize = @intCast(sys.GetDlgCtrlID(combo));
+            _ = sys.SendMessageW(app.settings_window.hwnd.?, c.WM_COMMAND, id | (@as(usize, cbn_selchange) << 16), @bitCast(@intFromPtr(combo)));
+            try std.testing.expectEqual(@as(f64, 0.5), app.shownConfig().@"background-opacity");
+            try std.testing.expect(app.shownConfig().@"window-theme" == .light);
+
+            // `settings_window.deinit` rolls the previews back after the
+            // hosts and windows a redraw walks are freed: neither a field's
+            // revert nor the end of them all may reach the app. The hooks
+            // count instead of reaching it, so a hook left in place shows as
+            // a call, not as a redraw over freed hosts.
+            const Calls = struct {
+                var preview_field: usize = 0;
+                var end_previews: usize = 0;
+                fn previewField(_: *anyopaque, _: win32_settings.SettingField, _: win32_settings.SettingValue) void {
+                    preview_field += 1;
+                }
+                fn endPreviews(_: *anyopaque) void {
+                    end_previews += 1;
+                }
+            };
+            Calls.preview_field = 0;
+            Calls.end_previews = 0;
+            app.settings_window.handle.previewField = &Calls.previewField;
+            app.settings_window.handle.endPreviews = &Calls.endPreviews;
+            terminated = true;
+            app.terminate();
+            try std.testing.expectEqual(@as(usize, 0), Calls.preview_field);
+            try std.testing.expectEqual(@as(usize, 0), Calls.end_previews);
+            try std.testing.expect(app.settings_window.handle.previewField == null);
+            try std.testing.expect(app.settings_window.handle.endPreviews == null);
+        }
+    }.body);
+}
+
 test "win32 a DPI change holds the terminal grid from WM_GETDPISCALEDSIZE to WM_DPICHANGED" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const core = try CoreApp.create(std.testing.allocator);
@@ -10094,7 +13038,7 @@ test "win32 a DPI change holds the terminal grid from WM_GETDPISCALEDSIZE to WM_
         _ = sys.UnregisterClassW(palette_list_class_name, hinstance);
         _ = sys.UnregisterClassW(scrollbar_class_name, hinstance);
     }
-    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = true });
+    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = .activate });
     const hwnd = host.hwnd.?;
     var size: extern struct { cx: i32, cy: i32 } = .{ .cx = 900, .cy = 600 };
     const size_param: LPARAM = @bitCast(@intFromPtr(&size));
@@ -10254,7 +13198,6 @@ test "win32 runtime can initialize config" {
     try std.testing.expect(@intFromPtr(app.hinstance) != 0);
     // A test's App never holds the real toast notifier.
     try std.testing.expect(app.winrt_toast == null);
-    try std.testing.expect(app.toast_sink == null);
 }
 
 test "win32 a command-line launch-layout outlasts the color-scheme sync that ends init" {
@@ -10483,7 +13426,7 @@ test "win32 new host starts with the client area its first frame change keeps" {
     app.use_integrated_titlebar = true;
 
     // The host stays hidden, so the test never touches the foreground.
-    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{});
+    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .fresh);
     const hwnd = host.hwnd.?;
     try std.testing.expect(host.usingIntegratedTitlebar());
     try std.testing.expect(sys.IsWindowVisible(hwnd) == 0);
@@ -11184,90 +14127,139 @@ test "win32 safe mode notice waits for the launch to resolve on disk" {
     try std.testing.expect(!safe.release(true));
 }
 
-test "win32 a refused toast becomes a banner that names its tab once" {
+test "win32 the notification panes adapter reports a pane's tab, name, window and reach, and finds what a click presents" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var w: ToastTestWindow = .{};
+    try w.init(true);
+    defer w.deinit();
+    const panes = w.app.notificationPanes();
+    const Find = struct {
+        fn tab(from: notifications.Panes, id: u64) !notifications.Pane.Tab {
+            const pane = from.find(from.ctx, id) orelse return error.TestExpectedPane;
+            return pane.tab orelse error.TestExpectedTab;
+        }
+    };
+    const first_of_two: notifications.Window = .{ .ordinary = .{ .number = 1, .open = 2 } };
+
+    // A tab is known by its focused pane's title, also to another of its
+    // panes.
+    const inserted = try toastTestSplit(&w);
+    defer {
+        var cleanup = inserted;
+        cleanup.deinit();
+    }
+
+    // What a click presents, through the real Registry and Host: a pane by
+    // id, also a split pane only its tab's tree holds; a tab's focused pane,
+    // not its window's active one; a window's active pane; the first
+    // window's; nothing for an id no pane, tab or window has. Compared by
+    // pane id, so a failure prints two numbers: printing a `*Surface`
+    // against null formats the fixture's whole Surface, undefined fields
+    // included, and ended the test process in a mutation run.
+    const Presented = struct {
+        fn id(app: *App, which: notifications.Present) ?u64 {
+            const surface = app.notificationTargetSurface(which) orelse return null;
+            return surface.core().id;
+        }
+    };
+    w.app.registry.removeWindow(&w.q);
+    try std.testing.expectEqual(@as(?u64, 0x2003), Presented.id(&w.app, .{ .pane = 0x2003 }));
+    try w.app.registry.addWindow(std.testing.allocator, &w.q);
+    try std.testing.expectEqual(@as(?u64, 0x2002), Presented.id(&w.app, .{ .tab = .{ .window = 7, .tab = 2 } }));
+    try std.testing.expectEqual(@as(?u64, 0x1001), Presented.id(&w.app, .{ .window = 7 }));
+    try std.testing.expectEqual(@as(?u64, 0x3003), Presented.id(&w.app, .{ .window = 8 }));
+    try std.testing.expectEqual(@as(?u64, 0x1001), Presented.id(&w.app, .primary));
+    for ([_]notifications.Present{
+        .{ .pane = 0x9999 },
+        .{ .tab = .{ .window = 7, .tab = 9 } },
+        .{ .tab = .{ .window = 9, .tab = 2 } },
+        .{ .window = 9 },
+    }) |unknown| try std.testing.expectEqual(@as(?u64, null), Presented.id(&w.app, unknown));
+
+    w.q.title = "vim";
+    for ([_]u64{ 0x2002, 0x2003 }) |id| {
+        try std.testing.expectEqual(@as(u32, 7), panes.find(panes.ctx, id).?.window_id);
+        const tab = try Find.tab(panes, id);
+        try std.testing.expectEqual(@as(u32, 2), tab.id);
+        try std.testing.expectEqual(@as(usize, 1), tab.index);
+        try std.testing.expectEqualStrings("cargo build", tab.name);
+        try std.testing.expectEqual(first_of_two, tab.window);
+    }
+    // An untitled tab is "Najm"; the other window is the second, until
+    // it is the quick terminal, which is named and not counted.
+    const other = try Find.tab(panes, 0x3003);
+    try std.testing.expectEqualStrings("Najm", other.name);
+    try std.testing.expectEqual(notifications.Window{ .ordinary = .{ .number = 2, .open = 2 } }, other.window);
+    w.other_host.quick_terminal = true;
+    try std.testing.expectEqual(notifications.Window.quick_terminal, (try Find.tab(panes, 0x3003)).window);
+    try std.testing.expectEqual(notifications.Window{ .ordinary = .{ .number = 1, .open = 1 } }, (try Find.tab(panes, 0x2002)).window);
+    w.other_host.quick_terminal = false;
+
+    // A window kept with no tab for undo still counts as one, and its pane
+    // has a window but no tab.
+    var other_entry = w.other_host.detachTabForUndo(0).?;
+    defer other_entry.dispose(&w.other_host, .host_destroy) catch {}; // Best-effort test teardown.
+    try std.testing.expectEqual(first_of_two, (try Find.tab(panes, 0x2002)).window);
+    try std.testing.expectEqual(@as(u32, 8), panes.find(panes.ctx, 0x3003).?.window_id);
+    try std.testing.expect(panes.find(panes.ctx, 0x3003).?.tab == null);
+
+    // A pane whose split is undone waits in redo history with no tab, and
+    // so do a closed tab's panes in undo history, until it is restored.
+    var split_create: Host.SplitCreateUndo = .{
+        .source_surface = &w.p,
+        .created_surface = &w.q,
+        .direction = .right,
+    };
+    try std.testing.expect(try w.host.undoSplitCreateEntry(&split_create));
+    try std.testing.expect(panes.find(panes.ctx, 0x2003).?.tab == null);
+    var entry = w.host.detachTabForUndo(1).?;
+    defer entry.dispose(&w.host, .host_destroy) catch {}; // Best-effort test teardown.
+    try std.testing.expect(panes.find(panes.ctx, 0x2002).?.tab == null);
+    try std.testing.expect(try w.host.restoreClosedTabEntry(&entry.payload.close_tab));
+    try std.testing.expectEqual(@as(u32, 2), (try Find.tab(panes, 0x2002)).id);
+
+    // A closed pane is gone.
+    w.app.windowDestroyed(&w.front);
+    try std.testing.expect(panes.find(panes.ctx, 0x1001) == null);
+}
+
+test "win32 a notification with no memory for its banner goes to the log, and its action succeeds" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     var w: ToastTestWindow = .{};
     try w.init(false);
     defer w.deinit();
-    // As when notifications are turned off for noctty in Windows Settings.
+    // Windows refuses the toast, and the window cannot take the banner.
     w.recorder.refuse = error.NotifierDisabled;
-
-    // An untitled OSC 9 toast is titled by its tab, but the banner does not
-    // repeat the tab's title before the tab line.
-    try w.osc(&w.p, "", "tests passed");
-    try w.recorder.expect(.title, "cargo build");
-    try std.testing.expectEqual(HostBannerKind.info, w.host.banner_kind);
-    try std.testing.expectEqualStrings("tests passed \u{2014} Tab 2: cargo build", w.host.banner_text.?);
+    var no_memory: [0]u8 = .{};
+    var failing = std.heap.FixedBufferAllocator.init(&no_memory);
+    const working = w.core_app.alloc;
+    w.core_app.alloc = failing.allocator();
+    defer w.core_app.alloc = working;
 
     try w.osc(&w.p, "deploy", "rolled out");
-    try std.testing.expectEqualStrings("deploy: rolled out \u{2014} Tab 2: cargo build", w.host.banner_text.?);
-
-    // The core's clipboard-copy notice arrives from its pane exactly as an
-    // OSC 777 titled "Najm" would, so it names its tab and focuses the
-    // pane like any other toast from a pane.
-    try w.osc(&w.front, "Najm", "Copied selection to clipboard");
-    try w.recorder.expect(.title, "Najm");
-    try w.recorder.expect(.attribution, "Tab 1: pwsh");
-    try w.recorder.expectLaunchFor(&w.front, 1);
-    try std.testing.expectEqualStrings("Copied selection to clipboard \u{2014} Tab 1: pwsh", w.host.banner_text.?);
-
-    // An app notification names no tab; one with only a title (a Settings
-    // save) is its title.
-    try std.testing.expect(try w.app.performAction(.app, .desktop_notification, .{
-        .title = "",
-        .body = "Configuration reloaded",
-    }));
-    try std.testing.expectEqualStrings("Configuration reloaded", w.host.banner_text.?);
-    try std.testing.expect(try w.app.performAction(.app, .desktop_notification, .{
-        .title = "Settings saved",
-        .body = "",
-    }));
-    try std.testing.expectEqualStrings("Settings saved", w.host.banner_text.?);
-    try std.testing.expectEqual(@as(usize, 5), w.recorder.shown);
-
-    // With no window to hold a banner the same text goes to the log.
-    var line: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer line.deinit();
-    try App.composeToastFallback(&line.writer, "claude is done", "", "Tab 2: cargo build");
-    try std.testing.expectEqualStrings("claude is done \u{2014} Tab 2: cargo build", line.written());
+    try std.testing.expectEqual(@as(usize, 1), w.recorder.shown);
+    try std.testing.expect(w.host.banner_text == null);
 }
 
-test "win32 exit removes this process's group only" {
+test "win32 App.terminate removes this process's toast group" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var group_buf: [toast_group_max]u8 = undefined;
-    var line_buf: [64]u8 = undefined;
-    const own_group = try std.fmt.bufPrint(&line_buf, "group {s}", .{toastGroup(&group_buf)});
-
-    var recorder: TestToastRecorder = .{};
+    var line_buf: [32]u8 = undefined;
+    const own_group = try std.fmt.bufPrint(&line_buf, "group noctty-{d}", .{sys.GetCurrentProcessId()});
+    // Both outlive the App, whose terminate calls them.
+    var recorder: notifications.testing.Recorder = .{};
     defer recorder.deinit();
+    var panes: notifications.testing.FakePanes = .{};
+    panes.put(0x2002, notifications.testing.inTab(2, 1, "cargo build"));
 
-    // A process that showed no toast makes no history call at exit.
-    {
-        var core = try CoreApp.create(std.testing.allocator);
-        defer core.destroy();
-        var app: App = undefined;
-        try app.init(core, .{});
-        app.toast_sink = recorder.sink();
-        app.terminate();
-        try recorder.expectRemovals(&.{});
-    }
-
-    // One that did removes its own group, in one call, and nothing else:
-    // not one removal per pane, and never the AUMID-wide `Clear`, which
-    // would take other noctty processes' toasts too.
-    {
-        var core = try CoreApp.create(std.testing.allocator);
-        defer core.destroy();
-        var app: App = undefined;
-        try app.init(core, .{});
-        app.toast_sink = recorder.sink();
-        // As after a toast from a pane that has closed since: its removal
-        // is queued, and exit makes it part of the group's.
-        app.noteToastShown(0x2002);
-        try std.testing.expectEqual(@as(usize, 1), app.toast_removals.items.len);
-        app.terminate();
-        try recorder.expectRemovals(&.{own_group});
-    }
+    var core = try CoreApp.create(std.testing.allocator);
+    defer core.destroy();
+    var app: App = undefined;
+    try app.init(core, .{});
+    app.notifications = .init(std.testing.allocator, recorder.sink(), panes.panes());
+    app.notifications.show(.{ .pane = 0x2002 }, "", "x");
+    try recorder.expectRemovals(&.{});
+    app.terminate();
+    try recorder.expectRemovals(&.{own_group});
 }
 
 test "win32 commandFinishPlan enforces threshold and focus policy" {

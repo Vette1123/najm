@@ -19,8 +19,6 @@ const CoreApp = @import("../App.zig");
 const CoreSurface = @import("../Surface.zig");
 const cli_args = @import("../cli/args.zig");
 const configpkg = @import("../config.zig");
-const config_edit = @import("../config/edit.zig");
-const config_file_load = @import("../config/file_load.zig");
 const cli_diagnostics = @import("../cli/diagnostics.zig");
 const themepkg = @import("../config/theme.zig");
 const windows_shell = @import("../config/windows_shell.zig");
@@ -29,9 +27,7 @@ const input = @import("../input.zig");
 const internal_os = @import("../os/main.zig");
 const terminal = @import("../terminal/main.zig");
 const rendererpkg = @import("../renderer.zig");
-const ptypkg = @import("../pty.zig");
 const updatepkg = @import("../update/github_releases.zig");
-const font_embedded = @import("../font/embedded.zig");
 const SplitTree = @import("../datastruct/split_tree.zig").SplitTree;
 
 const win32_theme = @import("win32_theme.zig");
@@ -40,30 +36,20 @@ const win32_tween = @import("win32_tween.zig");
 const win32_uia = @import("win32_uia/mod.zig");
 const win32_terminal_accessibility = @import("win32_terminal_accessibility.zig");
 const win32_palette = @import("win32_palette.zig");
-const win32_layout = @import("win32_layout.zig");
 const win32_settings = @import("win32_settings.zig");
-const win32_aumid = @import("win32_aumid.zig");
 const win32_chrome_state = @import("win32_chrome_state.zig");
 const win32_clipboard_html = @import("win32_clipboard_html.zig");
 const win32_undo = @import("win32_undo.zig");
-const win32_toast_winrt = @import("win32_toast_winrt.zig");
 const win32_taskbar_progress = @import("win32_taskbar_progress.zig");
 const win32_program_status = @import("win32_program_status.zig");
-const win32_bell = @import("win32_bell.zig");
 const win32_jump_list = @import("win32_jump_list.zig");
-const win32_powershell_install = @import("win32_powershell_install.zig");
 const win32_terminfo = @import("win32_terminfo.zig");
 const terminfo = @import("../terminfo/main.zig");
-const win32_link_preview = @import("win32_link_preview.zig");
 const win32_quick_terminal = @import("win32_quick_terminal.zig");
 const win32_surface_drop = @import("win32_surface_drop.zig");
-const win32_surface_drop_target = @import("win32_surface_drop_target.zig");
 const win32_ole = @import("win32_ole.zig");
 const win32_toast_activation = @import("win32_toast_activation.zig");
 const win32_toast_activator = @import("win32_toast_activator.zig");
-const win32_tab_drop_zones = @import("win32_tab_drop_zones.zig");
-const win32_tab_tooltip = @import("win32_tab_tooltip.zig");
-const win32_search_bar = @import("win32_search_bar.zig");
 const win32_icons = @import("win32_icons.zig");
 const win32_paste_protection = @import("win32_paste_protection.zig");
 const win32_scrollbar_geometry = @import("win32_scrollbar_geometry.zig");
@@ -80,10 +66,9 @@ const win32_session_state = @import("win32_session_state.zig");
 const win32_session_persistence = @import("win32_session_persistence.zig");
 const win32_structural_history = @import("win32_structural_history.zig");
 const win32_recovery = @import("win32_recovery.zig");
-const win32_compositor = @import("win32_compositor.zig");
-const win32_compositor_native = @import("win32_compositor_native.zig");
 const win32_shell = @import("win32_shell.zig");
 const ipc_server = @import("win32/ipc_server.zig");
+const notifications = @import("win32/notifications.zig");
 pub const applyAutomationWorkingDirectory = ipc_server.applyAutomationWorkingDirectory;
 pub const applyNewWindowArguments = ipc_server.applyNewWindowArguments;
 pub const automationTextAllowed = ipc_server.automationTextAllowed;
@@ -108,18 +93,19 @@ const win32_hints = @import("win32_hints.zig");
 const win32_elevation = @import("win32_elevation.zig");
 const render_trace = @import("win32/render_trace.zig");
 const gl_startup = @import("win32/gl_startup.zig");
-const pixel_format = @import("win32/pixel_format.zig");
 const bench_trace = @import("win32/bench_trace.zig");
-const labels = @import("win32/labels.zig");
+const overlay_view = @import("win32/overlay_view.zig");
 const paint_text = @import("win32/text.zig");
+const profile_pick = @import("win32/profile_pick.zig");
+const tab_label = @import("win32/tab_label.zig");
 const win32_input = @import("win32/input.zig");
+const child_window = @import("win32/child_window.zig");
 const chrome_layout = @import("win32/chrome_layout.zig");
 const gdi = @import("win32/gdi.zig");
 const c = @import("win32/consts.zig");
 const sys = @import("win32/sys.zig");
 const app_delivery = @import("win32/app_delivery.zig");
 const save_target = @import("win32/save_target.zig");
-const focus_region = @import("win32/focus_region.zig");
 const first_frame = @import("win32/first_frame.zig");
 const clipboard_write = @import("win32/clipboard_write.zig");
 const win32_config_problems = @import("win32/config_problems.zig");
@@ -128,25 +114,16 @@ const win32_config_problems = @import("win32/config_problems.zig");
 pub const chrome_scene_runtime = .{
     .Allocator = Allocator,
     .CaptionButton = CaptionButton,
-    .ChildPlacement = ChildPlacement,
     .ChromeRepaintMask = ChromeRepaintMask,
     .HDC = HDC,
     .HWND = HWND,
     .Host = Host,
-    .HostTabStatus = HostTabStatus,
     .PAINTSTRUCT = PAINTSTRUCT,
     .POINT = POINT,
     .RECT = RECT,
     .ThemeColors = ThemeColors,
     .TitlebarButtonRole = TitlebarButtonRole,
     .TitlebarGlyphKind = TitlebarGlyphKind,
-    .buildInspectorPanelHintText = buildInspectorPanelHintText,
-    .buildInspectorPanelTitleText = buildInspectorPanelTitleText,
-    .buildOverlayFeedbackText = buildOverlayFeedbackText,
-    .buildOverlayPaintLabelText = buildOverlayPaintLabelText,
-    .buildProfileChromeBadgeText = buildProfileChromeBadgeText,
-    .buildProfileHintText = buildProfileHintText,
-    .buildProfileOverlayLabel = buildProfileOverlayLabel,
     .c = c,
     .centeredRect = centeredRect,
     .clientTitlebarTheme = clientTitlebarTheme,
@@ -165,24 +142,19 @@ pub const chrome_scene_runtime = .{
     .host_overlay_row_height = host_overlay_row_height,
     .isHighContrastActive = isHighContrastActive,
     .overlayAccentColor = overlayAccentColor,
-    .overlayAccentFor = overlayAccentFor,
+    .overlayAccentFor = win32_theme.overlayAccentFor,
     .overlayActionLayoutForWidth = overlayActionLayoutForWidth,
     .overlayEditBorderColor = overlayEditBorderColor,
     .overlayEditFrameRect = overlayEditFrameRect,
-    .overlayEditFrameVisible = overlayEditFrameVisible,
     .overlayEditText = overlayEditText,
     .overlayFeedbackLineRect = overlayFeedbackLineRect,
     .overlayLabelReservation = overlayLabelReservation,
-    .overlayPaintCacheDirty = overlayPaintCacheDirty,
     .paintRectVisible = paintRectVisible,
     .paint_text = paint_text,
     .profileChromeAccent = profileChromeAccent,
     .profileKindHintColor = profileKindHintColor,
     .profileKindLabelColor = profileKindLabelColor,
     .restoreFont = Host.restoreFont,
-    .searchBarGroupRect = searchBarGroupRect,
-    .searchBarSeparatorX = searchBarSeparatorX,
-    .searchBarToolbarVisual = searchBarToolbarVisual,
     .std = std,
     .sys = sys,
     .textOutWz = textOutWz,
@@ -208,58 +180,26 @@ pub const overlay_session_runtime = .{
     .HWND = HWND,
     .Host = Host,
     .HostOverlayMode = HostOverlayMode,
-    .HostTabStatus = HostTabStatus,
     .LONG_PTR = LONG_PTR,
-    .OverlayConfirmPreview = OverlayConfirmPreview,
-    .OverlayConfirmText = OverlayConfirmText,
-    .OverlayFocusSlot = OverlayFocusSlot,
     .WPARAM = WPARAM,
-    .appendOwnedString = appendOwnedString,
-    .applyChildVisibility = applyChildVisibility,
-    .buildCommandPaletteFeedbackText = buildCommandPaletteFeedbackText,
-    .buildCommandPaletteOverlayLabel = buildCommandPaletteOverlayLabel,
-    .buildConfirmBodyText = buildConfirmBodyText,
-    .buildConfirmPreview = buildConfirmPreview,
-    .buildConfirmPreviewCaption = buildConfirmPreviewCaption,
-    .buildOverlayAcceptLabel = buildOverlayAcceptLabel,
-    .buildOverlayHintText = buildOverlayHintText,
-    .buildProfileAcceptLabel = buildProfileAcceptLabel,
-    .buildProfileHintText = buildProfileHintText,
-    .buildProfileOverlayLabel = buildProfileOverlayLabel,
-    .buildTabOverviewOverlayLabel = buildTabOverviewOverlayLabel,
     .c = c,
     .chromeSyncOrLog = chromeSyncOrLog,
     .confirmPromptUiaName = confirmPromptUiaName,
     .destroySubclassedWindow = destroySubclassedWindow,
     .detachChromeControlProvider = detachChromeControlProvider,
-    .editSnapshot = editSnapshot,
     .hostButtonProc = hostButtonProc,
     .host_overlay_height = host_overlay_height,
-    .lastError = lastError,
     .log = log,
-    .nativeEditSelection = nativeEditSelection,
-    .nextVisibleOverlayFocusSlot = nextVisibleOverlayFocusSlot,
-    .overlayAcceptButtonVisible = overlayAcceptButtonVisible,
-    .overlayCancelLabel = overlayCancelLabel,
     .overlayEditProc = overlayEditProc,
     .overlayPromptTextProc = overlayPromptTextProc,
-    .overlayTextFollowsActiveSurface = overlayTextFollowsActiveSurface,
     .palette_list_class_name = palette_list_class_name,
     .palette_max_visible_rows = palette_max_visible_rows,
     .palette_row_height = palette_row_height,
     .program_confirm_arming_ms = program_confirm_arming_ms,
-    .prompt_button_class = prompt_button_class,
-    .prompt_edit_class = prompt_edit_class,
-    .prompt_label_class = prompt_label_class,
-    .readWindowTextUtf8Alloc = readWindowTextUtf8Alloc,
     .refocusActiveSurface = refocusActiveSurface,
     .runUiActionOrLog = runUiActionOrLog,
-    .selectNativeEditRange = selectNativeEditRange,
-    .setWindowData = setWindowData,
     .shouldRefocusAfterOverlayHide = shouldRefocusAfterOverlayHide,
     .std = std,
-    .syncWindowTextUtf8Cached = syncWindowTextUtf8Cached,
-    .syncWindowTextUtf8CachedAfterSet = syncWindowTextUtf8CachedAfterSet,
     .sys = sys,
     .win32_uia = win32_uia,
 };
@@ -282,8 +222,6 @@ pub const palette_controller_runtime = .{
     .LRESULT = LRESULT,
     .PAINTSTRUCT = PAINTSTRUCT,
     .PaletteCatalog = PaletteCatalog,
-    .PaletteCompletion = PaletteCompletion,
-    .PalettePresentation = PalettePresentation,
     .PaletteRanked = PaletteRanked,
     .PaletteSnapshot = PaletteSnapshot,
     .PaletteStableId = PaletteStableId,
@@ -291,23 +229,18 @@ pub const palette_controller_runtime = .{
     .UINT = UINT,
     .WNDCLASSEXW = WNDCLASSEXW,
     .WPARAM = WPARAM,
-    .appendOwnedString = appendOwnedString,
     .c = c,
     .drawRectBorder = drawRectBorder,
     .fillSolidRect = fillSolidRect,
     .host_overlay_height = host_overlay_height,
     .lParamBits = lParamBits,
-    .lastError = lastError,
     .log = log,
     .overlayEditText = overlayEditText,
-    .ownedStringEquals = ownedStringEquals,
     .paint_text = paint_text,
-    .paletteCompletionText = paletteCompletionText,
     .palette_catalog_label_bytes = palette_catalog_label_bytes,
     .palette_list_class_name = palette_list_class_name,
     .palette_max_visible_rows = palette_max_visible_rows,
     .palette_row_height = palette_row_height,
-    .profileIndexByKey = profileIndexByKey,
     .runUiActionOrLog = runUiActionOrLog,
     .signedHighWord = signedHighWord,
     .std = std,
@@ -320,7 +253,6 @@ pub const palette_controller_runtime = .{
     .win32_palette = win32_palette,
     .win32_settings = win32_settings,
     .win32_uia = win32_uia,
-    .windowData = windowData,
 };
 
 pub const palette_controller_test_runtime = if (builtin.is_test) .{
@@ -333,159 +265,6 @@ pub const palette_controller_test_runtime = if (builtin.is_test) .{
     .runOnPrivateDesktop = Host.runOnPrivateDesktop,
 } else .{};
 
-pub const search_controls_runtime = .{
-    .Allocator = Allocator,
-    .ButtonColors = ButtonColors,
-    .ChildPlacement = ChildPlacement,
-    .DRAWITEMSTRUCT = DRAWITEMSTRUCT,
-    .DWORD = DWORD,
-    .HDC = HDC,
-    .HWND = HWND,
-    .Host = Host,
-    .LONG_PTR = LONG_PTR,
-    .LPARAM = LPARAM,
-    .LRESULT = LRESULT,
-    .RECT = RECT,
-    .SearchBarButtonRole = SearchBarButtonRole,
-    .Surface = Surface,
-    .UINT = UINT,
-    .WPARAM = WPARAM,
-    .adjustColor = adjustColor,
-    .advanceSearchSelectedRaw = advanceSearchSelectedRaw,
-    .applyChildRect = applyChildRect,
-    .applyChildVisibility = applyChildVisibility,
-    .blendColorRGB = blendColorRGB,
-    .buildSearchBarResultsText = buildSearchBarResultsText,
-    .buttonColorsFromTheme = buttonColorsFromTheme,
-    .c = c,
-    .childRect = childRect,
-    .chromeKeyMods = chromeKeyMods,
-    .createIconFontForFace = createIconFontForFace,
-    .decorativeUiaName = Surface.decorativeUiaName,
-    .detachChromeControlProvider = detachChromeControlProvider,
-    .dockedSearchArrowDirection = dockedSearchArrowDirection,
-    .dockedSearchCoreDirectionFromKeyAction = dockedSearchCoreDirectionFromKeyAction,
-    .dockedSearchEnterDirection = dockedSearchEnterDirection,
-    .drawRoundedRect = drawRoundedRect,
-    .editSnapshot = editSnapshot,
-    .fillSolidRect = fillSolidRect,
-    .focusableHwnd = focusableHwnd,
-    .fontGlyphCoverage = fontGlyphCoverage,
-    .font_embedded = font_embedded,
-    .getHost = getHost,
-    .getSurface = getSurface,
-    .hostButtonProc = hostButtonProc,
-    .host_search_bar_height = host_search_bar_height,
-    .input = input,
-    .isHighContrastActive = isHighContrastActive,
-    .keyPressed = keyPressed,
-    .lParamBits = lParamBits,
-    .labels = labels,
-    .lastError = lastError,
-    .log = log,
-    .logUiActionError = logUiActionError,
-    .nativeEditSelection = nativeEditSelection,
-    .overlayAccentColor = overlayAccentColor,
-    .prompt_button_class = prompt_button_class,
-    .prompt_edit_class = prompt_edit_class,
-    .prompt_label_class = prompt_label_class,
-    .readWindowTextUtf8Alloc = readWindowTextUtf8Alloc,
-    .rectEquals = rectEquals,
-    .rectInset = rectInset,
-    .rectOffset = rectOffset,
-    .rectUnion = rectUnion,
-    .scheduleDeferredUiaDisconnect = scheduleDeferredUiaDisconnect,
-    .searchBarBottomLine = searchBarBottomLine,
-    .searchBarButtonCommandId = searchBarButtonCommandId,
-    .searchBarButtonLabel = searchBarButtonLabel,
-    .searchBarButtonParentBg = searchBarButtonParentBg,
-    .searchBarButtonShowsLabel = searchBarButtonShowsLabel,
-    .searchBarChromeLayout = searchBarChromeLayout,
-    .searchBarFit = searchBarFit,
-    .searchBarFrameBg = searchBarFrameBg,
-    .searchBarFrameBorder = searchBarFrameBorder,
-    .searchBarNeedsRelayoutForQueryChange = searchBarNeedsRelayoutForQueryChange,
-    .searchBarShouldInvalidateCoreSearchOnEdit = searchBarShouldInvalidateCoreSearchOnEdit,
-    .searchBarToolbarVisual = searchBarToolbarVisual,
-    .searchButtonKeyAction = searchButtonKeyAction,
-    .searchSelectedDisplayFromRaw = searchSelectedDisplayFromRaw,
-    .selectNativeEditRange = selectNativeEditRange,
-    .setWindowData = setWindowData,
-    .showSearchBarResults = showSearchBarResults,
-    .std = std,
-    .syncWindowTextUtf8Cached = syncWindowTextUtf8Cached,
-    .sys = sys,
-    .terminal = terminal,
-    .terminalDisconnectThunk = terminalDisconnectThunk,
-    .terminalReleaseThunk = terminalReleaseThunk,
-    .win32_icons = win32_icons,
-    .win32_uia = win32_uia,
-};
-pub const search_controls_test_runtime = if (builtin.is_test) .{
-    .App = App,
-    .CoreApp = CoreApp,
-    .TestSession = TestSession,
-    .builtin = builtin,
-} else .{};
-
-pub const window_state_runtime = .{
-    .App = App,
-    .HWND = HWND,
-    .HWND_TOPMOST = HWND_TOPMOST,
-    .Host = Host,
-    .LPARAM = LPARAM,
-    .MINMAXINFO = MINMAXINFO,
-    .MONITORINFO = MONITORINFO,
-    .POINT = POINT,
-    .RECT = RECT,
-    .Surface = Surface,
-    .SurfaceInitOptions = SurfaceInitOptions,
-    .UINT = UINT,
-    .WINDOWPLACEMENT = WINDOWPLACEMENT,
-    .WS_OVERLAPPEDWINDOW = WS_OVERLAPPEDWINDOW,
-    .alphaByteForOpacity = alphaByteForOpacity,
-    .apprt = apprt,
-    .c = c,
-    .configpkg = configpkg,
-    .configuredHostWindowPosition = configuredHostWindowPosition,
-    .effectiveBackgroundOpacity = effectiveBackgroundOpacity,
-    .forwardedArgvSetsKey = forwardedArgvSetsKey,
-    .lastError = lastError,
-    .log = log,
-    .scaleInitialClientSize = scaleInitialClientSize,
-    .std = std,
-    .sys = sys,
-    .win32_theme = win32_theme,
-};
-pub const window_state_test_runtime = if (builtin.is_test) .{
-    .BOOL = BOOL,
-    .CoreApp = CoreApp,
-    .HDC = HDC,
-    .LPCWSTR = LPCWSTR,
-    .SafeModeAppFixture = SafeModeAppFixture,
-    .Tab = Tab,
-    .TestSession = TestSession,
-    .WindowStartTestApp = WindowStartTestApp,
-    .builtin = builtin,
-    .createTestHostWindow = createTestHostWindow,
-    .default_title = default_title,
-    .deinitTestHostWindowFixture = deinitTestHostWindowFixture,
-    .initTestHostWindowFixture = initTestHostWindowFixture,
-    .monitorInfo = monitorInfo,
-    .placementTestApp = placementTestApp,
-    .placementTestSurface = placementTestSurface,
-    .prompt_label_class = prompt_label_class,
-    .runOnHiddenDesktop = runOnHiddenDesktop,
-    .testHostIsLayered = testHostIsLayered,
-    .testLayeredAlpha = testLayeredAlpha,
-    .testWindowStyle = testWindowStyle,
-    .win32_quick_terminal = win32_quick_terminal,
-    .win32_terminal_handoff = win32_terminal_handoff,
-} else .{};
-pub const host_test_runtime = if (builtin.is_test) .{
-    .WindowStartTestApp = WindowStartTestApp,
-    .runOnHiddenDesktop = runOnHiddenDesktop,
-} else .{};
 pub const surface_presentation_runtime = .{
     .App = App,
     .Host = Host,
@@ -494,7 +273,6 @@ pub const surface_presentation_runtime = .{
     .apprt = apprt,
     .c = c,
     .first_frame = first_frame,
-    .lastError = lastError,
     .log = log,
     .rendererpkg = rendererpkg,
     .std = std,
@@ -511,49 +289,20 @@ pub const session_runtime = .{
     .killThreadTimer = App.killThreadTimer,
     .Allocator = Allocator,
     .App = App,
-    .CoreApp = CoreApp,
     .Host = Host,
-    .LPCWSTR = LPCWSTR,
-    .MONITORINFO = MONITORINFO,
     .RECT = RECT,
-    .ShellProjectionSteps = ShellProjectionSteps,
     .SplitTreeSurface = SplitTreeSurface,
     .Surface = Surface,
-    .SurfaceInitOptions = SurfaceInitOptions,
     .Tab = Tab,
-    .UINT_PTR = UINT_PTR,
-    .WINDOWPLACEMENT = WINDOWPLACEMENT,
-    .WindowStart = WindowStart,
-    .WorkAreas = WorkAreas,
-    .appendOwnedString = appendOwnedString,
-    .applyDefaultProfileConfig = applyDefaultProfileConfig,
-    .applyProfileSurfaceConfig = applyProfileSurfaceConfig,
     .apprt = apprt,
     .builtin = builtin,
-    .c = c,
-    .cli_args = cli_args,
     .configpkg = configpkg,
-    .defaultProfileForKey = defaultProfileForKey,
     .default_title = default_title,
     .gl_startup = gl_startup,
     .internal_os = internal_os,
-    .lastError = lastError,
-    .listProfilesForConfig = listProfilesForConfig,
     .log = log,
     .makeParentDirAbsolute = makeParentDirAbsolute,
     .markRecoveryAttemptAtPath = markRecoveryAttemptAtPath,
-    .profileIndexByKey = profileIndexByKey,
-    .recovery_set_aside_suffix = recovery_set_aside_suffix,
-    .rectEqual = rectEqual,
-    .restore_grab = restore_grab,
-    .restoredRectOnScreen = restoredRectOnScreen,
-    .restoresMaximized = restoresMaximized,
-    .setAsideCrashedSessionState = setAsideCrashedSessionState,
-    .setMinimizedNormalRect = setMinimizedNormalRect,
-    .shouldInheritSplitWorkingDirectory = shouldInheritSplitWorkingDirectory,
-    .shouldResetNewTabWorkingDirectory = shouldResetNewTabWorkingDirectory,
-    .startsWithIgnoreCase = startsWithIgnoreCase,
-    .startupNamesProfile = startupNamesProfile,
     .std = std,
     .sys = sys,
     .terminal = terminal,
@@ -561,48 +310,27 @@ pub const session_runtime = .{
     .unixMillis = unixMillis,
     .win32_session_persistence = win32_session_persistence,
     .win32_session_state = win32_session_state,
-    .win32_shell = win32_shell,
     .windows = windows,
-    .windows_shell = windows_shell,
-    .workspaceRectToScreen = workspaceRectToScreen,
     .writePersistentFileAlloc = writePersistentFileAlloc,
 };
-
-pub const session_test_runtime = if (builtin.is_test) .{
-    .testUserProfileList = testUserProfileList,
-    .testVisualStudioList = testVisualStudioList,
-} else .{};
 
 pub const quick_terminal_host_runtime = .{
     .App = App,
     .BOOL = BOOL,
-    .CoreApp = CoreApp,
     .HDC = HDC,
     .HWND = HWND,
     .HWND_TOPMOST = HWND_TOPMOST,
     .Host = Host,
     .LPARAM = LPARAM,
-    .LPCWSTR = LPCWSTR,
     .MONITORINFO = MONITORINFO,
     .POINT = POINT,
     .RECT = RECT,
-    .SplitTreeSurface = SplitTreeSurface,
-    .Surface = Surface,
-    .SurfaceInitOptions = SurfaceInitOptions,
-    .Tab = Tab,
-    .appendOwnedString = appendOwnedString,
     .apprt = apprt,
-    .builtin = builtin,
     .c = c,
     .configpkg = configpkg,
     .getHost = getHost,
-    .hostWindowProc = hostWindowProc,
-    .host_class_name = host_class_name,
     .log = log,
-    .palette_list_class_name = palette_list_class_name,
     .rectEqual = rectEqual,
-    .scrollbar_class_name = scrollbar_class_name,
-    .setWindowData = setWindowData,
     .std = std,
     .sys = sys,
     .win32_quick_terminal = win32_quick_terminal,
@@ -610,13 +338,12 @@ pub const quick_terminal_host_runtime = .{
     .win32_tween = win32_tween,
 };
 
-// Test-only binding keeps the runtime's private operations private while
-// sharing one fixture implementation with tests extracted in later steps.
-pub const test_support = if (builtin.is_test) @import("win32/test_support.zig").Fixtures(.{
+// The private runtime operations the shared test fixtures need, in a bag of
+// their own so `win32/facade_budget.zig` can count it.
+pub const test_support_runtime = if (builtin.is_test) .{
     .App = App,
     .Host = Host,
     .Surface = Surface,
-    .Tab = Tab,
     .SurfaceInitStage = Surface.InitStage,
     .PaletteItem = PaletteItem,
     .PalettePayload = PalettePayload,
@@ -627,25 +354,17 @@ pub const test_support = if (builtin.is_test) @import("win32/test_support.zig").
     .host_class_name = host_class_name,
     .palette_list_class_name = palette_list_class_name,
     .scrollbar_class_name = scrollbar_class_name,
-    .prompt_label_class = prompt_label_class,
-    .lastError = lastError,
-    .appendOwnedString = appendOwnedString,
     .surfaceDropPayloadCallback = surfaceDropPayloadCallback,
-    .workspaceRectToScreen = workspaceRectToScreen,
     .monitorInfo = monitorInfo,
     .tabInit = Tab.init,
     .tabDeinit = Tab.deinit,
     .hostSetBanner = Host.setBanner,
     .hostClearStructuralHistory = Host.clearStructuralHistory,
     .hostKillTweenTimer = Host.killTweenTimer,
-    .hostActiveSurface = Host.activeSurface,
     .appDropSettingsPreview = App.dropSettingsPreview,
     .appDiscardDeferredOpens = App.discardDeferredOpens,
     .appInitComApartment = App.initComApartment,
     .appEnsureWindowClass = App.ensureWindowClass,
-    .surfaceSetInitialSize = Surface.setInitialSize,
-    .surfaceWindowMonitor = Surface.windowMonitor,
-    .surfaceActiveSharedHostWindowHwnd = Surface.activeSharedHostWindowHwnd,
     .settingsAppIconThunk = settingsAppIconThunk,
     .settingsChromeBgThunk = settingsChromeBgThunk,
     .settingsConfigProblemsThunk = settingsConfigProblemsThunk,
@@ -668,7 +387,11 @@ pub const test_support = if (builtin.is_test) @import("win32/test_support.zig").
     .settingsSaveTargetThunk = settingsSaveTargetThunk,
     .settingsTextPrimaryThunk = settingsTextPrimaryThunk,
     .settingsThemeColorsThunk = settingsThemeColorsThunk,
-}) else struct {};
+} else .{};
+
+// Test-only binding: one fixture implementation shared by the tests in this
+// file and in the modules under win32/.
+pub const test_support = if (builtin.is_test) @import("win32/test_support.zig").Fixtures(test_support_runtime) else struct {};
 
 test {
     _ = app_module;
@@ -684,12 +407,12 @@ test {
     _ = session_module;
     _ = quick_terminal_host;
     _ = ipc_server;
+    _ = notifications;
     _ = @import("win32/config_problems.zig");
     _ = @import("win32/render_trace.zig");
     _ = @import("win32/gl_startup.zig");
     _ = @import("win32/pixel_format.zig");
     _ = @import("win32/bench_trace.zig");
-    _ = @import("win32/labels.zig");
     _ = @import("win32/input.zig");
     _ = @import("win32/chrome_layout.zig");
     _ = @import("win32/gdi.zig");
@@ -698,6 +421,16 @@ test {
     _ = @import("win32/focus_cue.zig");
     _ = @import("win32/edit_keys.zig");
     _ = @import("win32/first_frame.zig");
+    _ = @import("win32/facade_budget.zig");
+    _ = @import("win32/docked_search.zig");
+    _ = @import("win32/window_start.zig");
+    _ = @import("win32/confirm_text.zig");
+    _ = @import("win32/tab_label.zig");
+    _ = @import("win32/profile_pick.zig");
+    _ = @import("win32/overlay_view.zig");
+    _ = child_window;
+    _ = paint_text;
+    _ = @import("win32/settings_patch.zig");
     _ = clipboard_write;
     _ = @import("win32_aumid.zig");
     _ = @import("win32_toast_activator.zig");
@@ -706,7 +439,6 @@ test {
 }
 
 pub const ThemeColors = win32_theme.ThemeColors;
-const ButtonColors = win32_theme.ButtonColors;
 pub const HostOverlayMode = win32_theme.HostOverlayMode;
 
 pub const darkTheme = win32_theme.darkTheme;
@@ -714,7 +446,6 @@ pub const lightTheme = win32_theme.lightTheme;
 pub const adjustColor = win32_theme.adjustColor;
 pub const buttonColorsFromTheme = win32_theme.buttonColorsFromTheme;
 const overlayAccentColor = win32_theme.overlayAccentColor;
-const overlayAccentFor = win32_theme.overlayAccentFor;
 const overlayEditBorderColor = win32_theme.overlayEditBorderColor;
 const profileChromeAccent = win32_theme.profileChromeAccent;
 pub const applyProfileChromeAccent = win32_theme.applyProfileChromeAccent;
@@ -809,7 +540,6 @@ pub const MemoryStageTrace = bench_trace.MemoryStageTrace;
 pub const BenchmarkMemoryStage = bench_trace.BenchmarkMemoryStage;
 pub const captureProcessOrigin = bench_trace.captureProcessOrigin;
 
-pub const StartupLoaderErrorDialogSuppression = gl_startup.StartupLoaderErrorDialogSuppression;
 pub const suppressStartupLoaderErrorDialogs = gl_startup.suppressStartupLoaderErrorDialogs;
 pub const setDefaultDllDirectories = gl_startup.setDefaultDllDirectories;
 pub const OpenGLStartupStep = gl_startup.OpenGLStartupStep;
@@ -883,15 +613,10 @@ pub const PalettePayload = win32_palette.catalog.Payload;
 pub const PaletteRanked = win32_palette.catalog.Ranked;
 pub const PaletteStableId = @TypeOf((@as(PaletteItem, undefined)).id);
 pub const palette_catalog_label_bytes: usize = 128;
-const PalettePresentation = labels.PalettePresentation;
-const PaletteCompletion = labels.PaletteCompletion;
 pub const host_tab_max_button_width: i32 = default_metrics.tab_max_width;
 pub const host_tab_close_zone_width: i32 = default_metrics.tab_close_zone; // per-tab close button hit zone width
 
-// Context menu constants
-
 pub const WNDPROC = win32_types.WNDPROC;
-const SHORT = i16;
 
 pub const POINT = sys.POINT;
 pub const RECT = sys.RECT;
@@ -900,32 +625,16 @@ pub const PAINTSTRUCT = sys.PAINTSTRUCT;
 pub const DRAWITEMSTRUCT = sys.DRAWITEMSTRUCT;
 pub const TRACKMOUSEEVENT = sys.TRACKMOUSEEVENT;
 const WINDOWPOS = sys.WINDOWPOS;
-pub const WINDOWPLACEMENT = sys.WINDOWPLACEMENT;
 pub const NCCALCSIZE_PARAMS = sys.NCCALCSIZE_PARAMS;
 pub const WNDCLASSEXW = sys.WNDCLASSEXW;
 const CREATESTRUCTW = sys.CREATESTRUCTW;
 const MONITORINFO = sys.MONITORINFO;
-const MINMAXINFO = sys.MINMAXINFO;
 pub const LOGFONTW = sys.LOGFONTW;
 pub const NONCLIENTMETRICSW = sys.NONCLIENTMETRICSW;
 
-pub fn lastError() std.posix.UnexpectedError {
-    return windows.unexpectedError(windows.kernel32.GetLastError());
-}
-
-pub fn setWindowData(hwnd: HWND, ptr: ?*anyopaque) void {
-    const raw: LONG_PTR = if (ptr) |value|
-        @intCast(@intFromPtr(value))
-    else
-        0;
-    _ = sys.SetWindowLongPtrW(hwnd, c.GWLP_USERDATA, raw);
-}
-
-fn windowData(comptime T: type, hwnd: HWND) ?*T {
-    const raw = sys.GetWindowLongPtrW(hwnd, c.GWLP_USERDATA);
-    if (raw == 0) return null;
-    return @ptrFromInt(@as(usize, @intCast(raw)));
-}
+const lastError = child_window.lastError;
+const setWindowData = child_window.setWindowData;
+const windowData = child_window.windowData;
 
 const RTL_OSVERSIONINFOW = sys.RTL_OSVERSIONINFOW;
 
@@ -991,13 +700,12 @@ pub const palette_row_height: i32 = 36;
 /// Max rows visible at once; beyond this, mouse wheel scrolls.
 const palette_max_visible_rows: usize = 7;
 pub const default_title = std.unicode.utf8ToUtf16LeStringLiteral("Najm");
-pub const prompt_label_class = std.unicode.utf8ToUtf16LeStringLiteral("STATIC");
+const prompt_label_class = child_window.prompt_label_class;
 /// `DrawText` flags shared by the chrome paint fallback and the
 /// owner-draw handler for the confirm prompt lines.
 pub const confirm_prompt_text_format: u32 = c.DT_LEFT | c.DT_VCENTER |
     c.DT_SINGLELINE | c.DT_NOPREFIX | c.DT_END_ELLIPSIS;
-const prompt_edit_class = std.unicode.utf8ToUtf16LeStringLiteral("EDIT");
-pub const prompt_button_class = std.unicode.utf8ToUtf16LeStringLiteral("BUTTON");
+const prompt_button_class = child_window.prompt_button_class;
 const titlebar_icon_font_fluent = std.unicode.utf8ToUtf16LeStringLiteral("Segoe Fluent Icons");
 const titlebar_icon_font_mdl2 = std.unicode.utf8ToUtf16LeStringLiteral("Segoe MDL2 Assets");
 const titlebar_glyph_minimize = std.unicode.utf8ToUtf16LeStringLiteral("\u{E921}");
@@ -1012,18 +720,6 @@ const titlebar_glyph_tab_shell = std.unicode.utf8ToUtf16LeStringLiteral("\u{E756
 
 pub const GlobalHotkeySpec = win32_input.GlobalHotkeySpec;
 pub const RegisteredGlobalHotkey = win32_input.RegisteredGlobalHotkey;
-
-pub const decorationsVisibleForConfig = window_state.decorationsVisibleForConfig;
-
-pub const initialDecorationsVisibleForSource = window_state.initialDecorationsVisibleForSource;
-
-pub fn decorationVisibilityForChromeValue(active_surface_visible: ?bool, cached_visible: bool) bool {
-    return active_surface_visible orelse cached_visible;
-}
-
-pub const startupHostWindowStyle = window_state.startupHostWindowStyle;
-
-pub const restoreRequestedHostWindowStyle = window_state.restoreRequestedHostWindowStyle;
 
 /// Windows clipboard text ends its lines with CRLF; the core, and whatever
 /// reads an OSC 52 reply, expect LF. A paste turns each LF into one CR, the
@@ -1279,15 +975,9 @@ pub fn surfaceWindowStyle() u32 {
     return c.WS_CHILD | c.WS_CLIPSIBLINGS;
 }
 
-const effectiveHostWindowStyle = window_state.effectiveHostWindowStyle;
-
-pub const sharesHostWindowState = window_state.sharesHostWindowState;
-
 pub fn shouldShowSurfaceImmediately(host_id: ?u32) bool {
     return host_id == null;
 }
-
-pub const shouldApplyConfigDecorations = window_state.shouldApplyConfigDecorations;
 
 pub fn usesIntegratedTitlebar(
     enabled: bool,
@@ -1364,170 +1054,6 @@ pub fn shouldDispatchOcclusion(current: ?bool, visible: bool) bool {
     return current == null or current.? != visible;
 }
 
-/// A launch chosen from the picker, the palette, a quick slot or a restored
-/// session: it starts in home, unless a user profile pins its own directory
-/// (`profile-working-directory`) or asks for the ordinary rules (`inherit`).
-/// Restore then puts the pane's saved directory over this.
-pub fn applyProfileSurfaceConfig(
-    config: *configpkg.Config,
-    profile: *const windows_shell.Profile,
-) !void {
-    // A pinned `home`, `inherit` or path is `applyProfileLaunchConfig`'s.
-    if (profile.working_directory == null) {
-        config.@"working-directory" = try profileHomeWorkingDirectory(config, profile);
-    }
-    try applyProfileLaunchConfig(config, profile);
-}
-
-/// Home for a profile launch. A bare `.home` set on a launch clone after
-/// `Config.finalize` is not resolved again: Exec then starts the program in
-/// noctty's own current directory (measured: the directory noctty was
-/// started in), so a profile gets the path itself. For a Start menu launch
-/// that directory is the install folder, the start folder of the installer's
-/// shortcut (read from the installed `.lnk`, not measured by a launch). Only
-/// a profile that runs `wsl.exe` keeps `.home`, which gives it `--cd ~` (the
-/// Linux home) where a Windows path would give `--cd /mnt/c/Users/<name>`.
-fn profileHomeWorkingDirectory(
-    config: *configpkg.Config,
-    profile: *const windows_shell.Profile,
-) !configpkg.Config.WorkingDirectory {
-    if (windows_shell.isWslCommand(profile.command)) return .home;
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
-    const home = (internal_os.home(&buf) catch null) orelse return .home;
-    return .{ .path = try config._arena.?.allocator().dupe(u8, home) };
-}
-
-/// Applies a profile's command plus the kind-specific hardening that has to
-/// hold on EVERY launch path — new surface, split, and restore alike. Splits
-/// used to apply only the command, which silently dropped the SSH guarantees
-/// below, so both paths go through here. A user profile also brings its
-/// command line, its environment and a pinned directory, `home` or a path
-/// (which a split's own directory inheritance, applied after this, still
-/// replaces); `inherit` leaves the ordinary rules' directory.
-pub fn applyProfileLaunchConfig(
-    config: *configpkg.Config,
-    profile: *const windows_shell.Profile,
-) !void {
-    try applyProfileCommandConfig(config, profile);
-    if (profile.user) |launch| try applyUserLaunchConfig(config, launch);
-    if (profile.working_directory) |dir| switch (dir) {
-        .path => |path| config.@"working-directory" = .{
-            .path = try config._arena.?.allocator().dupe(u8, path),
-        },
-        .home => config.@"working-directory" = try profileHomeWorkingDirectory(config, profile),
-        .inherit => {},
-    };
-    if (profile.kind != .ssh) return;
-
-    try applySshLaunchHardening(config);
-}
-
-/// Give a surface's config clone a user profile's environment and command
-/// line. The env goes on a copy: `newConfig` shares the app config's map, so
-/// writing into it would change every later launch. A profile variable
-/// replaces a global `env` variable of the same name in any case, as Windows
-/// compares names (a profile `PATH` replaces a global `Path`).
-pub fn applyUserLaunchConfig(
-    config: *configpkg.Config,
-    launch: windows_shell.UserLaunch,
-) !void {
-    const alloc = config._arena.?.allocator();
-    var env = try config.env.clone(alloc);
-    try windows_shell.layerEnv(alloc, &env, launch.env);
-    config.env = env;
-    config._profile_launch = try launch.clone(alloc);
-}
-
-const SurfaceLaunch = struct {
-    command: ?configpkg.Command,
-    user: ?windows_shell.UserLaunch,
-};
-
-/// What a new surface records as the launch it runs, for the inheritance
-/// snapshot (`launch_command`, `launch_user`). The first surface of a
-/// process with `initial-command` (`-e`) runs that command, which is no
-/// profile's, so it records no profile line or env.
-pub fn surfaceLaunchSnapshot(first: bool, config: *const configpkg.Config) SurfaceLaunch {
-    if (first) if (config.@"initial-command") |command| return .{ .command = command, .user = null };
-    return .{ .command = config.command, .user = config._profile_launch };
-}
-
-pub fn applySshLaunchHardening(config: *configpkg.Config) !void {
-    // Shell integration injection rewrites the two-element ssh argv into a
-    // space-joined, unquoted `cmd.exe /C` string. A remote session cannot use
-    // it anyway: the integration scripts run locally.
-    config.@"shell-integration" = .none;
-
-    // `.home` alone loses to an inherited working directory, so resolve the
-    // path explicitly and let the drive-absolute branch of the cwd resolver
-    // take it. This is the same directory `ssh` itself expands `~` to.
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    if (try windows_ssh_hosts.userProfileDir(&home_buf)) |home| {
-        const alloc = config._arena.?.allocator();
-        config.@"working-directory" = .{ .path = try alloc.dupe(u8, home) };
-    }
-}
-
-fn applyProfileCommandConfig(
-    config: *configpkg.Config,
-    profile: *const windows_shell.Profile,
-) !void {
-    const alloc = config._arena.?.allocator();
-
-    // newConfig() returns a shallow clone, so aliased fields such as
-    // command remain owned by the source config arena. Replacing command on
-    // the clone must not deinit the inherited value.
-    config.command = try profile.command.clone(alloc);
-    // A chosen profile: `default-profile` no longer applies to this launch.
-    config._command_defaulted = false;
-}
-
-/// `default-profile`'s launch, for a launch nothing else chose: the first
-/// window, a plain new tab or window, the quick terminal, a split of a pane
-/// that runs no profile, a restored pane whose profile is gone. `Config`
-/// has already made the profile's command the default `command`; this adds
-/// the rest of the profile, as a launch from the picker gets it, except that
-/// with no `profile-working-directory` the directory the ordinary rules gave
-/// stays, as for `command`. Nothing when `default-profile` is unset or a
-/// command was chosen already (`command`, a profile, an inherited launch).
-/// The profile is the config's own; the caller records its key on the
-/// surface (`App.noteProfileLaunch`).
-pub fn applyDefaultProfileConfig(config: *configpkg.Config) !?*const windows_shell.Profile {
-    if (!config._command_defaulted) return null;
-    if (config._default_profile == null) return null;
-    const profile = &config._default_profile.?;
-    try applyProfileLaunchConfig(config, profile);
-    return profile;
-}
-
-/// Put back `directory`, which the launch asked for explicitly (on the
-/// command line, or in a forwarded new window's arguments), over the
-/// directory `default-profile`'s profile pinned: the default replaces what
-/// runs, not where such a launch starts. An SSH profile keeps its hardening
-/// (`applySshLaunchHardening`), as a new tab from an SSH pane does: a local
-/// directory means nothing to the remote shell.
-pub fn keepExplicitWorkingDirectory(
-    config: *configpkg.Config,
-    profile: ?*const windows_shell.Profile,
-    directory: ?configpkg.Config.WorkingDirectory,
-) void {
-    const applied = profile orelse return;
-    if (applied.kind == .ssh) return;
-    config.@"working-directory" = directory;
-}
-
-/// `default-profile`'s profile when `key` names it. A pane it started
-/// carries its key, and the config holds the profile resolved, so a split,
-/// an elevated window or a restore of that pane needs no list (no WSL probe
-/// on the UI thread) and finds the profile though discovery may list none
-/// such: an alias outside the SSH config, a distribution WSL did not list.
-pub fn defaultProfileForKey(config: *const configpkg.Config, key: []const u8) ?*const windows_shell.Profile {
-    if (config._default_profile) |*profile| {
-        if (profileKeyEquals(profile.*, key)) return profile;
-    }
-    return null;
-}
-
 /// The profile `new_window_elevated` hands the elevated process: the
 /// action's own, else the pane's, a `default-profile` pane's included.
 /// `elevatesBySelector` decides whether it goes as its key or as its
@@ -1543,30 +1069,18 @@ pub fn elevatedProfileKey(action_key: []const u8, pane_key: ?[]const u8) ?[]cons
 
 /// Whether `new_window_elevated` names the profile `key` to the elevated
 /// process (`RelaunchProfile.selector`) instead of passing its command and
-/// variables: a Visual Studio shell, which the elevated process finds as the
-/// picker does (a `cmd.exe /k` line with `&` in its path reaches it as
-/// written), or a user profile whose live `profile-command` line was read
-/// from a config file, which the elevated process reads too, so the line and
-/// the variables reach it as written and stay off the elevated command line.
-/// A profile defined only by a `--profile-command` option is not forwarded,
-/// so it is still passed as arguments. So is every profile when elevation may
-/// change the account (`same_account` false: a standard user elevated with an
-/// administrator's credentials, `win32_elevation.elevationKeepsAccount`),
-/// since that account reads its own config, which need not have the profile
-/// or, for a Visual Studio shell, may say `visual-studio-profiles = none`.
+/// variables: when the config files alone give it
+/// (`pane_launch.filesDefine`), which the elevated process reads too, so a
+/// Visual Studio shell's `cmd.exe /k` line with `&` in its path, a user
+/// profile's line and its variables reach it as written and stay off the
+/// elevated command line. Every profile is passed as arguments when
+/// elevation may change the account (`same_account` false: a standard user
+/// elevated with an administrator's credentials,
+/// `win32_elevation.elevationKeepsAccount`), since that account reads its
+/// own config, which need not have the profile or, for a Visual Studio
+/// shell, may say `visual-studio-profiles = none`.
 pub fn elevatesBySelector(config: *const configpkg.Config, key: []const u8, same_account: bool) bool {
-    if (!same_account) return false;
-    if (startsWithIgnoreCase(key, "vs:")) return true;
-    if (!startsWithIgnoreCase(key, "user:")) return false;
-    const id = key["user:".len..];
-    if (config.@"profile-command".get(id) == null) return false;
-    if (config.profilePlace("profile-command", id) != .file) return false;
-    // A variable given on the command line (`--profile-env=<id>: ...`), or a
-    // `--profile-env=` that cleared them, is not forwarded either, so such a
-    // profile is passed with its variables. Nor is an `--env=` argument,
-    // which `%NAME%` in the profile's lines may have read.
-    if (config.profileWrittenOnCommandLine("profile-env", id)) return false;
-    return !config.commandLineSetsEnv();
+    return same_account and configpkg.pane_launch.filesDefine(config, key);
 }
 
 fn splitWorkingDirectoryCandidate(live_pwd: ?[]const u8, cached_pwd: ?[]const u8) ?[]const u8 {
@@ -1863,13 +1377,11 @@ const recovery_safe_mode_banner_w = blk: {
 };
 const recovery_session_set_aside_banner =
     "Safe mode: Najm stopped repeatedly while restoring your saved session. Built-in defaults are active and your config was not loaded. The saved session was moved aside with a " ++
-    recovery_set_aside_suffix ++ " suffix in Najm's data folder, so the next start opens a fresh window. Restart Najm to retry normal startup.";
+    session_module.recovery_set_aside_suffix ++ " suffix in Najm's data folder, so the next start opens a fresh window. Restart Najm to retry normal startup.";
 const recovery_session_set_aside_banner_w = blk: {
     @setEvalBranchQuota(4_000);
     break :blk std.unicode.utf8ToUtf16LeStringLiteral(recovery_session_set_aside_banner);
 };
-/// Suffix for a saved session that the last launches died restoring.
-const recovery_set_aside_suffix = ".restore-failed";
 const recovery_safe_mode_caption_w = std.unicode.utf8ToUtf16LeStringLiteral("Najm safe mode");
 
 /// Filename infix for a startup-ledger record whose write already failed and
@@ -2172,51 +1684,6 @@ pub fn markRecoveryAttemptAtPath(
     win32_recovery.applyMark(&memory_attempts[memory_attempts.len - 1], mark);
 }
 
-/// Move a saved session aside that the last launches all ended restoring, so
-/// the next normal launch starts fresh instead of ending again. A rename into
-/// a free slot, never a delete or a replace; skipped while another live process
-/// owns the session, and for any file this build would not restore (a newer
-/// build's, an oversized or unreadable one, or one the restore path quarantines
-/// as `.corrupt` anyway). Returns whether the session was moved.
-fn setAsideCrashedSessionState(alloc: Allocator, state_path: []const u8) bool {
-    const owner = SessionOwnerLock.acquire(alloc, state_path) catch |err| {
-        log.warn("win32 recovery: session not set aside, ownership lock unavailable err={}", .{err});
-        return false;
-    } orelse {
-        log.warn("win32 recovery: session not set aside, another instance owns it", .{});
-        return false;
-    };
-    defer owner.release();
-    {
-        var current = win32_session_persistence.loadAlloc(
-            alloc,
-            state_path,
-            win32_session_persistence.default_max_state_bytes,
-        );
-        defer current.deinit();
-        if (current != .loaded) {
-            if (current != .missing) log.warn("win32 recovery: session not set aside, not one this build restores ({s})", .{@tagName(current)});
-            return false;
-        }
-    }
-    const destination = win32_session_persistence.quarantineFileAlloc(
-        alloc,
-        state_path,
-        recovery_set_aside_suffix,
-        .keep_source,
-    ) catch |err| {
-        if (err != error.FileNotFound) {
-            log.warn("win32 recovery: session not set aside path={s} err={}", .{ state_path, err });
-        }
-        return false;
-    };
-    defer alloc.free(destination);
-    log.warn("win32 recovery: repeated failures while restoring the saved session; moved it to {s}", .{destination});
-    return true;
-}
-
-const setAsideSessionStateAt = session_module.setAsideSessionStateAt;
-
 /// Create the directory `path` sits in when it is missing. Only that one
 /// level: its own parent must already exist.
 fn makeParentDirAbsolute(path: []const u8) !void {
@@ -2237,12 +1704,6 @@ fn utf8PrefixLen(value: []const u8, capacity: usize) usize {
         len -= 1;
     }
     return len;
-}
-
-fn settingsFileSize(size: u64) win32_settings.SaveError!usize {
-    const max_config_size = 16 * 1024 * 1024;
-    if (size > max_config_size) return error.SerializeFailed;
-    return @intCast(size);
 }
 
 const SettingsConfigKey = @import("../config/key.zig").Key;
@@ -2328,13 +1789,33 @@ fn settingsDiskEditConflict(
     disk: *const configpkg.Config,
     state: configpkg.ConditionalState,
     user_edited: SettingsEditedKeySet,
-) bool {
-    var applied: ?configpkg.Config = disk.changeConditionalState(state) catch |err| blk: {
-        log.warn("settings save: could not apply the conditional state to the config file err={}", .{err});
-        break :blk null;
-    };
+) win32_settings.SaveError!bool {
+    var applied = try settingsDiskInState(disk, state);
     defer if (applied) |*config| config.deinit();
-    const effective: *const configpkg.Config = if (applied) |*config| config else disk;
+    return settingsDiskEditConflictIn(original, pending, if (applied) |*config| config else disk, user_edited);
+}
+
+/// `disk` in the app's conditional state, or null when that is the state it
+/// was loaded in. A switch that fails stops the save (`ReloadFailed`, logged,
+/// or `OutOfMemory`), with the draft kept: judged on `disk` alone instead,
+/// a theme only that state reads would go unchecked, and its keys compared
+/// in the wrong state. The profile save treats the same failure the same way.
+fn settingsDiskInState(disk: *const configpkg.Config, state: configpkg.ConditionalState) win32_settings.SaveError!?configpkg.Config {
+    return disk.changeConditionalState(state) catch |err| {
+        if (err == error.OutOfMemory) return error.OutOfMemory;
+        log.warn("settings save: could not apply the conditional state to the config file err={}", .{err});
+        return error.ReloadFailed;
+    };
+}
+
+/// `settingsDiskEditConflict` on `effective`, the file already in the app's
+/// conditional state.
+fn settingsDiskEditConflictIn(
+    original: *const configpkg.Config,
+    pending: *const configpkg.Config,
+    effective: *const configpkg.Config,
+    user_edited: SettingsEditedKeySet,
+) bool {
     inline for (win32_settings.editable_keys) |key| {
         if (user_edited.isSet(@intFromEnum(key)) and
             settingsDiskEditDiffers(original, effective, key) and
@@ -2344,7 +1825,7 @@ fn settingsDiskEditConflict(
 }
 
 /// `settingsDiskValueDiffers` for the conflict check. Settings' copies hold
-/// the files' `default-profile` (`SettingsWindow.useSavedValues`), while the
+/// the files' `default-profile` (`pane_launch.asWritten`), while the
 /// load also reads this process's command line, whose `--default-profile`
 /// (a jump-list or elevated window) wins there: compare what the files say.
 /// The masked check after a save keeps the value the process runs with.
@@ -2355,7 +1836,7 @@ fn settingsDiskEditDiffers(
 ) bool {
     if (key == .@"default-profile") {
         const mine = known.@"default-profile";
-        const theirs = disk.defaultProfileFromFiles();
+        const theirs = configpkg.pane_launch.filesDefaultProfile(disk);
         if (mine == null or theirs == null) return mine != null or theirs != null;
         return !std.mem.eql(u8, mine.?, theirs.?);
     }
@@ -2435,15 +1916,20 @@ fn settingsIncludesOpenable(
 /// held to the same rule as an include. A theme that is not there is the
 /// loader's to report, and the running config lacks it too; one that is there
 /// and will not open is skipped by the load, and the settings it supplies
-/// come back as defaults. Both the light and the dark name are checked, since
-/// which one the load used depends on the system state.
+/// come back as defaults. Only the name the app's light/dark state reads
+/// (`state`): the save's reload applies that theme and no other, so one the
+/// other state names is not this save's to stop.
 fn settingsThemeOpenable(
     alloc: Allocator,
     detail: ?*win32_settings.FailureDetail,
     disk: *const configpkg.Config,
+    state: configpkg.ConditionalState,
 ) win32_settings.SaveError!void {
     const theme = disk.theme orelse return;
-    for ([_][]const u8{ theme.light, theme.dark }) |name| {
+    for ([_][]const u8{switch (state.theme) {
+        .light => theme.light,
+        .dark => theme.dark,
+    }}) |name| {
         if (std.fs.path.isAbsolute(name)) {
             try settingsFileOpenable(alloc, detail, "the theme file", name);
             continue;
@@ -2490,14 +1976,42 @@ pub fn settingsDiskVerdict(
     user_edited: SettingsEditedKeySet,
 ) win32_settings.SaveError!bool {
     try settingsIncludesOpenable(alloc, detail, disk);
-    try settingsThemeOpenable(alloc, detail, disk);
+    try settingsThemeOpenable(alloc, detail, disk, state);
     // A UTF-16 file that does not decode is skipped whole, with a diagnostic
     // and everything it set missing: as incomplete as one that will not open.
     if (disk._undecodable_file) |path| {
         try setSettingsFailureDetail(alloc, detail, "the file {s}", .{path});
         return error.UnsupportedEncoding;
     }
-    return settingsDiskEditConflict(original, pending, disk, state, user_edited);
+    // A file the load opened and could not read whole (an include or theme
+    // whose read failed partway through), or could not open since the probe
+    // above: the save's reload would apply the same partial load. Asked of
+    // the reading in the app's light/dark state, which reads that state's
+    // theme again and is the one the reload applies.
+    var applied = try settingsDiskInState(disk, state);
+    defer if (applied) |*config| config.deinit();
+    const effective: *const configpkg.Config = if (applied) |*config| config else disk;
+    // One predicate (`settings_patch.unreadConfigFile`) for the reading in the
+    // app's state: the switch reads that state's theme again, which is
+    // decoded as a config file is, so a theme that does not decode is a file
+    // this reading skipped and the load may not have. The load as read, when
+    // it is not in the app's state, is asked only about the files every state
+    // reads (the config files and includes, `unreadFiles`): its theme is the
+    // other state's, which this save's reload does not apply.
+    const settings_patch = @import("win32/settings_patch.zig");
+    const readings = [_]*const configpkg.Config{ disk, effective };
+    for (readings[0..if (applied != null) 2 else 1], 0..) |reading, i| {
+        const found = if (i == 0 and applied != null) settings_patch.unreadFiles(reading) else settings_patch.unreadConfigFile(reading);
+        if (found) |unread| {
+            if (unread.undecodable) {
+                try setSettingsFailureDetail(alloc, detail, "the file {s}", .{unread.path});
+                return error.UnsupportedEncoding;
+            }
+            try setSettingsFailureDetail(alloc, detail, "{s} {s}", .{ unread.noun(), unread.path });
+            return error.FileUnopenable;
+        }
+    }
+    return settingsDiskEditConflictIn(original, pending, effective, user_edited);
 }
 
 /// What the palette says when a theme pick could not be saved. Two causes are
@@ -2518,7 +2032,7 @@ fn settingsDiskValueDiffers(
 ) bool {
     // The window keeps a command nobody set as automatic (null); the load
     // fills in the one it found.
-    if (key == .command and disk._command_defaulted and known.command == null) return false;
+    if (key == .command and configpkg.pane_launch.nocttyCommand(disk) != null and known.command == null) return false;
     return known.changed(disk, key);
 }
 
@@ -2530,8 +2044,30 @@ test "win32 bounded UTF-8 prefix never splits a codepoint" {
 }
 
 test "win32 settings save rejects files above the read cap" {
-    try std.testing.expectEqual(@as(usize, 16 * 1024 * 1024), try settingsFileSize(16 * 1024 * 1024));
-    try std.testing.expectError(error.SerializeFailed, settingsFileSize(16 * 1024 * 1024 + 1));
+    const alloc = std.testing.allocator;
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    // One byte past the cap: refused, and left as it was.
+    {
+        const file = try scratch.tmp.dir.createFile("config.ghostty", .{});
+        defer file.close();
+        try file.setEndPos(save_target.max_bytes + 1);
+    }
+    var draft = try settingsTestCopyOnSelectEdit(alloc);
+    defer draft.pending.deinit();
+    try std.testing.expectError(error.SerializeFailed, persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null));
+    try std.testing.expectEqual(@as(u64, save_target.max_bytes + 1), (try scratch.tmp.dir.statFile("config.ghostty")).size);
+    // At the cap it is read.
+    {
+        const file = try scratch.tmp.dir.openFile("config.ghostty", .{ .mode = .read_write });
+        defer file.close();
+        try file.setEndPos(save_target.max_bytes);
+    }
+    const bytes = try save_target.read(alloc, path);
+    defer alloc.free(bytes);
+    try std.testing.expectEqual(@as(usize, save_target.max_bytes), bytes.len);
 }
 
 /// One answer to "is this a portable install?" for the call sites that only
@@ -2802,7 +2338,7 @@ fn beginRecoveryStartupAtPath(
     // Acted on inside the transaction that decided it, so no launch can
     // record a restore or a ready marker in between.
     if (result.decision == .quarantine_session) if (session_path) |value| {
-        result.session_set_aside = setAsideCrashedSessionState(alloc, value);
+        result.session_set_aside = session_module.setAsideCrashedSessionState(alloc, value);
     };
 
     // Attempts are told apart by their start; two launches in one
@@ -2950,16 +2486,6 @@ pub fn layoutActionResult(success: bool) !bool {
 
 const SessionRestoreTransaction = session_module.SessionRestoreTransaction;
 
-/// A profile named on the command line (`--default-profile=<reference>`,
-/// which a jump-list link to a user profile carries) makes an explicit
-/// launch, as an explicit directory does: it neither restores nor saves the
-/// session, and its first window runs that profile. A link to a profile
-/// with a directory of its own has no `--working-directory=` to say so.
-fn startupNamesProfile(config: *const configpkg.Config) bool {
-    const reference = config._default_profile_cli orelse return false;
-    return reference.len > 0;
-}
-
 pub const SessionOwnerLock = session_module.SessionOwnerLock;
 
 fn writeOpenUrlTrace(file: std.fs.File, url: []const u8) !void {
@@ -3041,7 +2567,7 @@ pub fn jumpListRebuildThreadMain(delivery: *AppDelivery, job: *win32_jump_list.R
 }
 
 fn testProfileList(alloc: Allocator, keys: []const []const u8) ![]windows_shell.Profile {
-    var source: [4]windows_shell.Profile = undefined;
+    var source: [8]windows_shell.Profile = undefined;
     for (keys, 0..) |key, index| source[index] = .{
         .kind = .pwsh,
         .key = key,
@@ -3165,6 +2691,59 @@ test "win32 a finished discovery reaches only the windows that asked for it" {
     try std.testing.expectEqualStrings("pwsh", first.profiles.?[0].key);
 }
 
+test "win32 a complete discovery ends the jump list's wait and gives Settings the whole list; an incomplete one is tried again" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var first: Host = undefined;
+    var session: TestSession = .{};
+    try session.init(.{
+        .core_app = &core_app,
+        .app = &app,
+        .hosts = &.{.{ .storage = &first, .register = true, .id = 1 }},
+    });
+    defer session.deinit();
+    defer testFreeHostProfiles(&app, &.{&first});
+    // The jump list waits for the first window's startup discovery.
+    app.jump_list = .{
+        .alloc = std.testing.allocator,
+        .state_path = try std.testing.allocator.dupe(u8, "unused"),
+        .exe_path = null,
+        .recents = .{},
+        .removed_recents = .{},
+        .hidden_profiles = .{},
+        .startup_profile_discovery_pending = true,
+    };
+    defer {
+        app.jump_list.?.persist_dirty = false;
+        app.jump_list.?.deinit();
+        app.jump_list = null;
+    }
+
+    // Discovery's list as it is when WSL's list failed: incomplete. The jump
+    // list tries again, and Settings has part of the list.
+    for ([_]bool{ false, true }) |complete| {
+        first.profiles_requested = true;
+        var completion: ProfileDiscoveryCompletion = .{
+            .arena = .init(std.testing.allocator),
+            .generation = app.profiles_generation,
+        };
+        defer completion.deinit();
+        completion.result = .{
+            .profiles = try testProfileList(completion.arena.allocator(), &.{ "wsl-default", "cmd.exe" }),
+            .complete = complete,
+        };
+        app.handleProfileDiscovery(&completion);
+        const listed = app.settingsProfileList(false) orelse return error.TestExpectedList;
+        try std.testing.expectEqual(complete, listed.complete);
+        // Incomplete: still waiting, once more. Complete (WSL absent is a
+        // complete answer): the wait is over, and Settings' Profiles page
+        // has the whole list it moves and hides by.
+        try std.testing.expectEqual(!complete, app.jump_list.?.startupProfileDiscoveryPending());
+    }
+}
+
 test "win32 Settings' profile refill reads the windows' lists and asks for none" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -3198,6 +2777,88 @@ test "win32 Settings' profile refill reads the windows' lists and asks for none"
     try std.testing.expectEqual(@as(usize, 2), list.profiles.len);
     try std.testing.expect(list.complete);
     try std.testing.expect(!first.profiles_requested);
+}
+
+test "win32 Settings' Profiles page list marks the quick slots and the profiles noctty hides itself" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var first: Host = undefined;
+    var session: TestSession = .{};
+    try session.init(.{
+        .core_app = &core_app,
+        .app = &app,
+        .hosts = &.{.{ .storage = &first, .register = true, .id = 1 }},
+    });
+    defer session.deinit();
+    defer testFreeHostProfiles(&app, &.{&first});
+
+    // Command Prompt is hidden by `profile-hidden`; the old Visual Studio by
+    // noctty itself, which no value names; both WSL distributions by `wsl`.
+    first.profiles = try testProfileList(app.core_app.alloc, &.{ "pwsh.exe", "cmd.exe", "vs:old:cmd", "wsl:Ubuntu", "wsl:Debian" });
+    first.profiles_complete = true;
+    for (first.profiles.?[3..5]) |*distro| {
+        distro.kind = .wsl_distro;
+        distro.hidden = true;
+    }
+    first.profiles.?[1].hidden = true;
+    first.profiles.?[1].kind = .cmd;
+    first.profiles.?[2].hidden = true;
+    // Discovery hid the old Visual Studio, though its prompt is the newest
+    // there is (the newer instance has none): its own flag says so, not
+    // `newest_visual_studio`.
+    first.profiles.?[2].kind = .vs_dev_cmd;
+    first.profiles.?[2].newest_visual_studio = true;
+    first.profiles.?[2].hidden_by_discovery = true;
+    try app.config.@"profile-hidden".list.append(app.config._arena.?.allocator(), "cmd.exe");
+    // `profile-hidden` names the old Visual Studio too: discovery still
+    // hides it, so the page still cannot show it.
+    try app.config.@"profile-hidden".list.append(app.config._arena.?.allocator(), "vs:old:cmd");
+    try app.config.@"profile-hidden".list.append(app.config._arena.?.allocator(), "wsl");
+    try app.config.@"profile-order".list.append(app.config._arena.?.allocator(), "pwsh");
+    // PowerShell has the first quick slot.
+    app.launcher_quick_slot_keys[0] = try std.testing.allocator.dupeZ(u8, "pwsh.exe");
+    defer {
+        std.testing.allocator.free(app.launcher_quick_slot_keys[0].?);
+        app.launcher_quick_slot_keys[0] = null;
+    }
+
+    var choices = try settingsProfileChoicesThunk(&app, std.testing.allocator, null, null, false);
+    defer choices.deinit(std.testing.allocator);
+    try std.testing.expectEqual(@as(usize, 5), choices.items.len);
+    try std.testing.expectEqual(@as(?u8, 1), choices.items[0].quick_slot);
+    try std.testing.expectEqual(@as(?u8, null), choices.items[1].quick_slot);
+    try std.testing.expect(!choices.items[0].found_hidden);
+    try std.testing.expect(choices.items[1].hidden and !choices.items[1].found_hidden);
+    try std.testing.expect(choices.items[2].hidden and choices.items[2].found_hidden);
+    // What each list value names, as the app reads it, the list's own first
+    // and in its order: `pwsh` is an alias the page reads and keeps by this,
+    // and `wsl` names every distribution.
+    const Refs = struct {
+        fn expectNames(refs: []const win32_settings.ProfileReference, value: []const u8, keys: []const []const u8) !void {
+            var found: ?win32_settings.ProfileReference = null;
+            for (refs) |ref| if (std.mem.eql(u8, ref.value, value)) {
+                // Each value once.
+                try std.testing.expect(found == null);
+                found = ref;
+            };
+            const ref = found orelse return error.TestExpectedReference;
+            try std.testing.expectEqual(keys.len, ref.keys.len);
+            for (keys, ref.keys) |want, key| try std.testing.expectEqualStrings(want, key);
+        }
+    };
+    try std.testing.expectEqualStrings("pwsh", choices.order_refs[0].value);
+    try Refs.expectNames(choices.order_refs, "pwsh", &.{"pwsh.exe"});
+    for ([_][]const u8{ "cmd.exe", "vs:old:cmd", "wsl" }, choices.hidden_refs[0..3]) |value, ref| try std.testing.expectEqualStrings(value, ref.value);
+    try Refs.expectNames(choices.hidden_refs, "cmd.exe", &.{"cmd.exe"});
+    try Refs.expectNames(choices.hidden_refs, "vs:old:cmd", &.{"vs:old:cmd"});
+    try Refs.expectNames(choices.hidden_refs, "wsl", &.{ "wsl:Ubuntu", "wsl:Debian" });
+    // A fixed word neither list holds is read too: a draft that keeps one a
+    // reload took out of the app's lists still names its profiles.
+    try Refs.expectNames(choices.order_refs, "wsl", &.{ "wsl:Ubuntu", "wsl:Debian" });
+    try Refs.expectNames(choices.order_refs, "cmd", &.{"cmd.exe"});
+    try Refs.expectNames(choices.hidden_refs, "pwsh", &.{"pwsh.exe"});
 }
 
 test "win32 a finished discovery refills Settings' Default profile dropdown" {
@@ -3294,18 +2955,18 @@ test "win32 Settings' profile choices name a resolved default the list lacks by 
         // Whatever the list: absent, partial or complete.
         for ([_]bool{ false, true }) |complete| {
             const list: []const windows_shell.Profile = if (complete) &profiles else profiles[0..1];
-            var failed = try settingsProfileChoices(alloc, list, complete, value, .unresolved);
+            var failed = try settingsProfileChoices(alloc, list, complete, value, .not_found);
             defer failed.deinit(alloc);
             try std.testing.expectEqual(@as(?usize, null), failed.selected);
             try std.testing.expect(failed.saved_label == null);
             try std.testing.expect(failed.saved_not_found);
         }
-        var unlisted_failed = try settingsProfileChoices(alloc, &.{}, false, value, .unresolved);
+        var unlisted_failed = try settingsProfileChoices(alloc, &.{}, false, value, .not_found);
         defer unlisted_failed.deinit(alloc);
         try std.testing.expect(unlisted_failed.saved_not_found);
     }
     // Nor does it take a listed row by the list's rules.
-    var failed_listed = try settingsProfileChoices(alloc, &profiles, true, "pwsh", .unresolved);
+    var failed_listed = try settingsProfileChoices(alloc, &profiles, true, "pwsh", .not_found);
     defer failed_listed.deinit(alloc);
     try std.testing.expectEqual(@as(?usize, null), failed_listed.selected);
 
@@ -3845,119 +3506,6 @@ pub fn toastActivatorSink(delivery: *AppDelivery) win32_toast_activator.Sink {
     };
 }
 
-/// Dispatch this thread's messages until `capture` has its call or
-/// `timeout_ms` has passed, and say whether the call came. COM hands an
-/// incoming call to this STA as a message, so the dispatch is what runs
-/// `Activate`. The deadline is the wait's own, with no timer that could fail
-/// to arm, and a quit met on the way is put back for the main loop.
-pub fn pumpUntilColdToastActivation(capture: *const ColdToastCapture, timeout_ms: u32) bool {
-    const deadline = sys.GetTickCount64() + timeout_ms;
-    var msg: MSG = undefined;
-    while (!capture.received) {
-        while (sys.PeekMessageW(&msg, null, 0, 0, c.PM_REMOVE) != 0) {
-            if (msg.message == c.WM_QUIT) {
-                sys.PostQuitMessage(@bitCast(@as(u32, @truncate(msg.wParam))));
-                return capture.received;
-            }
-            _ = sys.TranslateMessage(&msg);
-            _ = sys.DispatchMessageW(&msg);
-            if (capture.received) return true;
-        }
-        const now = sys.GetTickCount64();
-        if (now >= deadline) break;
-        const remaining: DWORD = @intCast(deadline - now);
-        if (sys.MsgWaitForMultipleObjectsEx(0, null, remaining, c.QS_ALLINPUT, c.MWMO_INPUTAVAILABLE) == c.WAIT_FAILED) break;
-    }
-    return capture.received;
-}
-
-const ColdToastWaitTest = struct {
-    const Timer = struct {
-        var capture: ColdToastCapture = .{};
-
-        fn fire(_: ?HWND, _: UINT, id: UINT_PTR, _: DWORD) callconv(.winapi) void {
-            _ = sys.KillTimer(null, id);
-            ColdToastCapture.deliver(&capture, "wgh://activate?surface=3&pid=8&action=focus");
-        }
-    };
-
-    fn body() !void {
-        // Nothing comes: the wait returns at its deadline, not later.
-        var none: ColdToastCapture = .{};
-        const start = sys.GetTickCount64();
-        try std.testing.expect(!pumpUntilColdToastActivation(&none, 60));
-        const waited = sys.GetTickCount64() - start;
-        try std.testing.expect(waited >= 40);
-        try std.testing.expect(waited < 2000);
-
-        // A call dispatched by the pump (here a timer procedure, as COM's call
-        // is a dispatched message) ends it well before the deadline.
-        Timer.capture = .{};
-        try std.testing.expect(sys.SetTimer(null, 0, 10, @ptrCast(&Timer.fire)) != 0);
-        const call_start = sys.GetTickCount64();
-        try std.testing.expect(pumpUntilColdToastActivation(&Timer.capture, 10_000));
-        try std.testing.expect(sys.GetTickCount64() - call_start < 5000);
-        try std.testing.expect(Timer.capture.target().eql(.{ .surface_id = 3, .pid = 8, .action = .focus }));
-
-        // A quit ends the wait and stays queued for the main loop.
-        var quit_capture: ColdToastCapture = .{};
-        sys.PostQuitMessage(7);
-        try std.testing.expect(!pumpUntilColdToastActivation(&quit_capture, 10_000));
-        var msg: MSG = undefined;
-        try std.testing.expect(sys.PeekMessageW(&msg, null, c.WM_QUIT, c.WM_QUIT, c.PM_REMOVE) != 0);
-        try std.testing.expectEqual(@as(WPARAM, 7), msg.wParam);
-    }
-};
-
-test "the cold toast activation wait ends on its call or at its deadline" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    // A fresh thread, so the pump dispatches nothing another test queued.
-    try runOnHiddenDesktop(ColdToastWaitTest.body);
-}
-
-/// Receives the first `Activate` of a cold start, before the App channel
-/// exists. `Activate` runs on this thread, inside the wait's message pump.
-pub const ColdToastCapture = struct {
-    received: bool = false,
-    activation: win32_toast_activation.ActivationTarget = .{},
-
-    pub fn sink(self: *ColdToastCapture) win32_toast_activator.Sink {
-        return .{ .ctx = self, .deliver = deliver };
-    }
-
-    fn deliver(ctx: *anyopaque, launch: []const u8) void {
-        const self: *ColdToastCapture = @ptrCast(@alignCast(ctx));
-        if (self.received) return;
-        self.received = true;
-        self.activation = win32_toast_activation.parseLaunchArg(launch) catch .{};
-    }
-
-    pub fn target(self: *const ColdToastCapture) win32_toast_activation.ActivationTarget {
-        return self.activation;
-    }
-};
-
-test "a cold toast activation start keeps the first call and reads nothing else as a target" {
-    const callback = win32_toast_activator.testCallback();
-    const aumid = std.unicode.utf8ToUtf16LeStringLiteral("io.github.vette1123.najm");
-
-    var capture: ColdToastCapture = .{};
-    win32_toast_activator.bind(capture.sink());
-    defer win32_toast_activator.bind(null);
-    _ = callback.vtbl.Activate(callback, aumid, std.unicode.utf8ToUtf16LeStringLiteral("wgh://activate?surface=3&pid=8&action=focus"), null, 0);
-    _ = callback.vtbl.Activate(callback, aumid, std.unicode.utf8ToUtf16LeStringLiteral("wgh://activate?surface=4&pid=8"), null, 0);
-    try std.testing.expect(capture.received);
-    try std.testing.expect(capture.target().eql(.{ .surface_id = 3, .pid = 8, .action = .focus }));
-
-    // A call that carried nothing readable still ends the wait, and its
-    // target is the empty one, which only presents the primary window.
-    var unreadable: ColdToastCapture = .{};
-    win32_toast_activator.bind(unreadable.sink());
-    _ = callback.vtbl.Activate(callback, aumid, std.unicode.utf8ToUtf16LeStringLiteral("--command=evil.exe"), null, 0);
-    try std.testing.expect(unreadable.received);
-    try std.testing.expect(unreadable.target().eql(.{}));
-}
-
 pub fn retainToastDelivery(ctx: *anyopaque) void {
     const delivery: *AppDelivery = @ptrCast(@alignCast(ctx));
     delivery.retain();
@@ -4042,33 +3590,6 @@ fn titlebarFallbackIcon(kind: TitlebarGlyphKind) win32_icons.Kind {
     };
 }
 
-const search_icon_font_face = search_controls.search_icon_font_face;
-
-const search_icon_font_px = search_controls.search_icon_font_px;
-const search_icon_font_registration = &search_controls.search_icon_font_registration;
-
-/// An icon font of `face` with a `height_px` device-pixel em.
-fn createIconFontForFace(face: [*:0]const u16, height_px: i32) ?*anyopaque {
-    var lf: LOGFONTW = .{};
-    lf.lfHeight = -height_px;
-    lf.lfWeight = c.FW_NORMAL;
-    lf.lfQuality = c.CLEARTYPE_QUALITY;
-    const name = std.mem.span(face);
-    const copy_len = @min(name.len, c.LF_FACESIZE - 1);
-    @memcpy(lf.lfFaceName[0..copy_len], name[0..copy_len]);
-    return sys.CreateFontIndirectW(&lf);
-}
-
-const search_codicon_glyphs = search_controls.search_codicon_glyphs;
-
-const fontHasSearchCodicons = search_controls.fontHasSearchCodicons;
-
-/// The font a tab draws a title's symbol with, larger than the label's so a
-/// spinner reads as an icon. Null falls back to the chrome font.
-pub fn createTabSymbolFont(height_px: i32) ?*anyopaque {
-    return createIconFontForFace(std.unicode.utf8ToUtf16LeStringLiteral("Segoe UI Symbol"), height_px);
-}
-
 /// What `fontGlyphCoverage` found.
 pub const GlyphCoverage = enum {
     all,
@@ -4147,7 +3668,7 @@ pub fn createIconFontWithGlyphs(
 ) IconFontChoice {
     var checked_every_face = true;
     for (faces) |face| {
-        const font = createIconFontForFace(face, height_px) orelse {
+        const font = gdi.createIconFontForFace(face, height_px) orelse {
             checked_every_face = false;
             continue;
         };
@@ -4369,71 +3890,9 @@ pub fn titlebarButtonVisual(
     };
 }
 
-pub const HostTabStatus = labels.HostTabStatus;
-
-pub const ConfirmPrompt = overlay_session.ConfirmPrompt;
-
 /// How long a program's prompt ignores Allow after it opens: longer than
 /// the gap between two keys of someone typing, shorter than reading it.
 const program_confirm_arming_ms = 500;
-
-/// What a close that ends several terminals at once is closing. One pane
-/// keeps its own prompt in `Surface.close`. The userdata of a `.this_tab`
-/// prompt is the Surface of the tab, which names the tab when it is behind.
-pub const CloseScope = enum { window, this_tab, other_tabs, right_tabs, app, update };
-
-/// The prompt for a close that would end `count` (at least 1) terminals
-/// that `confirm-close-surface` asks about. The body may live in `body_buf`.
-pub fn closeScopePrompt(scope: CloseScope, count: usize, body_buf: *[256]u8) ConfirmPrompt {
-    switch (scope) {
-        inline else => |comptime_scope| {
-            const text: struct { title: []const u8, accept: []const u8, one: []const u8, many: []const u8 } = comptime switch (comptime_scope) {
-                .window => .{
-                    .title = "Close this window?",
-                    .accept = "Close",
-                    .one = "A process is still running in this window. Closing the window will terminate it.",
-                    .many = "Processes are still running in {d} terminals in this window. Closing the window will terminate them.",
-                },
-                .this_tab => .{
-                    .title = "Close this tab?",
-                    .accept = "Close tab",
-                    .one = "A process is still running in this tab. Closing the tab will terminate it, and undo is off.",
-                    .many = "Processes are still running in {d} terminals in this tab. Closing the tab will terminate them, and undo is off.",
-                },
-                .other_tabs => .{
-                    .title = "Close the other tabs?",
-                    .accept = "Close tabs",
-                    .one = "A process is still running in another tab. Closing the other tabs will terminate it.",
-                    .many = "Processes are still running in {d} terminals in the other tabs. Closing those tabs will terminate them.",
-                },
-                .right_tabs => .{
-                    .title = "Close the tabs to the right?",
-                    .accept = "Close tabs",
-                    .one = "A process is still running in a tab to the right. Closing those tabs will terminate it.",
-                    .many = "Processes are still running in {d} terminals in the tabs to the right. Closing those tabs will terminate them.",
-                },
-                .app => .{
-                    .title = "Quit Najm?",
-                    .accept = "Quit",
-                    .one = "A process is still running. Quitting Najm will terminate it.",
-                    .many = "Processes are still running in {d} terminals. Quitting Najm will terminate them.",
-                },
-                .update => .{
-                    .title = "Install the update?",
-                    .accept = "Install",
-                    .one = "A process is still running. Installing the update closes Najm and will terminate it.",
-                    .many = "Processes are still running in {d} terminals. Installing the update closes Najm and will terminate them.",
-                },
-            };
-            return .{
-                .title = text.title,
-                .body = if (count <= 1) text.one else std.fmt.bufPrint(body_buf, text.many, .{count}) catch text.one,
-                .accept_label = text.accept,
-                .cancel_label = "Cancel",
-            };
-        },
-    }
-}
 
 /// How many panes in `tabs` `confirm-close-surface` asks about.
 pub fn tabsCloseConfirmCount(tabs: []Tab) usize {
@@ -4460,14 +3919,6 @@ fn countPanesWhere(tabs: []Tab, comptime predicate: fn (*Surface) bool) usize {
 const ConfirmCancelReason = overlay_session.ConfirmCancelReason;
 
 pub const ConfirmPayload = overlay_session.ConfirmPayload;
-
-pub const ChildPlacement = struct {
-    hwnd: ?HWND = null,
-    rect: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 },
-    rect_known: bool = false,
-    visible: bool = false,
-    visible_known: bool = false,
-};
 
 pub const ScrollbarPolicy = enum {
     never,
@@ -4496,7 +3947,7 @@ pub const Tab = struct {
     cached_button_label_max_width: usize = 0,
     cached_button_show_pane_count: bool = false,
     button_label_cache_valid: bool = false,
-    button_placement: ChildPlacement = .{},
+    button_placement: child_window.ChildPlacement = .{},
     /// What the tab strip shows for the programs in this tab (OSC 7501),
     /// kept so a change repaints the button and reaches assistive
     /// technology once. Owned by `Host.refreshTabStatus`.
@@ -4520,6 +3971,37 @@ pub const Tab = struct {
         destroySubclassedWindow(&self.button_hwnd, &self.button_prev_proc);
         self.tree.deinit();
         self.* = undefined;
+    }
+
+    /// What the tab's button was last drawn with (`Host.syncTabButtons`).
+    /// Its `title` borrows `cached_button_title`, which the next
+    /// `setCachedKey` or `deinit` frees: use the Key before either.
+    pub fn cachedKey(self: *const Tab) tab_label.Key {
+        return .{
+            .title = self.cached_button_title,
+            .index = self.cached_button_index,
+            .active = self.cached_button_active,
+            .bell = self.cached_button_bell,
+            .pane_count = self.cached_button_pane_count,
+            .max_width = self.cached_button_label_max_width,
+            .show_pane_count = self.cached_button_show_pane_count,
+        };
+    }
+
+    /// Record `label_key` as what the button now shows. The title is copied
+    /// first, the one step that can fail, so a failure keeps the old inputs;
+    /// a new title frees the one an earlier `cachedKey` borrowed.
+    /// `syncTabButtons` calls this before it raises NameChanged, because the
+    /// event reads the name back from these inputs.
+    pub fn setCachedKey(self: *Tab, alloc: Allocator, label_key: tab_label.Key) !void {
+        try appendOwnedString(alloc, &self.cached_button_title, label_key.title);
+        self.cached_button_bell = label_key.bell;
+        self.cached_button_index = label_key.index;
+        self.cached_button_active = label_key.active;
+        self.cached_button_pane_count = label_key.pane_count;
+        self.cached_button_label_max_width = label_key.max_width;
+        self.cached_button_show_pane_count = label_key.show_pane_count;
+        self.button_label_cache_valid = true;
     }
 
     pub fn focusedSurface(self: *const Tab) ?*Surface {
@@ -4627,58 +4109,20 @@ pub fn destroySubclassedWindow(
 }
 
 pub const SurfaceInitOptions = struct {
-    quick_terminal: bool = false,
+    /// How the window it creates starts. A tab or split (`host_id` set)
+    /// creates none and leaves this `.fresh`.
+    window: window_state.Origin = .fresh,
     host_id: ?u32 = null,
     tab_id: ?u32 = null,
     tab_insert_index: ?usize = null,
+    /// The pane a tab or split is opened from: the pane a split divides,
+    /// and the metrics a new pane starts with. A new window's source is its
+    /// `window` origin.
     clone_state_from: ?*const Surface = null,
     split_direction: SplitTreeSurface.Split.Direction = .right,
-    /// How the newly-created host HWND first appears, once GL and core
-    /// initialization succeed. Used by the quick-terminal passive mode
-    /// (`quick-terminal-keyboard-interactivity = none`) on first toggle-on,
-    /// and by a handed-off console that asked not to take focus.
-    show: InitialShow = .activate,
     adopted_session: ?*win32_terminal_handoff.PendingSession = null,
-    /// Whether a new window takes `maximize` and `fullscreen` from `config`
-    /// while `Surface.init` shows it. Session restore turns this off: it
-    /// moves the window to its saved rect first and applies them afterwards
-    /// (`App.restoreSessionWindow`).
-    config_window_start: bool = true,
-    /// The argv a forwarded launch (a second `noctty`, or `noctty
-    /// +new-window`) applied to `config`, for `WindowKeeps`.
-    forwarded_arguments: ?[]const [:0]const u8 = null,
-};
-
-pub const WindowKeeps = window_state.WindowKeeps;
-
-pub const WindowStart = window_state.WindowStart;
-
-/// The first show of a new host window.
-pub const InitialShow = enum {
-    /// Shown and presented with focus.
-    activate,
-    /// Visible without stealing focus from the caller's foreground window.
-    no_activate,
-    /// Minimized, without activation: the window exists but stays out of the
-    /// way, and the taskbar button is all the user sees.
-    minimized,
-    /// Maximized, with focus.
-    maximized,
-
-    /// The `ShowWindow` command for the first show, if it is not left to
-    /// `presentWindow`. A maximize is followed by `presentWindow` for focus.
-    pub fn showCommand(self: InitialShow) ?i32 {
-        return switch (self) {
-            .activate => null,
-            .no_activate => c.SW_SHOWNOACTIVATE,
-            .minimized => c.SW_SHOWMINNOACTIVE,
-            .maximized => c.SW_MAXIMIZE,
-        };
-    }
-
-    pub fn takesFocus(self: InitialShow) bool {
-        return self == .activate or self == .maximized;
-    }
+    /// What the surface records of its launch (`pane_launch.prepare`).
+    launch: configpkg.pane_launch.Stamp = .{},
 };
 
 /// The first show a handed-off console asked for in its `STARTUPINFO`.
@@ -4688,7 +4132,7 @@ pub const InitialShow = enum {
 /// started with `SW_HIDE` too (only `CREATE_NO_WINDOW` keeps a console
 /// windowless), and a host with no way to be shown again is worse than a
 /// minimized one, so a hide becomes a minimize that takes no focus.
-pub fn adoptedInitialShow(startup_flags: u32, show_window: u16) InitialShow {
+pub fn adoptedInitialShow(startup_flags: u32, show_window: u16) window_state.InitialShow {
     if (startup_flags & win32_terminal_handoff.STARTF_USESHOWWINDOW == 0) return .activate;
     return switch (show_window) {
         c.SW_SHOWNOACTIVATE, c.SW_SHOWNA => .no_activate,
@@ -5045,45 +4489,11 @@ pub fn restoreTerminalUndoState(
     };
 }
 
-pub const HostBannerKind = labels.HostBannerKind;
+pub const HostBannerKind = overlay_view.BannerKind;
 
 /// A button of the host banner: `primary` is Open Release or Install on the
 /// update notice; `dismiss` is Dismiss there and the close button otherwise.
 pub const BannerButton = enum(u1) { primary, dismiss };
-
-const LaunchTargetButtonKeyAction = labels.LaunchTargetButtonKeyAction;
-pub const ProfileOpenTarget = labels.ProfileOpenTarget;
-
-fn parseProfileOpenTarget(raw: []const u8) ?ProfileOpenTarget {
-    if (std.ascii.eqlIgnoreCase(raw, "tab")) return .tab;
-    if (std.ascii.eqlIgnoreCase(raw, "window") or std.ascii.eqlIgnoreCase(raw, "win")) return .window;
-    if (std.ascii.eqlIgnoreCase(raw, "split") or std.ascii.eqlIgnoreCase(raw, "pane")) return .split;
-    return null;
-}
-
-fn resolveProfileOpenTarget(default_target: ProfileOpenTarget, shift: bool, control: bool) ProfileOpenTarget {
-    if (control) return .split;
-    if (shift) return .window;
-    return default_target;
-}
-
-pub fn cycleProfileOpenTarget(current: ProfileOpenTarget, reverse: bool) ProfileOpenTarget {
-    return switch (current) {
-        .tab => if (reverse) .split else .window,
-        .window => if (reverse) .tab else .split,
-        .split => if (reverse) .window else .tab,
-    };
-}
-
-fn launchTargetButtonKeyAction(vk: WPARAM) ?LaunchTargetButtonKeyAction {
-    return switch (vk) {
-        c.VK_LEFT, c.VK_UP => .previous,
-        c.VK_RIGHT, c.VK_DOWN, c.VK_RETURN, c.VK_SPACE => .next,
-        c.VK_HOME => .first,
-        c.VK_END => .last,
-        else => null,
-    };
-}
 
 /// True when `title` contains a byte that must not survive into a stored
 /// window/tab title. See `sanitizeTitleAlloc` for why.
@@ -5178,28 +4588,7 @@ pub fn sanitizeTitleAlloc(alloc: Allocator, title: []const u8) Allocator.Error!?
     return try out.toOwnedSlice(alloc);
 }
 
-pub fn appendOwnedString(
-    alloc: Allocator,
-    target: *?[:0]const u8,
-    value: ?[]const u8,
-) !void {
-    if (value) |next_value| {
-        if (target.*) |existing| {
-            if (std.mem.eql(u8, existing, next_value)) return;
-        }
-    } else if (target.* == null) {
-        return;
-    }
-
-    // Allocate first, then free the old slot. Reversing the order
-    // means that (a) an OOM leaves `*target` holding a still-valid
-    // previous allocation instead of a dangling freed pointer, and
-    // (b) a caller passing a `value` that aliases the current slot
-    // is copied to fresh storage before the free, avoiding UAF.
-    const next: ?[:0]const u8 = if (value) |v| try alloc.dupeZ(u8, v) else null;
-    if (target.*) |existing| alloc.free(existing);
-    target.* = next;
-}
+const appendOwnedString = paint_text.appendOwnedString;
 
 pub fn appendSanitizedTitle(
     alloc: Allocator,
@@ -5211,113 +4600,7 @@ pub fn appendSanitizedTitle(
     try appendOwnedString(alloc, target, if (sanitized) |value| value else title);
 }
 
-pub const ownedStringEquals = labels.ownedStringEquals;
-
-pub fn ownedBytesEquals(current: ?[]const u8, value: []const u8) bool {
-    return if (current) |existing|
-        std.mem.eql(u8, existing, value)
-    else
-        false;
-}
-
-pub fn optionalOwnedStringEquals(current: ?[:0]const u8, value: ?[]const u8) bool {
-    return if (value) |existing|
-        ownedStringEquals(current, existing)
-    else
-        current == null;
-}
-
-fn syncWindowTextUtf8Cached(
-    alloc: Allocator,
-    hwnd: HWND,
-    cached: *?[:0]const u8,
-    value: []const u8,
-) !bool {
-    if (ownedStringEquals(cached.*, value)) return false;
-    try appendOwnedString(alloc, cached, value);
-    const value_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
-    defer alloc.free(value_w);
-    _ = sys.SetWindowTextW(hwnd, value_w.ptr);
-    return true;
-}
-
-fn syncWindowTextUtf8CachedAfterSet(
-    alloc: Allocator,
-    hwnd: HWND,
-    cached: *?[:0]const u8,
-    value: []const u8,
-) !bool {
-    if (ownedStringEquals(cached.*, value)) return false;
-    const value_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
-    defer alloc.free(value_w);
-    _ = sys.SetWindowTextW(hwnd, value_w.ptr);
-    try appendOwnedString(alloc, cached, value);
-    return true;
-}
-
 pub const overlayEditText = overlay_session.overlayEditText;
-
-fn syncChildPlacementTarget(placement: *ChildPlacement, hwnd: HWND) void {
-    if (placement.hwnd == null or placement.hwnd.? != hwnd) {
-        placement.* = .{ .hwnd = hwnd };
-    }
-}
-
-pub fn applyChildRect(hwnd: HWND, placement: *ChildPlacement, rect: RECT) bool {
-    syncChildPlacementTarget(placement, hwnd);
-    if (placement.rect_known and rectEquals(placement.rect, rect)) return false;
-    _ = sys.MoveWindow(
-        hwnd,
-        rect.left,
-        rect.top,
-        @max(0, rect.right - rect.left),
-        @max(0, rect.bottom - rect.top),
-        0,
-    );
-    placement.rect = rect;
-    placement.rect_known = true;
-    return true;
-}
-
-/// `applyChildRect` for chrome children, which have to repaint themselves
-/// after a move.
-///
-/// `MoveWindow` runs with `bRepaint = FALSE` so a relayout never forces a
-/// paint of the terminal surfaces, and the host carries `WS_CLIPCHILDREN`, so
-/// the parent's own chrome-band repaint is clipped out of every child rect. A
-/// moved chrome child therefore keeps whatever pixels happened to be on screen
-/// at its new position -- the strip background, or the stale image of the
-/// button that used to sit there -- until something else invalidates it.
-///
-/// `Host.layout` covers the moves it makes itself via
-/// `invalidateChromeChildPaint`, but `Host.refreshChrome` and
-/// `Surface.refreshWindowTitle` also relayout the tab strip through
-/// `syncTabButtons` and invalidate only the parent. Whichever of them runs
-/// first after a tab is inserted does the move, and the placement cache then
-/// makes the miss permanent: the next `layout` sees no rect change and skips
-/// the child invalidation, so the button stays unpainted at its new slot while
-/// its old image survives underneath the neighbour that took its place.
-///
-/// Tying the invalidation to the move keeps correctness from depending on
-/// which caller happens to relayout the strip first. It costs one
-/// `InvalidateRect` per child that actually moved, so idle repaints are
-/// unaffected.
-pub fn applyChromeChildRect(hwnd: HWND, placement: *ChildPlacement, rect: RECT) bool {
-    if (!applyChildRect(hwnd, placement, rect)) return false;
-    // Chrome children are owner-drawn over their full client area, so the
-    // erase pass would only add a flash of background under the new paint.
-    _ = sys.InvalidateRect(hwnd, null, 0);
-    return true;
-}
-
-pub fn applyChildVisibility(hwnd: HWND, placement: *ChildPlacement, visible: bool) bool {
-    syncChildPlacementTarget(placement, hwnd);
-    if (placement.visible_known and placement.visible == visible) return false;
-    _ = sys.ShowWindow(hwnd, if (visible) c.SW_SHOW else c.SW_HIDE);
-    placement.visible = visible;
-    placement.visible_known = true;
-    return true;
-}
 
 /// Raise `child` to the top of its siblings, for a chrome child shown over
 /// a terminal pane. A child is created at the bottom of the z-order, below
@@ -5372,19 +4655,6 @@ pub fn surfaceLayoutRuntimeSync(visibility_changed: bool, pane_rect_changed: boo
         .scrollbar_refresh = visibility_changed or pane_rect_changed,
         .core_size_sync = pane_rect_changed,
     };
-}
-
-fn scaleInitialClientSize(size: apprt.SurfaceSize, scale: apprt.ContentScale) apprt.SurfaceSize {
-    return .{
-        .width = scaleInitialClientAxis(size.width, scale.x),
-        .height = scaleInitialClientAxis(size.height, scale.y),
-    };
-}
-
-fn scaleInitialClientAxis(value: u32, scale: f32) u32 {
-    const scaled = @ceil(@as(f64, @floatFromInt(value)) * @as(f64, @floatCast(scale)));
-    const max_u32: f64 = @floatFromInt(std.math.maxInt(u32));
-    return @intFromFloat(@min(max_u32, @max(1, scaled)));
 }
 
 pub fn surfaceActivationNeedsHostSync(
@@ -5545,19 +4815,12 @@ pub fn isSystemDarkMode() bool {
     return internal_os.color_scheme.isDark();
 }
 
-const immersive_color_set_w = std.unicode.utf8ToUtf16LeStringLiteral("ImmersiveColorSet");
-
 /// The setting a `WM_SETTINGCHANGE` names in its lParam, or null when it
 /// names none.
 fn settingChangeName(lParam: LPARAM) ?[:0]const u16 {
     if (lParam == 0) return null;
     const name: [*:0]const u16 = @ptrFromInt(@as(usize, @bitCast(lParam)));
     return std.mem.span(name);
-}
-
-fn settingChangeIsImmersiveColorSet(lParam: LPARAM) bool {
-    const name = settingChangeName(lParam) orelse return false;
-    return std.mem.eql(u16, name, immersive_color_set_w);
 }
 
 pub fn settingChangeAffectsTheme(lparam: LPARAM) bool {
@@ -5567,14 +4830,6 @@ pub fn settingChangeAffectsTheme(lparam: LPARAM) bool {
         if (std.mem.eql(u16, name, value)) return false;
     }
     return true;
-}
-
-test "issue149 Windows setting change filters terminal color sync" {
-    const immersive = std.unicode.utf8ToUtf16LeStringLiteral("ImmersiveColorSet");
-    const unrelated = std.unicode.utf8ToUtf16LeStringLiteral("Environment");
-    try std.testing.expect(settingChangeIsImmersiveColorSet(@bitCast(@intFromPtr(immersive))));
-    try std.testing.expect(!settingChangeIsImmersiveColorSet(@bitCast(@intFromPtr(unrelated))));
-    try std.testing.expect(!settingChangeIsImmersiveColorSet(0));
 }
 
 pub fn readDynamicScrollbars(default_value: bool) bool {
@@ -5606,12 +4861,10 @@ pub fn resolveTheme(config: *const configpkg.Config) ThemeColors {
         .auto => if (isSystemDarkMode()) darkTheme() else lightTheme(),
         .ghostty => darkTheme(),
     };
-    const accent = configuredAccent(config.@"window-accent", config.@"window-accent-color", resolveSystemAccentColor());
+    const accent = configuredAccent(config.@"window-accent", config.@"window-accent-color", win32_theme.systemAccentColor());
     return withSplitDividerColor(withAccent(theme, accent), config.@"split-divider-color");
 }
 
-const resolveSystemAccentColor = win32_theme.systemAccentColor;
-pub const windowAccentPreset = win32_theme.windowAccentPreset;
 
 /// The accent the config asks for, before any readability adjustment, or
 /// null for the theme's own. `window-accent-color` wins over `window-accent`;
@@ -5622,7 +4875,7 @@ fn configuredAccent(accent: configpkg.Config.WindowAccent, color: ?configpkg.Con
         const value = system_accent orelse return null;
         return if (value == 0) null else value;
     }
-    return windowAccentPreset(accent);
+    return win32_theme.windowAccentPreset(accent);
 }
 
 /// DESIGN.md's floor for essential non-text indicators, and for body text.
@@ -5691,7 +4944,7 @@ test "window-accent recolours every accent role and stays readable" {
 
     // A colour that already stands out is kept as chosen.
     const teal = withAccent(darkTheme(), configuredAccent(.teal, null, null));
-    try std.testing.expectEqual(windowAccentPreset(.teal).?, teal.accent);
+    try std.testing.expectEqual(win32_theme.windowAccentPreset(.teal).?, teal.accent);
     try std.testing.expectEqual(teal.accent, teal.pane_divider_focused);
     try std.testing.expectEqual(teal.accent, teal.button_focus_ring);
     try std.testing.expect(teal.accent_custom);
@@ -5708,7 +4961,7 @@ test "window-accent recolours every accent role and stays readable" {
     var colours: [std.meta.fields(configpkg.Config.WindowAccent).len + 2]u32 = undefined;
     var count: usize = 0;
     for (std.enums.values(configpkg.Config.WindowAccent)) |preset| {
-        if (windowAccentPreset(preset)) |value| {
+        if (win32_theme.windowAccentPreset(preset)) |value| {
             colours[count] = value;
             count += 1;
         }
@@ -5729,10 +4982,10 @@ test "window-accent recolours every accent role and stays readable" {
     }
 
     // Pickers follow it; search keeps its own colour.
-    try std.testing.expectEqual(teal.accent, overlayAccentFor(&teal, .command_palette));
-    try std.testing.expectEqual(overlayAccentColor(.search, true), overlayAccentFor(&teal, .search));
+    try std.testing.expectEqual(teal.accent, win32_theme.overlayAccentFor(&teal, .command_palette));
+    try std.testing.expectEqual(overlayAccentColor(.search, true), win32_theme.overlayAccentFor(&teal, .search));
     const plain = darkTheme();
-    try std.testing.expectEqual(overlayAccentColor(.command_palette, true), overlayAccentFor(&plain, .command_palette));
+    try std.testing.expectEqual(overlayAccentColor(.command_palette, true), win32_theme.overlayAccentFor(&plain, .command_palette));
 }
 
 /// `split-divider-color` recolors the gap between split panes; unset, the
@@ -5767,10 +5020,9 @@ test "split-divider-color recolors the pane gap" {
 /// value parses and other platforms honour it.
 pub fn logBackgroundBlurUnsupported() void {
     log.warn(
-        "background-blur has no effect on Windows in this build: noctty paints its " ++
-            "window opaquely and opts into no DWM transparency mechanism, so no backdrop " ++
-            "material can reach a visible pixel. background-opacity is a flat " ++
-            "window-wide tint, not a blur",
+        "background-blur has no effect on Windows in this build: noctty asks DWM for " ++
+            "no backdrop material, so a translucent background-opacity shows what is " ++
+            "behind the window without blur",
         .{},
     );
 }
@@ -5918,22 +5170,6 @@ pub fn activeTabTheme(theme: *const ThemeColors, background: u32) ThemeColors {
     return result;
 }
 
-/// The surface a resting tab's hover fades in.
-pub fn tabHoverSurface(theme: *const ThemeColors) u32 {
-    return if (theme.is_dark)
-        adjustColor(theme.chrome_bg, 16, 16, 19)
-    else
-        adjustColor(theme.chrome_bg, -13, -13, -13);
-}
-
-/// A pressed tab sinks a step past its hover.
-pub fn tabPressedSurface(theme: *const ThemeColors) u32 {
-    return if (theme.is_dark)
-        adjustColor(theme.chrome_bg, 9, 9, 11)
-    else
-        adjustColor(theme.chrome_bg, -21, -21, -21);
-}
-
 /// The active tab's cap: the accent, held to DESIGN.md's 3:1 for an essential
 /// indicator on the tab's own background, which comes from the terminal and
 /// so can be anything. An inactive window quiets it, as it does the labels.
@@ -6039,151 +5275,15 @@ pub fn applyDwmThemeWithBuild(hwnd: HWND, theme: *const ThemeColors, config: *co
         isHighContrastActive(),
         caption_color,
         text_color,
-        // Host windows never carry a DWM backdrop material, because nothing
-        // in this runtime can show one: the chrome is painted opaquely with
-        // GDI, the terminal is an opaque OpenGL child whose framebuffer alpha
-        // DWM discards, and nothing opts into `DwmExtendFrameIntoClientArea`,
-        // `DwmEnableBlurBehindWindow` or `WS_EX_NOREDIRECTIONBITMAP`. The
-        // attribute used to be set to `DWMSBT_TABBEDWINDOW` whenever
-        // `background-opacity < 1` and `background-blur` were both set, which
-        // only ever cost a DWM call and made the docs promise a material the
-        // window could not show. Measured on Windows 11 build 26200 over a
-        // striped desktop: `--background-opacity=0.8 --background-blur=true`
-        // (backdrop 4) and `--background-blur=false` (backdrop 1) produced
-        // byte-identical screenshots, and flipping the attribute from outside
-        // the process on the same window with `WS_EX_LAYERED` stripped by
-        // hand changed nothing either. The layered alpha that implements
-        // `background-opacity` is NOT the obstacle: a synthetic window that
-        // does extend its frame shows a different material per backdrop type
-        // whether or not it is layered.
+        // No backdrop material, so `background-blur` has no effect
+        // (window-frame.md, 2026-09-14). Since #640 a translucent OpenGL
+        // window has blur-behind with an empty region, under which
+        // `DWMSBT_TRANSIENTWINDOW` would show acrylic; with it Windows lays a
+        // light layer over the theme's background (the #640 contributor's
+        // observation, not measured here): a change of its own.
         c.DWMSBT_NONE,
         supportsDwmSystemBackdropAttribute(os_build),
     );
-}
-
-fn utf16CodeUnitOffsetToUtf8ByteOffset(text: []const u8, target_units: usize) usize {
-    var byte_offset: usize = 0;
-    var utf16_units: usize = 0;
-    while (byte_offset < text.len) {
-        const sequence_len = std.unicode.utf8ByteSequenceLength(text[byte_offset]) catch return byte_offset;
-        const end = byte_offset + @as(usize, sequence_len);
-        if (end > text.len) return byte_offset;
-        const codepoint = std.unicode.utf8Decode(text[byte_offset..end]) catch return byte_offset;
-        const codepoint_units: usize = if (codepoint > 0xFFFF) 2 else 1;
-        if (utf16_units + codepoint_units > target_units) return byte_offset;
-        utf16_units += codepoint_units;
-        byte_offset = end;
-        if (utf16_units == target_units) return byte_offset;
-    }
-    return text.len;
-}
-
-fn utf8ByteOffsetToUtf16CodeUnitOffset(text: []const u8, target_bytes: usize) usize {
-    const target = @min(target_bytes, text.len);
-    var byte_offset: usize = 0;
-    var utf16_units: usize = 0;
-    while (byte_offset < target) {
-        const sequence_len = std.unicode.utf8ByteSequenceLength(text[byte_offset]) catch return utf16_units;
-        const end = byte_offset + @as(usize, sequence_len);
-        if (end > target or end > text.len) return utf16_units;
-        const codepoint = std.unicode.utf8Decode(text[byte_offset..end]) catch return utf16_units;
-        utf16_units += if (codepoint > 0xFFFF) 2 else 1;
-        byte_offset = end;
-    }
-    return utf16_units;
-}
-
-test "Win32 edit offsets preserve supplementary Unicode boundaries" {
-    const text = "a🚀b";
-    const utf16_offsets = [_]usize{ 0, 1, 3, 4 };
-    const utf8_offsets = [_]usize{ 0, 1, 5, 6 };
-    for (utf16_offsets, utf8_offsets) |utf16_offset, utf8_offset| {
-        try std.testing.expectEqual(
-            utf8_offset,
-            utf16CodeUnitOffsetToUtf8ByteOffset(text, utf16_offset),
-        );
-        try std.testing.expectEqual(
-            utf16_offset,
-            utf8ByteOffsetToUtf16CodeUnitOffset(text, utf8_offset),
-        );
-    }
-    try std.testing.expectEqual(@as(usize, 1), utf16CodeUnitOffsetToUtf8ByteOffset(text, 2));
-    try std.testing.expectEqual(@as(usize, 1), utf8ByteOffsetToUtf16CodeUnitOffset(text, 2));
-}
-
-test "Win32 edit caret chooses the active selection endpoint" {
-    try std.testing.expectEqual(@as(u32, 2), editSelectionCaretEndpoint(.{ 2, 8 }, 2));
-    try std.testing.expectEqual(@as(u32, 8), editSelectionCaretEndpoint(.{ 2, 8 }, 8));
-    try std.testing.expectEqual(@as(u32, 2), editSelectionCaretEndpoint(.{ 2, 8 }, 3));
-    try std.testing.expectEqual(@as(u32, 8), editSelectionCaretEndpoint(.{ 2, 8 }, 7));
-    try std.testing.expectEqual(@as(u32, 5), editSelectionCaretEndpoint(.{ 5, 5 }, 99));
-}
-
-fn nativeEditSelection(hwnd: HWND) [2]u32 {
-    var start: u32 = 0;
-    var end: u32 = 0;
-    _ = sys.SendMessageW(
-        hwnd,
-        c.EM_GETSEL,
-        @intFromPtr(&start),
-        @bitCast(@intFromPtr(&end)),
-    );
-    return .{ start, end };
-}
-
-fn editSelectionCaretEndpoint(selection: [2]u32, native_caret: u32) u32 {
-    if (selection[0] == selection[1]) return selection[0];
-    const distance_to_start = if (native_caret >= selection[0])
-        native_caret - selection[0]
-    else
-        selection[0] - native_caret;
-    const distance_to_end = if (native_caret >= selection[1])
-        native_caret - selection[1]
-    else
-        selection[1] - native_caret;
-    return if (distance_to_start < distance_to_end) selection[0] else selection[1];
-}
-
-fn nativeEditCaret(hwnd: HWND, selection: [2]u32) u32 {
-    if (selection[0] == selection[1]) return selection[0];
-    if (sys.GetFocus() != hwnd) return selection[1];
-    var point: POINT = undefined;
-    if (sys.GetCaretPos(&point) == 0) return selection[1];
-    const x: u16 = @bitCast(@as(i16, @truncate(point.x)));
-    const y: u16 = @bitCast(@as(i16, @truncate(point.y)));
-    const packed_point: LPARAM = @bitCast(@as(usize, x) | (@as(usize, y) << 16));
-    const result = sys.SendMessageW(hwnd, c.EM_CHARFROMPOS, 0, packed_point);
-    const native_caret: u32 = @intCast(@as(usize, @bitCast(result)) & 0xFFFF);
-    return editSelectionCaretEndpoint(selection, native_caret);
-}
-
-fn editSnapshot(
-    alloc: Allocator,
-    hwnd: HWND,
-    value: []const u8,
-) !win32_uia.TerminalSnapshot {
-    const document_text = try alloc.dupe(u8, value);
-    const selection = nativeEditSelection(hwnd);
-    const start = utf16CodeUnitOffsetToUtf8ByteOffset(value, selection[0]);
-    const end = utf16CodeUnitOffsetToUtf8ByteOffset(value, selection[1]);
-    const caret = utf16CodeUnitOffsetToUtf8ByteOffset(value, nativeEditCaret(hwnd, selection));
-    return .{
-        .document_text = document_text,
-        .visible_range = .{ .start = 0, .end = document_text.len },
-        .caret_offset = caret,
-        .selection_range = .{ .start = @min(start, end), .end = @max(start, end) },
-    };
-}
-
-fn selectNativeEditRange(
-    hwnd: HWND,
-    snapshot_text: []const u8,
-    range: win32_uia.OffsetRange,
-) void {
-    const start = utf8ByteOffsetToUtf16CodeUnitOffset(snapshot_text, range.start);
-    const end = utf8ByteOffsetToUtf16CodeUnitOffset(snapshot_text, range.end);
-    _ = sys.SendMessageW(hwnd, c.EM_SETSEL, start, @intCast(end));
-    _ = sys.SetFocus(hwnd);
 }
 
 pub fn quickSelectNameThunk(ctx: *anyopaque, buf: []u8) []const u8 {
@@ -6267,11 +5367,12 @@ pub fn quickSelectSelectRowThunk(ctx: *anyopaque, index: usize) void {
     surface.quickSelectPrefixChanged();
 }
 
-pub fn quickSelectInvokeRowThunk(ctx: *anyopaque, index: usize) void {
+pub fn quickSelectInvokeRowThunk(ctx: *anyopaque, index: usize) bool {
     const surface: *Surface = @ptrCast(@alignCast(ctx));
     surface.fireQuickSelect(index, false, false) catch |err| {
         log.warn("quick select UIA action failed err={}", .{err});
     };
+    return true;
 }
 
 /// Thunks adapting `*App` into the `AppHandle` callback shape used by
@@ -6638,14 +5739,98 @@ pub fn settingsProfileChoicesThunk(
     ask: bool,
 ) Allocator.Error!win32_settings.ProfileChoices {
     const app: *App = @ptrCast(@alignCast(ctx));
-    const outcome = settingsDefaultProfileOutcome(&app.config, reference);
-    var result = if (app.settingsProfileList(ask)) |list|
-        try settingsProfileChoices(alloc, list.profiles, list.complete, reference, outcome)
+    const outcome = configpkg.pane_launch.outcome(&app.config, reference);
+    const list = app.settingsProfileList(ask);
+    var result = if (list) |found|
+        try settingsProfileChoices(alloc, found.profiles, found.complete, reference, outcome)
     else
         try settingsProfileChoices(alloc, &.{}, false, reference, outcome);
     errdefer result.deinit(alloc);
     result.draft_label = try settingsDraftProfileLabel(alloc, result.items, reference, draft);
+    // The launcher's quick slots, which the Profiles page keeps first.
+    for (result.items) |*item| if (app.launcherQuickSlotOrdinal(item.key)) |ordinal| {
+        item.quick_slot = @intCast(ordinal + 1);
+    };
+    if (list) |found| {
+        // A profile discovery hid itself (an older Visual Studio under
+        // `visual-studio-profiles = newest`), whatever `profile-hidden` says
+        // of it too: the Profiles page cannot show it.
+        for (result.items, found.profiles) |*item, profile| item.found_hidden = profile.hidden_by_discovery;
+        // What each value of both lists names, as the app reads it, and what
+        // each fixed word names: the page reads and keeps an alias (`wsl`,
+        // `pwsh`, `vs:newest:cmd`) by it, the draft's own too, which a reload
+        // may have taken out of the app's lists.
+        result.order_refs = try settingsListReferences(alloc, found.profiles, app.config.@"profile-order".list.items);
+        result.hidden_refs = try settingsListReferences(alloc, found.profiles, app.config.@"profile-hidden".list.items);
+    }
     return result;
+}
+
+/// The fixed words a list value names profiles by (`pwsh`, `wsl`,
+/// `vs:newest:cmd`), as `windows_shell` reads them: each is resolved for the
+/// page whether or not the app's lists hold it (`settingsListReferences`).
+const settings_list_words = words: {
+    var out: [windows_shell.profile_alias_words.len + 2][]const u8 = undefined;
+    for (windows_shell.profile_alias_words, 0..) |alias, at| out[at] = alias.word;
+    out[out.len - 2] = "vs:newest:cmd";
+    out[out.len - 1] = "vs:newest:pwsh";
+    break :words out;
+};
+
+/// What each of `values` (a `profile-order` or `profile-hidden`) names among
+/// `profiles`, by `windows_shell.referenceNames`: their keys, and after them
+/// what each fixed word the values do not hold names (`settings_list_words`).
+/// A draft keeps an alias a reload took out of the app's lists, and the
+/// page reads it by these. Owned.
+fn settingsListReferences(
+    alloc: Allocator,
+    profiles: []const windows_shell.Profile,
+    values: []const [:0]const u8,
+) Allocator.Error![]win32_settings.ProfileReference {
+    var refs: std.ArrayListUnmanaged(win32_settings.ProfileReference) = .empty;
+    errdefer {
+        for (refs.items) |ref| ref.deinit(alloc);
+        refs.deinit(alloc);
+    }
+    try refs.ensureTotalCapacityPrecise(alloc, values.len + settings_list_words.len);
+    // Each value is read once against the list.
+    const newest: windows_shell.NewestVisualStudio = .of(profiles);
+    var indexes: std.ArrayListUnmanaged(usize) = .empty;
+    defer indexes.deinit(alloc);
+    for (values) |value| refs.appendAssumeCapacity(try settingsListReference(alloc, profiles, value, newest, &indexes));
+    words: for (settings_list_words) |word| {
+        for (refs.items) |ref| if (std.mem.eql(u8, std.mem.trim(u8, ref.value, &std.ascii.whitespace), word)) continue :words;
+        refs.appendAssumeCapacity(try settingsListReference(alloc, profiles, word, newest, &indexes));
+    }
+    return refs.toOwnedSlice(alloc);
+}
+
+/// What `value` names among `profiles`: its keys (`settingsListReferences`).
+/// Owned.
+fn settingsListReference(
+    alloc: Allocator,
+    profiles: []const windows_shell.Profile,
+    value: []const u8,
+    newest: windows_shell.NewestVisualStudio,
+    indexes: *std.ArrayListUnmanaged(usize),
+) Allocator.Error!win32_settings.ProfileReference {
+    var keys: std.ArrayListUnmanaged([]const u8) = .empty;
+    errdefer {
+        for (keys.items) |key| alloc.free(key);
+        keys.deinit(alloc);
+    }
+    indexes.clearRetainingCapacity();
+    try windows_shell.referenceNamedIndexes(alloc, profiles, value, newest, indexes);
+    for (indexes.items) |index| {
+        const key = try alloc.dupe(u8, profiles[index].key);
+        keys.append(alloc, key) catch |err| {
+            alloc.free(key);
+            return err;
+        };
+    }
+    const owned = try alloc.dupe(u8, value);
+    errdefer alloc.free(owned);
+    return .{ .value = owned, .keys = try keys.toOwnedSlice(alloc) };
 }
 
 /// The label the draft's `default-profile` value starts under when it is
@@ -6666,38 +5851,6 @@ pub fn settingsDraftProfileLabel(
     return try windows_shell.referenceLabelWithoutList(alloc, value);
 }
 
-/// What `config` made of `reference` when it loaded. It looked its own
-/// value up, `vs:` keys included. It did not look at a value the command
-/// line or a `command` line kept it from using, or at one that is not its
-/// value.
-pub fn settingsDefaultProfileOutcome(config: *const configpkg.Config, reference: ?[]const u8) SettingsDefaultProfile {
-    const value = config.@"default-profile" orelse return .untried;
-    if (reference == null or !std.mem.eql(u8, value, reference.?)) return .untried;
-    if (config._default_profile) |*profile| return .{ .resolved = profile };
-    return switch (config._default_profile_failure) {
-        .none => .untried,
-        .not_found => .unresolved,
-        .unavailable => .unavailable,
-    };
-}
-
-/// What the loaded config made of the `default-profile` value Settings asks
-/// about.
-const SettingsDefaultProfile = union(enum) {
-    /// Not looked up (see `settingsProfileChoicesThunk`).
-    untried,
-    /// The profile new terminals start.
-    resolved: *const windows_shell.Profile,
-    /// It names nothing that can start here: new terminals start the
-    /// automatic default.
-    unresolved,
-    /// Visual Studio did not answer the lookup in full: new terminals start
-    /// the automatic default until a reload asks again, and the value may
-    /// be right, so it names no listed row (a cached list may hold the
-    /// instance it would have found) and is not called missing.
-    unavailable,
-};
-
 /// The Default profile dropdown's items, from a window's `profiles` (hidden
 /// ones marked), and the one `reference` starts. When the loaded config
 /// looked `reference` up (`outcome`), its answer decides: the resolved
@@ -6714,7 +5867,7 @@ fn settingsProfileChoices(
     profiles: []const windows_shell.Profile,
     complete: bool,
     reference: ?[]const u8,
-    outcome: SettingsDefaultProfile,
+    outcome: configpkg.pane_launch.Outcome,
 ) Allocator.Error!win32_settings.ProfileChoices {
     const items = try alloc.alloc(win32_settings.ProfileChoice, profiles.len);
     var made: usize = 0;
@@ -6740,10 +5893,10 @@ fn settingsProfileChoices(
         // By key alone: an alias such as `vs:newest:cmd` may name another
         // row in a list found before the instances changed.
         .resolved => |profile| {
-            result.selected = profileIndexByKey(profiles, profile.key);
+            result.selected = profile_pick.byKey(profiles, profile.key);
             if (result.selected == null) result.saved_label = try alloc.dupe(u8, profile.label);
         },
-        .unresolved => result.saved_not_found = true,
+        .not_found => result.saved_not_found = true,
         .unavailable => {},
         // A `wsl:` or `ssh:` value starts without being listed (an alias
         // outside the SSH config).
@@ -6764,12 +5917,24 @@ pub fn settingsSaveAndReloadThunk(
     ctx: *anyopaque,
     pending: *const configpkg.Config,
     original: *const configpkg.Config,
+    baselines: *const @import("win32/settings_patch.zig").Baselines,
 ) win32_settings.SaveError!void {
     const app: *App = @ptrCast(@alignCast(ctx));
     // A completed save ends the window's previews (`endSettingsPreview`); a
-    // failed one keeps the draft, and its preview with it.
-    app.settingsSaveAndReload(pending, original) catch |err| {
-        if (err == error.SavedButMasked) app.endSettingsPreview();
+    // failed one keeps the draft, and its preview with it. One whose reload
+    // read a file only partly, or could not be applied, or was applied only
+    // partly, is completed too: the running settings stay as they are,
+    // without the preview over them.
+    app.settingsSaveAndReloadFrom(pending, original, baselines) catch |err| {
+        switch (err) {
+            error.SavedButMasked,
+            error.SavedButUnread,
+            error.SavedNotApplied,
+            error.SavedPartlyApplied,
+            error.SavedListsUnchecked,
+            => app.endSettingsPreview(),
+            else => {},
+        }
         return err;
     };
     app.endSettingsPreview();
@@ -6850,76 +6015,7 @@ pub fn settingsNotifySuccessThunk(ctx: *anyopaque, title: []const u8, body: []co
     defer alloc.free(title_z);
     const body_z = alloc.dupeZ(u8, body) catch return;
     defer alloc.free(body_z);
-    app.showDesktopNotification(.app, title_z, body_z) catch |err| {
-        std.log.warn("settings: desktop notification failed err={}", .{err});
-    };
-}
-
-pub const ToastRequest = win32_toast_winrt.ToastRequest;
-
-/// Where `App.showToast` sends a toast: WinRT in the product
-/// (`ToastSink.winrt`), a recorder in tests, so no test can reach Action
-/// Center.
-pub const ToastSink = struct {
-    ctx: *anyopaque,
-    show: *const fn (ctx: *anyopaque, request: ToastRequest) anyerror!void,
-    /// Take the toast tagged `tag` in `group` out of Action Center.
-    remove_tag: *const fn (ctx: *anyopaque, tag: []const u8, group: []const u8) anyerror!void,
-    /// Take every toast in `group` out of Action Center.
-    remove_group: *const fn (ctx: *anyopaque, group: []const u8) anyerror!void,
-
-    pub fn winrt(toast: *win32_toast_winrt.WinrtToast) ToastSink {
-        return .{ .ctx = toast, .show = showWinrt, .remove_tag = removeTagWinrt, .remove_group = removeGroupWinrt };
-    }
-
-    fn showWinrt(ctx: *anyopaque, request: ToastRequest) anyerror!void {
-        const toast: *win32_toast_winrt.WinrtToast = @ptrCast(@alignCast(ctx));
-        try toast.show(request, .info);
-    }
-
-    fn removeTagWinrt(ctx: *anyopaque, tag: []const u8, group: []const u8) anyerror!void {
-        const toast: *win32_toast_winrt.WinrtToast = @ptrCast(@alignCast(ctx));
-        try toast.removeGroupedTag(tag, group);
-    }
-
-    fn removeGroupWinrt(ctx: *anyopaque, group: []const u8) anyerror!void {
-        const toast: *win32_toast_winrt.WinrtToast = @ptrCast(@alignCast(ctx));
-        try toast.removeGroup(group);
-    }
-};
-
-/// A pane's toast tag: its core surface id, 16 hex digits. One tag per pane,
-/// so a newer toast from the pane replaces its older one in Action Center.
-pub fn toastTag(buf: *[16]u8, surface_id: u64) []const u8 {
-    return std.fmt.bufPrint(buf, "{x:0>16}", .{surface_id}) catch unreachable;
-}
-
-/// This process's toast group, `noctty-<pid>`: other noctty processes share
-/// the AUMID, so everything this process removes at once is named by it.
-pub fn toastGroup(buf: *[toast_group_max]u8) []const u8 {
-    return std.fmt.bufPrint(buf, "noctty-{d}", .{sys.GetCurrentProcessId()}) catch unreachable;
-}
-
-pub const toast_group_max = "noctty-".len + std.fmt.count("{d}", .{std.math.maxInt(DWORD)});
-
-pub fn buildToastLaunchForSurface(
-    alloc: Allocator,
-    surface: *Surface,
-) Allocator.Error![]u8 {
-    const tab_id = if (surface.host) |host| blk: {
-        for (host.tabs.items) |*tab| {
-            if (tab.findHandle(surface) != null) break :blk tab.id;
-        }
-        break :blk null;
-    } else null;
-
-    return try win32_toast_activation.buildLaunchArg(alloc, .{
-        .surface_id = surface.core().id,
-        .tab_id = tab_id,
-        .window_id = surface.host_id,
-        .pid = sys.GetCurrentProcessId(),
-        .action = .focus,
-    });
+    app.notifications.show(.app, title_z, body_z);
 }
 
 /// The active tab's index once tab `removed` is gone and `remaining` tabs
@@ -7276,80 +6372,7 @@ pub const setQuickTerminalRect = quick_terminal_host.setQuickTerminalRect;
 
 pub const runOnHiddenDesktop = test_support.runOnHiddenDesktop;
 
-pub const FullscreenMonitor = window_state.FullscreenMonitor;
-
-const fitRectInWork = window_state.fitRectInWork;
-
-const workspaceRectToScreen = window_state.workspaceRectToScreen;
-
-const setMinimizedNormalRect = window_state.setMinimizedNormalRect;
-
 const monitorInfo = quick_terminal_host.monitorInfo;
-
-const restoresMaximized = window_state.restoresMaximized;
-
-/// The work areas of the monitors there are now, in screen coordinates.
-const WorkAreas = struct {
-    rects: [16]RECT = undefined,
-    count: usize = 0,
-
-    pub fn collect() WorkAreas {
-        var areas: WorkAreas = .{};
-        _ = sys.EnumDisplayMonitors(null, null, enumProc, @as(LPARAM, @bitCast(@intFromPtr(&areas))));
-        return areas;
-    }
-
-    pub fn slice(self: *const WorkAreas) []const RECT {
-        return self.rects[0..self.count];
-    }
-
-    fn enumProc(monitor: sys.HMONITOR, _: HDC, _: *RECT, data: LPARAM) callconv(.winapi) BOOL {
-        const areas: *WorkAreas = @ptrFromInt(@as(usize, @bitCast(data)));
-        if (areas.count == areas.rects.len) return 0;
-        var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
-        info.cbSize = @sizeOf(MONITORINFO);
-        if (sys.GetMonitorInfoW(monitor, &info) == 0) return 1;
-        areas.rects[areas.count] = info.rcWork;
-        areas.count += 1;
-        return 1;
-    }
-};
-
-/// How much of a restored window's title bar must be on a monitor for the
-/// user to be able to grab it: this wide and half as tall, in physical
-/// pixels. The saved rect is in the pixels of a monitor this process may not
-/// have seen yet, and the host being placed is on another, so no DPI is
-/// right to scale by; a caption at 100%, still a target at 300%.
-const restore_grab: i32 = 48;
-
-/// Where a window saved at `rect` (screen coordinates) goes now that the
-/// monitors' work areas are `works`. One whose title bar can still be grabbed
-/// stays exactly where it was, whatever its other edges do: a snapped window
-/// overhangs its monitor by its invisible frame. One that cannot (its monitor
-/// was unplugged, or the layout changed) moves to the nearest work area, its
-/// size capped to it.
-fn restoredRectOnScreen(rect: RECT, works: []const RECT, grab: i32) RECT {
-    if (works.len == 0) return rect;
-    // The rect comes from a file on disk: any i32 is possible, so differences
-    // of coordinates are taken in 64 bits.
-    const grab_width = @min(grab, rect.right - rect.left);
-    var nearest = works[0];
-    var nearest_gap: i64 = std.math.maxInt(i64);
-    for (works) |work| {
-        const visible_width = @as(i64, @min(rect.right, work.right)) - @max(rect.left, work.left);
-        const visible_height = @as(i64, @min(rect.top, work.bottom - grab) + grab) - @max(rect.top, work.top);
-        if (visible_width >= grab_width and visible_height >= @divTrunc(grab, 2)) return rect;
-
-        const gap_x: i64 = @max(0, @max(@as(i64, work.left) - rect.right, @as(i64, rect.left) - work.right));
-        const gap_y: i64 = @max(0, @max(@as(i64, work.top) - rect.bottom, @as(i64, rect.top) - work.bottom));
-        const gap = gap_x + gap_y;
-        if (gap < nearest_gap) {
-            nearest = work;
-            nearest_gap = gap;
-        }
-    }
-    return fitRectInWork(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, nearest);
-}
 
 // Keep helper modules reachable from the exe's module graph. Zig prunes
 // unreferenced module-level decls, so this block also keeps their tests
@@ -7645,13 +6668,23 @@ fn settingsTextProblem(raw: []const u8) ?win32_settings.SaveError {
 
 /// Write the settings the user edited into the config file behind
 /// `config_path`: read it, patch only the edited assignments, and put the
-/// result back where the file lives (see `save_target`).
+/// result back where the file lives (see `save_target`). `profile_edits` are
+/// the profile editor's, patched by identity (`settings_patch.zig`).
+///
+/// `checked` is what the check before the save read of the file
+/// (`save_target.digestNow`), when there was one: an edit made since, by
+/// another program, is not written over. The file is compared with it when
+/// it is read here, and with what was read here just before the write; on a
+/// difference nothing is written (`DiskChanged`), and the caller checks the
+/// file again as it did before the save (SETTINGS-SAVE-TOCTOU).
 pub fn persistSettings(
     alloc: Allocator,
     config_path: []const u8,
     pending: *const configpkg.Config,
     user_edited: SettingsEditedKeySet,
+    profile_edits: []const @import("win32/settings_patch.zig").Edit,
     detail: ?*win32_settings.FailureDetail,
+    checked: ?save_target.Digest,
 ) win32_settings.SaveError!void {
     // A config kept behind a link is edited where it lives, so the link
     // survives and a dotfiles repository sees the change. A dangling link is
@@ -7675,19 +6708,15 @@ pub fn persistSettings(
     // Edited fields that are not already present are appended by
     // `patchOrAppendEdits` below. No parsed-file baseline is needed:
     // unedited source lines remain byte-for-byte intact.
-    const raw_before: []u8 = blk: {
-        const f = std.fs.cwd().openFile(target.path, .{}) catch |err| switch (err) {
-            error.FileNotFound => break :blk try alloc.dupe(u8, ""),
-            else => return error.SerializeFailed,
-        };
-        defer f.close();
-        const stat = f.stat() catch return error.SerializeFailed;
-        const slice = alloc.alloc(u8, settingsFileSize(stat.size) catch return error.SerializeFailed) catch return error.OutOfMemory;
-        errdefer alloc.free(slice);
-        const n = f.readAll(slice) catch return error.SerializeFailed;
-        break :blk try alloc.realloc(slice, n);
+    const raw_before = save_target.read(alloc, target.path) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        // Another program is writing it: the file is checked again.
+        error.Unstable => return error.DiskChanged,
+        error.ReadFailed, error.TooLarge => return error.SerializeFailed,
     };
     defer alloc.free(raw_before);
+    const read_as = save_target.digestOf(raw_before);
+    if (checked) |digest| if (!std.mem.eql(u8, &digest, &read_as)) return error.DiskChanged;
     if (settingsTextProblem(raw_before)) |problem| {
         try setSettingsFailureDetail(alloc, detail, "the config file {s}", .{target.path});
         return problem;
@@ -7695,13 +6724,38 @@ pub fn persistSettings(
 
     var patched: std.ArrayListUnmanaged(u8) = .{};
     defer patched.deinit(alloc);
-    patchOrAppendEdits(
-        alloc,
-        raw_before,
-        pending,
-        user_edited,
-        &patched,
-    ) catch return error.SerializeFailed;
+    // Profile definitions, by identity: `patchOrAppendEdits` never sees
+    // their keys.
+    const settings_patch = @import("win32/settings_patch.zig");
+    var terminated: std.ArrayListUnmanaged(u8) = .{};
+    defer terminated.deinit(alloc);
+    var profiles_patched: std.ArrayListUnmanaged(u8) = .{};
+    defer profiles_patched.deinit(alloc);
+    // The end of the file is handled once, for every save: the patchers get
+    // the text ending in a complete line ending, the file's own kind, so
+    // neither sees a last line without one, and the result gets the ending
+    // the file had (`settings_patch.FileEnd`): a file with no final newline
+    // keeps none, and a bare CR at its end stays one.
+    const end = settings_patch.FileEnd.of(raw_before);
+    try end.terminate(alloc, raw_before, &terminated);
+    patchOrAppendEdits(alloc, terminated.items, pending, user_edited, &patched) catch return error.SerializeFailed;
+    const result = if (profile_edits.len == 0) &patched else profiles: {
+        settings_patch.patchProfileEdits(alloc, patched.items, profile_edits, &profiles_patched) catch
+            return error.SerializeFailed;
+        break :profiles &profiles_patched;
+    };
+    // Fails when a mark is not where it was put, or a NUL is left: the file
+    // is then not written.
+    end.restore(result) catch return error.SerializeFailed;
+    const final: []const u8 = result.items;
+    // No config file holds a NUL (`settingsTextProblem` refuses one), so a
+    // NUL here is the save's own, whatever wrote it: nothing is written.
+    if (std.mem.indexOfScalar(u8, final, 0) != null) return error.SerializeFailed;
+    // Nor a file the next save could not read (`save_target.max_bytes`).
+    if (final.len > save_target.max_bytes) {
+        std.log.warn("settings save: the saved file would be larger than a save reads; nothing written len={d}", .{final.len});
+        return error.SerializeFailed;
+    }
 
     // Ensure target's parent directory exists. `config_edit.openPath`
     // creates `%APPDATA%\ghostty\` for the default path, but a user
@@ -7726,12 +6780,15 @@ pub fn persistSettings(
 
     var kept_copy: ?[]u8 = null;
     defer if (kept_copy) |path| alloc.free(path);
-    save_target.write(alloc, target, patched.items, &kept_copy) catch |err| {
+    save_target.writeOver(alloc, target, final, &kept_copy, read_as) catch |err| {
         if (err == error.IncompleteWrite) if (detail) |d| {
             // The complete text is in the kept copy; the status line says where.
             if (kept_copy) |path| d.set(alloc, path);
         };
-        return err;
+        return switch (err) {
+            error.Changed => error.DiskChanged,
+            else => |e| e,
+        };
     };
 }
 
@@ -7851,7 +6908,7 @@ test "win32 settings automatic command is not masked by default resolution" {
     defer pending.deinit();
     var reloaded = try configpkg.Config.default(std.testing.allocator);
     defer reloaded.deinit();
-    try reloaded.resolveWindowsDefaultCommand();
+    try configpkg.pane_launch.finalizeWith(&reloaded, configpkg.pane_launch.fixtures.Machine{ .default_shell = "C:\\Program Files\\PowerShell\\7\\pwsh.exe" });
     try std.testing.expect(reloaded.command != null);
     try std.testing.expect(!settingsEditedValueMasked(&pending, &reloaded, .command));
     try settingsTestLoadText(&reloaded, "command = direct:cmd.exe\n");
@@ -8301,20 +7358,20 @@ test "win32 settings disk edit is a conflict only for an edited setting the file
     defer disk.deinit();
 
     // The file is as the session found it: only the user's edit is new.
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     // Someone set the same setting to something else.
     disk.@"font-size" = 16;
-    try std.testing.expect(settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    try std.testing.expect(try settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     // ... unless it is the value the user is setting: nothing would be lost.
     disk.@"font-size" = 14;
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     // An edit to a setting the user is not changing is merged by the save and
     // applied by its reload, not a conflict.
     disk.@"font-size" = 12;
     disk.@"copy-on-select" = .true;
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     // Nothing edited, nothing to lose.
-    try std.testing.expect(!settingsDiskEditConflict(&original, &original, &disk, light, settingsUserEditedKeys(&original, &original)));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &original, &disk, light, settingsUserEditedKeys(&original, &original)));
 }
 
 test "win32 settings disk edit judges the file with the app's conditional state applied" {
@@ -8355,7 +7412,7 @@ test "win32 settings disk edit judges the file with the app's conditional state 
     const edited = settingsUserEditedKeys(&original, &pending);
     try std.testing.expect(edited.isSet(@intFromEnum(SettingsConfigKey.@"cursor-style")));
 
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, dark, edited));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &disk, dark, edited));
 
     // A real edit under the same state is still found: the file now sets the
     // key itself, over the theme.
@@ -8366,7 +7423,7 @@ test "win32 settings disk edit judges the file with the app's conditional state 
     defer changed.deinit();
     try changed.loadFile(alloc, path);
     try changed.finalize();
-    try std.testing.expect(settingsDiskEditConflict(&original, &pending, &changed, dark, edited));
+    try std.testing.expect(try settingsDiskEditConflict(&original, &pending, &changed, dark, edited));
 }
 
 test "win32 settings disk check compares the files' default-profile in a window started with one" {
@@ -8375,15 +7432,13 @@ test "win32 settings disk check compares the files' default-profile in a window 
     // holds the files' value, so that is what the file is judged by.
     const alloc = std.testing.allocator;
     const light: configpkg.ConditionalState = .{};
-    var disk = try configpkg.Config.default(alloc);
+    const load = configpkg.pane_launch.fixtures.load;
+    const window_argv: []const []const u8 = &.{"--default-profile=user:py312"};
+    var disk = try load(alloc, .{ .file = "default-profile = pwsh\n", .argv = window_argv });
     defer disk.deinit();
-    const arena = disk._arena.?.allocator();
-    disk._default_profile_cli = try arena.dupeZ(u8, "user:py312");
-    disk.@"default-profile" = disk._default_profile_cli;
-    disk._default_profile_file = try arena.dupeZ(u8, "pwsh");
     var original = try disk.clone(alloc);
     defer original.deinit();
-    original.@"default-profile" = original.defaultProfileFromFiles();
+    configpkg.pane_launch.asWritten(&original);
     var pending = try original.clone(alloc);
     defer pending.deinit();
     pending.@"default-profile" = "cmd.exe";
@@ -8391,27 +7446,29 @@ test "win32 settings disk check compares the files' default-profile in a window 
     try std.testing.expect(edited.isSet(@intFromEnum(SettingsConfigKey.@"default-profile")));
 
     // The file is as the window found it.
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     try std.testing.expect(!try settingsDiskVerdict(alloc, null, &original, &pending, &disk, light, edited));
-    // Someone else changed it, even to the command line's value.
-    for ([_][:0]const u8{ "powershell.exe", "user:py312" }) |value| {
-        disk._default_profile_file = value;
-        try std.testing.expect(settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    // Someone else changed it, even to the command line's value, or removed
+    // it.
+    for ([_][]const u8{ "default-profile = powershell.exe\n", "default-profile = user:py312\n", "" }) |file| {
+        var changed = try load(alloc, .{ .file = file, .argv = window_argv });
+        defer changed.deinit();
+        try std.testing.expect(try settingsDiskEditConflict(&original, &pending, &changed, light, edited));
     }
-    // ... or removed it.
-    disk._default_profile_file = null;
-    try std.testing.expect(settingsDiskEditConflict(&original, &pending, &disk, light, edited));
     // To the value the user is setting: nothing is lost.
-    disk._default_profile_file = "cmd.exe";
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &disk, light, edited));
+    {
+        var same = try load(alloc, .{ .file = "default-profile = cmd.exe\n", .argv = window_argv });
+        defer same.deinit();
+        try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &same, light, edited));
+    }
 
     // After the save, the command line's value still wins in this window,
     // which the save reports; in another window the reload holds the edit.
     var buf: [settings_masked_keys_capacity]u8 = undefined;
     try std.testing.expectEqualStrings("default-profile", settingsMaskedKeyNames(&buf, edited, &pending, &disk));
-    disk._default_profile_cli = null;
-    disk.@"default-profile" = "cmd.exe";
-    try std.testing.expectEqualStrings("", settingsMaskedKeyNames(&buf, edited, &pending, &disk));
+    var other_window = try load(alloc, .{ .file = "default-profile = cmd.exe\n" });
+    defer other_window.deinit();
+    try std.testing.expectEqualStrings("", settingsMaskedKeyNames(&buf, edited, &pending, &other_window));
 }
 
 test "win32 settings disk edit does not mistake the resolved default command for an edit" {
@@ -8429,15 +7486,15 @@ test "win32 settings disk edit does not mistake the resolved default command for
 
     var resolved = try original.clone(alloc);
     defer resolved.deinit();
-    try resolved.resolveWindowsDefaultCommand();
-    try std.testing.expect(resolved.command != null and resolved._command_defaulted);
-    try std.testing.expect(!settingsDiskEditConflict(&original, &pending, &resolved, light, edited));
+    try configpkg.pane_launch.finalizeWith(&resolved, configpkg.pane_launch.fixtures.Machine{ .default_shell = "C:\\Program Files\\PowerShell\\7\\pwsh.exe" });
+    try std.testing.expect(configpkg.pane_launch.nocttyCommand(&resolved) != null);
+    try std.testing.expect(!try settingsDiskEditConflict(&original, &pending, &resolved, light, edited));
 
     // A command written in the file is another matter.
     var written = try original.clone(alloc);
     defer written.deinit();
     written.command = .{ .shell = "cmd" };
-    try std.testing.expect(settingsDiskEditConflict(&original, &pending, &written, light, edited));
+    try std.testing.expect(try settingsDiskEditConflict(&original, &pending, &written, light, edited));
 }
 
 test "win32 settings disk check stops at a config file it cannot open, not at a missing one" {
@@ -8773,7 +7830,7 @@ test "win32 settings patch replaces the whole font list and resets lower layers"
     try std.testing.expectEqualStrings("font-family = \n", out.items);
 }
 
-test "win32 settings patch preserves CRLF including multiline and appended edits" {
+test "win32 settings save preserves CRLF including multiline and appended edits, and a missing final newline" {
     const alloc = std.testing.allocator;
     var pending = try configpkg.Config.default(alloc);
     defer pending.deinit();
@@ -8783,10 +7840,17 @@ test "win32 settings patch preserves CRLF including multiline and appended edits
     var edited: SettingsEditedKeySet = .initEmpty();
     edited.set(@intFromEnum(SettingsConfigKey.@"font-size"));
     edited.set(@intFromEnum(SettingsConfigKey.@"font-family"));
-    var out: std.ArrayListUnmanaged(u8) = .{};
-    defer out.deinit(alloc);
-    try patchOrAppendEdits(alloc, "# keep\r\nfont-size = 12\r\ncopy-on-select = false", &pending, edited, &out);
-    try std.testing.expectEqualStrings("# keep\r\nfont-size = 13.25\r\ncopy-on-select = false\r\nfont-family = \r\nfont-family = A\r\nfont-family = B\r\n", out.items);
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = "# keep\r\nfont-size = 12\r\ncopy-on-select = false" });
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    // Through the save: the file had no final newline and still has none
+    // (it used to gain one), while every line the save wrote ends in CRLF.
+    try persistSettings(alloc, path, &pending, edited, &.{}, null, null);
+    const saved = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 16);
+    defer alloc.free(saved);
+    try std.testing.expectEqualStrings("# keep\r\nfont-size = 13.25\r\ncopy-on-select = false\r\nfont-family = \r\nfont-family = A\r\nfont-family = B", saved);
 }
 
 /// A draft that turns `copy-on-select` on, and the set naming it as the edit.
@@ -8810,7 +7874,7 @@ test "win32 settings save follows a symbolic link and keeps it" {
     var draft = try settingsTestCopyOnSelectEdit(alloc);
     defer draft.pending.deinit();
 
-    try persistSettings(alloc, link, &draft.pending, draft.edited, null);
+    try persistSettings(alloc, link, &draft.pending, draft.edited, &.{}, null, null);
     // The edit landed in the file the link points at, the link is still a
     // link, and it reads the new bytes.
     try scratch.expectContent("dotfiles/config.ghostty", "# kept\ncopy-on-select = true\n");
@@ -8828,7 +7892,7 @@ test "win32 settings save refuses a dangling link and leaves it alone" {
     var draft = try settingsTestCopyOnSelectEdit(alloc);
     defer draft.pending.deinit();
 
-    try std.testing.expectError(error.DanglingLink, persistSettings(alloc, link, &draft.pending, draft.edited, null));
+    try std.testing.expectError(error.DanglingLink, persistSettings(alloc, link, &draft.pending, draft.edited, &.{}, null, null));
     try std.testing.expect(try scratch.isLink("config.ghostty"));
     try scratch.expectNames(&.{"config.ghostty"});
 }
@@ -8844,10 +7908,629 @@ test "win32 settings save keeps hard links together" {
     var draft = try settingsTestCopyOnSelectEdit(alloc);
     defer draft.pending.deinit();
 
-    try persistSettings(alloc, path, &draft.pending, draft.edited, null);
+    try persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null);
     try scratch.expectContent("config.ghostty", "copy-on-select = true\n");
     try scratch.expectContent("dotfile", "copy-on-select = true\n");
     try scratch.expectNames(&.{ "config.ghostty", "dotfile" });
+}
+
+test "win32 settings save of a profile edit and a newly appended setting keeps a file's missing final newline" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    const label: []const Edit = &.{.{ .field = .name, .id = "py", .op = .{ .set = "Python" } }};
+    const new_profile: []const Edit = &.{.{ .field = .command, .id = "dev", .op = .{ .set = "cmd.exe" } }};
+    const Case = struct { raw: []const u8, edits: []const Edit, expected: []const u8 };
+    // `copy-on-select` has no line in any of these files, so the ordinary
+    // patcher appends it; the profile edit is patched after it.
+    const cases = [_]Case{
+        .{ .raw = "profile-command = py: python.exe", .edits = label, .expected = "profile-command = py: python.exe\nprofile-name = py: Python\ncopy-on-select = true" },
+        .{ .raw = "# keep\r\nprofile-command = py: python.exe", .edits = label, .expected = "# keep\r\nprofile-command = py: python.exe\r\nprofile-name = py: Python\r\ncopy-on-select = true" },
+        .{ .raw = "\xef\xbb\xbf# keep\r\nprofile-command = py: python.exe", .edits = label, .expected = "\xef\xbb\xbf# keep\r\nprofile-command = py: python.exe\r\nprofile-name = py: Python\r\ncopy-on-select = true" },
+        .{ .raw = "font-size = 12", .edits = new_profile, .expected = "font-size = 12\ncopy-on-select = true\n\nprofile-command = dev: cmd.exe" },
+        .{ .raw = "# keep\r\nfont-size = 12", .edits = new_profile, .expected = "# keep\r\nfont-size = 12\r\ncopy-on-select = true\r\n\r\nprofile-command = dev: cmd.exe" },
+        .{ .raw = "\xef\xbb\xbffont-size = 12", .edits = new_profile, .expected = "\xef\xbb\xbffont-size = 12\ncopy-on-select = true\n\nprofile-command = dev: cmd.exe" },
+    };
+    for (cases, 0..) |case, index| {
+        errdefer std.debug.print("case {d}\n", .{index});
+        var scratch = try save_target.Scratch.init();
+        defer scratch.deinit();
+        try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = case.raw });
+        const path = try scratch.path("config.ghostty");
+        defer alloc.free(path);
+        var draft = try settingsTestCopyOnSelectEdit(alloc);
+        defer draft.pending.deinit();
+        try persistSettings(alloc, path, &draft.pending, draft.edited, case.edits, null, null);
+        // Compared without printing: the bytes hold command lines.
+        const saved = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 20);
+        defer alloc.free(saved);
+        try std.testing.expect(std.mem.eql(u8, case.expected, saved));
+        // It reads back as the edits asked for.
+        var loaded = try configpkg.Config.default(alloc);
+        defer loaded.deinit();
+        try loaded.loadFile(alloc, path);
+        try std.testing.expect(loaded._diagnostics.empty());
+        try std.testing.expect(loaded.@"copy-on-select" == .true);
+        if (case.edits.ptr == label.ptr) {
+            try std.testing.expect(std.mem.eql(u8, "Python", loaded.@"profile-name".get("py").?));
+        } else try std.testing.expect(std.mem.eql(u8, "cmd.exe", loaded.@"profile-command".get("dev").?));
+    }
+    // A file that ends in a newline keeps it, and so does a save with no
+    // profile edit keep a file's missing one (it used to add it).
+    for ([_]struct { raw: []const u8, edits: []const Edit, expected: []const u8 }{
+        .{ .raw = "profile-command = py: python.exe\n", .edits = label, .expected = "profile-command = py: python.exe\nprofile-name = py: Python\ncopy-on-select = true\n" },
+        .{ .raw = "font-size = 12", .edits = &.{}, .expected = "font-size = 12\ncopy-on-select = true" },
+    }) |case| {
+        var scratch = try save_target.Scratch.init();
+        defer scratch.deinit();
+        try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = case.raw });
+        const path = try scratch.path("config.ghostty");
+        defer alloc.free(path);
+        var draft = try settingsTestCopyOnSelectEdit(alloc);
+        defer draft.pending.deinit();
+        try persistSettings(alloc, path, &draft.pending, draft.edited, case.edits, null, null);
+        const saved = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 20);
+        defer alloc.free(saved);
+        try std.testing.expect(std.mem.eql(u8, case.expected, saved));
+    }
+}
+
+/// Save `raw` (as `config.ghostty` in a scratch directory) through the real
+/// `persistSettings`, with `copy-on-select` edited when `ordinary`, and check
+/// the bytes without printing them (they hold command lines). Then read the
+/// file back, for the caller to check; an empty file is not read (the loader
+/// refuses one, `FileIsEmpty`), and comes back as the defaults.
+fn settingsTestProfileSave(alloc: Allocator, raw: []const u8, ordinary: bool, edits: []const @import("win32/settings_patch.zig").Edit, expected: []const u8) !configpkg.Config {
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = raw });
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    var draft = try settingsTestCopyOnSelectEdit(alloc);
+    defer draft.pending.deinit();
+    const edited: SettingsEditedKeySet = if (ordinary) draft.edited else .initEmpty();
+    try persistSettings(alloc, path, &draft.pending, edited, edits, null, null);
+    const saved = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 20);
+    defer alloc.free(saved);
+    try std.testing.expect(std.mem.eql(u8, expected, saved));
+    var loaded = try configpkg.Config.default(alloc);
+    errdefer loaded.deinit();
+    if (saved.len == 0) return loaded;
+    try loaded.loadFile(alloc, path);
+    try std.testing.expect(loaded._diagnostics.empty());
+    return loaded;
+}
+
+test "win32 settings save of a profile edit beside a setting keeps a profile line at the reader's limit that ends in a bare CR" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    // A CRLF file whose last line is a 4,094-byte label and a CR, no LF:
+    // 4,095 bytes as the reader holds it, which it takes.
+    const label = "x" ** 4075;
+    const name_line = "profile-name = py: " ++ label;
+    try std.testing.expectEqual(@as(usize, 4094), name_line.len);
+    const raw = "profile-command = py: python.exe\r\n" ++ name_line ++ "\r";
+    var loaded = try settingsTestProfileSave(
+        alloc,
+        raw,
+        true,
+        &.{.{ .field = .folder, .id = "py", .op = .{ .set = "C:\\src" } }},
+        "profile-command = py: python.exe\r\n" ++ name_line ++ "\r\nprofile-working-directory = py: C:\\src\r\ncopy-on-select = true\r",
+    );
+    defer loaded.deinit();
+    // The label still loads, and so do the new lines.
+    try std.testing.expect(std.mem.eql(u8, label, loaded.@"profile-name".get("py") orelse return error.TestExpectedLabel));
+    try std.testing.expect(std.mem.eql(u8, "C:\\src", loaded.@"profile-working-directory".get("py").?));
+    try std.testing.expect(loaded.@"copy-on-select" == .true);
+    _ = Edit;
+}
+
+test "win32 settings save that deletes a file's unterminated last line keeps every line left as it was, the blank line before it too" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    const removal: []const Edit = &.{.{ .field = .command, .id = "py", .op = .delete }};
+    // The missing final newline was the deleted line's: nothing is taken
+    // off the lines left.
+    for ([_][2][]const u8{
+        .{ "# keep\n\nprofile-command = py: cmd", "# keep\n\n" },
+        .{ "# keep\r\n\r\nprofile-command = py: cmd", "# keep\r\n\r\n" },
+        .{ "\xef\xbb\xbf# keep\r\n\r\nprofile-command = py: cmd", "\xef\xbb\xbf# keep\r\n\r\n" },
+        .{ "# keep\r\n\r\nprofile-command = py: cmd\r", "# keep\r\n\r\n" },
+    }) |case| {
+        var loaded = try settingsTestProfileSave(alloc, case[0], false, removal, case[1]);
+        defer loaded.deinit();
+        try std.testing.expect(loaded.@"profile-command".get("py") == null);
+    }
+}
+test "win32 settings save that removes a file's only line beside a new setting ends the new setting's line" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    const removal: []const Edit = &.{.{ .field = .command, .id = "py", .op = .delete }};
+    // The bare CR was the deleted line's; the new line ends as new lines do.
+    var loaded = try settingsTestProfileSave(alloc, "profile-command = py: cmd\r", true, removal, "copy-on-select = true\r\n");
+    defer loaded.deinit();
+    try std.testing.expect(loaded.@"profile-command".get("py") == null);
+    try std.testing.expect(loaded.@"copy-on-select" == .true);
+    // A file whose only line goes, with nothing else saved, is empty.
+    var empty = try settingsTestProfileSave(alloc, "profile-command = py: cmd", false, removal, "");
+    defer empty.deinit();
+    try std.testing.expect(empty.@"profile-command".get("py") == null);
+}
+test "win32 settings save beside a setting that deletes the final profile line leaves CRLF, BOM and bare-CR files' other lines their own ending" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    const removal: []const Edit = &.{.{ .field = .command, .id = "py", .op = .delete }};
+    for ([_][2][]const u8{
+        .{ "font-size = 12\nprofile-command = py: cmd", "font-size = 12\ncopy-on-select = true\n" },
+        .{ "font-size = 12\r\nprofile-command = py: cmd", "font-size = 12\r\ncopy-on-select = true\r\n" },
+        .{ "\xef\xbb\xbffont-size = 12\r\nprofile-command = py: cmd", "\xef\xbb\xbffont-size = 12\r\ncopy-on-select = true\r\n" },
+        .{ "font-size = 12\r\nprofile-command = py: cmd\r", "font-size = 12\r\ncopy-on-select = true\r\n" },
+        .{ "font-size = 12\r\nprofile-command = py: cmd\r\n", "font-size = 12\r\ncopy-on-select = true\r\n" },
+    }) |case| {
+        var loaded = try settingsTestProfileSave(alloc, case[0], true, removal, case[1]);
+        defer loaded.deinit();
+        try std.testing.expect(loaded.@"profile-command".get("py") == null);
+        try std.testing.expect(loaded.@"copy-on-select" == .true);
+    }
+}
+
+test "win32 settings save that keeps a file's unterminated last line, changed in place or with lines after it, still ends the file without a line ending" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    const command: []const Edit = &.{.{ .field = .command, .id = "py", .op = .{ .set = "cmd2" } }};
+    const new_profile: []const Edit = &.{.{ .field = .command, .id = "dev", .op = .{ .set = "cmd.exe" } }};
+    const Case = struct { raw: []const u8, ordinary: bool, edits: []const Edit, expected: []const u8 };
+    for ([_]Case{
+        // Changed in place.
+        .{ .raw = "font-size = 12\nprofile-command = py: cmd", .ordinary = false, .edits = command, .expected = "font-size = 12\nprofile-command = py: cmd2" },
+        .{ .raw = "font-size = 12\r\nprofile-command = py: cmd\r", .ordinary = false, .edits = command, .expected = "font-size = 12\r\nprofile-command = py: cmd2\r" },
+        // Changed in place, a setting after it.
+        .{ .raw = "font-size = 12\nprofile-command = py: cmd", .ordinary = true, .edits = command, .expected = "font-size = 12\nprofile-command = py: cmd2\ncopy-on-select = true" },
+        // Kept, a profile after it.
+        .{ .raw = "font-size = 12\r\nfont-family = x", .ordinary = false, .edits = new_profile, .expected = "font-size = 12\r\nfont-family = x\r\n\r\nprofile-command = dev: cmd.exe" },
+        .{ .raw = "profile-command = py: cmd\r", .ordinary = false, .edits = new_profile, .expected = "profile-command = py: cmd\r\n\r\nprofile-command = dev: cmd.exe\r" },
+    }) |case| {
+        var loaded = try settingsTestProfileSave(alloc, case.raw, case.ordinary, case.edits, case.expected);
+        defer loaded.deinit();
+        if (case.edits.ptr == command.ptr) {
+            try std.testing.expect(std.mem.eql(u8, "cmd2", loaded.@"profile-command".get("py").?));
+        } else try std.testing.expect(std.mem.eql(u8, "cmd.exe", loaded.@"profile-command".get("dev").?));
+    }
+}
+test "win32 settings save that replaces an unterminated file's only profile with a new one puts no blank line before it" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    // In the order `profileEdits` gives them: a new profile's entry comes
+    // after every existing one, so the removal is patched first.
+    const swap: []const Edit = &.{
+        .{ .field = .command, .id = "py", .op = .delete },
+        .{ .field = .command, .id = "dev", .op = .{ .set = "cmd.exe" } },
+    };
+    // Nothing is left before the new block, so it starts the file; with a
+    // line before it, the blank line between them stays.
+    for ([_][2][]const u8{
+        .{ "profile-command = py: cmd", "profile-command = dev: cmd.exe\n" },
+        .{ "profile-command = py: cmd\r", "profile-command = dev: cmd.exe\r\n" },
+        .{ "font-size = 12\nprofile-command = py: cmd", "font-size = 12\n\nprofile-command = dev: cmd.exe\n" },
+    }) |case| {
+        var loaded = try settingsTestProfileSave(alloc, case[0], false, swap, case[1]);
+        defer loaded.deinit();
+        try std.testing.expect(loaded.@"profile-command".get("py") == null);
+        try std.testing.expect(std.mem.eql(u8, "cmd.exe", loaded.@"profile-command".get("dev").?));
+    }
+}
+
+test "win32 settings save of a removal whose loaded variable name holds a NUL stops, and the file is unchanged" {
+    const alloc = std.testing.allocator;
+    const Edit = @import("win32/settings_patch.zig").Edit;
+    // Sol's case: an include's variable name holds the second mark's text;
+    // its removal, which another file still gives, would write it.
+    const raw = "profile-command = py: cmd";
+    for ([_][]const Edit{
+        &.{.{ .field = .env, .id = "py", .name = "#\x00 the file's last line was above", .op = .unset }},
+        &.{.{ .field = .env, .id = "py", .name = "A", .op = .{ .set = "x\x00y" } }},
+    }) |edits| {
+        var scratch = try save_target.Scratch.init();
+        defer scratch.deinit();
+        try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = raw });
+        const path = try scratch.path("config.ghostty");
+        defer alloc.free(path);
+        var pending = try configpkg.Config.default(alloc);
+        defer pending.deinit();
+        try std.testing.expectError(error.SerializeFailed, persistSettings(alloc, path, &pending, .initEmpty(), edits, null, null));
+        const after = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 16);
+        defer alloc.free(after);
+        try std.testing.expect(std.mem.eql(u8, raw, after));
+    }
+}
+
+test "win32 settings save that removes an unterminated last variable line while adding another ends the new line, and an in-place change keeps the file unterminated" {
+    const alloc = std.testing.allocator;
+    const raw = "profile-command = py: cmd\nprofile-env = py: A=1";
+    // In the order `profileEdits` gives them: the new variable, then the
+    // removal. The last line goes, so nothing is taken off the new one.
+    {
+        var loaded = try settingsTestProfileSave(alloc, raw, false, &.{
+            .{ .field = .env, .id = "py", .name = "B", .op = .{ .set = "2" } },
+            .{ .field = .env, .id = "py", .name = "A", .op = .delete },
+        }, "profile-command = py: cmd\nprofile-env = py: B=2\n");
+        defer loaded.deinit();
+    }
+    // Changed in place: still the last line, still unterminated.
+    {
+        var loaded = try settingsTestProfileSave(alloc, raw, false, &.{
+            .{ .field = .env, .id = "py", .name = "A", .op = .{ .set = "2" } },
+        }, "profile-command = py: cmd\nprofile-env = py: A=2");
+        defer loaded.deinit();
+    }
+    // Kept, a new variable after it: the new line is last and unterminated.
+    {
+        var loaded = try settingsTestProfileSave(alloc, raw, false, &.{
+            .{ .field = .env, .id = "py", .name = "B", .op = .{ .set = "2" } },
+        }, "profile-command = py: cmd\nprofile-env = py: A=1\nprofile-env = py: B=2");
+        defer loaded.deinit();
+    }
+}
+
+test "win32 settings save of ordinary settings alone keeps a file's missing final newline and a bare CR at its end" {
+    const alloc = std.testing.allocator;
+    // The reader holds a 4,094-byte line ending in a CR, which it takes; a
+    // CRLF after that CR would make it 4,096 bytes, which it skips.
+    const long = "font-family = " ++ "x" ** (4094 - "font-family = ".len);
+    for ([_][2][]const u8{
+        .{ "font-size = 12", "font-size = 12\ncopy-on-select = true" },
+        .{ "# keep\r\nfont-size = 12", "# keep\r\nfont-size = 12\r\ncopy-on-select = true" },
+        .{ "\xef\xbb\xbffont-size = 12", "\xef\xbb\xbffont-size = 12\ncopy-on-select = true" },
+        .{ "font-size = 12\r\n" ++ long ++ "\r", "font-size = 12\r\n" ++ long ++ "\r\ncopy-on-select = true\r" },
+        // Changed in place, it stays the last line with no line ending.
+        .{ "font-size = 12\ncopy-on-select = false", "font-size = 12\ncopy-on-select = true" },
+        // A file that ends in one keeps it.
+        .{ "font-size = 12\n", "font-size = 12\ncopy-on-select = true\n" },
+    }) |case| {
+        var loaded = try settingsTestProfileSave(alloc, case[0], true, &.{}, case[1]);
+        defer loaded.deinit();
+        try std.testing.expect(loaded.@"copy-on-select" == .true);
+        try std.testing.expect(loaded.@"font-size" == 12);
+    }
+}
+
+test "win32 settings save writes no NUL, with or without a profile edit, and leaves the file as it was" {
+    const alloc = std.testing.allocator;
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    var pending = try configpkg.Config.default(alloc);
+    defer pending.deinit();
+    // A profile edit holding one, in a file that ends in a newline (the case
+    // the file-end step's own check skips): `patchProfileEdits` refuses it,
+    // and the save stops before it writes.
+    const profiles = "profile-command = py: python.exe\n";
+    try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = profiles });
+    const folder: []const @import("win32/settings_patch.zig").Edit = &.{.{ .field = .folder, .id = "py", .op = .{ .set = "C:\\a\x00b" } }};
+    try std.testing.expectError(error.SerializeFailed, persistSettings(alloc, path, &pending, .initEmpty(), folder, null, null));
+    const after_profiles = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 16);
+    defer alloc.free(after_profiles);
+    try std.testing.expect(std.mem.eql(u8, profiles, after_profiles));
+    // An ordinary setting whose value holds one, which nothing in the
+    // window lets through and only the check on the final text looks for:
+    // stopped the same way.
+    const raw = "font-size = 12\n";
+    try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = raw });
+    try pending.@"font-family".parseCLI(pending._arena.?.allocator(), "a\x00b");
+    var edited: SettingsEditedKeySet = .initEmpty();
+    edited.set(@intFromEnum(SettingsConfigKey.@"font-family"));
+    try std.testing.expectError(error.SerializeFailed, persistSettings(alloc, path, &pending, edited, &.{}, null, null));
+    const after = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 16);
+    defer alloc.free(after);
+    try std.testing.expect(std.mem.eql(u8, raw, after));
+}
+
+test "win32 settings disk check stops an ordinary save on an included file whose read failed partway through" {
+    const alloc = std.testing.allocator;
+    var disk = try configpkg.Config.default(alloc);
+    defer disk.deinit();
+    var buf: [16]u8 = undefined;
+    var failing = @import("../cli/args.zig").TestFailingReader.init("font-size = 13\nfont-fam", &buf);
+    try disk.loadReader(alloc, &failing.interface, "C:\\noctty-test\\more.conf");
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    var edited: SettingsEditedKeySet = .initEmpty();
+    edited.set(@intFromEnum(SettingsConfigKey.@"font-size"));
+    try std.testing.expectError(error.FileUnopenable, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, edited));
+    try std.testing.expect(std.mem.eql(u8, "the included file C:\\noctty-test\\more.conf", detail.text orelse return error.TestExpectedDetail));
+    // A whole read: no problem, and no conflict.
+    var whole = try configpkg.Config.default(alloc);
+    defer whole.deinit();
+    var reader: std.Io.Reader = .fixed("font-size = 13\n");
+    try whole.loadReader(alloc, &reader, "C:\\noctty-test\\more.conf");
+    detail.clear(alloc);
+    try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &whole, .{}, .initEmpty()));
+}
+
+test "win32 settings disk check stops a save when the config cannot be put in the app's light/dark state" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "light", .data = "font-size = 13\n" });
+    try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "font-size = 14\n" });
+    const light = try tmp.dir.realpathAlloc(alloc, "light");
+    defer alloc.free(light);
+    const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+    defer alloc.free(dark);
+    const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\n", .{ light, dark });
+    defer alloc.free(text);
+    try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+    const path = try tmp.dir.realpathAlloc(alloc, "config");
+    defer alloc.free(path);
+    // Loaded in the light state, by an allocator that fails from the switch
+    // to dark on.
+    var failing = std.testing.FailingAllocator.init(alloc, .{});
+    var disk = try configpkg.Config.default(failing.allocator());
+    defer disk.deinit();
+    try disk.loadFile(failing.allocator(), path);
+    try disk.loadRecursiveFiles(failing.allocator());
+    try disk.finalize();
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    failing.fail_index = failing.alloc_index;
+    // Not judged on the light reading instead: the save stops.
+    try std.testing.expectError(error.OutOfMemory, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{ .theme = .dark }, .initEmpty()));
+    // In the state it was loaded in there is no switch to fail.
+    try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+}
+
+test "win32 settings disk check stops a save on a theme that does not decode, in the state that reads it" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "light", .data = "font-size = 13\n" });
+    try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "\xff\xfe\x00\xd8a\x00" });
+    const light = try tmp.dir.realpathAlloc(alloc, "light");
+    defer alloc.free(light);
+    const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+    defer alloc.free(dark);
+    const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\n", .{ light, dark });
+    defer alloc.free(text);
+    try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+    const path = try tmp.dir.realpathAlloc(alloc, "config");
+    defer alloc.free(path);
+    var disk = try configpkg.Config.default(alloc);
+    defer disk.deinit();
+    try disk.loadFile(alloc, path);
+    try disk.loadRecursiveFiles(alloc);
+    try disk.finalize();
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    // The app runs dark: the save's reload would skip the dark theme whole.
+    try std.testing.expectError(error.UnsupportedEncoding, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{ .theme = .dark }, .initEmpty()));
+    const expected = try std.fmt.allocPrint(alloc, "the file {s}", .{dark});
+    defer alloc.free(expected);
+    try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+    // Light reads the light theme alone.
+    detail.clear(alloc);
+    try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+}
+
+test "win32 settings disk check does not stop a save on a theme only the other light/dark state reads" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "light", .data = "font-size = 13\n" });
+    try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "font-size = 14\n" });
+    const light = try tmp.dir.realpathAlloc(alloc, "light");
+    defer alloc.free(light);
+    const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+    defer alloc.free(dark);
+    const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\n", .{ light, dark });
+    defer alloc.free(text);
+    try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+    const path = try tmp.dir.realpathAlloc(alloc, "config");
+    defer alloc.free(path);
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    const dark_state: configpkg.ConditionalState = .{ .theme = .dark };
+    {
+        // The light theme is UTF-16 that does not decode; the load reads it,
+        // in the light state `Config.load` loads in.
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "\xff\xfe\x00\xd8a\x00" });
+        var disk = try configpkg.Config.default(alloc);
+        defer disk.deinit();
+        try disk.loadFile(alloc, path);
+        try disk.loadRecursiveFiles(alloc);
+        try disk.finalize();
+        // The app runs dark: the save's reload reads the dark theme alone,
+        // which decodes.
+        try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, dark_state, .initEmpty()));
+        try std.testing.expect(detail.text == null);
+        // In the light state the reload would skip the light theme whole.
+        try std.testing.expectError(error.UnsupportedEncoding, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+        const expected = try std.fmt.allocPrint(alloc, "the file {s}", .{light});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+    }
+    {
+        // The light theme decodes, and another program holds it with no
+        // sharing: it does not open, for the load or the probe.
+        try tmp.dir.writeFile(.{ .sub_path = "light", .data = "font-size = 13\n" });
+        const wide = try std.os.windows.sliceToPrefixedFileW(null, light);
+        const handle = std.os.windows.kernel32.CreateFileW(wide.span().ptr, std.os.windows.GENERIC_READ, 0, null, std.os.windows.OPEN_EXISTING, 0, null);
+        if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.CouldNotHoldFile;
+        defer std.os.windows.CloseHandle(handle);
+        var disk = try configpkg.Config.default(alloc);
+        defer disk.deinit();
+        try disk.loadFile(alloc, path);
+        try disk.loadRecursiveFiles(alloc);
+        try disk.finalize();
+        detail.clear(alloc);
+        try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, dark_state, .initEmpty()));
+        try std.testing.expect(detail.text == null);
+        try std.testing.expectError(error.FileUnopenable, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+        const expected = try std.fmt.allocPrint(alloc, "the theme file {s}", .{light});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+    }
+}
+
+test "win32 settings disk check stops a save on a default config file that will not open, naming it" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = "font-size = 13\n" });
+    const path = try tmp.dir.realpathAlloc(alloc, "config.ghostty");
+    defer alloc.free(path);
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    {
+        // Held with no sharing: it does not open.
+        const wide = try std.os.windows.sliceToPrefixedFileW(null, path);
+        const handle = std.os.windows.kernel32.CreateFileW(wide.span().ptr, std.os.windows.GENERIC_READ, 0, null, std.os.windows.OPEN_EXISTING, 0, null);
+        if (handle == std.os.windows.INVALID_HANDLE_VALUE) return error.CouldNotHoldFile;
+        defer std.os.windows.CloseHandle(handle);
+        var disk = try configpkg.Config.default(alloc);
+        defer disk.deinit();
+        _ = disk.loadOptionalFile(alloc, path);
+        try std.testing.expectError(error.FileUnopenable, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+        const expected = try std.fmt.allocPrint(alloc, "the config file {s}", .{path});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+    }
+    {
+        // Byte-range locked: it opens, and its read fails. Named as the
+        // config file it is, not as an include.
+        var lock = try tmp.dir.openFile("config.ghostty", .{ .mode = .read_write, .lock = .exclusive });
+        defer lock.close();
+        var disk = try configpkg.Config.default(alloc);
+        defer disk.deinit();
+        _ = disk.loadOptionalFile(alloc, path);
+        detail.clear(alloc);
+        try std.testing.expectError(error.FileUnopenable, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+        const expected = try std.fmt.allocPrint(alloc, "the config file {s}", .{path});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+    }
+    // Readable: no problem.
+    var disk = try configpkg.Config.default(alloc);
+    defer disk.deinit();
+    try std.testing.expectEqual(configpkg.Config.OptionalFileAction.loaded, disk.loadOptionalFile(alloc, path));
+    detail.clear(alloc);
+    try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+}
+
+test "win32 settings disk check stops an ordinary save on the theme of the app's light/dark state whose read failed" {
+    const alloc = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.writeFile(.{ .sub_path = "light", .data = "font-size = 13\n" });
+    try tmp.dir.writeFile(.{ .sub_path = "dark", .data = "font-size = 14\n" });
+    const light = try tmp.dir.realpathAlloc(alloc, "light");
+    defer alloc.free(light);
+    const dark = try tmp.dir.realpathAlloc(alloc, "dark");
+    defer alloc.free(dark);
+    const text = try std.fmt.allocPrint(alloc, "theme = light:{s},dark:{s}\n", .{ light, dark });
+    defer alloc.free(text);
+    try tmp.dir.writeFile(.{ .sub_path = "config", .data = text });
+    const path = try tmp.dir.realpathAlloc(alloc, "config");
+    defer alloc.free(path);
+    // Loaded as `Config.load` loads it, in the light state.
+    var disk = try configpkg.Config.default(alloc);
+    defer disk.deinit();
+    try disk.loadFile(alloc, path);
+    try disk.loadRecursiveFiles(alloc);
+    try disk.finalize();
+    try std.testing.expect(@import("win32/settings_patch.zig").unreadConfigFile(&disk) == null);
+    var same = try configpkg.Config.default(alloc);
+    defer same.deinit();
+    var detail: win32_settings.FailureDetail = .{};
+    defer detail.clear(alloc);
+    const dark_state: configpkg.ConditionalState = .{ .theme = .dark };
+    {
+        // Another program locks the dark theme's bytes: it opens, which the
+        // probe sees, and its read fails, which only the dark reading reads.
+        var lock = try tmp.dir.openFile("dark", .{ .mode = .read_write, .lock = .exclusive });
+        defer lock.close();
+        try std.testing.expectError(error.FileUnopenable, settingsDiskVerdict(alloc, &detail, &same, &same, &disk, dark_state, .initEmpty()));
+        const expected = try std.fmt.allocPrint(alloc, "the theme file {s}", .{dark});
+        defer alloc.free(expected);
+        try std.testing.expect(std.mem.eql(u8, expected, detail.text orelse return error.TestExpectedDetail));
+        // In the light state the reload reads the light theme alone.
+        detail.clear(alloc);
+        try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, .{}, .initEmpty()));
+    }
+    // Read whole: no problem.
+    detail.clear(alloc);
+    try std.testing.expect(!try settingsDiskVerdict(alloc, &detail, &same, &same, &disk, dark_state, .initEmpty()));
+}
+
+test "win32 settings save does not write over bytes another program appends while the save reads the file last" {
+    const alloc = std.testing.allocator;
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = "font-size = 12\n" });
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    const Append = struct {
+        threadlocal var target: []const u8 = "";
+        fn arm() void {
+            save_target.test_before_compare = null;
+            save_target.test_during_read = append;
+        }
+        fn append() void {
+            save_target.test_during_read = null;
+            const file = std.fs.openFileAbsolute(target, .{ .mode = .read_write }) catch return;
+            defer file.close();
+            file.seekFromEnd(0) catch return;
+            file.writeAll("font-family = Other\n") catch return;
+        }
+    };
+    Append.target = path;
+    // During the read just before the replace: after its stat, before its
+    // read of the bytes.
+    save_target.test_before_compare = Append.arm;
+    defer save_target.test_before_compare = null;
+    defer save_target.test_during_read = null;
+    var draft = try settingsTestCopyOnSelectEdit(alloc);
+    defer draft.pending.deinit();
+    try std.testing.expectError(error.DiskChanged, persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null));
+    const after = try scratch.tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 16);
+    defer alloc.free(after);
+    try std.testing.expectEqualStrings("font-size = 12\nfont-family = Other\n", after);
+}
+
+test "win32 settings save writes no file larger than the next save could read" {
+    const alloc = std.testing.allocator;
+    var scratch = try save_target.Scratch.init();
+    defer scratch.deinit();
+    const path = try scratch.path("config.ghostty");
+    defer alloc.free(path);
+    // Comment lines up to a few bytes under the cap, which a save reads.
+    {
+        const file = try scratch.tmp.dir.createFile("config.ghostty", .{});
+        defer file.close();
+        var buf: [4096]u8 = undefined;
+        var writer = file.writer(&buf);
+        const line = "#" ++ "x" ** 4094 ++ "\n";
+        var left: usize = save_target.max_bytes - 8;
+        while (left >= line.len) : (left -= line.len) try writer.interface.writeAll(line);
+        try writer.interface.splatByteAll('#', left - 1);
+        try writer.interface.writeAll("\n");
+        try writer.interface.flush();
+    }
+    try std.testing.expectEqual(@as(u64, save_target.max_bytes - 8), (try scratch.tmp.dir.statFile("config.ghostty")).size);
+    // A setting added at its end would take it past the cap: not written.
+    var draft = try settingsTestCopyOnSelectEdit(alloc);
+    defer draft.pending.deinit();
+    try std.testing.expectError(error.SerializeFailed, persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null));
+    try std.testing.expectEqual(@as(u64, save_target.max_bytes - 8), (try scratch.tmp.dir.statFile("config.ghostty")).size);
 }
 
 test "win32 settings save writes a config only the extended path form reaches" {
@@ -8864,7 +8547,7 @@ test "win32 settings save writes a config only the extended path form reaches" {
     var draft = try settingsTestCopyOnSelectEdit(alloc);
     defer draft.pending.deinit();
 
-    try persistSettings(alloc, dotted, &draft.pending, draft.edited, null);
+    try persistSettings(alloc, dotted, &draft.pending, draft.edited, &.{}, null, null);
     const written = try std.fs.cwd().readFileAlloc(alloc, dotted, 1024);
     defer alloc.free(written);
     try std.testing.expectEqualStrings("# kept\ncopy-on-select = true\n", written);
@@ -8881,7 +8564,7 @@ test "win32 settings first save creates the file and its folder" {
     var draft = try settingsTestCopyOnSelectEdit(alloc);
     defer draft.pending.deinit();
 
-    try persistSettings(alloc, path, &draft.pending, draft.edited, null);
+    try persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null);
     try scratch.expectContent("new-dir/custom.conf", "copy-on-select = true\n");
 }
 
@@ -8914,7 +8597,7 @@ test "win32 settings save refuses UTF-16 text and leaves the file as it was" {
         const bytes = case.bytes;
         try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = bytes });
         detail.clear(alloc);
-        try std.testing.expectError(case.err, persistSettings(alloc, path, &draft.pending, draft.edited, &detail));
+        try std.testing.expectError(case.err, persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, &detail, null));
         // The status line is told which file.
         try std.testing.expect(std.mem.startsWith(u8, detail.text.?, "the config file "));
         try scratch.expectContent("config.ghostty", bytes);
@@ -8925,7 +8608,7 @@ test "win32 settings save refuses UTF-16 text and leaves the file as it was" {
     // byte order mark and a legacy code page (byte 0xE9 is an accented "e")
     // survive the save.
     try scratch.tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = "\xef\xbb\xbf# caf\xe9\ncopy-on-select = false\n" });
-    try persistSettings(alloc, path, &draft.pending, draft.edited, null);
+    try persistSettings(alloc, path, &draft.pending, draft.edited, &.{}, null, null);
     try scratch.expectContent("config.ghostty", "\xef\xbb\xbf# caf\xe9\ncopy-on-select = true\n");
 }
 
@@ -9299,7 +8982,7 @@ fn settingsTestSave(alloc: Allocator, text: []const u8, original: *const configp
     try tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = text });
     const path = try tmp.dir.realpathAlloc(alloc, "config.ghostty");
     defer alloc.free(path);
-    try persistSettings(alloc, path, pending, settingsUserEditedKeys(original, pending), null);
+    try persistSettings(alloc, path, pending, settingsUserEditedKeys(original, pending), &.{}, null, null);
     return try tmp.dir.readFileAlloc(alloc, "config.ghostty", 1 << 20);
 }
 
@@ -9570,58 +9253,6 @@ test "copied terminal text keeps only web and mail links as anchors" {
     try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, fragment, "</a>"));
 }
 
-test "win32 appendOwnedString replaces existing value and frees old allocation" {
-    const testing = std.testing;
-    var target: ?[:0]const u8 = null;
-    try appendOwnedString(testing.allocator, &target, "alpha");
-    try testing.expect(target != null);
-    try testing.expectEqualStrings("alpha", target.?);
-
-    try appendOwnedString(testing.allocator, &target, "beta");
-    try testing.expect(target != null);
-    try testing.expectEqualStrings("beta", target.?);
-
-    try appendOwnedString(testing.allocator, &target, null);
-    try testing.expect(target == null);
-}
-
-test "win32 appendOwnedString skips exact same-value reallocation" {
-    const testing = std.testing;
-    var target: ?[:0]const u8 = null;
-    defer if (target) |value| testing.allocator.free(value);
-
-    try appendOwnedString(testing.allocator, &target, "alpha");
-    const before = target.?.ptr;
-    try appendOwnedString(testing.allocator, &target, "alpha");
-    try testing.expect(target != null);
-    try testing.expect(target.?.ptr == before);
-
-    try appendOwnedString(testing.allocator, &target, null);
-    try testing.expect(target == null);
-    try appendOwnedString(testing.allocator, &target, null);
-    try testing.expect(target == null);
-}
-
-test "win32 appendOwnedString leaves target untouched on OOM" {
-    // OOM must leave `target.*` pointing at the existing allocation.
-    const testing = std.testing;
-    var arena: [64]u8 = undefined;
-    var fixed: std.heap.FixedBufferAllocator = .init(&arena);
-    const alloc = fixed.allocator();
-
-    var target: ?[:0]const u8 = null;
-    try appendOwnedString(alloc, &target, "warm-up");
-    try testing.expectEqualStrings("warm-up", target.?);
-
-    // Force an allocation failure with a value too large to fit.
-    const huge = "x" ** 512;
-    const before = target.?.ptr;
-    try testing.expectError(error.OutOfMemory, appendOwnedString(alloc, &target, huge));
-    try testing.expect(target != null);
-    try testing.expect(target.?.ptr == before);
-    try testing.expectEqualStrings("warm-up", target.?);
-}
-
 /// Window procedure for the tab strip's title tooltip.
 ///
 /// The popup is owned by the host but is a top-level window, so nothing about
@@ -9812,127 +9443,9 @@ pub fn scrollbarProc(
     }
 }
 
-const tabButtonKeyAction = labels.tabButtonKeyAction;
-
-/// The modifiers held for the key message being handled. A test pins them
-/// with `TestingKeyboard`; AltGr reads as Ctrl plus Alt.
-fn chromeKeyMods() labels.KeyMods {
-    return .{
-        .shift = keyPressed(c.VK_SHIFT),
-        .ctrl = keyPressed(c.VK_CONTROL),
-        .alt = keyPressed(c.VK_MENU),
-    };
-}
-
-const moveTabAmountToEdge = labels.moveTabAmountToEdge;
-
-const searchButtonKeyAction = labels.searchButtonKeyAction;
-
-const dockedSearchCoreDirectionFromKeyAction = labels.dockedSearchCoreDirectionFromKeyAction;
-
-const dockedSearchButtonDirection = labels.dockedSearchButtonDirection;
-
-const dockedSearchEnterDirection = labels.dockedSearchEnterDirection;
-
-const dockedSearchArrowDirection = labels.dockedSearchArrowDirection;
-
-pub const searchSelectedRawFromCoreDisplay = labels.searchSelectedRawFromCoreDisplay;
-
-pub const searchSelectedDisplayFromRaw = labels.searchSelectedDisplayFromRaw;
-
-const advanceSearchSelectedRaw = labels.advanceSearchSelectedRaw;
-
-pub const searchBarSearchedStateForTotal = labels.searchBarSearchedStateForTotal;
-
-pub const searchBarSearchedStateForSelected = labels.searchBarSearchedStateForSelected;
-
-pub const searchBarDisplayStateChanged = labels.searchBarDisplayStateChanged;
-
 pub const profileChromeVisible = win32_chrome_state.profileVisible;
 
-pub const inspectorVisibilityChangeNeedsHostRelayout = labels.inspectorVisibilityChangeNeedsHostRelayout;
-
-pub const inspectorPanelVisibleForState = labels.inspectorPanelVisibleForState;
-
-pub const layoutChildPaintPlan = labels.layoutChildPaintPlan;
-
-const overlayAcceptButtonVisible = labels.overlayAcceptButtonVisible;
-
-const overlayEditFrameVisible = labels.overlayEditFrameVisible;
-pub const overlayEmptySubmitDismisses = labels.overlayEmptySubmitDismisses;
-const overlayTextFollowsActiveSurface = labels.overlayTextFollowsActiveSurface;
-pub const overlayTextNeedsRefill = labels.overlayTextNeedsRefill;
-
-const OverlayFocusSlot = labels.OverlayFocusSlot;
-
-const nextVisibleOverlayFocusSlot = labels.nextVisibleOverlayFocusSlot;
-
 pub const inspectorChromeVisible = win32_chrome_state.inspectorVisible;
-
-pub const inspectorBannerStateChanged = labels.inspectorBannerStateChanged;
-
-pub const windowTitleSyncChanged = labels.windowTitleSyncChanged;
-
-pub const remapWin32KeyEvent = labels.remapWin32KeyEvent;
-pub const keyEventTogglesCommandPalette = labels.keyEventTogglesCommandPalette;
-
-const profileShortcutIndexFromKey = labels.profileShortcutIndexFromKey;
-
-const quickSlotShortcutProfileIndex = labels.quickSlotShortcutProfileIndex;
-
-const quickSlotPinOrdinalFromKey = labels.quickSlotPinOrdinalFromKey;
-
-const clearQuickSlotPinsRequested = labels.clearQuickSlotPinsRequested;
-
-const startsWithIgnoreCase = labels.startsWithIgnoreCase;
-
-pub const resolveProfileSelection = labels.resolveProfileSelection;
-
-pub const profileIndexByKey = labels.profileIndexByKey;
-const profileKeyEquals = labels.profileKeyEquals;
-pub const storedProfileKeyEquals = labels.storedProfileKeyEquals;
-
-/// Give `dst` the profile sources of `src`: the keys the profile lists are
-/// built from. A palette theme preview reads the config files again, and a
-/// profile line edited on disk since the last reload would otherwise reach
-/// the app config while the lists the hosts, the jump list and a running
-/// discovery hold stay as they were, so a picker launch and a split of the
-/// same profile could run different definitions. The lists are only dropped
-/// on a reload (`config_change`), which then sees the change. They are not
-/// dropped here: the open palette borrows its host's profile strings.
-/// Choosing a theme (`commitPaletteTheme`) saves it and reloads through
-/// `settingsSaveAndReload`, so that reload applies any profile edits. `env`
-/// is a source too: a profile's `%NAME%` reads it. For the same reason `dst`
-/// keeps the launch `src` resolved: `command` and the `default-profile`
-/// profile, which `finalize` found from the files read again, so a new tab
-/// would run an edited default profile's definition. A forwarded new
-/// window's config, built again from those files when a theme is set, gets
-/// them back from the app config the same way (`App.applyNewWindowLaunch`).
-pub fn keepProfileSources(dst: *configpkg.Config, src: *const configpkg.Config) !void {
-    const alloc = dst._arena.?.allocator();
-    dst.command = if (src.command) |command| try command.clone(alloc) else null;
-    dst._command_defaulted = src._command_defaulted;
-    dst._command_from_file = src._command_from_file;
-    dst.@"default-profile" = if (src.@"default-profile") |reference| try alloc.dupeZ(u8, reference) else null;
-    dst._default_profile = if (src._default_profile) |profile| try profile.clone(alloc) else null;
-    // And what Settings reads of it: whether the lookup found nothing, and
-    // the files' value beside a command line's.
-    dst._default_profile_failure = src._default_profile_failure;
-    dst._default_profile_cli = if (src._default_profile_cli) |value| try alloc.dupeZ(u8, value) else null;
-    dst._default_profile_file = if (src._default_profile_file) |value| try alloc.dupeZ(u8, value) else null;
-    dst.@"ssh-config-hosts" = src.@"ssh-config-hosts";
-    dst.env = try src.env.clone(alloc);
-    dst.@"visual-studio-profiles" = src.@"visual-studio-profiles";
-    dst.@"profile-command" = try src.@"profile-command".clone(alloc);
-    dst.@"profile-name" = try src.@"profile-name".clone(alloc);
-    dst.@"profile-working-directory" = try src.@"profile-working-directory".clone(alloc);
-    dst.@"profile-env" = try src.@"profile-env".clone(alloc);
-    dst.@"profile-order" = try src.@"profile-order".clone(alloc);
-    dst.@"profile-hidden" = try src.@"profile-hidden".clone(alloc);
-    // Where those lines were read goes with them (New Elevated Window names
-    // a profile whose line came from a file).
-    dst._profile_places = try src.cloneProfilePlaces(alloc);
-}
 
 /// Whether a reload changed a key the profile lists are built from: a
 /// `profile-*` key (a removal included), `visual-studio-profiles`, `env`
@@ -9963,8 +9476,6 @@ fn envEntriesEqual(a: anytype, b: anytype) bool {
     return true;
 }
 
-const applyProfileConfigByKey = session_module.applyProfileConfigByKey;
-
 /// The profile list where no Host has one: a restore before the first window,
 /// an elevated window from no surface. `list` is `windows_shell.listProfiles`
 /// (tests pass a fake), given the SSH setting and a snapshot of the app
@@ -9978,16 +9489,6 @@ pub fn listProfilesForConfig(
     defer user.deinit();
     return try list(alloc, config.@"ssh-config-hosts", &user);
 }
-
-pub const preferredProfileIndex = labels.preferredProfileIndex;
-
-pub const resolveWindowBaseTitle = labels.resolveWindowBaseTitle;
-
-pub const normalizedBackgroundOpacity = labels.normalizedBackgroundOpacity;
-
-const effectiveBackgroundOpacity = labels.effectiveBackgroundOpacity;
-
-pub const alphaByteForOpacity = labels.alphaByteForOpacity;
 
 pub fn splitTreeEquivalent(a: *const SplitTreeSurface, b: *const SplitTreeSurface) bool {
     if (a.zoomed != b.zoomed) return false;
@@ -10013,8 +9514,6 @@ pub fn splitTreeEquivalent(a: *const SplitTreeSurface, b: *const SplitTreeSurfac
 
     return true;
 }
-
-pub const resizeSplitFallbackDelta = labels.resizeSplitFallbackDelta;
 
 pub fn splitDirectionFromAction(value: apprt.action.SplitDirection) SplitTreeSurface.Split.Direction {
     return switch (value) {
@@ -10043,91 +9542,6 @@ pub fn nativeSplitDirection(value: win32_shell.model.Direction) SplitTreeSurface
     };
 }
 
-pub const nextTabInspectorVisible = labels.nextTabInspectorVisible;
-
-pub const buildHostAwareBaseTitle = labels.buildHostAwareBaseTitle;
-
-pub const hostTabLabelMaxWidth = labels.hostTabLabelMaxWidth;
-
-pub const shouldShowPaneCount = labels.shouldShowPaneCount;
-
-pub const visibleTabRange = labels.visibleTabRange;
-
-const buildSearchBarResultsText = labels.buildSearchBarResultsText;
-
-const SearchBarButtonRole = labels.SearchBarButtonRole;
-
-const searchBarButtonCommandId = labels.searchBarButtonCommandId;
-
-const searchBarButtonLabel = labels.searchBarButtonLabel;
-
-const showSearchBarResults = labels.showSearchBarResults;
-const searchBarNeedsRelayoutForQueryChange = labels.searchBarNeedsRelayoutForQueryChange;
-const searchBarShouldInvalidateCoreSearchOnEdit = labels.searchBarShouldInvalidateCoreSearchOnEdit;
-
-pub const shouldAcceptCoreSearchUpdates = labels.shouldAcceptCoreSearchUpdates;
-
-const searchBarChromeLayout = chrome_layout.searchBarChromeLayout;
-const searchBarFit = chrome_layout.searchBarFit;
-
-const searchBarButtonShowsLabel = labels.searchBarButtonShowsLabel;
-
-pub const rectInset = labels.rectInset;
-
-const rectUnion = labels.rectUnion;
-
-const rectOffset = labels.rectOffset;
-
-const searchBarGroupRect = search_controls.searchBarGroupRect;
-
-const searchBarResultsVisual = labels.searchBarResultsVisual;
-
-const searchBarToolbarVisual = labels.searchBarToolbarVisual;
-
-const searchBarFrameBg = labels.searchBarFrameBg;
-
-const searchBarFrameBorder = labels.searchBarFrameBorder;
-
-const searchBarBottomLine = labels.searchBarBottomLine;
-
-const searchBarButtonParentBg = labels.searchBarButtonParentBg;
-
-const searchBarSeparatorX = search_controls.searchBarSeparatorX;
-
-const buildTabOverviewOverlayLabel = labels.buildTabOverviewOverlayLabel;
-
-const OverlayConfirmText = labels.ConfirmText;
-const OverlayConfirmPreview = labels.ConfirmPreview;
-const buildConfirmPreview = labels.buildConfirmPreview;
-const buildConfirmPreviewCaption = labels.buildConfirmPreviewCaption;
-const buildOverlayPaintLabelText = labels.buildOverlayPaintLabelText;
-
-const buildOverlayFeedbackText = labels.buildOverlayFeedbackText;
-
-const buildOverlayAcceptLabel = labels.buildOverlayAcceptLabel;
-
-const buildOverlayHintText = labels.buildOverlayHintText;
-const buildConfirmBodyText = labels.buildConfirmBodyText;
-pub const utf8BoundedPrefix = labels.utf8BoundedPrefix;
-
-const overlayCancelLabel = labels.overlayCancelLabel;
-
-pub const buildHostBannerText = labels.buildHostBannerText;
-
-const overlayPaintCacheDirty = labels.overlayPaintCacheDirty;
-
-const buildInspectorPanelTitleText = labels.buildInspectorPanelTitleText;
-
-const buildInspectorPanelHintText = labels.buildInspectorPanelHintText;
-
-const buildProfileChromeBadgeText = labels.buildProfileChromeBadgeText;
-
-pub fn sshProfileAlias(profile: *const windows_shell.Profile) ?[]const u8 {
-    if (profile.kind != .ssh or !std.mem.startsWith(u8, profile.key, "ssh:")) return null;
-    const alias = profile.key["ssh:".len..];
-    return if (alias.len > 0) alias else null;
-}
-
 pub fn sshAliasFromLaunchKey(launched_ssh: bool, key: ?[]const u8) ?[]const u8 {
     if (!launched_ssh) return null;
     const value = key orelse return null;
@@ -10141,13 +9555,6 @@ pub fn isAutomaticSshCommandTitle(title: []const u8) bool {
     return std.ascii.eqlIgnoreCase(base, "ssh.exe") or
         std.ascii.eqlIgnoreCase(base, "ssh");
 }
-
-/// Build a label for the profile dropdown menu: "Profile Name\tCtrl+Shift+N"
-pub const buildDropdownProfileLabel = labels.buildDropdownProfileLabel;
-
-pub const buttonLabelRightInset = labels.buttonLabelRightInset;
-
-pub const pinnedSlotBadgeDigit = labels.pinnedSlotBadgeDigit;
 
 pub fn paintPinnedSlotBadge(hdc: HDC, rect: RECT, digit: u8, border: u32, bg: u32, fg: u32, dpi: u32) void {
     const s = Host.scaledBy;
@@ -10171,10 +9578,6 @@ pub fn paintPinnedSlotBadge(hdc: HDC, rect: RECT, digit: u8, border: u32, bg: u3
     );
 }
 
-pub const profileOpenTargetMarkerColor = labels.profileOpenTargetMarkerColor;
-
-pub const profileOpenTargetBadgeGlyph = labels.profileOpenTargetBadgeGlyph;
-
 pub fn paintTargetButtonBadge(hdc: HDC, rect: RECT, glyph: u8, border: u32, bg: u32, fg: u32, dpi: u32) void {
     const s = Host.scaledBy;
     const badge_rect = RECT{
@@ -10197,47 +9600,10 @@ pub fn paintTargetButtonBadge(hdc: HDC, rect: RECT, glyph: u8, border: u32, bg: 
     );
 }
 
-const buildProfileOverlayLabel = labels.buildProfileOverlayLabel;
-
-const buildProfileAcceptLabel = labels.buildProfileAcceptLabel;
-
-const buildProfileHintText = labels.buildProfileHintText;
-
-/// Returns the top-ranked match used for Enter-to-run, or null if no entry
-/// matches.
-pub const nextTabOverviewSelection = labels.nextTabOverviewSelection;
-
-pub const tabDirectionFromWheelDelta = labels.tabDirectionFromWheelDelta;
-
-const buildCommandPaletteOverlayLabel = labels.buildCommandPaletteOverlayLabel;
-
-const buildCommandPaletteFeedbackText = labels.buildCommandPaletteFeedbackText;
-
-const paletteCompletionText = labels.paletteCompletionText;
-
-fn readWindowTextUtf8Alloc(alloc: Allocator, hwnd: HWND) ![:0]u8 {
-    const len_w = sys.GetWindowTextLengthW(hwnd);
-    if (len_w <= 0) return try alloc.dupeZ(u8, "");
-
-    const needed: usize = @intCast(len_w + 1);
-    var buf_w = try alloc.alloc(u16, needed);
-    defer alloc.free(buf_w);
-    buf_w[needed - 1] = 0;
-
-    const copied = sys.GetWindowTextW(hwnd, buf_w.ptr, @intCast(needed));
-    if (copied < 0) return lastError();
-
-    return try std.unicode.utf16LeToUtf8AllocZ(alloc, buf_w[0..@intCast(copied)]);
-}
-
 fn wmCommandChildHwnd(lParam: LPARAM) ?HWND {
     if (lParam == 0) return null;
     return @ptrFromInt(@as(usize, @intCast(lParam)));
 }
-
-pub const searchFocusStopHwnd = search_controls.searchFocusStopHwnd;
-
-pub const searchFocusStopAvailable = search_controls.searchFocusStopAvailable;
 
 fn expectedButtonClick(notify: u16, child: ?HWND, expected: ?HWND) bool {
     return notify == c.BN_CLICKED and child != null and expected != null and child.? == expected.?;
@@ -10354,7 +9720,7 @@ pub fn appMessageWindowProc(hwnd: HWND, message: UINT, wparam: WPARAM, lparam: L
                 },
                 .toast => |activation| {
                     defer delivery.toast_pending.store(false, .release);
-                    app.receiveToastActivation(activation);
+                    if (app.notifications.click(.{ .target = activation }) == .needs_window) app.openWindowForToastClick();
                 },
                 .uia_disconnect => |pending| processDeferredUiaDisconnect(delivery, pending),
             }
@@ -10362,9 +9728,9 @@ pub fn appMessageWindowProc(hwnd: HWND, message: UINT, wparam: WPARAM, lparam: L
             return 0;
         },
         c.WM_WINHOSTTY_TOAST_REMOVALS => {
-            // Posted by `queueToastRemoval`. Only ids are queued, so a pane
+            // Posted by `Notifications`, which tracks only ids, so a pane
             // freed meanwhile is never touched.
-            app.flushToastRemovals();
+            app.notifications.flush();
             return 0;
         },
         c.WM_WINHOSTTY_TERMINAL_HANDOFF => {
@@ -10681,22 +10047,27 @@ const Pkg19NativeDeliveryTest = struct {
         _ = sys.SendMessageW(a, update.message, 0, update.lParam);
         try std.testing.expect(app_a.delivery.?.update_running.load(.acquire));
 
+        var panes_a: notifications.testing.FakePanes = .{};
+        var panes_b: notifications.testing.FakePanes = .{};
+        app_a.notifications = .init(std.testing.allocator, null, panes_a.panes());
+        app_b.notifications = .init(std.testing.allocator, null, panes_b.panes());
+        // No pid: another process's click, which looks only for the primary
+        // window.
         const activation: win32_toast_activation.ActivationTarget = .{ .window_id = 19, .tab_id = 7 };
         app_a.delivery.?.toast_pending.store(true, .release);
         try std.testing.expect(app_a.delivery.?.post(c.WM_WINHOSTTY_TOAST_ACTIVATION, .{ .toast = activation }));
         const toast = try queued(a, c.WM_WINHOSTTY_TOAST_ACTIVATION);
         _ = sys.SendMessageW(a, toast.message, 0, 0);
         _ = sys.SendMessageW(b, toast.message, 0, toast.lParam);
-        try std.testing.expect(app_a.pending_toast_activation == null);
-        try std.testing.expect(app_b.pending_toast_activation == null);
+        try panes_a.expectPresented(&.{});
+        try panes_b.expectPresented(&.{});
         try std.testing.expect(app_a.delivery.?.toast_pending.load(.acquire));
         _ = sys.SendMessageW(a, toast.message, 0, toast.lParam);
-        try std.testing.expect(activation.eql(app_a.pending_toast_activation.?));
+        try panes_a.expectPresented(&.{.primary});
         try std.testing.expect(!app_a.delivery.?.toast_pending.load(.acquire));
-        app_a.pending_toast_activation = null;
         app_a.delivery.?.toast_pending.store(true, .release);
         _ = sys.SendMessageW(a, toast.message, 0, toast.lParam);
-        try std.testing.expect(app_a.pending_toast_activation == null);
+        try panes_a.expectPresented(&.{.primary});
         try std.testing.expect(app_a.delivery.?.toast_pending.load(.acquire));
     }
 };
@@ -10738,6 +10109,8 @@ const ToastActivatorDeliveryTest = struct {
         defer session.deinit();
         try app.createMessageWindow();
         defer Pkg19NativeDeliveryTest.closeAppWindow(&app);
+        var panes: notifications.testing.FakePanes = .{};
+        app.notifications = .init(alloc, null, panes.panes());
         win32_toast_activator.bind(toastActivatorSink(app.delivery.?));
         defer win32_toast_activator.bind(null);
         const callback = win32_toast_activator.testCallback();
@@ -10747,20 +10120,20 @@ const ToastActivatorDeliveryTest = struct {
         defer alloc.free(launch);
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, launch, null, 0));
         // Activate only posted: the App has not seen it yet.
-        try std.testing.expect(app.pending_toast_activation == null);
+        try panes.expectPresented(&.{});
         try dispatch(&app);
-        // With no surface the activation waits for one, exactly as a click
-        // through the popup's handler does.
-        try std.testing.expect(target.eql(app.pending_toast_activation.?));
+        // The click looks for its tab, its window and the primary window,
+        // exactly as a click through the popup's handler does.
+        const looked: []const notifications.Present = &.{ .{ .tab = .{ .window = 19, .tab = 7 } }, .{ .window = 19 }, .primary };
+        try panes.expectPresented(looked);
         try std.testing.expect(!app.delivery.?.toast_pending.load(.acquire));
 
         // What noctty cannot read posts nothing and changes nothing.
-        app.pending_toast_activation = null;
         const malformed = std.unicode.utf8ToUtf16LeStringLiteral("wgh://activate?surface=x");
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, malformed, null, 0));
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, null, null, 0));
         try std.testing.expectError(error.TestMissingDeliveryMessage, dispatch(&app));
-        try std.testing.expect(app.pending_toast_activation == null);
+        try panes.expectPresented(looked);
     }
 
     fn onceBody() !void {
@@ -10772,6 +10145,8 @@ const ToastActivatorDeliveryTest = struct {
         defer session.deinit();
         try app.createMessageWindow();
         defer Pkg19NativeDeliveryTest.closeAppWindow(&app);
+        var panes: notifications.testing.FakePanes = .{};
+        app.notifications = .init(alloc, null, panes.panes());
         win32_toast_activator.bind(toastActivatorSink(app.delivery.?));
         defer win32_toast_activator.bind(null);
         const callback = win32_toast_activator.testCallback();
@@ -10785,20 +10160,20 @@ const ToastActivatorDeliveryTest = struct {
         // The popup's own handler delivers the click first.
         winrtToastActivationCallback(app.delivery.?, launch);
         try dispatch(&app);
-        try std.testing.expect(target.eql(app.pending_toast_activation.?));
-        app.pending_toast_activation = null;
+        const looked: []const notifications.Present = &.{ .{ .pane = 41 }, .primary };
+        try panes.expectPresented(looked);
 
         // Then COM delivers the same click: it is dropped.
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, launch_w, null, 0));
         try dispatch(&app);
-        try std.testing.expect(app.pending_toast_activation == null);
+        try panes.expectPresented(looked);
 
         // So is the same click forwarded by a cold start, which would
         // otherwise open a window here.
         const launch_z = try alloc.dupeZ(u8, launch);
         defer alloc.free(launch_z);
         try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = &.{launch_z} }));
-        try std.testing.expect(app.pending_toast_activation == null);
+        try panes.expectPresented(looked);
         try std.testing.expectEqual(@as(usize, 0), app.registry.hosts.items.len);
 
         // Another toast is another click.
@@ -10807,7 +10182,7 @@ const ToastActivatorDeliveryTest = struct {
         defer alloc.free(other_w);
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, other_w, null, 0));
         try dispatch(&app);
-        try std.testing.expect(other.eql(app.pending_toast_activation.?));
+        try panes.expectPresented(&.{ .{ .pane = 41 }, .primary, .{ .pane = 42 }, .primary });
     }
 
     fn windowBody() !void {
@@ -10819,6 +10194,8 @@ const ToastActivatorDeliveryTest = struct {
         defer session.deinit();
         try app.createMessageWindow();
         defer Pkg19NativeDeliveryTest.closeAppWindow(&app);
+        var panes: notifications.testing.FakePanes = .{};
+        app.notifications = .init(alloc, null, panes.panes());
         win32_toast_activator.bind(toastActivatorSink(app.delivery.?));
         defer win32_toast_activator.bind(null);
         const callback = win32_toast_activator.testCallback();
@@ -10843,7 +10220,6 @@ const ToastActivatorDeliveryTest = struct {
         defer alloc.free(launch);
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, launch, null, 0));
         try dispatch(&app);
-        try std.testing.expect(target.eql(app.pending_toast_activation.?));
         try core.tick(&app);
         try std.testing.expectEqual(@as(usize, 1), Hook.windows_made);
 
@@ -10856,15 +10232,17 @@ const ToastActivatorDeliveryTest = struct {
         // Before the startup windows exist, the first of them takes the
         // click instead.
         app.startup_windows_opened = false;
-        app.pending_toast_activation = null;
         const early: win32_toast_activation.ActivationTarget = .{ .surface_id = 6, .pid = sys.GetCurrentProcessId(), .action = .focus };
         const early_w = try launchFor(alloc, early);
         defer alloc.free(early_w);
         try std.testing.expectEqual(win32_uia.S_OK, callback.vtbl.Activate(callback, aumid, early_w, null, 0));
         try dispatch(&app);
         try core.tick(&app);
-        try std.testing.expect(early.eql(app.pending_toast_activation.?));
         try std.testing.expectEqual(@as(usize, 1), Hook.windows_made);
+        panes.presents = 0;
+        panes.put(6, notifications.testing.inTab(1, 0, ""));
+        _ = app.notifications.click(.window_opened);
+        try panes.expectPresented(&.{.{ .pane = 6 }});
     }
 };
 
@@ -11321,7 +10699,9 @@ pub fn hostBannerProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                     var ps: PAINTSTRUCT = undefined;
                     const hdc = sys.BeginPaint(hwnd, &ps) orelse return 0;
                     defer _ = sys.EndPaint(hwnd, &ps);
-                    paintBannerClient(host, hwnd, hdc);
+                    var alpha_paint = chrome_scene.AlphaPaint.begin(host, hdc, ps.rcPaint);
+                    defer alpha_paint.end();
+                    paintBannerClient(host, hwnd, alpha_paint.hdc);
                 }
                 host.bannerPainted();
                 return 0;
@@ -11342,8 +10722,12 @@ pub fn hostBannerProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             // draw and their clicks (and UIA Invoke, which posts the same
             // command) come here.
             c.WM_DRAWITEM => {
-                const draw: *const DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
-                if (host.drawBannerButton(draw)) return 1;
+                const item: *const DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
+                var draw = item.*;
+                var alpha_paint = chrome_scene.AlphaPaint.begin(host, item.hDC, item.rcItem);
+                defer alpha_paint.end();
+                draw.hDC = alpha_paint.hdc;
+                if (host.drawBannerButton(&draw)) return 1;
             },
             c.WM_COMMAND => {
                 const child: ?HWND = @ptrFromInt(@as(usize, @bitCast(lParam)));
@@ -11385,7 +10769,7 @@ fn confirmPromptUiaName(
 ) []const u8 {
     if (mode != .confirm) return "";
     const text = cached orelse return "";
-    return std.fmt.bufPrint(buf, "{s}", .{utf8BoundedPrefix(text, buf.len)}) catch fallback;
+    return std.fmt.bufPrint(buf, "{s}", .{paint_text.utf8BoundedPrefix(text, buf.len)}) catch fallback;
 }
 
 /// Whether a confirm prompt line is rendered by its own child window
@@ -11400,7 +10784,7 @@ fn confirmPromptUiaName(
 pub fn confirmPromptLineOwnedByChild(
     mode: HostOverlayMode,
     hwnd: ?HWND,
-    placement: ChildPlacement,
+    placement: child_window.ChildPlacement,
 ) bool {
     if (mode != .confirm) return false;
     return hwnd != null and placement.visible;
@@ -11583,7 +10967,7 @@ pub fn hostButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         // Enter and Tab on [+], [v] and the docked search buttons. May
         // click, so touch nothing after it.
         if (msg == c.WM_KEYDOWN and !v.isOverlayButton(hwnd) and v.bannerButtonOf(hwnd) == null) {
-            if (v.handleChromeButtonKey(hwnd, wParam, chromeKeyMods(), lParam)) return 0;
+            if (v.handleChromeButtonKey(hwnd, wParam, win32_input.chromeKeyMods(), lParam)) return 0;
         }
         if (search_controls.searchButtonKey(v, hwnd, msg, wParam, lParam)) |result| return result;
         switch (msg) {
@@ -11604,7 +10988,9 @@ pub fn hostButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                     v.banner_focused = false;
                     v.syncBannerExpiry();
                 }
-                if (v.searchControlSurface(hwnd)) |surface| surface.search_toggle_keys = .{};
+                if (v.searchControlSurface(hwnd)) |surface| {
+                    runUiActionOrLog("docked search blur failed", surface.dockedSearch(.blur));
+                }
             },
             c.WM_MOUSEMOVE => {
                 // The search bar's icon buttons and the tab strip's [+] and
@@ -11647,6 +11033,63 @@ pub fn hostButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         }
     }
     return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+const TabButtonKeyAction = enum {
+    activate,
+    previous,
+    next,
+    first,
+    last,
+    move_previous,
+    move_next,
+    move_first,
+    move_last,
+    rename,
+    close,
+    /// Apps and Shift+F10: the menu a right click on the tab opens.
+    context_menu,
+    /// Tab and Shift+Tab walk the strip's stops without activating a tab.
+    focus_next,
+    focus_previous,
+};
+
+fn tabButtonKeyAction(vk: WPARAM, mods: win32_input.KeyMods) ?TabButtonKeyAction {
+    // Alt chords belong to the window's menu, not to the tab.
+    if (mods.alt) return null;
+    return switch (vk) {
+        // Enter and Space activate the focused tab, matching every other
+        // Win32 tab control. Ctrl is ignored here: Ctrl+Enter and
+        // Ctrl+Space have no tab meaning and must not silently activate.
+        c.VK_RETURN, c.VK_SPACE => if (mods.ctrl) null else .activate,
+        c.VK_LEFT => if (mods.ctrl) .move_previous else .previous,
+        c.VK_RIGHT => if (mods.ctrl) .move_next else .next,
+        c.VK_HOME => if (mods.ctrl) .move_first else .first,
+        c.VK_END => if (mods.ctrl) .move_last else .last,
+        c.VK_F2 => .rename,
+        c.VK_DELETE => .close,
+        // The overview is a palette action; the menu key opens the tab's
+        // context menu, as it does on every other Windows control.
+        // Shift+F10 is the same request. F10 is a system key, so it arrives
+        // as WM_SYSKEYDOWN, and plain F10 stays with the window.
+        c.VK_APPS, c.VK_F10 => if (tabContextMenuKey(vk, mods)) .context_menu else null,
+        c.VK_TAB => switch (win32_input.tabFocusStep(vk, mods) orelse return null) {
+            .next => .focus_next,
+            .previous => .focus_previous,
+        },
+        else => null,
+    };
+}
+
+/// The menu key, or Shift+F10 without Ctrl or Alt.
+fn tabContextMenuKey(vk: WPARAM, mods: win32_input.KeyMods) bool {
+    return vk == c.VK_APPS or (vk == c.VK_F10 and mods.shift and !mods.ctrl and !mods.alt);
+}
+
+fn moveTabAmountToEdge(total: usize, current: usize, toward_start: bool) isize {
+    if (total <= 1 or current >= total) return 0;
+    if (toward_start) return -@as(isize, @intCast(current));
+    return @as(isize, @intCast((total - 1) - current));
 }
 
 pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.winapi) LRESULT {
@@ -11822,7 +11265,7 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                 c.WM_KEYDOWN => {
                     v.noteChromeKeyInput(wParam);
                     if (v.handleFocusRegionKey(hwnd, wParam, true)) return 0;
-                    if (tabButtonKeyAction(wParam, chromeKeyMods())) |action| {
+                    if (tabButtonKeyAction(wParam, win32_input.chromeKeyMods())) |action| {
                         switch (action) {
                             // The menu key opens the same menu a right click
                             // does, on this tab, and its release is swallowed
@@ -11922,16 +11365,17 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
                 // Shift+F10 is a system key, so it arrives here and not as a
                 // WM_KEYDOWN. Plain F10 stays with the window.
                 c.WM_SYSKEYDOWN => {
-                    if (wParam == c.VK_F10 and tabButtonKeyAction(wParam, chromeKeyMods()) == .context_menu) {
+                    if (wParam == c.VK_F10 and tabButtonKeyAction(wParam, win32_input.chromeKeyMods()) == .context_menu) {
                         v.noteChromeKeyInput(c.VK_APPS);
                         if ((lParamBits(lParam) & c.KF_REPEAT) == 0 and
                             v.showTabContextMenu(hwnd, index, .keyboard)) return 0;
                     }
                 },
-                // Without these, `DefWindowProc` posts a second
-                // WM_CONTEXTMENU when the key comes back up.
+                // The menu key's release and Shift+F10's must not reach
+                // `DefWindowProc`: it posts a second WM_CONTEXTMENU when the
+                // key comes back up, after the key-down opened the menu.
                 c.WM_KEYUP, c.WM_SYSKEYUP => {
-                    if (labels.tabButtonSwallowsKeyUp(wParam, chromeKeyMods())) return 0;
+                    if (tabContextMenuKey(wParam, win32_input.chromeKeyMods())) return 0;
                 },
                 // The keyboard form (-1, -1) was served on the key-down. A
                 // right click opens the menu from WM_RBUTTONUP and never
@@ -11962,6 +11406,35 @@ pub fn tabButtonProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) call
         }
     }
     return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+fn profileShortcutIndexFromKey(vk: WPARAM) ?usize {
+    if (vk >= '1' and vk <= '9') return vk - '1';
+    if (vk >= c.VK_NUMPAD1 and vk <= c.VK_NUMPAD9) return vk - c.VK_NUMPAD1;
+    return null;
+}
+
+fn quickSlotShortcutProfileIndex(
+    profiles_len: usize,
+    selected_index: ?usize,
+    vk: WPARAM,
+    alt_pressed: bool,
+) ?usize {
+    if (!alt_pressed) return null;
+    const slot_ordinal = profileShortcutIndexFromKey(vk) orelse return null;
+    return profile_pick.quickSlot(profiles_len, selected_index, slot_ordinal);
+}
+
+fn quickSlotPinOrdinalFromKey(vk: WPARAM, alt_pressed: bool, shift_pressed: bool) ?usize {
+    if (!alt_pressed or !shift_pressed) return null;
+    const slot_ordinal = profileShortcutIndexFromKey(vk) orelse return null;
+    if (slot_ordinal >= profile_pick.quick_slots) return null;
+    return slot_ordinal;
+}
+
+fn clearQuickSlotPinsRequested(vk: WPARAM, alt_pressed: bool, shift_pressed: bool) bool {
+    if (!alt_pressed or !shift_pressed) return false;
+    return vk == c.VK_0 or vk == c.VK_NUMPAD0;
 }
 
 fn overlayEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.winapi) LRESULT {
@@ -12054,8 +11527,7 @@ fn overlayEditProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callco
                 if (wParam == c.VK_RETURN) {
                     runUiActionOrLog(
                         "profile overlay submit failed",
-                        v.submitProfileOverlay(resolveProfileOpenTarget(
-                            v.app.launcher_profile_target,
+                        v.submitProfileOverlay(v.app.launcher_profile_target.withModifiers(
                             keyPressed(c.VK_SHIFT),
                             keyPressed(c.VK_CONTROL),
                         )),
@@ -12130,6 +11602,18 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         c.WM_WINHOSTTY_HOST_NEW_TAB => {
             if (host) |v| v.dispatchDeferredNewTab(if (wParam == 0) null else @as(u64, @intCast(wParam)));
             return 0;
+        },
+        c.WM_WINHOSTTY_RENDERER_SWITCHED => {
+            if (host) |v| window_state.refreshBackgroundOpacity(v);
+            return 0;
+        },
+        c.WM_PARENTNOTIFY => {
+            // A control made while the window's background alone is
+            // translucent is made solid as it is made.
+            if (host) |v| if ((wParam & 0xFFFF) == c.WM_CREATE) {
+                if (@as(?HWND, @ptrFromInt(@as(usize, @bitCast(lParam))))) |child| window_state.childCreated(v, child);
+            };
+            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
         c.WM_NCACTIVATE => {
             if (host) |v| {
@@ -12206,9 +11690,15 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         c.WM_DRAWITEM => {
             if (fancy_menu.drawItem(lParam)) |result| return result;
             if (host) |v| {
-                const draw: *const DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
+                const item: *const DRAWITEMSTRUCT = @ptrFromInt(@as(usize, @bitCast(lParam)));
+                // Under blur-behind GDI's zero alpha shows through.
+                var buffered = item.*;
+                var alpha_paint = chrome_scene.AlphaPaint.begin(v, item.hDC, item.rcItem);
+                defer alpha_paint.end();
+                buffered.hDC = alpha_paint.hdc;
+                const draw = &buffered;
                 if (v.drawConfirmPromptText(draw)) return 1;
-                if (v.drawSearchBarBackground(draw)) return 1;
+                if (v.drawSearchBarBackground(draw, &alpha_paint)) return 1;
                 v.drawButton(draw);
                 return 1;
             }
@@ -12339,18 +11829,16 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             if (host) |v| {
                 v.app.refreshSystemWheelSettings();
                 v.app.refreshSystemScrollbarPreference();
-                if (settingChangeAffectsTheme(lParam)) v.app.reconfigureSystemTheme();
-                if (settingChangeIsImmersiveColorSet(lParam)) {
-                    v.app.syncSystemColorScheme() catch |err| {
-                        log.warn("win32 color scheme sync failed err={}", .{err});
-                    };
-                }
+                // A light/dark change and its reload are one change, whichever
+                // system theme message arrives first ("ImmersiveColorSet" is
+                // one of the names `settingChangeAffectsTheme` lets through).
+                if (settingChangeAffectsTheme(lParam)) v.app.systemColorSetChanged();
             }
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
         c.WM_THEMECHANGED, c.WM_SYSCOLORCHANGE => {
             if (host) |v| {
-                v.app.reconfigureSystemTheme();
+                v.app.systemColorSetChanged();
             }
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
@@ -12418,7 +11906,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                         _ = sys.SetBkMode(hdc, c.TRANSPARENT);
                         _ = sys.SetTextColor(hdc, if (v.isSearchBarResultsLabel(child))
                             if (v.searchControlSurface(child)) |surface|
-                                searchBarResultsVisual(&v.app.resolved_theme, &surface.search_bar).fg
+                                search_controls.searchBarResultsVisual(&v.app.resolved_theme, surface.docked_search.view().results.tone()).fg
                             else
                                 v.app.resolved_theme.text_secondary
                         else if (v.overlay_hint_hwnd != null and child == v.overlay_hint_hwnd.?)
@@ -12447,7 +11935,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         c.WM_COMMAND => {
             if (host) |v| {
                 const command_id = lowWord(wParam);
-                const notify_code = highWord(wParam);
+                const notify_code = win32_input.highWord(wParam);
                 const child_hwnd = wmCommandChildHwnd(lParam);
                 switch (command_id) {
                     2002 => {
@@ -12512,8 +12000,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                             return 0;
                         }
                         if (v.overlay_mode == .profile) {
-                            runUiActionOrLog("profile overlay submit failed", v.submitProfileOverlay(resolveProfileOpenTarget(
-                                v.app.launcher_profile_target,
+                            runUiActionOrLog("profile overlay submit failed", v.submitProfileOverlay(v.app.launcher_profile_target.withModifiers(
                                 keyPressed(c.VK_SHIFT),
                                 keyPressed(c.VK_CONTROL),
                             )));
@@ -12535,53 +12022,13 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                         refocusActiveSurface(v);
                         return 0;
                     },
-                    c.SEARCH_PREV_ID => {
+                    c.SEARCH_PREV_ID, c.SEARCH_NEXT_ID, c.SEARCH_REGEX_ID, c.SEARCH_CASE_ID, c.SEARCH_WORD_ID, c.SEARCH_CLOSE_ID => {
                         if (notify_code == c.BN_CLICKED) {
                             if (child_hwnd) |child| {
                                 if (v.searchControlSurface(child)) |surface| {
-                                    if (dockedSearchButtonDirection(command_id)) |dir| {
-                                        _ = surface.navigateDockedSearch(dir) catch |err| {
-                                            logUiActionError("docked search previous failed", err);
-                                        };
+                                    if (surface.searchBarButtonRole(child)) |role| {
+                                        runUiActionOrLog("docked search button failed", surface.dockedSearch(.{ .click = role }));
                                     }
-                                    return 0;
-                                }
-                            }
-                        }
-                    },
-                    c.SEARCH_NEXT_ID => {
-                        if (notify_code == c.BN_CLICKED) {
-                            if (child_hwnd) |child| {
-                                if (v.searchControlSurface(child)) |surface| {
-                                    if (dockedSearchButtonDirection(command_id)) |dir| {
-                                        _ = surface.navigateDockedSearch(dir) catch |err| {
-                                            logUiActionError("docked search next failed", err);
-                                        };
-                                    }
-                                    return 0;
-                                }
-                            }
-                        }
-                    },
-                    c.SEARCH_REGEX_ID, c.SEARCH_CASE_ID, c.SEARCH_WORD_ID => {
-                        if (notify_code == c.BN_CLICKED) {
-                            if (child_hwnd) |child| {
-                                if (v.searchControlSurface(child)) |surface| {
-                                    _ = surface.handleSearchToggleClick(command_id) catch |err| {
-                                        logUiActionError("docked search toggle failed", err);
-                                    };
-                                    return 0;
-                                }
-                            }
-                        }
-                    },
-                    c.SEARCH_CLOSE_ID => {
-                        if (notify_code == c.BN_CLICKED) {
-                            if (child_hwnd) |child| {
-                                if (v.searchControlSurface(child)) |surface| {
-                                    surface.closeDockedSearchBar(true, true) catch |err| {
-                                        logUiActionError("docked search close failed", err);
-                                    };
                                     return 0;
                                 }
                             }
@@ -12668,12 +12115,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
         },
 
         c.WM_GETMINMAXINFO => {
-            if (host) |v| {
-                if (v.activeSurface()) |surface| {
-                    surface.updateMinMaxInfo(lParam);
-                    return 0;
-                }
-            }
+            if (host) |v| if (window_state.updateMinMaxInfo(v, lParam)) return 0;
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
 
@@ -13003,19 +12445,12 @@ pub fn movedIndexAfterReorder(active: usize, from: usize, to: usize) usize {
 
 pub fn applyQuickSlotPreferenceOrder(
     profiles: []windows_shell.Profile,
-    slot_keys: [3]?[]const u8,
+    slot_keys: [profile_pick.quick_slots]?[]const u8,
 ) void {
     var insert_at: usize = 0;
     for (slot_keys) |key_opt| {
         const key = key_opt orelse continue;
-        var found: ?usize = null;
-        for (profiles, 0..) |profile, index| {
-            if (profileKeyEquals(profile, key)) {
-                found = index;
-                break;
-            }
-        }
-        const found_index = found orelse continue;
+        const found_index = profile_pick.byKey(profiles, key) orelse continue;
         if (found_index == insert_at) {
             insert_at += 1;
             continue;
@@ -13030,18 +12465,16 @@ pub fn applyQuickSlotPreferenceOrder(
     }
 }
 
-pub const findLauncherQuickSlotOrdinal = labels.findLauncherQuickSlotOrdinal;
-
 pub fn launcherQuickSlotAssignmentNeedsChange(
-    slot_keys: [3]?[:0]const u8,
+    slot_keys: [profile_pick.quick_slots]?[:0]const u8,
     slot_ordinal: usize,
     key: []const u8,
 ) bool {
     if (slot_ordinal >= slot_keys.len) return false;
-    return findLauncherQuickSlotOrdinal(slot_keys, key) != slot_ordinal;
+    return profile_pick.pinByKey(&slot_keys, key) != slot_ordinal;
 }
 
-pub fn launcherQuickSlotPinsAlreadyClear(slot_keys: [3]?[:0]const u8) bool {
+pub fn launcherQuickSlotPinsAlreadyClear(slot_keys: [profile_pick.quick_slots]?[:0]const u8) bool {
     for (slot_keys) |slot_key| {
         if (slot_key != null) return false;
     }
@@ -13056,8 +12489,8 @@ pub fn selectedProfileSelectionNeedsChange(
     next_key: []const u8,
 ) bool {
     return current_index != next_index or
-        !ownedStringEquals(selected_profile_key, next_key) or
-        !ownedStringEquals(launcher_profile_key, next_key);
+        !paint_text.ownedStringEquals(selected_profile_key, next_key) or
+        !paint_text.ownedStringEquals(launcher_profile_key, next_key);
 }
 
 fn startupProfilePickerEnabled(raw: []const u8) bool {
@@ -13089,11 +12522,11 @@ pub fn detectDefaultProfileHint(alloc: Allocator) ?[:0]const u8 {
     return value;
 }
 
-pub fn detectDefaultProfileTarget(alloc: Allocator) ProfileOpenTarget {
+pub fn detectDefaultProfileTarget(alloc: Allocator) profile_pick.OpenTarget {
     const raw = std.process.getEnvVarOwned(alloc, "NOCTTY_WIN32_DEFAULT_PROFILE_TARGET") catch
         return .tab;
     defer alloc.free(raw);
-    return parseProfileOpenTarget(raw) orelse .tab;
+    return profile_pick.OpenTarget.parse(raw) orelse .tab;
 }
 
 pub fn isSafeStartupCwd(path: []const u8) bool {
@@ -13116,14 +12549,12 @@ fn lowWord(value: usize) u16 {
     return @truncate(value & 0xFFFF);
 }
 
-pub const highWord = win32_input.highWord;
-
 pub fn signedLowWord(value: usize) i16 {
     return @bitCast(lowWord(value));
 }
 
 pub fn signedHighWord(value: usize) i16 {
-    return @bitCast(highWord(value));
+    return @bitCast(win32_input.highWord(value));
 }
 
 pub fn cursorPosFromLParam(lParam: LPARAM) apprt.CursorPos {
@@ -13461,14 +12892,6 @@ pub fn windowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callcon
                     lParam,
                     provider,
                 )) |lr| return lr;
-            }
-            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
-        },
-
-        c.WM_GETMINMAXINFO => {
-            if (surface) |v| {
-                v.updateMinMaxInfo(lParam);
-                return 0;
             }
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
         },
@@ -15978,6 +15401,38 @@ test "win32 OSC 52 read Allow still replies with the approved contents" {
     try fixture.expectSilent();
 }
 
+test "win32 a confirm prompt puts its preview into the preview control" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var fixture: ClipboardReplyFixture = .{};
+    try fixture.init();
+    defer fixture.deinit();
+    const host = &fixture.host;
+
+    // `showOverlay` stops short without the edit and its two buttons, and
+    // the preview goes only into a control that exists: give it all four
+    // under a hidden parent. `host.hwnd` stays null.
+    const parent = try createTestHostWindow();
+    defer _ = sys.DestroyWindow(parent);
+    host.overlay_edit_hwnd = try createTestChromeChild(parent, child_window.prompt_edit_class);
+    host.overlay_accept_hwnd = try createTestChromeChild(parent, prompt_button_class);
+    host.overlay_cancel_hwnd = try createTestChromeChild(parent, prompt_button_class);
+    host.overlay_preview_hwnd = try createTestChromeChild(parent, child_window.prompt_edit_class);
+    defer {
+        // Close the prompt while its controls still exist, then let the
+        // fixture's own close find none.
+        host.hideOverlay();
+        host.overlay_edit_hwnd = null;
+        host.overlay_accept_hwnd = null;
+        host.overlay_cancel_hwnd = null;
+        host.overlay_preview_hwnd = null;
+        freeOverlayTestCaches(host);
+    }
+
+    try fixture.surface.requestPasteConfirm(.{ .osc_52_read = .primary }, "hello\nworld");
+    // The preview's text, not the raw payload: CRLF line ends for the EDIT.
+    try expectControlText(host.overlay_preview_hwnd.?, "hello\r\nworld");
+}
+
 /// Stands in for the system clipboard in the empty bracketed paste tests: the
 /// text it holds, or null for a clipboard with no text at all, and the files
 /// a CF_HDROP beside it names. No test opens the real clipboard, which a
@@ -16429,37 +15884,6 @@ test "win32 a program's clipboard request asks in its own words and cannot be an
     // prompt could name.
     try std.testing.expectError(error.NotInATab, surface_held.requestPasteConfirm(.{ .osc_52_read = .standard }, "secret"));
     try std.testing.expectEqual(HostOverlayMode.none, host.overlay_mode);
-}
-
-test "win32 close prompts count the terminals they would end" {
-    var buf: [256]u8 = undefined;
-    const one = closeScopePrompt(.right_tabs, 1, &buf);
-    try std.testing.expectEqualStrings("Close the tabs to the right?", one.title);
-    try std.testing.expectEqualStrings("Close tabs", one.accept_label);
-    try std.testing.expectEqualStrings(
-        "A process is still running in a tab to the right. Closing those tabs will terminate it.",
-        one.body,
-    );
-    const tab = closeScopePrompt(.this_tab, 2, &buf);
-    try std.testing.expectEqualStrings("Close this tab?", tab.title);
-    try std.testing.expectEqualStrings("Close tab", tab.accept_label);
-    try std.testing.expectEqualStrings(
-        "Processes are still running in 2 terminals in this tab. Closing the tab will terminate them, and undo is off.",
-        tab.body,
-    );
-    const many = closeScopePrompt(.app, 3, &buf);
-    try std.testing.expectEqualStrings("Quit", many.accept_label);
-    try std.testing.expectEqualStrings(
-        "Processes are still running in 3 terminals. Quitting Najm will terminate them.",
-        many.body,
-    );
-    const update = closeScopePrompt(.update, 2, &buf);
-    try std.testing.expectEqualStrings("Install the update?", update.title);
-    try std.testing.expectEqualStrings("Install", update.accept_label);
-    try std.testing.expectEqualStrings(
-        "Processes are still running in 2 terminals. Installing the update closes Najm and will terminate them.",
-        update.body,
-    );
 }
 
 test "win32 closeTab this on last tab detaches tab for undo" {
@@ -18296,7 +17720,7 @@ test "win32 closing a split keeps focus, or gives it to the closed pane's siblin
 
 /// Native and shell-model halves of the structural steps the projection
 /// tests drive: each mirrors what the runtime does on both sides.
-const ShellProjectionSteps = struct {
+pub const ShellProjectionSteps = struct {
     /// A window holding one tab per view, in order, with tab ids 1, 2, ...:
     /// the first view's tab is the one the window is created with. The caller
     /// deinits the returned committed window transaction.
@@ -19587,9 +19011,7 @@ test "win32 host backdrop stays DWMSBT_NONE with background blur configured" {
     ) != 0) return error.SkipZigTest;
     try std.testing.expectEqual(c.DWMSBT_TABBEDWINDOW, backdrop);
 
-    // The configuration that used to request `DWMSBT_TABBEDWINDOW`. It is
-    // also the configuration that layers the host window, which is why the
-    // backdrop can never render for it.
+    // The configuration that used to request `DWMSBT_TABBEDWINDOW`.
     var config: configpkg.Config = .{};
     config.@"background-opacity" = 0.85;
     config.@"background-blur" = .true;
@@ -19980,15 +19402,6 @@ test "win32 elevation authenticates a same-process pipe server token" {
 
 const testWindowStyle = test_support.testWindowStyle;
 
-test "win32 decorationVisibilityForChrome uses cached fallback until active surface" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(!decorationVisibilityForChromeValue(null, false));
-    try std.testing.expect(decorationVisibilityForChromeValue(null, true));
-    try std.testing.expect(!decorationVisibilityForChromeValue(false, true));
-    try std.testing.expect(decorationVisibilityForChromeValue(true, false));
-}
-
 test "win32 usesIntegratedTitlebar requires visible decorations" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -20035,10 +19448,6 @@ test "win32 shouldUseIntegratedTitlebar gates on Win11 build floor" {
     try std.testing.expect(shouldUseIntegratedTitlebar(c.OS_BUILD_WIN11_22H2, .always));
     try std.testing.expect(!shouldUseIntegratedTitlebar(c.OS_BUILD_WIN11_22H2, .never));
 }
-
-const placementTestApp = test_support.placementTestApp;
-
-const placementTestSurface = test_support.placementTestSurface;
 
 pub const SafeModeAppFixture = test_support.SafeModeAppFixture;
 
@@ -20101,10 +19510,6 @@ test "win32 shouldShowSurfaceImmediately only for new hosts" {
     try std.testing.expect(!shouldShowSurfaceImmediately(99));
 }
 
-const testHostIsLayered = test_support.testHostIsLayered;
-
-const testLayeredAlpha = test_support.testLayeredAlpha;
-
 test "win32 host content rect keeps its size while the window is minimized" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -20136,7 +19541,6 @@ test "win32 host content rect keeps its size while the window is minimized" {
     app.use_integrated_titlebar = false;
 
     var surface: Surface = undefined;
-    surface.decorations_visible = true;
     surface.inspector_visible = false;
 
     var host: Host = .{ .app = &app, .id = 262 };
@@ -20202,7 +19606,7 @@ fn testTabGapHost(decorated: bool) !void {
     try std.testing.expect(sys.GetMonitorInfoW(monitor, &monitor_info) != 0);
     app.config.@"window-position-x" = @intCast(monitor_info.rcMonitor.left);
     app.config.@"window-position-y" = @intCast(monitor_info.rcMonitor.top);
-    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{});
+    const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .fresh);
     const hwnd = host.hwnd.?;
     try std.testing.expectEqual(decorated, host.usingIntegratedTitlebar());
     try std.testing.expect(sys.IsWindowVisible(hwnd) == 0);
@@ -20211,8 +19615,7 @@ fn testTabGapHost(decorated: bool) !void {
     // binary cannot create the production layered Selection container.
     var surface: Surface = undefined;
     surface.host = null;
-    surface.decorations_visible = decorated;
-    surface.fullscreen = false;
+    host.top_level.decorations_visible = decorated;
     surface.inspector_visible = false;
     // The background the active tab takes.
     surface.tab_background = rgb(0x28, 0x2C, 0x34);
@@ -20367,7 +19770,7 @@ fn testTabGapHost(decorated: bool) !void {
     try std.testing.expect(!host.tabsFlushWithTop());
     host.quick_terminal = false;
     host.active_tab = 0;
-    surface.fullscreen = true;
+    host.top_level.fullscreen = .{ .rect = std.mem.zeroes(RECT), .placement = std.mem.zeroes(sys.WINDOWPLACEMENT), .monitor = null };
     try std.testing.expect(host.tabsFlushWithTop());
     host.quick_terminal = true;
     try std.testing.expect(!host.tabsFlushWithTop());
@@ -20375,7 +19778,7 @@ fn testTabGapHost(decorated: bool) !void {
     app.os_build = 19045;
     try std.testing.expect(!host.tabsFlushWithTop());
     app.os_build = c.OS_BUILD_WIN11_21H2;
-    surface.fullscreen = false;
+    host.top_level.fullscreen = null;
     host.active_tab = 1;
 }
 
@@ -20393,7 +19796,7 @@ test "TABGAP integrated caption has no invisible system menu icon" {
             app.use_integrated_titlebar = true;
             app.config.@"window-position-x" = 0;
             app.config.@"window-position-y" = 0;
-            const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{});
+            const host = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .fresh);
             const hwnd = host.hwnd.?;
             const original_style = testWindowStyle(hwnd);
             for ([_]bool{ false, true }) |maximized| {
@@ -20436,11 +19839,10 @@ test "win32 createHost frames an undecorated host for its Windows build" {
 
     // `createHost` as a `new_window` clone calls it: the decoration state
     // comes from the source window rather than the config. The rest of the
-    // clone path (`inheritWindowStateFrom`) is not exercised here.
-    var source: Surface = undefined;
-    source.host = null;
-    source.decorations_visible = false;
-    source.fullscreen = false;
+    // clone path (`window_state.advance(.after_show)`) is not exercised here.
+    const source_hwnd = try createTestHostWindow();
+    defer _ = sys.DestroyWindow(source_hwnd);
+    const source: Host = .{ .app = app, .id = 99, .hwnd = source_hwnd, .top_level = .{ .decorations_visible = false } };
 
     // Both builds run against this machine's window manager; only the
     // build-gated choices differ.
@@ -20449,18 +19851,18 @@ test "win32 createHost frames an undecorated host for its Windows build" {
         for ([_]bool{ true, false }) |integrated| {
             app.use_integrated_titlebar = integrated;
             // Hosts stay hidden, so the test never touches the foreground.
-            const first = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{});
-            const clone = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .clone_state_from = &source });
-            const quick = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = true });
+            const first = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .fresh);
+            const clone = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .copy = .{ .source = &source } });
+            const quick = try app.createHost(std.unicode.utf8ToUtf16LeStringLiteral(""), &app.config, .{ .quick_terminal = .activate });
             for ([_]*Host{ first, clone, quick }) |host| {
                 const hwnd = host.hwnd.?;
                 const keeps_frame = undecoratedKeepsFrame(os_build, host.quick_terminal);
                 try std.testing.expect(sys.IsWindowVisible(hwnd) == 0);
                 try std.testing.expect(!host.usingIntegratedTitlebar());
-                // What `Surface.applyWindowStyle` writes for an undecorated
+                // What `window_state.applyWindowStyle` writes for an undecorated
                 // window, the style every clone and runtime toggle ends with.
                 // Before #270 the first window came back with WS_CAPTION.
-                const applied = effectiveHostWindowStyle(keeps_frame, false, true) & ~@as(u32, c.WS_VISIBLE);
+                const applied = window_state.hostStyle(keeps_frame, false);
                 try std.testing.expectEqual(applied, testWindowStyle(hwnd) & ~@as(u32, c.WS_CLIPSIBLINGS));
                 var window_rect: RECT = undefined;
                 try std.testing.expect(sys.GetWindowRect(hwnd, &window_rect) != 0);
@@ -20652,7 +20054,6 @@ test "win32 layoutChromeForRect hides tab-strip chrome when the tab bar is off" 
     app.use_integrated_titlebar = false;
 
     var surface: Surface = undefined;
-    surface.decorations_visible = true;
     surface.inspector_visible = false;
 
     var host: Host = .{ .app = &app, .id = 244 };
@@ -20763,8 +20164,6 @@ test "win32 chrome is raised over the panes, and a pane's own child sits directl
     stackChildAbove(bar, pane);
     try expectTestChildOrder(parent, &.{ chrome, bar, pane });
 }
-
-const initTestHostWindowFixture = test_support.initTestHostWindowFixture;
 
 const deinitTestHostWindowFixture = test_support.deinitTestHostWindowFixture;
 
@@ -21599,378 +20998,6 @@ test "win32 shouldDispatchOcclusion dispatches initial hidden state" {
     try std.testing.expect(shouldDispatchOcclusion(true, false));
 }
 
-test "win32 applyProfileSurfaceConfig replaces shallow-cloned command safely" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var base = try configpkg.Config.default(std.testing.allocator);
-    defer base.deinit();
-    const base_alloc = base._arena.?.allocator();
-    base.command = .{ .shell = try base_alloc.dupeZ(u8, "pwsh.exe") };
-
-    var clone = base.shallowClone(std.testing.allocator);
-    defer clone.deinit();
-
-    var profile: windows_shell.Profile = .{
-        .kind = .cmd,
-        .key = try std.testing.allocator.dupe(u8, "cmd.exe"),
-        .label = try std.testing.allocator.dupe(u8, "Command Prompt"),
-        .command = .{ .shell = try std.testing.allocator.dupeZ(u8, "cmd.exe") },
-    };
-    defer profile.deinit(std.testing.allocator);
-
-    try applyProfileSurfaceConfig(&clone, &profile);
-
-    try std.testing.expect(clone.command != null);
-    try std.testing.expect(base.command != null);
-    try std.testing.expectEqualStrings("cmd.exe", clone.command.?.shell);
-    try std.testing.expectEqualStrings("pwsh.exe", base.command.?.shell);
-}
-
-test "win32 a detected profile chosen from the picker starts in home itself" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const home = (try internal_os.home(&home_buf)).?;
-    const pwsh = [_][:0]const u8{"C:\\Program Files\\PowerShell\\7\\pwsh.exe"};
-    const powershell = [_][:0]const u8{"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"};
-    const cmd = [_][:0]const u8{"C:\\Windows\\System32\\cmd.exe"};
-    const git_bash = [_][:0]const u8{ "C:\\Program Files\\Git\\bin\\bash.exe", "--login", "-i" };
-    const wsl_default = [_][:0]const u8{"C:\\Windows\\System32\\wsl.exe"};
-    const wsl_distro = [_][:0]const u8{ "C:\\Windows\\System32\\wsl.exe", "-d", "Ubuntu" };
-    for ([_]struct { kind: windows_shell.ProfileKind, argv: []const [:0]const u8 }{
-        .{ .kind = .pwsh, .argv = &pwsh },
-        .{ .kind = .powershell, .argv = &powershell },
-        .{ .kind = .cmd, .argv = &cmd },
-        .{ .kind = .git_bash, .argv = &git_bash },
-        .{ .kind = .wsl_default, .argv = &wsl_default },
-        .{ .kind = .wsl_distro, .argv = &wsl_distro },
-    }) |case| {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        clone.@"working-directory" = .{ .path = try clone._arena.?.allocator().dupe(u8, "C:\\work") };
-        const profile: windows_shell.Profile = .{
-            .kind = case.kind,
-            .key = "detected",
-            .label = "Detected",
-            .command = .{ .direct = case.argv },
-        };
-        try applyProfileSurfaceConfig(&clone, &profile);
-        const wd = clone.@"working-directory".?;
-        switch (case.kind) {
-            // `.home` gives WSL `--cd ~`, the Linux home.
-            .wsl_default, .wsl_distro => try std.testing.expect(wd == .home),
-            // The path, which Exec uses as given. A bare `.home` here would
-            // start the shell in noctty's own current directory.
-            else => switch (wd) {
-                .path => |path| try std.testing.expectEqualStrings(home, path),
-                else => return error.TestExpectedHomePath,
-            },
-        }
-    }
-}
-
-test "win32 applyProfileCommandConfig preserves inherited working directory" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var base = try configpkg.Config.default(std.testing.allocator);
-    defer base.deinit();
-
-    var clone = base.shallowClone(std.testing.allocator);
-    defer clone.deinit();
-    const clone_alloc = clone._arena.?.allocator();
-    clone.@"working-directory" = .{ .path = try clone_alloc.dupe(u8, "C:\\work") };
-
-    var profile: windows_shell.Profile = .{
-        .kind = .wsl_distro,
-        .key = try std.testing.allocator.dupe(u8, "wsl:Ubuntu"),
-        .label = try std.testing.allocator.dupe(u8, "Ubuntu"),
-        .command = .{ .shell = try std.testing.allocator.dupeZ(u8, "wsl.exe") },
-    };
-    defer profile.deinit(std.testing.allocator);
-
-    try applyProfileCommandConfig(&clone, &profile);
-
-    try std.testing.expect(clone.command != null);
-    try std.testing.expectEqualStrings("wsl.exe", clone.command.?.shell);
-    try std.testing.expectEqualStrings("C:\\work", clone.@"working-directory".?.path);
-}
-
-test "win32 ssh profile surface config uses home working directory" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var base = try configpkg.Config.default(std.testing.allocator);
-    defer base.deinit();
-    var clone = base.shallowClone(std.testing.allocator);
-    defer clone.deinit();
-    const clone_alloc = clone._arena.?.allocator();
-    clone.@"working-directory" = .{ .path = try clone_alloc.dupe(u8, "C:\\work") };
-
-    // Production builds SSH profiles as a two-element direct argv.
-    const argv = try std.testing.allocator.alloc([:0]const u8, 2);
-    argv[0] = try std.testing.allocator.dupeZ(u8, "C:\\Windows\\System32\\OpenSSH\\ssh.exe");
-    argv[1] = try std.testing.allocator.dupeZ(u8, "production");
-    var profile: windows_shell.Profile = .{
-        .kind = .ssh,
-        .key = try std.testing.allocator.dupe(u8, "ssh:production"),
-        .label = try std.testing.allocator.dupe(u8, "SSH: production"),
-        .palette_title = try std.testing.allocator.dupe(u8, "Connect to production"),
-        .command = .{ .direct = argv },
-    };
-    defer profile.deinit(std.testing.allocator);
-
-    try applyProfileSurfaceConfig(&clone, &profile);
-
-    try std.testing.expect(clone.command != null);
-    try std.testing.expectEqual(@as(usize, 2), clone.command.?.direct.len);
-    try std.testing.expectEqualStrings("production", clone.command.?.direct[1]);
-
-    // An explicit home path, not `.home`, so it outranks the inherited cwd.
-    try std.testing.expect(clone.@"working-directory".? == .path);
-    try std.testing.expect(!std.mem.eql(u8, "C:\\work", clone.@"working-directory".?.path));
-    try std.testing.expectEqual(configpkg.Config.ShellIntegration.none, clone.@"shell-integration");
-    try std.testing.expectEqualStrings("production", sshProfileAlias(&profile).?);
-}
-
-test "win32 ssh hardening also holds on the split launch path" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    // The split path used to apply only the command, which silently dropped
-    // shell-integration=none and let the ssh argv be flattened into cmd.exe /C.
-    var base = try configpkg.Config.default(std.testing.allocator);
-    defer base.deinit();
-    base.@"shell-integration" = .bash;
-    var clone = base.shallowClone(std.testing.allocator);
-    defer clone.deinit();
-    const clone_alloc = clone._arena.?.allocator();
-    clone.@"shell-integration" = .bash;
-    clone.@"working-directory" = .{ .path = try clone_alloc.dupe(u8, "C:\\work") };
-
-    const argv = try std.testing.allocator.alloc([:0]const u8, 2);
-    argv[0] = try std.testing.allocator.dupeZ(u8, "C:\\Windows\\System32\\OpenSSH\\ssh.exe");
-    argv[1] = try std.testing.allocator.dupeZ(u8, "production");
-    var profile: windows_shell.Profile = .{
-        .kind = .ssh,
-        .key = try std.testing.allocator.dupe(u8, "ssh:production"),
-        .label = try std.testing.allocator.dupe(u8, "SSH: production"),
-        .command = .{ .direct = argv },
-    };
-    defer profile.deinit(std.testing.allocator);
-
-    try applyProfileLaunchConfig(&clone, &profile);
-
-    try std.testing.expectEqual(configpkg.Config.ShellIntegration.none, clone.@"shell-integration");
-    try std.testing.expect(clone.@"working-directory".? == .path);
-    try std.testing.expect(!std.mem.eql(u8, "C:\\work", clone.@"working-directory".?.path));
-    try std.testing.expectEqual(@as(usize, 2), clone.command.?.direct.len);
-}
-
-/// The user profiles `config` defines, built as discovery builds them.
-fn testUserProfileList(alloc: Allocator, config: *const configpkg.Config) ![]windows_shell.Profile {
-    var user = try windows_shell.UserProfiles.init(alloc, config);
-    defer user.deinit();
-    return try windows_shell.appendUserProfiles(
-        alloc,
-        try alloc.alloc(windows_shell.Profile, 0),
-        user.definitions,
-        windows_shell.ProcessEnvironment{},
-    );
-}
-
-test "win32 a user profile launch sets its directory and layers its env on a copy" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-
-    var base = try configpkg.Config.default(alloc);
-    defer base.deinit();
-    const base_alloc = base._arena.?.allocator();
-    try base.env.parseCLI(base_alloc, "Path=C:\\global");
-    try base.env.parseCLI(base_alloc, "KEEP=1");
-    for ([_][]const u8{
-        "plain: cmd.exe /k echo \"a&b\"",
-        "home: tool.exe",
-        "inh: tool.exe",
-        "pin: tool.exe",
-        "ubuntu: wsl.exe -d Ubuntu",
-        "wslhome: C:\\Windows\\System32\\wsl.exe -d Ubuntu",
-    }) |value| try base.@"profile-command".parseCLI(base_alloc, value);
-    try base.@"profile-working-directory".parseCLI(base_alloc, "home: home");
-    try base.@"profile-working-directory".parseCLI(base_alloc, "wslhome: home");
-    try base.@"profile-working-directory".parseCLI(base_alloc, "inh: inherit");
-    try base.@"profile-working-directory".parseCLI(base_alloc, "pin: D:\\pinned dir");
-    try base.@"profile-env".parseCLI(base_alloc, "plain: PATH=C:\\profile");
-    try base.@"profile-env".parseCLI(base_alloc, "plain: NEW=2");
-    try base.finalize();
-    try std.testing.expect(base._diagnostics.empty());
-
-    const profiles = try testUserProfileList(alloc, &base);
-    defer windows_shell.deinitProfiles(alloc, profiles);
-
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const home = (try internal_os.home(&home_buf)).?;
-    const Want = union(enum) { home, wsl_home, kept, path: []const u8 };
-    for ([_]struct { key: []const u8, want: Want }{
-        // No directory of its own: home, as every profile launch, given as
-        // the path itself (a bare `.home` would start in noctty's cwd).
-        .{ .key = "user:plain", .want = .home },
-        .{ .key = "user:home", .want = .home },
-        // `inherit`: the directory the ordinary rules gave the clone stays.
-        .{ .key = "user:inh", .want = .kept },
-        .{ .key = "user:pin", .want = .{ .path = "D:\\pinned dir" } },
-        // A WSL launch keeps `.home`, which gives `--cd ~` (the Linux home,
-        // as a detected WSL profile gets), not `/mnt/c/Users/<name>`.
-        .{ .key = "user:ubuntu", .want = .wsl_home },
-        .{ .key = "user:wslhome", .want = .wsl_home },
-    }) |case| {
-        var clone = base.shallowClone(alloc);
-        defer clone.deinit();
-        clone.@"working-directory" = .{ .path = try clone._arena.?.allocator().dupe(u8, "C:\\work") };
-        try std.testing.expect(try applyProfileConfigByKey(&clone, profiles, case.key));
-        switch (case.want) {
-            .home => try std.testing.expectEqualStrings(home, clone.@"working-directory".?.path),
-            .wsl_home => {
-                const wd = clone.@"working-directory".?;
-                try std.testing.expect(wd == .home);
-                // What Exec then runs (`Surface` passes `wd == .home`).
-                const prepared = try windows_shell.prepareCommand(alloc, clone.command.?, wd.value(), true, false);
-                defer prepared.deinit(alloc);
-                const argv = prepared.direct;
-                const cd = for (argv, 0..) |arg, i| {
-                    if (std.mem.eql(u8, arg, "--cd")) break i;
-                } else return error.TestExpectedCd;
-                try std.testing.expectEqualStrings("~", argv[cd + 1]);
-            },
-            .kept => try std.testing.expectEqualStrings("C:\\work", clone.@"working-directory".?.path),
-            .path => |path| try std.testing.expectEqualStrings(path, clone.@"working-directory".?.path),
-        }
-    }
-
-    var clone = base.shallowClone(alloc);
-    defer clone.deinit();
-    try std.testing.expect(try applyProfileConfigByKey(&clone, profiles, "user:plain"));
-    // The profile's PATH replaces the global Path whatever the case.
-    try std.testing.expectEqualStrings("C:\\profile", clone.env.map.get("PATH").?);
-    try std.testing.expect(clone.env.map.get("Path") == null);
-    try std.testing.expectEqualStrings("1", clone.env.map.get("KEEP").?);
-    try std.testing.expectEqualStrings("2", clone.env.map.get("NEW").?);
-    // The app config's map, which the shallow clone shared, is untouched.
-    try std.testing.expectEqual(@as(usize, 2), base.env.count());
-    try std.testing.expectEqualStrings("C:\\global", base.env.map.get("Path").?);
-    try std.testing.expect(base.env.map.get("NEW") == null);
-    // The line the surface runs as written.
-    try std.testing.expectEqualStrings("cmd.exe /k echo \"a&b\"", clone._profile_launch.?.command_line);
-    try std.testing.expectEqual(@as(usize, 4), clone.command.?.direct.len);
-    try std.testing.expect(base._profile_launch == null);
-}
-
-test "win32 an automation tab keeps a user profile's snapshot while a split reads its definition" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-
-    // What the source surface started with...
-    const started = [_][:0]const u8{ "old.exe", "/x" };
-    const started_env = [_]windows_shell.EnvEntry{.{ .key = "MODE", .value = "old" }};
-    // ...and the definition after a reload changed it.
-    const reloaded = [_][:0]const u8{"new.exe"};
-    var profiles = [_]windows_shell.Profile{.{
-        .kind = .user,
-        .key = "user:tool",
-        .label = "Tool",
-        .command = .{ .direct = &reloaded },
-        .user = .{ .command_line = "new.exe", .env = &.{.{ .key = "MODE", .value = "new" }} },
-    }};
-    var host: Host = undefined;
-    host.profiles = &profiles;
-    host.selected_profile = 0;
-    var source: Surface = undefined;
-    source.host = &host;
-    source.launch_profile_key = "user:tool";
-    source.launch_command = .{ .direct = &started };
-    source.launch_user = .{ .command_line = "old.exe /x", .env = &started_env };
-    source.launched_ssh = false;
-
-    var tab_config = try configpkg.Config.default(alloc);
-    defer tab_config.deinit();
-    try std.testing.expectEqualStrings("user:tool", (try App.applyLaunchConfigFromSource(&tab_config, &source)).?);
-    try std.testing.expectEqualStrings("old.exe", tab_config.command.?.direct[0]);
-    try std.testing.expectEqualStrings("old.exe /x", tab_config._profile_launch.?.command_line);
-    try std.testing.expectEqualStrings("old", tab_config.env.map.get("MODE").?);
-
-    var split_config = try configpkg.Config.default(alloc);
-    defer split_config.deinit();
-    try std.testing.expectEqualStrings("user:tool", (try App.applySplitProfileConfigFromSource(&split_config, &source)).?);
-    try std.testing.expectEqualStrings("new.exe", split_config.command.?.direct[0]);
-    try std.testing.expectEqualStrings("new.exe", split_config._profile_launch.?.command_line);
-    try std.testing.expectEqualStrings("new", split_config.env.map.get("MODE").?);
-}
-
-test "win32 an ordinary split of a user profile takes its pinned home" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const alloc = std.testing.allocator;
-    const argv = [_][:0]const u8{"tool.exe"};
-    const wsl_argv = [_][:0]const u8{ "wsl.exe", "-d", "Ubuntu" };
-    const launch: windows_shell.UserLaunch = .{ .command_line = "tool.exe" };
-    var profiles = [_]windows_shell.Profile{
-        .{ .kind = .user, .key = "user:home", .label = "home", .command = .{ .direct = &argv }, .working_directory = .home, .user = launch },
-        .{ .kind = .user, .key = "user:inh", .label = "inh", .command = .{ .direct = &argv }, .working_directory = .inherit, .user = launch },
-        .{ .kind = .user, .key = "user:unset", .label = "unset", .command = .{ .direct = &argv }, .user = launch },
-        .{ .kind = .user, .key = "user:ubuntu", .label = "ubuntu", .command = .{ .direct = &wsl_argv }, .working_directory = .home, .user = launch },
-    };
-    var host: Host = undefined;
-    host.profiles = &profiles;
-    host.selected_profile = 0;
-    var source: Surface = undefined;
-    source.host = &host;
-
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const home = (try internal_os.home(&home_buf)).?;
-    // `createNewSplit` starts from the global directory, then applies the
-    // profile, then the split's own inheritance (off here).
-    for ([_]struct { key: [:0]const u8, want: ?[]const u8 }{
-        .{ .key = "user:home", .want = home },
-        .{ .key = "user:inh", .want = "C:\\global" },
-        .{ .key = "user:unset", .want = "C:\\global" },
-        .{ .key = "user:ubuntu", .want = null },
-    }) |case| {
-        var config = try configpkg.Config.default(alloc);
-        defer config.deinit();
-        config.@"working-directory" = .{ .path = try config._arena.?.allocator().dupe(u8, "C:\\global") };
-        source.launch_profile_key = case.key;
-        try std.testing.expectEqualStrings(case.key, (try App.applySplitProfileConfigFromSource(&config, &source)).?);
-        if (case.want) |want| {
-            try std.testing.expectEqualStrings(want, config.@"working-directory".?.path);
-        } else try std.testing.expect(config.@"working-directory".? == .home);
-    }
-}
-
-test "win32 a surface records a user profile's launch unless it runs initial-command" {
-    const alloc = std.testing.allocator;
-    var config = try configpkg.Config.default(alloc);
-    defer config.deinit();
-    const cmd_argv = [_][:0]const u8{ "cmd.exe", "/k", "x" };
-    const e_argv = [_][:0]const u8{"vim.exe"};
-    config.command = .{ .direct = &cmd_argv };
-    config._profile_launch = .{ .command_line = "cmd.exe /k x" };
-
-    // A profile launch, first surface or not, keeps the line with the command.
-    for ([_]bool{ true, false }) |first| {
-        const launch = surfaceLaunchSnapshot(first, &config);
-        try std.testing.expectEqualStrings("cmd.exe", launch.command.?.direct[0]);
-        try std.testing.expectEqualStrings("cmd.exe /k x", launch.user.?.command_line);
-    }
-
-    // `-e` runs on the first surface only, and is no profile's launch.
-    config.@"initial-command" = .{ .direct = &e_argv };
-    const first = surfaceLaunchSnapshot(true, &config);
-    try std.testing.expectEqualStrings("vim.exe", first.command.?.direct[0]);
-    try std.testing.expect(first.user == null);
-    const later = surfaceLaunchSnapshot(false, &config);
-    try std.testing.expectEqualStrings("cmd.exe", later.command.?.direct[0]);
-    try std.testing.expect(later.user != null);
-}
-
 /// Visual Studio 18 and 2022 as `windows_shell.appendVisualStudioProfiles`
 /// lists them, from fixed answers instead of the machine's.
 fn testVisualStudioList(alloc: Allocator, mode: windows_shell.VisualStudioProfiles) ![]windows_shell.Profile {
@@ -21997,6 +21024,59 @@ fn testVisualStudioList(alloc: Allocator, mode: windows_shell.VisualStudioProfil
     return try windows_shell.appendVisualStudioProfiles(alloc, try alloc.alloc(windows_shell.Profile, 0), mode, .x64, Fixed{}, Fixed{}, null);
 }
 
+test "win32 a profile list built from the app config gets its user profiles and Visual Studio mode" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    const alloc = std.testing.allocator;
+    const line = "cmd.exe /k \"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\Tools\\VsDevCmd.bat\" -startdir=none -arch=x64 -host_arch=x64";
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    const arena = config._arena.?.allocator();
+    try config.@"profile-command".parseCLI(arena, "vs18-cmd: " ++ line);
+    try config.@"profile-name".parseCLI(arena, "vs18-cmd: New label");
+    // `%NAME%` reads the `env` lines first, on every path that builds a list.
+    try config.env.parseCLI(arena, "NOCTTY_TEST_TEAM_DIR=C:\\team");
+    try config.@"profile-env".parseCLI(arena, "vs18-cmd: SEEN=%noctty_test_team_dir%\\bin");
+    try config.finalize();
+
+    // With no window (a restore before the first one, an elevated window
+    // from no surface), the list is built from the app config: its user
+    // profiles reach the lister, after the local shells, before SSH.
+    const user_lister = struct {
+        fn list(a: Allocator, _: bool, user: *const windows_shell.UserProfiles) ![]windows_shell.Profile {
+            const shell = try a.alloc(windows_shell.Profile, 1);
+            const cmd = try a.alloc([:0]const u8, 1);
+            cmd[0] = try a.dupeZ(u8, "C:\\Windows\\System32\\cmd.exe");
+            shell[0] = .{ .kind = .cmd, .key = try a.dupe(u8, "cmd.exe"), .label = try a.dupe(u8, "Command Prompt"), .command = .{ .direct = cmd } };
+            return try windows_shell.appendUserProfiles(a, shell, user.definitions, windows_shell.ProcessEnvironment{});
+        }
+    }.list;
+    const listed = try listProfilesForConfig(alloc, &config, user_lister);
+    defer windows_shell.deinitProfiles(alloc, listed);
+    try std.testing.expectEqual(@as(usize, 2), listed.len);
+    try std.testing.expectEqualStrings("cmd.exe", listed[0].key);
+    try std.testing.expectEqualStrings("user:vs18-cmd", listed[1].key);
+    try std.testing.expectEqualStrings("New label", listed[1].label);
+    try std.testing.expectEqualStrings(line, (listed[1].user orelse return error.TestUnexpectedResult).command_line);
+    const seen = listed[1].user.?.env;
+    try std.testing.expectEqualStrings("SEEN", seen[seen.len - 1].key);
+    try std.testing.expectEqualStrings("C:\\team\\bin", seen[seen.len - 1].value);
+
+    // Its `visual-studio-profiles` reaches the lister: `newest` lists both
+    // instances' pairs (the older one hidden), `none` lists nothing.
+    const vs_lister = struct {
+        fn list(a: Allocator, _: bool, user: *const windows_shell.UserProfiles) ![]windows_shell.Profile {
+            return try testVisualStudioList(a, user.visual_studio);
+        }
+    }.list;
+    const newest = try listProfilesForConfig(alloc, &config, vs_lister);
+    defer windows_shell.deinitProfiles(alloc, newest);
+    try std.testing.expectEqual(@as(usize, 4), newest.len);
+    config.@"visual-studio-profiles" = .none;
+    const none = try listProfilesForConfig(alloc, &config, vs_lister);
+    defer windows_shell.deinitProfiles(alloc, none);
+    try std.testing.expectEqual(@as(usize, 0), none.len);
+}
+
 test "win32 default-profile runs where nothing chose a launch, and only there" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -22004,7 +21084,7 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
     var app: App = undefined;
     var host: Host = undefined;
     var source: Surface = undefined;
-    var created: [11]Surface = undefined;
+    var created: [10]Surface = undefined;
     var session: TestSession = .{};
     var surfaces: [1 + created.len]TestSession.SurfaceOptions = undefined;
     surfaces[0] = .{ .storage = &source, .host = &host, .register = true, .free_launch_profile_key_on_deinit = true };
@@ -22034,7 +21114,7 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
     app.config.@"default-profile" = "py";
     app.config.@"split-inherit-working-directory" = false;
     try app.config.finalize();
-    try std.testing.expectEqualStrings("user:py", app.config._default_profile.?.key);
+    try std.testing.expectEqualStrings("user:py", (configpkg.pane_launch.defaultProfile(&app.config) orelse return error.TestUnexpectedResult).key);
 
     // A profile the picker shows, for the explicit choices below.
     const pwsh_argv = [_][:0]const u8{"C:\\Program Files\\PowerShell\\7\\pwsh.exe"};
@@ -22071,7 +21151,7 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
                     .shell => |line| line,
                 }),
                 .mode = if (config.env.map.get("MODE")) |value| try a.dupe(u8, value) else null,
-                .line = if (config._profile_launch) |launch| try a.dupe(u8, launch.command_line) else null,
+                .line = if (opts.launch.user) |launch| try a.dupe(u8, launch.command_line) else null,
                 .dir = if (config.@"working-directory") |dir| switch (dir) {
                     .path => |path| try a.dupe(u8, path),
                     else => null,
@@ -22139,7 +21219,6 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
     try Expect.profile(&created[1], "D:\\pinned");
     // The app config is left as it was.
     try std.testing.expect(app.config.env.map.get("MODE") == null);
-    try std.testing.expect(app.config._profile_launch == null);
 
     // A plain new tab, a new window, a split of a pane that runs no profile.
     try std.testing.expect(try app.performAction(.app, .new_tab, {}));
@@ -22156,21 +21235,24 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
     // A restored pane runs its own profile; one whose profile is gone runs
     // the default, in the directory the pane was saved in.
     var transaction = SessionRestoreTransaction.init(&app);
-    _ = try app.restoreSessionPane(.{ .profile = "user:gone", .cwd = "C:\\saved" }, &host, null, host.tabs.items.len, .right, &transaction);
+    _ = try app.restoreSessionPane(.{ .profile = "user:gone", .cwd = "C:\\saved" }, .{ .host = &host }, null, host.tabs.items.len, .right, &transaction);
     try Expect.profile(&created[6], "C:\\saved");
     // So does an SSH pane, which restore never reopens.
-    _ = try app.restoreSessionPane(.{ .profile = "ssh:prod", .cwd = "C:\\saved" }, &host, null, host.tabs.items.len, .right, &transaction);
+    _ = try app.restoreSessionPane(.{ .profile = "ssh:prod", .cwd = "C:\\saved" }, .{ .host = &host }, null, host.tabs.items.len, .right, &transaction);
     try Expect.profile(&created[7], "C:\\saved");
     try std.testing.expect(!created[7].launched_ssh);
 
     // Restore does not connect over SSH by itself, so with an SSH default a
     // pane it would reach gets the automatic shell (a session saves an SSH
     // pane without its profile).
-    const py_profile = app.config._default_profile.?;
-    const ssh_argv = [_][:0]const u8{ "C:\\Windows\\System32\\OpenSSH\\ssh.exe", "prod" };
-    app.config._default_profile = .{ .kind = .ssh, .key = "ssh:prod", .label = "prod", .command = .{ .direct = &ssh_argv } };
-    app.config.command = app.config._default_profile.?.command;
-    _ = try app.restoreSessionPane(.{}, &host, null, host.tabs.items.len, .right, &transaction);
+    var ssh_config = try configpkg.pane_launch.fixtures.loadWith(alloc, "default-profile = ssh:prod\n", .{ .ssh = true });
+    defer ssh_config.deinit();
+    {
+        const py_config = app.config;
+        app.config = ssh_config;
+        defer app.config = py_config;
+        _ = try app.restoreSessionPane(.{}, .{ .host = &host }, null, host.tabs.items.len, .right, &transaction);
+    }
     try std.testing.expect(std.mem.indexOf(u8, Hook.seen.program, "ssh") == null);
     try std.testing.expect(Hook.seen.mode == null and Hook.seen.line == null);
     try std.testing.expect(created[8].launch_profile_key == null);
@@ -22178,23 +21260,12 @@ test "win32 default-profile runs where nothing chose a launch, and only there" {
 
     // A first window started with `--working-directory=` (Explorer's "Open
     // in noctty", a jump-list folder, with no instance running) starts
-    // there, not in the profile's pinned directory. An SSH default keeps
-    // its hardening and starts ssh.exe in the user's profile directory.
+    // there, not in the profile's pinned directory.
     app.explicit_startup_working_directory = true;
     defer app.explicit_startup_working_directory = false;
     app.config.@"working-directory" = .{ .path = "C:\\cli" };
     try app.createWindow(default_title);
-    try std.testing.expectEqualStrings("ssh:prod", created[9].launch_profile_key orelse "");
-    try appendOwnedString(alloc, &created[9].tab_title_override, null);
-    try std.testing.expect(!std.mem.eql(u8, "C:\\cli", Hook.seen.dir orelse ""));
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    if (try windows_ssh_hosts.userProfileDir(&home_buf)) |home| {
-        try std.testing.expectEqualStrings(home, Hook.seen.dir orelse "");
-    }
-    app.config._default_profile = py_profile;
-    app.config.command = py_profile.command;
-    try app.createWindow(default_title);
-    try Expect.profile(&created[10], "C:\\cli");
+    try Expect.profile(&created[9], "C:\\cli");
     try std.testing.expectEqual(created.len, Hook.next);
 }
 
@@ -22237,20 +21308,20 @@ test "win32 a split of a local pane into an SSH default keeps the SSH directory"
     app.test_automation_pwd = &Hook.pwd;
 
     // A local pane that runs no profile (the first window's `-e cmd.exe`).
-    const argv = [_][:0]const u8{ "C:\\Windows\\System32\\OpenSSH\\ssh.exe", "prod" };
-    app.config._default_profile = .{ .kind = .ssh, .key = "ssh:prod", .label = "prod", .command = .{ .direct = &argv } };
-    app.config.command = app.config._default_profile.?.command;
-    app.config._command_defaulted = true;
+    app.config.@"default-profile" = "ssh:prod";
     app.config.@"split-inherit-working-directory" = true;
+    try configpkg.pane_launch.finalizeWith(&app.config, configpkg.pane_launch.fixtures.Machine{ .ssh = true });
     source.launched_ssh = false;
     source.launch_profile_key = null;
     try std.testing.expectError(error.LaunchCaptured, app.createNewSplit(&source, .right, null, false));
     try std.testing.expectEqualStrings(home, Hook.directory[0..Hook.directory_len]);
 
     // A local default still splits into the pane's own directory.
-    const local = [_][:0]const u8{"cmd.exe"};
-    app.config._default_profile = .{ .kind = .cmd, .key = "cmd.exe", .label = "Command Prompt", .command = .{ .direct = &local } };
-    app.config.command = app.config._default_profile.?.command;
+    var local = try configpkg.pane_launch.fixtures.load(std.testing.allocator, .{ .file = "default-profile = pwsh.exe\nsplit-inherit-working-directory = true\n" });
+    defer local.deinit();
+    const ssh_config = app.config;
+    defer app.config = ssh_config;
+    app.config = local;
     try std.testing.expectError(error.LaunchCaptured, app.createNewSplit(&source, .right, null, false));
     try std.testing.expectEqualStrings("C:\\local-project", Hook.directory[0..Hook.directory_len]);
 }
@@ -22279,7 +21350,7 @@ test "win32 a split or an elevated window of a default-profile pane needs no pro
     try app.config.@"profile-command".parseCLI(arena, "py: cmd.exe /k py");
     app.config.@"default-profile" = "py";
     try app.config.finalize();
-    try std.testing.expectEqualStrings("user:py", if (app.config._default_profile) |profile| profile.key else "");
+    try std.testing.expectEqualStrings("user:py", if (configpkg.pane_launch.defaultProfile(&app.config)) |profile| profile.key else "");
 
     // One window has a list without the default profile (as when discovery
     // misses an SSH alias or a WSL distribution); the other has none.
@@ -22288,12 +21359,10 @@ test "win32 a split or an elevated window of a default-profile pane needs no pro
 
     // A split from a window with no list borrows none (and discovers
     // nothing): the config has the profile.
-    var source: Surface = undefined;
-    source.launch_profile_key = "USER:PY";
-    source.host = &unlisted;
     var config = app.config.shallowClone(alloc);
     defer config.deinit();
-    try std.testing.expectEqualStrings("user:py", (try App.applySplitProfileConfigFromSource(&config, &source)) orelse "");
+    const split = try configpkg.pane_launch.prepare(&config, .{ .split = "USER:PY" }, app.launchContext(&unlisted));
+    try std.testing.expectEqualStrings("user:py", split.key orelse "");
     try std.testing.expectEqualStrings("cmd.exe", config.command.?.direct[0]);
     try std.testing.expect(unlisted.profiles == null);
 
@@ -22329,11 +21398,6 @@ test "win32 an elevated window names a file-defined user profile and passes a co
     try tmp.dir.writeFile(.{ .sub_path = "config.ghostty", .data = 
         \\profile-command = filed: cmd.exe /k "C:\a b\x.cmd"
         \\profile-env = filed: TOKEN=secret
-        \\profile-command = both: one.exe
-        \\profile-command = gone: gone.exe
-        \\profile-command = gone:
-        \\profile-command = envcli: four.exe
-        \\profile-env = envcli: MODE=file
         \\
     });
     const path = try tmp.dir.realpathAlloc(alloc, "config.ghostty");
@@ -22342,69 +21406,23 @@ test "win32 an elevated window names a file-defined user profile and passes a co
     defer cfg.deinit();
     try cfg.loadFile(alloc, path);
     var args: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-        .iterator = cli_args.sliceIterator(&.{ "--profile-command=clionly: two.exe", "--profile-command=both: three.exe", "--profile-env=envcli: OTHER=cli" }),
+        .iterator = cli_args.sliceIterator(&.{"--profile-command=clionly: two.exe"}),
     };
     try cfg.loadIter(alloc, &args);
     try cfg.finalize();
     try std.testing.expect(cfg._diagnostics.empty());
 
     // The elevated process reads the files, so a profile they define is
-    // named; one the command line defines (or last changed) is passed.
+    // named (`pane_launch.filesDefine`); one the command line defines (or
+    // last changed) is passed.
     try std.testing.expect(elevatesBySelector(&cfg, "user:filed", true));
-    try std.testing.expect(elevatesBySelector(&cfg, "USER:FILED", true));
+    try std.testing.expect(!elevatesBySelector(&cfg, "user:clionly", true));
     // A standard user's elevation runs as another account, which reads its
     // own config: the profile is passed, so it runs there too.
     try std.testing.expect(!elevatesBySelector(&cfg, "user:filed", false));
-    try std.testing.expect(!elevatesBySelector(&cfg, "user:clionly", true));
-    try std.testing.expect(!elevatesBySelector(&cfg, "user:both", true));
-    // A file's profile with a variable from the command line: the elevated
-    // process would not get that variable, so the profile is passed.
-    try std.testing.expect(!elevatesBySelector(&cfg, "user:envcli", true));
-    // `--profile-env=` cleared every profile's variables, which the files
-    // would give the elevated process back: every profile is passed.
-    {
-        var cleared = try configpkg.Config.default(alloc);
-        defer cleared.deinit();
-        try cleared.loadFile(alloc, path);
-        var reset: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-            .iterator = cli_args.sliceIterator(&.{"--profile-env="}),
-        };
-        try cleared.loadIter(alloc, &reset);
-        try cleared.finalize();
-        try std.testing.expect(cleared.@"profile-env".count() == 0);
-        try std.testing.expect(!elevatesBySelector(&cleared, "user:filed", true));
-        // An `--env=` argument, which `%NAME%` may read, is not forwarded
-        // either.
-        var with_env = try configpkg.Config.default(alloc);
-        defer with_env.deinit();
-        try with_env.loadFile(alloc, path);
-        var env_arg: cli_args.ArgsIterator(cli_args.SliceIterator) = .{
-            .iterator = cli_args.sliceIterator(&.{"--env=TOOLS=C:\\Tools"}),
-        };
-        try with_env.loadIter(alloc, &env_arg);
-        try with_env.finalize();
-        try std.testing.expect(!elevatesBySelector(&with_env, "user:filed", true));
-        // Kept for a conditional rebuild, which replays the argument.
-        with_env._conditional_set.insert(.theme);
-        var with_env_dark = (try with_env.changeConditionalState(.{ .theme = .dark })).?;
-        defer with_env_dark.deinit();
-        try std.testing.expect(!elevatesBySelector(&with_env_dark, "user:filed", true));
-        // Nothing reset: named.
-        var plain = try configpkg.Config.default(alloc);
-        defer plain.deinit();
-        try plain.loadFile(alloc, path);
-        try plain.finalize();
-        try std.testing.expect(elevatesBySelector(&plain, "user:filed", true));
-    }
-    // Nothing to name: a removed or unknown profile, a detected one.
-    try std.testing.expect(!elevatesBySelector(&cfg, "user:gone", true));
-    try std.testing.expect(!elevatesBySelector(&cfg, "user:nosuch", true));
-    try std.testing.expect(!elevatesBySelector(&cfg, "pwsh.exe", true));
-    try std.testing.expect(!elevatesBySelector(&cfg, "filed", true));
     // A Visual Studio shell is found by the elevated process as by the
     // picker, so its own `cmd.exe /k` line reaches it as written.
     try std.testing.expect(elevatesBySelector(&cfg, "vs:6bb7cfd9:cmd", true));
-    try std.testing.expect(elevatesBySelector(&cfg, "VS:6BB7CFD9:PWSH", true));
     // Not when UAC may switch to another account: that account's own config
     // can say `visual-studio-profiles = none`, under which the key names
     // nothing and the elevated window would start the automatic shell. The
@@ -22441,14 +21459,6 @@ test "win32 an elevated window names a file-defined user profile and passes a co
         for (vs_argv, elevated.command.?.direct) |want, got| try std.testing.expectEqualStrings(want, got);
     }
 
-    // A config rebuilt for a conditional state (a theme) records the places
-    // again.
-    cfg._conditional_set.insert(.theme);
-    var replayed = (try cfg.changeConditionalState(.{ .theme = .dark })).?;
-    defer replayed.deinit();
-    try std.testing.expect(elevatesBySelector(&replayed, "user:filed", true));
-    try std.testing.expect(!elevatesBySelector(&replayed, "user:clionly", true));
-
     // What the elevated process is given for a detected profile and for a
     // command-line one is as before: the argv, and the variables for the
     // latter.
@@ -22460,15 +21470,9 @@ test "win32 an elevated window names a file-defined user profile and passes a co
     const cli_only = try win32_elevation.buildRelaunchParameters(alloc, &argv, null, "C:\\work", "C:\\startup", .{ .command = .{ .command = .{ .direct = &.{"two.exe"} }, .env = &env } });
     defer alloc.free(cli_only);
     try std.testing.expectEqualStrings("--working-directory=C:\\work --command=direct:two.exe --initial-command= --elevated-profile-env=MODE=cli", cli_only);
-
-    // A clone (a reload installs the app config as one) keeps the decision.
-    var reloaded = try cfg.clone(alloc);
-    defer reloaded.deinit();
-    try std.testing.expect(elevatesBySelector(&reloaded, "user:filed", true));
-    try std.testing.expect(!elevatesBySelector(&reloaded, "user:clionly", true));
 }
 
-test "win32 a forwarded new window keeps the default-profile launch when a theme is set" {
+test "win32 a forwarded new window starts the default profile after its arguments, when a theme is set" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const alloc = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
@@ -22496,11 +21500,6 @@ test "win32 a forwarded new window keeps the default-profile launch when a theme
     try base.finalize();
     try std.testing.expectEqual(@as(u8, 0x10), base.background.r);
 
-    var core_app: CoreApp = undefined;
-    core_app.alloc = alloc;
-    var app: App = undefined;
-    app.core_app = &core_app;
-
     // A palette theme preview of files that edited the profile since (and
     // set a theme, so a window's config is built again): the app config
     // keeps the running profile, but its replay steps are the new files'.
@@ -22518,74 +21517,70 @@ test "win32 a forwarded new window keeps the default-profile launch when a theme
     try preview.loadIter(alloc, &preview_args);
     try Host.finishPaletteThemeConfig(&preview, &base, theme);
 
-    // A directory the arguments carry, which an SSH default does not take:
-    // ssh.exe starts in the user's profile directory on every path
-    // (`applySshLaunchHardening`).
-    var ssh_base = try configpkg.Config.default(alloc);
-    defer ssh_base.deinit();
-    try ssh_base.finalize();
-    app.config = ssh_base;
-    const ssh_argv = [_][:0]const u8{ "C:\\Windows\\System32\\OpenSSH\\ssh.exe", "prod" };
-    app.config._default_profile = .{ .kind = .ssh, .key = "ssh:prod", .label = "prod", .command = .{ .direct = &ssh_argv } };
-    app.config.command = app.config._default_profile.?.command;
-    app.config._command_defaulted = true;
-    var ssh_window = app.config.shallowClone(alloc);
-    defer ssh_window.deinit();
-    const ssh_profile = (try app.applyNewWindowLaunch(&ssh_window, &.{ "--font-size=14", "--working-directory=C:\\fwd" })).?;
-    try std.testing.expectEqualStrings("ssh:prod", ssh_profile.key);
-    const ssh_directory = switch (ssh_window.@"working-directory".?) {
-        .path => |path| path,
-        else => "",
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var created: [6]Surface = undefined;
+    var surfaces: [created.len]TestSession.SurfaceOptions = undefined;
+    for (&created, &surfaces) |*storage, *options| options.* = .{ .storage = storage, .free_launch_profile_key_on_deinit = true };
+    var session: TestSession = .{};
+    try session.init(.{ .core_app = &core_app, .app = &app, .surfaces = &surfaces });
+    defer session.deinit();
+    const session_config = app.config;
+    defer app.config = session_config;
+
+    const Hook = struct {
+        var seen_arena: std.heap.ArenaAllocator = undefined;
+        var mode: ?[]const u8 = null;
+        var line: ?[]const u8 = null;
+        var dir: ?[]const u8 = null;
+        var font_size: f32 = 0;
+        var background: u8 = 0;
+        var storage: []Surface = undefined;
+        var next: usize = 0;
+
+        fn createSurface(_: *App, config: *const configpkg.Config, _: LPCWSTR, opts: SurfaceInitOptions) anyerror!*Surface {
+            const a = seen_arena.allocator();
+            mode = if (config.env.map.get("MODE")) |value| try a.dupe(u8, value) else null;
+            line = if (opts.launch.user) |launch| try a.dupe(u8, launch.command_line) else null;
+            dir = if (config.@"working-directory") |wd| switch (wd) {
+                .path => |path| try a.dupe(u8, path),
+                else => null,
+            } else null;
+            font_size = config.@"font-size";
+            background = config.background.r;
+            const surface = &storage[next];
+            next += 1;
+            return surface;
+        }
     };
-    try std.testing.expect(!std.mem.eql(u8, "C:\\fwd", ssh_directory));
-    var home_buf: [std.fs.max_path_bytes]u8 = undefined;
-    if (try windows_ssh_hosts.userProfileDir(&home_buf)) |home| {
-        try std.testing.expectEqualStrings(home, ssh_directory);
-    }
+    Hook.seen_arena = .init(alloc);
+    defer Hook.seen_arena.deinit();
+    Hook.storage = &created;
+    Hook.next = 0;
+    app.test_create_window_surface = &Hook.createSurface;
 
     for ([_]*const configpkg.Config{ &base, &preview }) |app_config| {
         app.config = app_config.*;
-        // A launch that names no directory forwards none when its own
-        // default-profile pins one (`forwardsLauncherDirectory`), so a second
-        // Start-menu launch opens where the first one did.
-        {
-            var file_default = app.config;
-            file_default._default_profile_cli = null;
-            try std.testing.expect(!ipc_server.forwardsLauncherDirectory(&file_default));
-            var config = app.config.shallowClone(alloc);
-            defer config.deinit();
-            const profile = (try app.applyNewWindowLaunch(&config, null)).?;
-            try std.testing.expectEqualStrings("user:py", profile.key);
-            try std.testing.expectEqualStrings("profile", config.env.map.get("MODE") orelse "");
-            try std.testing.expectEqualStrings("D:\\pinned", switch (config.@"working-directory".?) {
-                .path => |path| path,
-                else => "",
-            });
-        }
         inline for (.{
             .{ &[_][:0]const u8{"--font-size=14"}, "D:\\pinned" },
             // A directory the arguments carry wins over the profile's.
             .{ &[_][:0]const u8{ "--font-size=14", "--working-directory=C:\\fwd" }, "C:\\fwd" },
         }) |case| {
-            var config = app.config.shallowClone(alloc);
-            defer config.deinit();
-            const profile = (try app.applyNewWindowLaunch(&config, case[0])).?;
-            try std.testing.expectEqualStrings("user:py", profile.key);
-            try std.testing.expectEqual(@as(f32, 14), config.@"font-size");
-            try std.testing.expectEqual(@as(u8, 0x10), config.background.r);
-            try std.testing.expectEqualStrings("profile", config.env.map.get("MODE") orelse "");
-            try std.testing.expectEqualStrings("cmd.exe /k py", if (config._profile_launch) |launch| launch.command_line else "");
-            try std.testing.expectEqualStrings(case[1], switch (config.@"working-directory".?) {
-                .path => |path| path,
-                else => "",
-            });
-            // The same profile sources; the window's `env` holds the
-            // profile's variables, which a reload compares too.
-            var sources = config;
-            sources.env = base.env;
-            try std.testing.expect(!userProfileKeysChanged(&base, &sources));
+            try std.testing.expect(try app.performAction(.app, .new_window, .{ .arguments = case[0] }));
+            try std.testing.expectEqual(@as(f32, 14), Hook.font_size);
+            try std.testing.expectEqual(@as(u8, 0x10), Hook.background);
+            // The running profile, as the lists hold it, after the rebuild.
+            try std.testing.expectEqualStrings("profile", Hook.mode orelse "");
+            try std.testing.expectEqualStrings("cmd.exe /k py", Hook.line orelse "");
+            try std.testing.expectEqualStrings(case[1], Hook.dir orelse "");
+            try std.testing.expectEqualStrings("user:py", created[Hook.next - 1].launch_profile_key orelse "");
         }
+        // With no arguments nothing is built again.
+        try std.testing.expect(try app.performAction(.app, .new_window, .{}));
+        try std.testing.expectEqualStrings("D:\\pinned", Hook.dir orelse "");
+        try std.testing.expectEqualStrings("user:py", created[Hook.next - 1].launch_profile_key orelse "");
     }
+    try std.testing.expectEqual(created.len, Hook.next);
 }
 
 test "win32 the picker follows a changed default-profile until a profile is chosen in it" {
@@ -22602,14 +21597,18 @@ test "win32 the picker follows a changed default-profile until a profile is chos
     });
     defer session.deinit();
     defer testFreeHostProfiles(&app, &.{&first});
-    const keys = [_][]const u8{ "pwsh.exe", "cmd.exe", "git-bash" };
+    const keys = [_][]const u8{ "pwsh.exe", "wsl:Ubuntu", "wsl:Debian" };
 
     const Reload = struct {
-        const argv = [_][:0]const u8{"x.exe"};
-
         fn run(host: *Host, default_key: []const u8, list_keys: []const []const u8) !void {
-            // `config_change`: a new `default-profile`, every list dropped.
-            host.app.config._default_profile = .{ .kind = .cmd, .key = default_key, .label = default_key, .command = .{ .direct = &argv } };
+            // `config_change`: a config with another `default-profile`, every
+            // list dropped.
+            const alloc = host.app.core_app.alloc;
+            const text = try std.fmt.allocPrint(alloc, "default-profile = {s}\n", .{default_key});
+            defer alloc.free(text);
+            const config = try configpkg.pane_launch.fixtures.load(alloc, .{ .file = text });
+            host.app.config.deinit();
+            host.app.config = config;
             host.invalidateProfiles();
             _ = try host.applyProfiles(.{ .profiles = try testProfileList(host.app.core_app.alloc, list_keys), .complete = true });
         }
@@ -22618,24 +21617,24 @@ test "win32 the picker follows a changed default-profile until a profile is chos
         }
     };
 
-    try Reload.run(&first, "cmd.exe", &keys);
-    try std.testing.expectEqualStrings("cmd.exe", Reload.selected(&first));
+    try Reload.run(&first, "wsl:Ubuntu", &keys);
+    try std.testing.expectEqualStrings("wsl:Ubuntu", Reload.selected(&first));
     // The choice is the default's, not the user's: nothing is stored for a
     // new window to start on.
     try std.testing.expect(first.selected_profile_key == null and app.launcher_profile_key == null);
 
-    try Reload.run(&first, "git-bash", &keys);
-    try std.testing.expectEqualStrings("git-bash", Reload.selected(&first));
+    try Reload.run(&first, "wsl:Debian", &keys);
+    try std.testing.expectEqualStrings("wsl:Debian", Reload.selected(&first));
 
     // A profile chosen in the picker stays chosen across a reload.
     _ = try first.setSelectedProfileIndex(0);
-    try Reload.run(&first, "cmd.exe", &keys);
+    try Reload.run(&first, "wsl:Ubuntu", &keys);
     try std.testing.expectEqualStrings("pwsh.exe", Reload.selected(&first));
     try std.testing.expectEqualStrings("pwsh.exe", app.launcher_profile_key.?);
 
     // Once that profile is gone from the list, the default is picked again.
-    try Reload.run(&first, "cmd.exe", &.{ "cmd.exe", "git-bash" });
-    try std.testing.expectEqualStrings("cmd.exe", Reload.selected(&first));
+    try Reload.run(&first, "wsl:Ubuntu", &.{ "wsl:Ubuntu", "wsl:Debian" });
+    try std.testing.expectEqualStrings("wsl:Ubuntu", Reload.selected(&first));
 }
 
 test "win32 hidden profiles stay out of the picker and the quick slots and still resolve by key" {
@@ -22674,13 +21673,13 @@ test "win32 hidden profiles stay out of the picker and the quick slots and still
     try std.testing.expectEqualStrings("cmd.exe", shown[1].key);
     try std.testing.expectEqual(@as(usize, 4), host.profiles.?.len);
     try std.testing.expectEqualStrings("wsl:docker-desktop", app.launcher_quick_slot_keys[0].?);
-    try std.testing.expectEqual(@as(?usize, 1), labels.quickSlotProfileIndex(shown.len, host.selectedProfileIndex(), 0, 3));
-    try std.testing.expectEqual(@as(?usize, null), labels.quickSlotProfileIndex(shown.len, host.selectedProfileIndex(), 1, 3));
+    try std.testing.expectEqual(@as(?usize, 1), profile_pick.quickSlot(shown.len, host.selectedProfileIndex(), 0));
+    try std.testing.expectEqual(@as(?usize, null), profile_pick.quickSlot(shown.len, host.selectedProfileIndex(), 1));
     try std.testing.expectEqual(@as(?usize, null), quickSlotShortcutProfileIndex(shown.len, null, '3', true));
     _ = try host.setSelectedProfileIndex(3);
     try std.testing.expectEqual(@as(?usize, 1), host.selectedProfileIndex());
-    try std.testing.expect(resolveProfileSelection(shown, "git-bash", 0) == .invalid);
-    try std.testing.expect(resolveProfileSelection(shown, "3", 0) == .invalid);
+    try std.testing.expect(profile_pick.byTyped(shown, "git-bash", 0) == .invalid);
+    try std.testing.expect(profile_pick.byTyped(shown, "3", 0) == .invalid);
 
     // By key, a hidden profile is still there: for a restore, a split, an
     // elevated window, `default-profile`.
@@ -22688,8 +21687,9 @@ test "win32 hidden profiles stay out of the picker and the quick slots and still
     try std.testing.expect(hidden.hidden);
     var clone = app.config.shallowClone(alloc);
     defer clone.deinit();
-    try std.testing.expect(try app.applyRestoredProfileConfig(&clone, &host, "git-bash"));
-    try std.testing.expectEqual(@as(?usize, 3), profileIndexByKey(host.profiles.?, "git-bash"));
+    const restored = try configpkg.pane_launch.prepare(&clone, .{ .restored = "git-bash" }, app.launchContext(&host));
+    try std.testing.expectEqualStrings("git-bash", restored.key orelse "");
+    try std.testing.expectEqual(@as(?usize, 3), profile_pick.byKey(host.profiles.?, "git-bash"));
 }
 
 test "win32 a reload that changes any profile key drops the profile lists" {
@@ -22774,70 +21774,6 @@ test "win32 ssh title identity survives profile refresh" {
     try std.testing.expect(isAutomaticSshCommandTitle("C:\\Windows\\System32\\OpenSSH\\ssh.exe"));
     try std.testing.expect(isAutomaticSshCommandTitle("ssh"));
     try std.testing.expect(!isAutomaticSshCommandTitle("prod.example.com"));
-}
-
-test "win32 automation tab inheritance preserves the captured source command" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const command = [_][:0]const u8{ "pwsh.exe", "-NoLogo" };
-    const reloaded_command = [_][:0]const u8{"cmd.exe"};
-    var profiles = [_]windows_shell.Profile{.{
-        .kind = .pwsh,
-        .key = "pwsh",
-        .label = "PowerShell",
-        .command = .{ .direct = &reloaded_command },
-    }};
-    var host: Host = undefined;
-    host.profiles = &profiles;
-    var source: Surface = undefined;
-    source.host = &host;
-    source.launch_profile_key = "pwsh";
-    source.launch_command = .{ .direct = &command };
-    source.launch_user = null;
-
-    var config = try configpkg.Config.default(std.testing.allocator);
-    defer config.deinit();
-    const inherited = try App.applyLaunchConfigFromSource(&config, &source);
-
-    try std.testing.expectEqualStrings("pwsh", inherited.?);
-    const direct = config.command.?.direct;
-    try std.testing.expectEqual(@as(usize, 2), direct.len);
-    try std.testing.expectEqualStrings("pwsh.exe", direct[0]);
-    try std.testing.expectEqualStrings("-NoLogo", direct[1]);
-}
-
-test "win32 automation ssh inheritance preserves command and hardening" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    const command = [_][:0]const u8{ "C:\\Windows\\System32\\OpenSSH\\ssh.exe", "production" };
-    var source: Surface = undefined;
-    source.launch_command = .{ .direct = &command };
-    source.launch_user = null;
-    source.launch_profile_key = "ssh:production";
-    source.launched_ssh = true;
-
-    var config = try configpkg.Config.default(std.testing.allocator);
-    defer config.deinit();
-    config.@"shell-integration" = .bash;
-    const inherited = try App.applyLaunchConfigFromSource(&config, &source);
-
-    try std.testing.expectEqualStrings("ssh:production", inherited.?);
-    try std.testing.expectEqual(configpkg.Config.ShellIntegration.none, config.@"shell-integration");
-    try std.testing.expectEqualStrings(command[0], config.command.?.direct[0]);
-    try std.testing.expectEqualStrings(command[1], config.command.?.direct[1]);
-}
-
-test "win32 ordinary split ignores a captured one-shot command" {
-    const one_shot = [_][:0]const u8{ "cmd.exe", "/c", "one-shot.cmd" };
-    var source: Surface = undefined;
-    source.launch_command = .{ .direct = &one_shot };
-    source.launch_profile_key = null;
-    source.host = null;
-
-    var config = try configpkg.Config.default(std.testing.allocator);
-    defer config.deinit();
-    try std.testing.expect((try App.applySplitProfileConfigFromSource(&config, &source)) == null);
-    try std.testing.expect(config.command == null);
 }
 
 test "win32 automation omitted target falls back to the active surface" {
@@ -23166,7 +22102,7 @@ test "win32 recovery sets the session aside after failures that all began restor
     const restoring = beginRecoveryStartupAtPath(std.testing.allocator, target, session, 400, recovery_ledger_lock_wait_ms);
     try std.testing.expectEqual(win32_recovery.Decision.quarantine_session, restoring.decision);
     try std.testing.expect(restoring.session_set_aside);
-    const moved = try tmp.dir.readFileAlloc(std.testing.allocator, "session-state.json" ++ recovery_set_aside_suffix, 64);
+    const moved = try tmp.dir.readFileAlloc(std.testing.allocator, "session-state.json" ++ session_module.recovery_set_aside_suffix, 64);
     defer std.testing.allocator.free(moved);
     try std.testing.expectEqualStrings(saved, moved);
 
@@ -23264,16 +22200,16 @@ test "win32 recovery sets a crashed session aside without deleting it" {
     defer std.testing.allocator.free(state_path);
 
     // Nothing to move.
-    try std.testing.expect(!setAsideCrashedSessionState(std.testing.allocator, state_path));
+    try std.testing.expect(!session_module.setAsideCrashedSessionState(std.testing.allocator, state_path));
 
     // A newer build's session is not this build's to move.
     const newer = "{\"schema_version\":2,\"windows\":[]}";
     try tmp.dir.writeFile(.{ .sub_path = "session-state.json", .data = newer });
-    try std.testing.expect(!setAsideCrashedSessionState(std.testing.allocator, state_path));
+    try std.testing.expect(!session_module.setAsideCrashedSessionState(std.testing.allocator, state_path));
     try tmp.dir.access("session-state.json", .{});
     // Nor is one this build would quarantine as `.corrupt` when restoring it.
     try tmp.dir.writeFile(.{ .sub_path = "session-state.json", .data = "not json" });
-    try std.testing.expect(!setAsideCrashedSessionState(std.testing.allocator, state_path));
+    try std.testing.expect(!session_module.setAsideCrashedSessionState(std.testing.allocator, state_path));
     try tmp.dir.access("session-state.json", .{});
 
     const saved = "{\"schema_version\":1,\"windows\":[]}";
@@ -23282,13 +22218,13 @@ test "win32 recovery sets a crashed session aside without deleting it" {
     {
         const owner = (try SessionOwnerLock.acquire(std.testing.allocator, state_path)).?;
         defer owner.release();
-        try std.testing.expect(!setAsideCrashedSessionState(std.testing.allocator, state_path));
+        try std.testing.expect(!session_module.setAsideCrashedSessionState(std.testing.allocator, state_path));
         try tmp.dir.access("session-state.json", .{});
     }
 
-    try std.testing.expect(setAsideCrashedSessionState(std.testing.allocator, state_path));
+    try std.testing.expect(session_module.setAsideCrashedSessionState(std.testing.allocator, state_path));
     try std.testing.expectError(error.FileNotFound, tmp.dir.access("session-state.json", .{}));
-    const moved = try tmp.dir.readFileAlloc(std.testing.allocator, "session-state.json" ++ recovery_set_aside_suffix, 64);
+    const moved = try tmp.dir.readFileAlloc(std.testing.allocator, "session-state.json" ++ session_module.recovery_set_aside_suffix, 64);
     defer std.testing.allocator.free(moved);
     try std.testing.expectEqualStrings(saved, moved);
     // The lock is free again for the next normal launch.
@@ -24308,76 +23244,6 @@ test "win32 agreeing to a Restart Manager close registers the session owner for 
     try std.testing.expect(!app.restart_registered);
 }
 
-test "win32 a saved window rect on a monitor that is gone moves to the nearest work area" {
-    const grab = restore_grab;
-    // A laptop's screen with a second monitor to its left, taskbar at the bottom.
-    const left: RECT = .{ .left = -1920, .top = 0, .right = 0, .bottom = 1040 };
-    const main_work: RECT = .{ .left = 0, .top = 0, .right = 1920, .bottom = 1040 };
-    const works = [_]RECT{ main_work, left };
-    const wide: RECT = .{ .left = 100, .top = 100, .right = 900, .bottom = 700 };
-
-    // Where there is a monitor, the rect is kept as saved.
-    try std.testing.expectEqualDeep(wide, restoredRectOnScreen(wide, &works, grab));
-    const straddling: RECT = .{ .left = -400, .top = 50, .right = 400, .bottom = 650 };
-    try std.testing.expectEqualDeep(straddling, restoredRectOnScreen(straddling, &works, grab));
-    // A snapped window overhangs its monitor by its invisible frame.
-    const snapped: RECT = .{ .left = -7, .top = 0, .right = 967, .bottom = 1047 };
-    try std.testing.expectEqualDeep(snapped, restoredRectOnScreen(snapped, &works, grab));
-    // The caption on a monitor and the body hanging off the bottom stays too.
-    const hanging: RECT = .{ .left = 100, .top = 900, .right = 900, .bottom = 1500 };
-    try std.testing.expectEqualDeep(hanging, restoredRectOnScreen(hanging, &works, grab));
-
-    // Saved on a monitor to the right that was unplugged.
-    const unplugged: RECT = .{ .left = 2100, .top = 200, .right = 2900, .bottom = 800 };
-    try std.testing.expectEqualDeep(
-        RECT{ .left = 1120, .top = 200, .right = 1920, .bottom = 800 },
-        restoredRectOnScreen(unplugged, &works, grab),
-    );
-    // Below every monitor, and above them.
-    try std.testing.expectEqualDeep(
-        RECT{ .left = 100, .top = 440, .right = 900, .bottom = 1040 },
-        restoredRectOnScreen(.{ .left = 100, .top = 3000, .right = 900, .bottom = 3600 }, &works, grab),
-    );
-    try std.testing.expectEqualDeep(
-        RECT{ .left = 100, .top = 0, .right = 900, .bottom = 600 },
-        restoredRectOnScreen(.{ .left = 100, .top = -900, .right = 900, .bottom = -300 }, &works, grab),
-    );
-    // Only a sliver of the title bar on a monitor is not enough to grab.
-    try std.testing.expectEqualDeep(
-        RECT{ .left = 1120, .top = 100, .right = 1920, .bottom = 700 },
-        restoredRectOnScreen(.{ .left = 1900, .top = 100, .right = 2700, .bottom = 700 }, &works, grab),
-    );
-    // The nearest is the monitor to the left when that is where it was.
-    try std.testing.expectEqualDeep(
-        RECT{ .left = -1920, .top = 100, .right = -1120, .bottom = 700 },
-        restoredRectOnScreen(.{ .left = -4000, .top = 100, .right = -3200, .bottom = 700 }, &works, grab),
-    );
-    // Larger than the monitor it lands on: capped to it.
-    try std.testing.expectEqualDeep(
-        left,
-        restoredRectOnScreen(.{ .left = -9000, .top = -50, .right = -4000, .bottom = 3000 }, &works, grab),
-    );
-    // No monitor list, no opinion.
-    try std.testing.expectEqualDeep(unplugged, restoredRectOnScreen(unplugged, &.{}, grab));
-
-    // The file can say anything an i32 holds, and a window cannot be that far
-    // away: no differences of these overflow.
-    const min: i32 = std.math.minInt(i32);
-    const max: i32 = std.math.maxInt(i32);
-    try std.testing.expectEqualDeep(
-        RECT{ .left = -1920, .top = 100, .right = -1120, .bottom = 700 },
-        restoredRectOnScreen(.{ .left = min, .top = 100, .right = min + 800, .bottom = 700 }, &works, grab),
-    );
-    try std.testing.expectEqualDeep(
-        RECT{ .left = 1120, .top = 440, .right = 1920, .bottom = 1040 },
-        restoredRectOnScreen(.{ .left = max - 800, .top = max - 600, .right = max, .bottom = max }, &works, grab),
-    );
-    try std.testing.expectEqualDeep(
-        main_work,
-        restoredRectOnScreen(.{ .left = min, .top = min, .right = -1, .bottom = -1 }, &.{main_work}, grab),
-    );
-}
-
 test "win32 session state file write replaces through temp file" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -24522,347 +23388,6 @@ test "win32 activeSurfaceForHost isolates taskbar progress by host and tab" {
     try std.testing.expectEqual(@as(?u8, 80), host_b_after_tab_switch.progress);
 }
 
-test "win32 resolveToastActivationSurface prefers exact surface id" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var app: App = undefined;
-    app.registry.windows = .empty;
-    app.registry.hosts = .empty;
-    defer app.registry.deinit(std.testing.allocator);
-
-    var primary: Surface = undefined;
-    primary.core_surface = undefined;
-    primary.core_surface.id = 101;
-
-    var exact: Surface = undefined;
-    exact.core_surface = undefined;
-    exact.core_surface.id = 202;
-
-    try app.registry.addWindow(std.testing.allocator, &primary);
-    try app.registry.addWindow(std.testing.allocator, &exact);
-
-    const resolved = app.registry.resolveToastActivationSurface(.{
-        .pid = sys.GetCurrentProcessId(),
-        .surface_id = 202,
-        .window_id = 999,
-        .action = .focus,
-    });
-    try std.testing.expectEqual(@as(?*Surface, &exact), resolved);
-}
-
-test "win32 resolveToastActivationSurface finds split pane by exact surface id" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var app: App = undefined;
-    app.registry.windows = .empty;
-    app.registry.hosts = .empty;
-    defer app.registry.deinit(std.testing.allocator);
-
-    var host: Host = undefined;
-    host.id = 66;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var primary: Surface = undefined;
-    primary.core_surface = undefined;
-    primary.core_surface.id = 501;
-    primary.host = &host;
-    primary.host_id = host.id;
-
-    var split: Surface = undefined;
-    split.core_surface = undefined;
-    split.core_surface.id = 502;
-    split.host = &host;
-    split.host_id = host.id;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &primary));
-    const inserted = try SplitTreeSurface.init(std.testing.allocator, &split);
-    defer {
-        var cleanup = inserted;
-        cleanup.deinit();
-    }
-    var prev_tree = host.tabs.items[0].tree;
-    const next_tree = try prev_tree.split(
-        std.testing.allocator,
-        host.tabs.items[0].focused,
-        .right,
-        0.5,
-        &inserted,
-    );
-    host.tabs.items[0].tree = next_tree;
-    prev_tree.deinit();
-
-    try app.registry.addHost(std.testing.allocator, &host);
-    try app.registry.addWindow(std.testing.allocator, &primary);
-
-    const resolved = app.registry.resolveToastActivationSurface(.{
-        .pid = sys.GetCurrentProcessId(),
-        .surface_id = 502,
-        .action = .focus,
-    });
-    try std.testing.expectEqual(@as(?*Surface, &split), resolved);
-}
-
-test "win32 resolveToastActivationSurface falls back to primary surface" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var app: App = undefined;
-    app.registry.windows = .empty;
-    app.registry.hosts = .empty;
-    defer app.registry.deinit(std.testing.allocator);
-
-    var host: Host = undefined;
-    host.id = 77;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var primary: Surface = undefined;
-    primary.core_surface = undefined;
-    primary.core_surface.id = 303;
-    primary.host = &host;
-    primary.host_id = host.id;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &primary));
-    try app.registry.addHost(std.testing.allocator, &host);
-    try app.registry.addWindow(std.testing.allocator, &primary);
-
-    const resolved = app.registry.resolveToastActivationSurface(.{
-        .pid = sys.GetCurrentProcessId(),
-        .surface_id = 999,
-        .window_id = 999,
-        .action = .focus,
-    });
-    try std.testing.expectEqual(@as(?*Surface, &primary), resolved);
-}
-
-test "win32 resolveToastActivationSurface prefers requested host tab when surface is stale" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var app: App = undefined;
-    app.registry.windows = .empty;
-    app.registry.hosts = .empty;
-    defer app.registry.deinit(std.testing.allocator);
-
-    var host: Host = undefined;
-    host.id = 88;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var tab0_surface: Surface = undefined;
-    tab0_surface.core_surface = undefined;
-    tab0_surface.core_surface.id = 401;
-    tab0_surface.host = &host;
-    tab0_surface.host_id = host.id;
-
-    var tab1_surface: Surface = undefined;
-    tab1_surface.core_surface = undefined;
-    tab1_surface.core_surface.id = 402;
-    tab1_surface.host = &host;
-    tab1_surface.host_id = host.id;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &tab0_surface));
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 2, &tab1_surface));
-    try app.registry.addHost(std.testing.allocator, &host);
-    try app.registry.addWindow(std.testing.allocator, &tab0_surface);
-    try app.registry.addWindow(std.testing.allocator, &tab1_surface);
-
-    const resolved = app.registry.resolveToastActivationSurface(.{
-        .pid = sys.GetCurrentProcessId(),
-        .surface_id = 999,
-        .tab_id = 2,
-        .window_id = host.id,
-        .action = .focus,
-    });
-    try std.testing.expectEqual(@as(?*Surface, &tab1_surface), resolved);
-}
-
-test "win32 buildToastLaunchForSurface includes host tab id" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var host: Host = undefined;
-    host.id = 91;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var surface: Surface = undefined;
-    surface.core_surface = undefined;
-    surface.core_surface.id = 555;
-    surface.host = &host;
-    surface.host_id = host.id;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 44, &surface));
-
-    const launch = try buildToastLaunchForSurface(std.testing.allocator, &surface);
-    defer std.testing.allocator.free(launch);
-
-    const parsed = try win32_toast_activation.parseLaunchArg(launch);
-    try std.testing.expectEqual(@as(?u64, 555), parsed.surface_id);
-    try std.testing.expectEqual(@as(?u32, 44), parsed.tab_id);
-    try std.testing.expectEqual(@as(?u32, host.id), parsed.window_id);
-    try std.testing.expectEqual(@as(?win32_toast_activation.Action, .focus), parsed.action);
-}
-
-test "launch string round-trips pid; a foreign pid only presents" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    var app: App = undefined;
-    app.registry.windows = .empty;
-    app.registry.hosts = .empty;
-    defer app.registry.deinit(std.testing.allocator);
-
-    var host: Host = undefined;
-    host.id = 93;
-    host.tabs = .empty;
-    host.active_tab = 0;
-    defer {
-        for (host.tabs.items) |*tab| tab.deinit();
-        host.tabs.deinit(std.testing.allocator);
-    }
-
-    var first: Surface = undefined;
-    first.core_surface = undefined;
-    first.core_surface.id = 601;
-    first.host = &host;
-    first.host_id = host.id;
-
-    var second: Surface = undefined;
-    second.core_surface = undefined;
-    second.core_surface.id = 602;
-    second.host = &host;
-    second.host_id = host.id;
-
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 1, &first));
-    try host.tabs.append(std.testing.allocator, try Tab.init(std.testing.allocator, 2, &second));
-    try app.registry.addHost(std.testing.allocator, &host);
-    try app.registry.addWindow(std.testing.allocator, &first);
-    try app.registry.addWindow(std.testing.allocator, &second);
-
-    // The pane's own launch string names this process and routes to it.
-    const launch = try buildToastLaunchForSurface(std.testing.allocator, &second);
-    defer std.testing.allocator.free(launch);
-    const own = try win32_toast_activation.parseLaunchArg(launch);
-    try std.testing.expectEqual(@as(?u32, sys.GetCurrentProcessId()), own.pid);
-    try std.testing.expectEqual(@as(?*Surface, &second), app.registry.resolveToastActivationSurface(own));
-
-    // The same ids from another process, or from a launch with no pid, are
-    // not this process's: only the primary surface is presented.
-    var foreign = own;
-    foreign.pid = sys.GetCurrentProcessId() +% 4;
-    try std.testing.expectEqual(@as(?*Surface, &first), app.registry.resolveToastActivationSurface(foreign));
-    var unnamed = own;
-    unnamed.pid = null;
-    try std.testing.expectEqual(@as(?*Surface, &first), app.registry.resolveToastActivationSurface(unnamed));
-}
-
-/// Records what `App.showToast` hands its sink, in place of WinRT.
-pub const TestToastRecorder = struct {
-    alloc: Allocator = std.testing.allocator,
-    shown: usize = 0,
-    /// Refuse every toast with this error, as Windows does when
-    /// notifications are turned off for noctty; the request is still
-    /// recorded.
-    refuse: ?anyerror = null,
-    /// Runs inside the show, after the request is recorded, as the
-    /// messages a show can pump would.
-    during_show: ?struct { ctx: *anyopaque, run: *const fn (*anyopaque) anyerror!void } = null,
-    title: ?[]u8 = null,
-    body: ?[]u8 = null,
-    attribution: ?[]u8 = null,
-    launch: ?[]u8 = null,
-    tag: ?[]u8 = null,
-    group: ?[]u8 = null,
-    /// Every history call, in order: `tag <tag> <group>` for one pane's
-    /// toast, `group <group>` for a whole group.
-    removals: std.ArrayListUnmanaged([]u8) = .empty,
-
-    pub fn sink(self: *TestToastRecorder) ToastSink {
-        return .{ .ctx = self, .show = record, .remove_tag = recordRemoveTag, .remove_group = recordRemoveGroup };
-    }
-
-    fn record(ctx: *anyopaque, request: ToastRequest) anyerror!void {
-        const self: *TestToastRecorder = @ptrCast(@alignCast(ctx));
-        self.clear();
-        self.shown += 1;
-        self.title = try self.alloc.dupe(u8, request.title);
-        self.body = try self.alloc.dupe(u8, request.body);
-        if (request.attribution) |value| self.attribution = try self.alloc.dupe(u8, value);
-        if (request.launch) |value| self.launch = try self.alloc.dupe(u8, value);
-        if (request.tag) |value| self.tag = try self.alloc.dupe(u8, value);
-        if (request.group) |value| self.group = try self.alloc.dupe(u8, value);
-        if (self.during_show) |hook| try hook.run(hook.ctx);
-        if (self.refuse) |err| return err;
-    }
-
-    fn recordRemoveTag(ctx: *anyopaque, tag: []const u8, group: []const u8) anyerror!void {
-        const self: *TestToastRecorder = @ptrCast(@alignCast(ctx));
-        const line = try std.fmt.allocPrint(self.alloc, "tag {s} {s}", .{ tag, group });
-        errdefer self.alloc.free(line);
-        try self.removals.append(self.alloc, line);
-    }
-
-    fn recordRemoveGroup(ctx: *anyopaque, group: []const u8) anyerror!void {
-        const self: *TestToastRecorder = @ptrCast(@alignCast(ctx));
-        const line = try std.fmt.allocPrint(self.alloc, "group {s}", .{group});
-        errdefer self.alloc.free(line);
-        try self.removals.append(self.alloc, line);
-    }
-
-    /// Forget the last toast's fields.
-    fn clear(self: *TestToastRecorder) void {
-        inline for (.{ "title", "body", "attribution", "launch", "tag", "group" }) |name| {
-            if (@field(self, name)) |value| self.alloc.free(value);
-            @field(self, name) = null;
-        }
-    }
-
-    pub fn deinit(self: *TestToastRecorder) void {
-        self.clear();
-        for (self.removals.items) |line| self.alloc.free(line);
-        self.removals.deinit(self.alloc);
-    }
-
-    /// The history calls so far are exactly `expected`, in order.
-    pub fn expectRemovals(self: *const TestToastRecorder, expected: []const []const u8) !void {
-        try std.testing.expectEqual(expected.len, self.removals.items.len);
-        for (expected, self.removals.items) |want, got| try std.testing.expectEqualStrings(want, got);
-    }
-
-    /// Fails with an error, never a panic, when the field is missing: a
-    /// panic would end the test process and hide every later failure.
-    pub fn expect(
-        self: *const TestToastRecorder,
-        comptime field: enum { title, body, attribution, tag, group },
-        expected: []const u8,
-    ) !void {
-        const actual = @field(self, @tagName(field)) orelse return error.TestExpectedText;
-        try std.testing.expectEqualStrings(expected, actual);
-    }
-
-    pub fn expectLaunchFor(self: *const TestToastRecorder, surface: *Surface, tab_id: u32) !void {
-        const parsed = try win32_toast_activation.parseLaunchArg(self.launch orelse return error.TestExpectedLaunch);
-        try std.testing.expectEqual(@as(?u64, surface.core().id), parsed.surface_id);
-        try std.testing.expectEqual(@as(?u32, tab_id), parsed.tab_id);
-        try std.testing.expectEqual(@as(?u32, surface.host_id), parsed.window_id);
-        try std.testing.expectEqual(@as(?win32_toast_activation.Action, .focus), parsed.action);
-    }
-};
-
 /// One window whose second tab holds the background pane `p`, which a
 /// toast is about, while the first tab is active.
 pub const ToastTestWindow = struct {
@@ -24876,7 +23401,7 @@ pub const ToastTestWindow = struct {
     q: Surface = undefined,
     other: Surface = undefined,
     session: TestSession = .{},
-    recorder: TestToastRecorder = .{},
+    recorder: notifications.testing.Recorder = .{},
 
     pub fn init(self: *ToastTestWindow, two_windows: bool) !void {
         self.* = .{};
@@ -24905,13 +23430,14 @@ pub const ToastTestWindow = struct {
         self.other.core_surface.id = 0x3003;
         self.front.title = "pwsh";
         self.p.title = "cargo build";
-        self.app.toast_sink = self.recorder.sink();
+        self.app.notifications = .init(std.testing.allocator, self.recorder.sink(), self.app.notificationPanes());
     }
 
+    /// The session first: its exit removal calls the recorder.
     pub fn deinit(self: *ToastTestWindow) void {
-        self.recorder.deinit();
         self.p.program_status.deinit(std.testing.allocator);
         self.session.deinit();
+        self.recorder.deinit();
     }
 
     pub fn osc(self: *ToastTestWindow, surface: *Surface, title: [:0]const u8, body: [:0]const u8) !void {
@@ -24922,44 +23448,6 @@ pub const ToastTestWindow = struct {
         ));
     }
 };
-
-test "win32 OSC 9 toast carries its pane's launch target" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-
-    try w.osc(&w.p, "", "tests passed");
-    try std.testing.expectEqual(@as(usize, 1), w.recorder.shown);
-    try w.recorder.expectLaunchFor(&w.p, 2);
-    try w.recorder.expect(.body, "tests passed");
-    try w.recorder.expect(.attribution, "Tab 2: cargo build");
-
-    // An app notification, such as a config reload, has no pane to focus
-    // and no tab to name.
-    try std.testing.expect(try w.app.performAction(.app, .desktop_notification, .{
-        .title = "",
-        .body = "Configuration reloaded",
-    }));
-    try std.testing.expectEqual(@as(usize, 2), w.recorder.shown);
-    try w.recorder.expect(.title, "Najm");
-    try std.testing.expect(w.recorder.launch == null);
-    try std.testing.expect(w.recorder.attribution == null);
-}
-
-test "win32 OSC 777 toast keeps its title and gains tab context" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-
-    try w.osc(&w.p, "deploy", "rolled out");
-    try std.testing.expectEqual(@as(usize, 1), w.recorder.shown);
-    try w.recorder.expect(.title, "deploy");
-    try w.recorder.expect(.body, "rolled out");
-    try w.recorder.expect(.attribution, "Tab 2: cargo build");
-    try w.recorder.expectLaunchFor(&w.p, 2);
-}
 
 test "win32 command-finished toast names its tab" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
@@ -24980,7 +23468,7 @@ test "win32 command-finished toast names its tab" {
     try w.recorder.expect(.title, "Command finished");
     try w.recorder.expect(.body, "Command finished with exit code 0 | Runtime: 2.00s");
     try w.recorder.expect(.attribution, "Tab 2: cargo build");
-    try w.recorder.expectLaunchFor(&w.p, 2);
+    try w.recorder.expectLaunch(w.p.core().id, 2, w.p.host_id);
 
     // `desktop-notifications = false` still shows nothing.
     config.desktop_notifications = false;
@@ -24989,34 +23477,6 @@ test "win32 command-finished toast names its tab" {
         .duration = .{ .duration = 2 * std.time.ns_per_s },
     }));
     try std.testing.expectEqual(@as(usize, 1), w.recorder.shown);
-}
-
-test "win32 toast context names the window only when several are open" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(true);
-    defer w.deinit();
-
-    w.other.title = "ssh";
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.attribution, "Tab 2 of window 1: cargo build");
-    try w.osc(&w.other, "", "x");
-    try w.recorder.expect(.attribution, "Tab 1 of window 2: ssh");
-    try w.recorder.expectLaunchFor(&w.other, 1);
-
-    // The quick terminal is not a numbered window: it is named, and beside
-    // it the one window needs no number.
-    w.other_host.quick_terminal = true;
-    try w.osc(&w.other, "", "x");
-    try w.recorder.expect(.attribution, "Tab 1 of the quick terminal: ssh");
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.attribution, "Tab 2: cargo build");
-    w.other_host.quick_terminal = false;
-
-    // Once the other window is gone, one window needs no number.
-    _ = w.app.registry.hosts.orderedRemove(1);
-    try w.osc(&w.p, "", "x");
-    try w.recorder.expect(.attribution, "Tab 2: cargo build");
 }
 
 test "win32 program status toast says which tab it is from in its attribution line" {
@@ -25035,7 +23495,7 @@ test "win32 program status toast says which tab it is from in its attribution li
     try w.recorder.expect(.title, "claude needs permission");
     try w.recorder.expect(.body, "Allow edit?");
     try w.recorder.expect(.attribution, "Tab 2 of window 1: cargo build");
-    try w.recorder.expectLaunchFor(&w.p, 2);
+    try w.recorder.expectLaunch(w.p.core().id, 2, w.p.host_id);
 
     // Without a message the toast is its title and its tab.
     parser.reset();
@@ -25045,12 +23505,6 @@ test "win32 program status toast says which tab it is from in its attribution li
     try w.recorder.expect(.title, "claude is done");
     try w.recorder.expect(.body, "");
     try w.recorder.expect(.attribution, "Tab 2 of window 1: cargo build");
-}
-
-/// What a removal of `surface_id`'s toast reads in the recorder.
-pub fn expectedToastRemoval(buf: []u8, surface_id: u64) ![]const u8 {
-    var group_buf: [toast_group_max]u8 = undefined;
-    return std.fmt.bufPrint(buf, "tag {x:0>16} {s}", .{ surface_id, toastGroup(&group_buf) });
 }
 
 /// Put `q` beside `p` in the second tab, the tab's focused pane staying
@@ -25067,94 +23521,6 @@ pub fn toastTestSplit(w: *ToastTestWindow) !SplitTreeSurface {
     prev_tree.deinit();
     tab.focused = @enumFromInt(2);
     return inserted;
-}
-
-test "win32 toasts are tagged by pane and grouped by process" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-
-    var group_buf: [toast_group_max]u8 = undefined;
-    var expected_group_buf: [32]u8 = undefined;
-    const group = toastGroup(&group_buf);
-    try std.testing.expectEqualStrings(
-        try std.fmt.bufPrint(&expected_group_buf, "noctty-{d}", .{sys.GetCurrentProcessId()}),
-        group,
-    );
-
-    try w.osc(&w.p, "", "tests passed");
-    try w.recorder.expect(.tag, "0000000000002002");
-    try w.recorder.expect(.group, group);
-    try std.testing.expectEqual(@as(?u64, 0x2002), w.p.toast_outstanding);
-    try std.testing.expect(w.app.toast_group_used);
-
-    // Every later toast from the pane, of any kind, has the same tag and
-    // group, so Windows replaces the older one.
-    try w.osc(&w.p, "deploy", "rolled out");
-    try w.recorder.expect(.tag, "0000000000002002");
-    try w.recorder.expect(.group, group);
-    const config = &w.p.core().config;
-    config.desktop_notifications = true;
-    config.notify_on_command_finish = .always;
-    config.notify_on_command_finish_action = .{ .bell = false, .notify = true };
-    config.notify_on_command_finish_after = .{ .duration = 0 };
-    try std.testing.expect(try w.app.performAction(.{ .surface = w.p.core() }, .command_finished, .{
-        .exit_code = 0,
-        .duration = .{ .duration = 2 * std.time.ns_per_s },
-    }));
-    try w.recorder.expect(.tag, "0000000000002002");
-    try std.testing.expectEqual(@as(usize, 3), w.recorder.shown);
-
-    // Another pane has its own tag.
-    try w.osc(&w.front, "", "x");
-    try w.recorder.expect(.tag, "0000000000001001");
-    try w.recorder.expect(.group, group);
-
-    // An app notification belongs to no pane.
-    try std.testing.expect(try w.app.performAction(.app, .desktop_notification, .{
-        .title = "",
-        .body = "Configuration reloaded",
-    }));
-    try std.testing.expect(w.recorder.tag == null);
-    try std.testing.expect(w.recorder.group == null);
-
-    // A toast Windows refused is not outstanding.
-    w.recorder.refuse = error.NotifierDisabled;
-    try w.osc(&w.q, "", "x");
-    try std.testing.expectEqual(@as(?u64, null), w.q.toast_outstanding);
-    try std.testing.expectEqual(@as(usize, 0), w.recorder.removals.items.len);
-}
-
-test "win32 focus without an outstanding toast makes no history call" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
-    w.host.hwnd = hwnd;
-    defer w.host.hwnd = null;
-    w.app.registry.message_hwnd = hwnd;
-    defer w.app.registry.message_hwnd = null;
-
-    // No toast at all.
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    try std.testing.expectEqual(@as(usize, 0), w.app.toast_removals.items.len);
-    try std.testing.expect(!w.app.toast_removals_posted);
-
-    // A toast whose removal has already been made.
-    try w.osc(&w.front, "", "x");
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    w.app.flushToastRemovals();
-    try std.testing.expectEqual(@as(usize, 1), w.recorder.removals.items.len);
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    try std.testing.expect(!w.app.toast_removals_posted);
-    w.app.flushToastRemovals();
-    try std.testing.expectEqual(@as(usize, 1), w.recorder.removals.items.len);
-    var msg: sys.MSG = undefined;
-    while (sys.PeekMessageW(&msg, hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, c.WM_WINHOSTTY_TOAST_REMOVALS, c.PM_REMOVE) != 0) {}
 }
 
 test "win32 undo-closing a tab removes its toasts and undo does not restore them" {
@@ -25176,118 +23542,29 @@ test "win32 undo-closing a tab removes its toasts and undo does not restore them
     // The tab goes into undo history with its panes alive.
     var entry = w.host.detachTabForUndo(1).?;
     defer entry.dispose(&w.host, .host_destroy) catch {}; // Best-effort test teardown.
-    w.app.flushToastRemovals();
-    var p_buf: [64]u8 = undefined;
-    var q_buf: [64]u8 = undefined;
-    const p_removal = try expectedToastRemoval(&p_buf, 0x2002);
-    const q_removal = try expectedToastRemoval(&q_buf, 0x2003);
-    try w.recorder.expectRemovals(&.{ q_removal, p_removal });
-    try std.testing.expectEqual(@as(?u64, 0x1001), w.front.toast_outstanding);
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{ 0x2002, 0x2003 });
 
     // Undo brings the tab back without its toasts: nothing is shown again,
     // and seeing the tab or closing its panes has nothing left to remove.
     try std.testing.expect(try w.host.restoreClosedTabEntry(&entry.payload.close_tab));
     try std.testing.expectEqual(shown, w.recorder.shown);
-    try std.testing.expectEqual(@as(?u64, null), w.p.toast_outstanding);
-    try std.testing.expectEqual(@as(?u64, null), w.q.toast_outstanding);
     const hwnd = try createTestHostWindow();
     defer _ = sys.DestroyWindow(hwnd);
     w.host.hwnd = hwnd;
     defer w.host.hwnd = null;
     w.host.active_tab = 1;
     w.app.acknowledgeTabWithForeground(&w.host, 1, hwnd);
-    w.app.flushToastRemovals();
-    try w.recorder.expectRemovals(&.{ q_removal, p_removal });
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{ 0x2002, 0x2003 });
 
     // A toast from the restored tab, then the close redone: the tab goes
-    // back into undo history and takes that toast with it.
+    // back into undo history and takes that toast with it. The other tab's
+    // pane keeps its own.
     try w.osc(&w.p, "", "after undo");
     try std.testing.expect(try w.host.redoClosedTabEntry(&entry.payload.close_tab));
-    w.app.flushToastRemovals();
-    try w.recorder.expectRemovals(&.{ q_removal, p_removal, p_removal });
-    try std.testing.expectEqual(@as(?u64, null), w.p.toast_outstanding);
-}
-
-test "win32 a new toast cancels a queued removal for its pane" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
-    w.host.hwnd = hwnd;
-    defer w.host.hwnd = null;
-
-    try w.osc(&w.p, "", "x");
-    try w.osc(&w.front, "", "x");
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    w.host.active_tab = 1;
-    w.app.acknowledgeTabWithForeground(&w.host, 1, hwnd);
-    try std.testing.expectEqual(@as(usize, 2), w.app.toast_removals.items.len);
-
-    // The pane's newer toast replaces the one whose removal is queued, so
-    // the flush must not take it away; the other pane's removal stands.
-    try w.osc(&w.p, "", "again");
-    w.app.flushToastRemovals();
-    var buf: [64]u8 = undefined;
-    try w.recorder.expectRemovals(&.{try expectedToastRemoval(&buf, 0x1001)});
-    try std.testing.expectEqual(@as(?u64, 0x2002), w.p.toast_outstanding);
-}
-
-test "win32 a refused toast keeps the queued removal of its pane's older toast" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
-    w.host.hwnd = hwnd;
-    defer w.host.hwnd = null;
-
-    try w.osc(&w.front, "", "x");
-    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    try std.testing.expectEqual(@as(usize, 1), w.app.toast_removals.items.len);
-
-    // Windows refuses the newer toast (notifications turned off meanwhile),
-    // so the older one is still in Action Center and its removal stands.
-    w.recorder.refuse = error.NotifierDisabled;
-    try w.osc(&w.front, "", "again");
-    try std.testing.expectEqual(@as(usize, 1), w.app.toast_removals.items.len);
-    w.app.flushToastRemovals();
-    var buf: [64]u8 = undefined;
-    try w.recorder.expectRemovals(&.{try expectedToastRemoval(&buf, 0x1001)});
-    try std.testing.expectEqual(@as(?u64, null), w.front.toast_outstanding);
-}
-
-test "win32 a toast shown while its tab is seen survives the flush" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-    var w: ToastTestWindow = .{};
-    try w.init(false);
-    defer w.deinit();
-    const hwnd = try createTestHostWindow();
-    defer _ = sys.DestroyWindow(hwnd);
-    w.host.hwnd = hwnd;
-    defer w.host.hwnd = null;
-    try w.osc(&w.front, "", "older");
-
-    // The show pumps the activation of the pane's tab, which queues the
-    // older toast's removal; the newer toast replaces that one, so the
-    // removal must not take it away.
-    const Seen = struct {
-        w: *ToastTestWindow,
-        hwnd: HWND,
-        fn run(ctx: *anyopaque) anyerror!void {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.w.app.acknowledgeTabWithForeground(&self.w.host, 0, self.hwnd);
-            try std.testing.expectEqual(@as(usize, 1), self.w.app.toast_removals.items.len);
-        }
-    };
-    var seen: Seen = .{ .w = &w, .hwnd = hwnd };
-    w.recorder.during_show = .{ .ctx = &seen, .run = Seen.run };
-    try w.osc(&w.front, "", "newer");
-    w.app.flushToastRemovals();
-    try w.recorder.expectRemovals(&.{});
-    try std.testing.expectEqual(@as(?u64, 0x1001), w.front.toast_outstanding);
+    w.app.notifications.flush();
+    try w.recorder.expectRemoved(&.{ 0x2002, 0x2003, 0x2002 });
 }
 
 test "win32 removal runs from the posted message, not inside acknowledgeTab" {
@@ -25314,16 +23591,15 @@ test "win32 removal runs from the posted message, not inside acknowledgeTab" {
     w.app.acknowledgeTabWithForeground(&w.host, 1, hwnd);
     // Nothing reached Windows inside the acknowledgement; one message is
     // posted for it.
-    try std.testing.expectEqual(@as(usize, 0), w.recorder.removals.items.len);
-    try std.testing.expect(w.app.toast_removals_posted);
+    try w.recorder.expectRemoved(&.{});
 
     // The pane closes before the message is handled: its toast is not
     // removed twice, and nothing reads the freed pane, since only its id
-    // is queued. A second removal does not post a second message.
+    // is tracked. A second removal does not post a second message.
     w.app.windowDestroyed(&w.p);
     w.host.active_tab = 0;
     w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
-    try std.testing.expectEqual(@as(usize, 0), w.recorder.removals.items.len);
+    try w.recorder.expectRemoved(&.{});
 
     var msg: sys.MSG = undefined;
     try std.testing.expect(sys.PeekMessageW(&msg, message_hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, c.WM_WINHOSTTY_TOAST_REMOVALS, c.PM_REMOVE) != 0);
@@ -25331,53 +23607,172 @@ test "win32 removal runs from the posted message, not inside acknowledgeTab" {
     try std.testing.expectEqual(@as(BOOL, 0), sys.PeekMessageW(&extra, message_hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, c.WM_WINHOSTTY_TOAST_REMOVALS, c.PM_REMOVE));
     // The App's message window makes the removals when it handles it.
     _ = sys.DispatchMessageW(&msg);
-    var p_buf: [64]u8 = undefined;
-    var front_buf: [64]u8 = undefined;
-    try w.recorder.expectRemovals(&.{
-        try expectedToastRemoval(&p_buf, 0x2002),
-        try expectedToastRemoval(&front_buf, 0x1001),
+    try w.recorder.expectRemoved(&.{ 0x2002, 0x1001 });
+
+    // Handled, the message is posted again for the next removal.
+    try w.osc(&w.front, "", "again");
+    w.app.acknowledgeTabWithForeground(&w.host, 0, hwnd);
+    try std.testing.expect(sys.PeekMessageW(&msg, message_hwnd, c.WM_WINHOSTTY_TOAST_REMOVALS, c.WM_WINHOSTTY_TOAST_REMOVALS, c.PM_REMOVE) != 0);
+}
+
+test "win32 dropping a tab into another as a split keeps its panes' toasts" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var host: Host = undefined;
+    var surface_a: Surface = undefined;
+    var surface_d: Surface = undefined;
+    // Outlives the session, whose exit removal calls it.
+    var recorder: notifications.testing.Recorder = .{};
+    defer recorder.deinit();
+    var session: TestSession = .{};
+    try session.init(.{
+        .core_app = &core_app,
+        .app = &app,
+        .hosts = &.{.{ .storage = &host, .register = true }},
+        .surfaces = &.{
+            .{ .storage = &surface_a, .host = &host, .register = true },
+            .{ .storage = &surface_d, .host = &host, .register = true },
+        },
+        .shell_runtime_initialized = true,
     });
-    try std.testing.expect(!w.app.toast_removals_posted);
+    defer session.deinit();
+    const Step = ShellProjectionSteps;
+    var window = try Step.openWindow(&app, &host, &.{ &surface_a, &surface_d });
+    defer window.deinit();
+    surface_a.core_surface.id = 0xA;
+    surface_d.core_surface.id = 0xD;
+    app.notifications = .init(std.testing.allocator, recorder.sink(), app.notificationPanes());
+    for ([_]*Surface{ &surface_a, &surface_d }) |surface| {
+        try std.testing.expect(try app.performAction(.{ .surface = surface.core() }, .desktop_notification, .{ .title = "", .body = "x" }));
+    }
+
+    // D's tab dropped to the right of A becomes a split of A's tab, and a
+    // flush after it takes nothing. This checks the end state only: that D
+    // is in no tab at no moment (the combined tree goes in before the
+    // source tab comes out) is read from commitTabDropSplit, and would
+    // matter only to a flush a message pumped in between could run.
+    Step.focus(&app, &surface_a);
+    host.tab_drop_operation = .split_right;
+    host.tab_drop_target_surface = &surface_a;
+    try std.testing.expect(host.commitTabDropSplit(1));
+    try std.testing.expect(host.tabs.items[0].findHandle(&surface_d) != null);
+    app.notifications.flush();
+    try recorder.expectRemoved(&.{});
+    app.notifications.seen(0xD);
+    app.notifications.seen(0xA);
+    app.notifications.flush();
+    try recorder.expectRemoved(&.{ 0xA, 0xD });
 }
 
-test "win32 profileOpenTargetFromModifiers prefers split then window" {
+test "win32 profileShortcutIndexFromKey supports top row and numpad digits" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-    try std.testing.expectEqual(ProfileOpenTarget.tab, resolveProfileOpenTarget(.tab, false, false));
-    try std.testing.expectEqual(ProfileOpenTarget.window, resolveProfileOpenTarget(.tab, true, false));
-    try std.testing.expectEqual(ProfileOpenTarget.split, resolveProfileOpenTarget(.tab, false, true));
-    try std.testing.expectEqual(ProfileOpenTarget.split, resolveProfileOpenTarget(.window, true, true));
+    try std.testing.expectEqual(@as(?usize, 0), profileShortcutIndexFromKey('1'));
+    try std.testing.expectEqual(@as(?usize, 4), profileShortcutIndexFromKey('5'));
+    try std.testing.expectEqual(@as(?usize, 8), profileShortcutIndexFromKey('9'));
+    try std.testing.expectEqual(@as(?usize, 0), profileShortcutIndexFromKey(c.VK_NUMPAD1));
+    try std.testing.expectEqual(@as(?usize, 8), profileShortcutIndexFromKey(c.VK_NUMPAD9));
+    try std.testing.expectEqual(@as(?usize, null), profileShortcutIndexFromKey(c.VK_NUMPAD0));
+    try std.testing.expectEqual(@as(?usize, null), profileShortcutIndexFromKey('0'));
+    try std.testing.expectEqual(@as(?usize, null), profileShortcutIndexFromKey('A'));
 }
 
-test "win32 cycleProfileOpenTarget wraps launcher target order" {
+test "win32 quickSlotShortcutProfileIndex maps visible launcher slots" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-    try std.testing.expectEqual(ProfileOpenTarget.window, cycleProfileOpenTarget(.tab, false));
-    try std.testing.expectEqual(ProfileOpenTarget.split, cycleProfileOpenTarget(.window, false));
-    try std.testing.expectEqual(ProfileOpenTarget.tab, cycleProfileOpenTarget(.split, false));
-    try std.testing.expectEqual(ProfileOpenTarget.split, cycleProfileOpenTarget(.tab, true));
+    try std.testing.expectEqual(@as(?usize, 1), quickSlotShortcutProfileIndex(5, 0, '1', true));
+    try std.testing.expectEqual(@as(?usize, 2), quickSlotShortcutProfileIndex(5, 0, '2', true));
+    try std.testing.expectEqual(@as(?usize, 3), quickSlotShortcutProfileIndex(5, 0, '3', true));
+    try std.testing.expectEqual(@as(?usize, 0), quickSlotShortcutProfileIndex(5, 3, '1', true));
+    try std.testing.expectEqual(@as(?usize, 1), quickSlotShortcutProfileIndex(5, 3, '2', true));
+    try std.testing.expectEqual(@as(?usize, null), quickSlotShortcutProfileIndex(5, 0, '4', true));
+    try std.testing.expectEqual(@as(?usize, null), quickSlotShortcutProfileIndex(5, 0, '1', false));
 }
 
-test "win32 launchTargetButtonKeyAction maps focused target keys" {
+test "win32 quickSlotPinOrdinalFromKey maps visible pin slots" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.previous, launchTargetButtonKeyAction(c.VK_LEFT).?);
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.previous, launchTargetButtonKeyAction(c.VK_UP).?);
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.next, launchTargetButtonKeyAction(c.VK_RIGHT).?);
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.next, launchTargetButtonKeyAction(c.VK_SPACE).?);
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.first, launchTargetButtonKeyAction(c.VK_HOME).?);
-    try std.testing.expectEqual(LaunchTargetButtonKeyAction.last, launchTargetButtonKeyAction(c.VK_END).?);
+    try std.testing.expectEqual(@as(?usize, 0), quickSlotPinOrdinalFromKey('1', true, true));
+    try std.testing.expectEqual(@as(?usize, 2), quickSlotPinOrdinalFromKey('3', true, true));
+    try std.testing.expectEqual(@as(?usize, null), quickSlotPinOrdinalFromKey('4', true, true));
+    try std.testing.expectEqual(@as(?usize, null), quickSlotPinOrdinalFromKey('1', true, false));
+    try std.testing.expectEqual(@as(?usize, null), quickSlotPinOrdinalFromKey('1', false, true));
 }
 
-test "win32 parseProfileOpenTarget accepts terminal-style launch target names" {
+test "win32 clearQuickSlotPinsRequested detects clear shortcut" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
-    try std.testing.expectEqual(ProfileOpenTarget.tab, parseProfileOpenTarget("tab").?);
-    try std.testing.expectEqual(ProfileOpenTarget.window, parseProfileOpenTarget("window").?);
-    try std.testing.expectEqual(ProfileOpenTarget.window, parseProfileOpenTarget("win").?);
-    try std.testing.expectEqual(ProfileOpenTarget.split, parseProfileOpenTarget("split").?);
-    try std.testing.expectEqual(ProfileOpenTarget.split, parseProfileOpenTarget("pane").?);
-    try std.testing.expect(parseProfileOpenTarget("definitely_not_real") == null);
+    try std.testing.expect(clearQuickSlotPinsRequested(c.VK_0, true, true));
+    try std.testing.expect(clearQuickSlotPinsRequested(c.VK_NUMPAD0, true, true));
+    try std.testing.expect(!clearQuickSlotPinsRequested('1', true, true));
+    try std.testing.expect(!clearQuickSlotPinsRequested(c.VK_0, true, false));
+    try std.testing.expect(!clearQuickSlotPinsRequested(c.VK_0, false, true));
+}
+
+test "win32 tabButtonKeyAction maps focused-tab keys" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const none: win32_input.KeyMods = .{};
+    const ctrl: win32_input.KeyMods = .{ .ctrl = true };
+    try std.testing.expectEqual(TabButtonKeyAction.activate, tabButtonKeyAction(c.VK_RETURN, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.activate, tabButtonKeyAction(c.VK_SPACE, none).?);
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_RETURN, ctrl));
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_SPACE, ctrl));
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_F6, none));
+    try std.testing.expectEqual(TabButtonKeyAction.previous, tabButtonKeyAction(c.VK_LEFT, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.move_previous, tabButtonKeyAction(c.VK_LEFT, ctrl).?);
+    try std.testing.expectEqual(TabButtonKeyAction.next, tabButtonKeyAction(c.VK_RIGHT, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.move_next, tabButtonKeyAction(c.VK_RIGHT, ctrl).?);
+    try std.testing.expectEqual(TabButtonKeyAction.first, tabButtonKeyAction(c.VK_HOME, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.move_first, tabButtonKeyAction(c.VK_HOME, ctrl).?);
+    try std.testing.expectEqual(TabButtonKeyAction.last, tabButtonKeyAction(c.VK_END, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.move_last, tabButtonKeyAction(c.VK_END, ctrl).?);
+    try std.testing.expectEqual(TabButtonKeyAction.rename, tabButtonKeyAction(c.VK_F2, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.close, tabButtonKeyAction(c.VK_DELETE, none).?);
+}
+
+test "win32 tab button keys: the menu key and Shift+F10 open the context menu, Tab walks the strip" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const none: win32_input.KeyMods = .{};
+    const shift: win32_input.KeyMods = .{ .shift = true };
+    const ctrl: win32_input.KeyMods = .{ .ctrl = true };
+    const alt: win32_input.KeyMods = .{ .alt = true };
+    // Apps is the context menu now; the overview is only a palette action.
+    try std.testing.expectEqual(TabButtonKeyAction.context_menu, tabButtonKeyAction(c.VK_APPS, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.context_menu, tabButtonKeyAction(c.VK_APPS, shift).?);
+    try std.testing.expectEqual(TabButtonKeyAction.context_menu, tabButtonKeyAction(c.VK_F10, shift).?);
+    // Plain F10 and Ctrl+Shift+F10 are not the request.
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_F10, none));
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_F10, .{ .shift = true, .ctrl = true }));
+    try std.testing.expectEqual(TabButtonKeyAction.focus_next, tabButtonKeyAction(c.VK_TAB, none).?);
+    try std.testing.expectEqual(TabButtonKeyAction.focus_previous, tabButtonKeyAction(c.VK_TAB, shift).?);
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_TAB, ctrl));
+    // Alt keeps every tab key out: those chords are the window's.
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_TAB, alt));
+    try std.testing.expectEqual(@as(?TabButtonKeyAction, null), tabButtonKeyAction(c.VK_LEFT, alt));
+    // Left and Right still wrap through the tabs and Enter activates.
+    try std.testing.expectEqual(TabButtonKeyAction.previous, tabButtonKeyAction(c.VK_LEFT, shift).?);
+    try std.testing.expectEqual(TabButtonKeyAction.activate, tabButtonKeyAction(c.VK_RETURN, shift).?);
+
+    // DefWindowProc turns the release of the menu key and of F10 into a
+    // second WM_CONTEXTMENU once the key-down already opened the menu.
+    try std.testing.expect(tabContextMenuKey(c.VK_APPS, none));
+    try std.testing.expect(!tabContextMenuKey(c.VK_F10, none));
+    try std.testing.expect(tabContextMenuKey(c.VK_F10, shift));
+    try std.testing.expect(!tabContextMenuKey(c.VK_F10, .{ .shift = true, .ctrl = true }));
+    try std.testing.expect(!tabContextMenuKey(c.VK_RETURN, none));
+}
+
+test "win32 moveTabAmountToEdge computes direct host reorder delta" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(@as(isize, -2), moveTabAmountToEdge(4, 2, true));
+    try std.testing.expectEqual(@as(isize, 1), moveTabAmountToEdge(4, 2, false));
+    try std.testing.expectEqual(@as(isize, 0), moveTabAmountToEdge(4, 0, true));
+    try std.testing.expectEqual(@as(isize, 0), moveTabAmountToEdge(4, 3, false));
 }
 
 test "win32 windowNewTabInsertIndex respects current and end positions" {
@@ -25730,35 +24125,6 @@ test "win32 an in-app install relaunches noctty one way, through /RELAUNCH=1" {
     try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, args, "RELAUNCH"));
 }
 
-test "win32 scaleInitialClientSize converts logical initial size to physical pixels" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expectEqualDeep(
-        apprt.SurfaceSize{ .width = 1680, .height = 810 },
-        scaleInitialClientSize(
-            .{ .width = 1120, .height = 540 },
-            .{ .x = 1.5, .y = 1.5 },
-        ),
-    );
-    try std.testing.expectEqualDeep(
-        apprt.SurfaceSize{ .width = 701, .height = 300 },
-        scaleInitialClientSize(
-            .{ .width = 467, .height = 200 },
-            .{ .x = 1.5, .y = 1.5 },
-        ),
-    );
-    try std.testing.expectEqualDeep(
-        apprt.SurfaceSize{
-            .width = std.math.maxInt(u32),
-            .height = std.math.maxInt(u32),
-        },
-        scaleInitialClientSize(
-            .{ .width = std.math.maxInt(u32), .height = std.math.maxInt(u32) },
-            .{ .x = 2.0, .y = 2.0 },
-        ),
-    );
-}
-
 test "win32 surfaceActivationNeedsHostSync only trips on activation-visible deltas" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -25774,24 +24140,6 @@ test "win32 surfaceFocusedActivationNeedsHostSync requires actual surface focus"
 
     try std.testing.expect(!surfaceFocusedActivationNeedsHostSync(false, true, 2, 2, true, true));
     try std.testing.expect(surfaceFocusedActivationNeedsHostSync(false, true, 2, 2, true, false));
-}
-
-test "win32 optionalOwnedStringEquals handles present and null values" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(optionalOwnedStringEquals(null, null));
-    try std.testing.expect(!optionalOwnedStringEquals(null, "pwsh"));
-    try std.testing.expect(optionalOwnedStringEquals("pwsh", "pwsh"));
-    try std.testing.expect(!optionalOwnedStringEquals("pwsh", "cmd"));
-    try std.testing.expect(!optionalOwnedStringEquals("pwsh", null));
-}
-
-test "win32 ownedBytesEquals handles present and missing values" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try std.testing.expect(!ownedBytesEquals(null, "v1.2.3"));
-    try std.testing.expect(ownedBytesEquals("v1.2.3", "v1.2.3"));
-    try std.testing.expect(!ownedBytesEquals("v1.2.3", "v1.2.4"));
 }
 
 test "win32 scrollbarNeedsHeartbeatForState skips stable hidden dynamic bars" {
@@ -25863,10 +24211,30 @@ test "win32 overlay dismissal restores focus only from owned controls" {
     try std.testing.expect(!shouldRefocusAfterOverlayHide(null, edit, accept, cancel, list));
 }
 
-fn expectOverlayEditText(host: *Host, expected: []const u8) !void {
-    const text = try readWindowTextUtf8Alloc(std.testing.allocator, host.overlay_edit_hwnd.?);
+fn expectControlText(hwnd: HWND, expected: []const u8) !void {
+    const text = try child_window.readWindowTextUtf8Alloc(std.testing.allocator, hwnd);
     defer std.testing.allocator.free(text);
     try std.testing.expectEqualStrings(expected, text);
+}
+
+fn expectOverlayEditText(host: *Host, expected: []const u8) !void {
+    try expectControlText(host.overlay_edit_hwnd.?, expected);
+}
+
+/// Frees the text a test's overlay controls cached: `Host.deinit` frees it,
+/// and a test session never runs that.
+fn freeOverlayTestCaches(host: *Host) void {
+    for ([_]*?[:0]const u8{
+        &host.cached_overlay_edit,
+        &host.cached_overlay_label,
+        &host.cached_overlay_hint,
+        &host.cached_overlay_accept,
+        &host.cached_overlay_cancel,
+        &host.cached_overlay_preview,
+    }) |cached| {
+        if (cached.*) |value| host.app.core_app.alloc.free(value);
+        cached.* = null;
+    }
 }
 
 test "win32 title prompt refills its text when the active surface changes" {
@@ -25900,18 +24268,10 @@ test "win32 title prompt refills its text when the active surface changes" {
     // the tab strip and layout passes have nothing to do.
     const parent = try createTestHostWindow();
     defer _ = sys.DestroyWindow(parent);
-    host.overlay_edit_hwnd = try createTestChromeChild(parent, prompt_edit_class);
+    host.overlay_edit_hwnd = try createTestChromeChild(parent, child_window.prompt_edit_class);
     host.overlay_accept_hwnd = try createTestChromeChild(parent, prompt_button_class);
     host.overlay_cancel_hwnd = try createTestChromeChild(parent, prompt_button_class);
-    // `Host.deinit` frees these caches, and the session never runs it.
-    defer for ([_]*?[:0]const u8{
-        &host.cached_overlay_edit,
-        &host.cached_overlay_accept,
-        &host.cached_overlay_cancel,
-    }) |cached| {
-        if (cached.*) |value| app.core_app.alloc.free(value);
-        cached.* = null;
-    };
+    defer freeOverlayTestCaches(&host);
 
     try host.showOverlay(.tab_title, "one");
     try std.testing.expectEqual(@as(?*const Surface, &surface_a), host.overlay_text_surface);
@@ -25937,6 +24297,112 @@ test "win32 title prompt refills its text when the active surface changes" {
     host.active_tab = 0;
     try host.refreshChrome();
     try expectOverlayEditText(&host, "needle");
+    host.hideOverlay();
+}
+
+test "win32 the overlay controls show what overlay_view composes from the host" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var host: Host = undefined;
+    var surface_a: Surface = undefined;
+    var surface_b: Surface = undefined;
+    var session: TestSession = .{};
+    try session.init(.{
+        .core_app = &core_app,
+        .app = &app,
+        .hosts = &.{.{ .storage = &host }},
+        .surfaces = &.{
+            .{ .storage = &surface_a, .host = &host },
+            .{ .storage = &surface_b, .host = &host },
+        },
+        .tabs = &.{
+            .{ .host = &host, .surface = &surface_a, .id = 1 },
+            .{ .host = &host, .surface = &surface_b, .id = 2 },
+        },
+    });
+    defer session.deinit();
+
+    // The controls a sync writes, under a hidden parent; `host.hwnd` stays
+    // null, so the layout passes have nothing to do.
+    const parent = try createTestHostWindow();
+    defer _ = sys.DestroyWindow(parent);
+    host.overlay_label_hwnd = try createTestChromeChild(parent, child_window.prompt_label_class);
+    host.overlay_hint_hwnd = try createTestChromeChild(parent, child_window.prompt_label_class);
+    host.overlay_edit_hwnd = try createTestChromeChild(parent, child_window.prompt_edit_class);
+    host.overlay_accept_hwnd = try createTestChromeChild(parent, prompt_button_class);
+    host.overlay_cancel_hwnd = try createTestChromeChild(parent, prompt_button_class);
+    defer freeOverlayTestCaches(&host);
+
+    // The tab overview numbers the active tab, and its words follow the
+    // query.
+    try host.showOverlay(.tab_overview, null);
+    try expectControlText(host.overlay_label_hwnd.?, "Tab 1/2");
+    try expectControlText(host.overlay_hint_hwnd.?, "Jump directly to a tab number. Current tab: 1/2.");
+    try expectControlText(host.overlay_accept_hwnd.?, "Close");
+    try expectControlText(host.overlay_cancel_hwnd.?, "Close");
+    _ = try host.setOverlayEditText("2");
+    _ = try host.syncOverlayHint();
+    _ = try host.syncOverlayButtons();
+    try expectControlText(host.overlay_hint_hwnd.?, "Jump to tab 2 of 2.");
+    try expectControlText(host.overlay_accept_hwnd.?, "Go");
+    host.hideOverlay();
+
+    // The palette's hint names the newest recent action while the query is
+    // empty. The mode is set here, not opened, so no catalog is built.
+    host.overlay_mode = .command_palette;
+    app.palette_mru[0] = "new_tab";
+    defer app.palette_mru[0] = null;
+    _ = try host.setOverlayEditText("");
+    _ = try host.syncOverlayHint();
+    try expectControlText(
+        host.overlay_hint_hwnd.?,
+        "Recent: new_tab. Type to search actions, themes, tabs, panes, settings, and help.",
+    );
+
+    // The picker while discovery runs: no list yet, and one was asked for.
+    // The mode is set here, not opened: opening the picker or syncing its
+    // label asks for a real discovery.
+    host.overlay_mode = .profile;
+    host.profiles_requested = true;
+    _ = try host.setOverlayEditText("");
+    _ = try host.syncOverlayHint();
+    _ = try host.syncOverlayButtons();
+    try expectControlText(host.overlay_hint_hwnd.?, "Detecting Windows profiles...");
+    try expectControlText(host.overlay_accept_hwnd.?, "Check");
+    try expectControlText(host.overlay_cancel_hwnd.?, "Close");
+
+    // An empty list is no list, not a discovery still running. With a list
+    // loaded, syncing the label starts no discovery.
+    var none = [_]windows_shell.Profile{};
+    host.profiles = &none;
+    defer host.profiles = null;
+    _ = try host.syncOverlayLabel();
+    _ = try host.syncOverlayHint();
+    try expectControlText(host.overlay_label_hwnd.?, "Profile:");
+    try expectControlText(host.overlay_hint_hwnd.?, "No supported Windows profiles detected.");
+
+    // Once the list lands, the label, hint and Accept name the profile the
+    // query picks, not the selected one.
+    var list = [_]windows_shell.Profile{
+        .{ .kind = .pwsh, .key = "pwsh.exe", .label = "PowerShell", .command = .{ .direct = &.{"pwsh.exe"} } },
+        .{ .kind = .cmd, .key = "cmd.exe", .label = "Command Prompt", .command = .{ .direct = &.{"cmd.exe"} } },
+    };
+    host.profiles = &list;
+    _ = try host.setOverlayEditText(" cmd ");
+    _ = try host.syncOverlayLabel();
+    _ = try host.syncOverlayHint();
+    _ = try host.syncOverlayButtons();
+    try expectControlText(host.overlay_label_hwnd.?, "Profile 2/2 CMD C>");
+    try expectControlText(
+        host.overlay_hint_hwnd.?,
+        "CMD C> Command Prompt | key cmd.exe | run cmd.exe. Enter opens a new tab. Ctrl+Enter splits here. " ++
+            "Shift+Enter opens a new window. Ctrl+1-9 launches directly. Alt+1-3 launches visible slots. " ++
+            "Alt+Shift+1-3 pins the current profile. Alt+Shift+0 clears pinning. " ++
+            "Quick picks: 1 PWSH >> PowerShell | 2 CMD C> Command....",
+    );
+    try expectControlText(host.overlay_accept_hwnd.?, "Open Tab");
     host.hideOverlay();
 }
 
@@ -26073,8 +24539,8 @@ test "win32 confirm prompt lines fall back to paint independently" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     const hwnd: HWND = @ptrFromInt(0x1000);
-    const shown: ChildPlacement = .{ .visible = true, .visible_known = true };
-    const hidden: ChildPlacement = .{};
+    const shown: child_window.ChildPlacement = .{ .visible = true, .visible_known = true };
+    const hidden: child_window.ChildPlacement = .{};
 
     try std.testing.expect(confirmPromptLineOwnedByChild(.confirm, hwnd, shown));
 
@@ -26211,68 +24677,6 @@ test "win32 profileKind label and hint colors follow profile accent" {
     try std.testing.expectEqual(rgb(140, 96, 8), profileKindHintColor(.git_bash, false));
 }
 
-test "win32 chrome child placement invalidates a moved button" {
-    if (builtin.os.tag != .windows) return error.SkipZigTest;
-
-    // Off-screen so the fixture never flashes over the desktop. An update
-    // region is per-window bookkeeping, so it survives being off-screen.
-    const hinstance = sys.GetModuleHandleW(null);
-    const parent = sys.CreateWindowExW(
-        0,
-        prompt_label_class,
-        std.unicode.utf8ToUtf16LeStringLiteral(""),
-        c.WS_POPUP | c.WS_VISIBLE | c.WS_CLIPCHILDREN,
-        -4000,
-        -4000,
-        1280,
-        64,
-        null,
-        null,
-        hinstance,
-        null,
-    ) orelse return lastError();
-    defer _ = sys.DestroyWindow(parent);
-
-    const button = sys.CreateWindowExW(
-        0,
-        prompt_button_class,
-        std.unicode.utf8ToUtf16LeStringLiteral("2: tab"),
-        c.WS_CHILD | c.WS_VISIBLE | c.BS_OWNERDRAW,
-        0,
-        0,
-        220,
-        32,
-        parent,
-        null,
-        hinstance,
-        null,
-    ) orelse return lastError();
-    defer _ = sys.DestroyWindow(button);
-
-    var placement: ChildPlacement = .{};
-    _ = applyChromeChildRect(button, &placement, childRect(0, 0, 220, 32));
-
-    // Baseline: the plain helper moves with `bRepaint = FALSE` and leaves
-    // nothing to repaint. That is what the terminal surfaces want, and it is
-    // why a tab button shifted right by a mid-strip insert stayed unpainted
-    // at its new slot while its old image survived under its neighbour.
-    var update: RECT = undefined;
-    _ = sys.ValidateRect(button, null);
-    try std.testing.expect(applyChildRect(button, &placement, childRect(220, 0, 220, 32)));
-    try std.testing.expectEqual(@as(BOOL, 0), sys.GetUpdateRect(button, &update, 0));
-
-    // The chrome variant leaves the button invalidated wherever it lands.
-    _ = sys.ValidateRect(button, null);
-    try std.testing.expect(applyChromeChildRect(button, &placement, childRect(440, 0, 210, 32)));
-    try std.testing.expect(sys.GetUpdateRect(button, &update, 0) != 0);
-
-    // An unchanged rect stays a no-op, so a settled strip does not repaint on
-    // every chrome sync.
-    _ = sys.ValidateRect(button, null);
-    try std.testing.expect(!applyChromeChildRect(button, &placement, childRect(440, 0, 210, 32)));
-    try std.testing.expectEqual(@as(BOOL, 0), sys.GetUpdateRect(button, &update, 0));
-}
-
 test "win32 scrollbarProxyPointFromSurfaceCursor tracks the right-edge hover band" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
@@ -26325,16 +24729,13 @@ test "win32 confirm overlay keeps a bounded visible action at narrow widths" {
         try std.testing.expect(actions.cancel_width > 0);
         try std.testing.expect(actions.cancel_x + actions.cancel_width <= width);
         try std.testing.expectEqual(
-            OverlayFocusSlot.cancel,
-            nextVisibleOverlayFocusSlot(
-                .confirm,
-                .edit,
-                false,
-                false,
-                false,
-                actions.accept_visible,
-                actions.cancel_visible,
-            ),
+            overlay_view.Slot.cancel,
+            overlay_view.nextFocus(.confirm, .edit, false, .{
+                .edit = false,
+                .preview = false,
+                .accept = actions.accept_visible,
+                .cancel = actions.cancel_visible,
+            }),
         );
         if (width < 140) {
             const expected_inset = @min(@as(i32, 10), @divTrunc(width - 1, 2));
@@ -26378,7 +24779,7 @@ test "win32 safe mode theme selection and acceptance preserve recovery" {
     try session.init(.{ .core_app = &core, .app = &app, .hosts = &.{.{ .storage = &host }} });
     defer session.deinit();
     app.safe_mode = true;
-    try app.config.useWindowsRecoveryCommand();
+    try configpkg.pane_launch.useRecovery(&app.config);
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
     try tmp.dir.writeFile(.{ .sub_path = "config", .data = "command = pwsh.exe\n" });
@@ -26468,10 +24869,19 @@ test "win32 palette accent previews live, reverts on the current one, and saves"
 test "win32 palette pick wording names what was picked" {
     const theme = Host.PalettePick.words(.{ .theme = "x" });
     const accent = Host.PalettePick.words(.{ .accent = .teal });
-    try std.testing.expectEqualStrings("Theme applied", theme.notice(false, false));
-    try std.testing.expectEqualStrings("Accent color applied", accent.notice(false, false));
-    try std.testing.expectEqualStrings(accent.masked, accent.notice(true, true));
-    try std.testing.expectEqualStrings(accent.restart, accent.notice(false, true));
+    try std.testing.expectEqualStrings("Theme applied", theme.notice(.{}, false));
+    try std.testing.expectEqualStrings("Accent color applied", accent.notice(.{}, false));
+    try std.testing.expectEqualStrings(accent.masked, accent.notice(.{ .masked = true }, true));
+    try std.testing.expectEqualStrings(accent.restart, accent.notice(.{}, true));
+    // The outcomes a reload can add after the save name the pick too.
+    try std.testing.expectEqualStrings("Accent color saved; a config file could not be read whole", accent.notice(.{ .unread = true }, false));
+    try std.testing.expectEqualStrings(accent.not_applied, accent.notice(.{ .not_applied = true }, false));
+    try std.testing.expectEqualStrings(accent.partly, accent.notice(.{ .partly = true }, false));
+    try std.testing.expectEqualStrings(
+        "Theme saved; the saved settings may be only partly applied, and a later config layer masks the theme",
+        theme.notice(.{ .partly = true, .partly_masked = true }, false),
+    );
+    try std.testing.expect(std.mem.endsWith(u8, accent.partly_masked_banner, "masks the accent color, so a reload does not apply it."));
     try std.testing.expect(std.mem.indexOf(u8, Host.PalettePick.failureMessage(.{ .accent = .teal }, error.DiskChanged), "Reload") != null);
 }
 
@@ -26742,7 +25152,7 @@ pub fn fontIsFaceForTest(font: *anyopaque, face: [*:0]const u16) !bool {
 /// titlebar icon fonts must come from; null when it has neither.
 pub fn installedTitlebarIconFaceForTest() !?[*:0]const u16 {
     for (titlebar_icon_faces) |face| {
-        const font = createIconFontForFace(face, 12) orelse return error.FontCreateFailed;
+        const font = gdi.createIconFontForFace(face, 12) orelse return error.FontCreateFailed;
         defer _ = sys.DeleteObject(font);
         if (try fontIsFaceForTest(font, face)) return face;
     }
@@ -26753,7 +25163,7 @@ test "win32 icon font choice passes over a substituted face by its glyphs" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     // The trap: a face that is not installed still gets a font.
-    const substitute = createIconFontForFace(icon_font_test_missing_face, 12) orelse return error.FontCreateFailed;
+    const substitute = gdi.createIconFontForFace(icon_font_test_missing_face, 12) orelse return error.FontCreateFailed;
     defer _ = sys.DeleteObject(substitute);
     try std.testing.expectEqual(GlyphCoverage.missing, fontGlyphCoverage(substitute, &titlebar_icon_glyphs));
 
@@ -26766,34 +25176,34 @@ test "win32 icon font choice passes over a substituted face by its glyphs" {
     // A missing first face falls through to the next one. The embedded
     // Codicons font stands in for Segoe MDL2 Assets, which a machine need
     // not have.
-    search_icon_font_registration.call();
-    const faces = [_][*:0]const u16{ icon_font_test_missing_face, search_icon_font_face };
-    const next = createIconFontWithGlyphs(&faces, &search_codicon_glyphs, search_icon_font_px);
+    search_controls.search_icon_font_registration.call();
+    const faces = [_][*:0]const u16{ icon_font_test_missing_face, search_controls.search_icon_font_face };
+    const next = createIconFontWithGlyphs(&faces, &search_controls.search_codicon_glyphs, search_controls.search_icon_font_px);
     const font = next.font orelse return error.TestExpectedFont;
     defer _ = sys.DeleteObject(font);
     try std.testing.expect(!next.geometric);
-    try std.testing.expect(fontHasSearchCodicons(font));
+    try std.testing.expect(search_controls.fontHasSearchCodicons(font));
 
     // The face check the Host tests rely on tells the two fonts apart.
     try std.testing.expect(!try fontIsFaceForTest(substitute, icon_font_test_missing_face));
-    try std.testing.expect(try fontIsFaceForTest(font, search_icon_font_face));
+    try std.testing.expect(try fontIsFaceForTest(font, search_controls.search_icon_font_face));
 }
 
 test "win32 icon font choice does not take a failed glyph check for a missing glyph" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     // A font handle GDI rejects fails the check itself.
-    const stale = createIconFontForFace(search_icon_font_face, search_icon_font_px) orelse return error.FontCreateFailed;
+    const stale = gdi.createIconFontForFace(search_controls.search_icon_font_face, search_controls.search_icon_font_px) orelse return error.FontCreateFailed;
     _ = sys.DeleteObject(stale);
-    try std.testing.expectEqual(GlyphCoverage.unknown, fontGlyphCoverage(stale, &search_codicon_glyphs));
+    try std.testing.expectEqual(GlyphCoverage.unknown, fontGlyphCoverage(stale, &search_controls.search_codicon_glyphs));
 
     // A check that fails for every face, even a missing one, leaves no font
     // and no geometric verdict, so the caller retries.
-    search_icon_font_registration.call();
+    search_controls.search_icon_font_registration.call();
     test_glyph_check_fails = true;
     defer test_glyph_check_fails = false;
-    const faces = [_][*:0]const u16{ icon_font_test_missing_face, search_icon_font_face };
-    const failed = createIconFontWithGlyphs(&faces, &search_codicon_glyphs, search_icon_font_px);
+    const faces = [_][*:0]const u16{ icon_font_test_missing_face, search_controls.search_icon_font_face };
+    const failed = createIconFontWithGlyphs(&faces, &search_controls.search_codicon_glyphs, search_controls.search_icon_font_px);
     try std.testing.expectEqual(@as(?*anyopaque, null), failed.font);
     try std.testing.expect(!failed.geometric);
 }

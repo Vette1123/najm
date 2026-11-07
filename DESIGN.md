@@ -88,8 +88,10 @@ Focus is never represented by hover styling.
 - One adaptive tab row with readable minimum widths and searchable overflow.
 - Preserve the active and recently used tabs longest during compression.
 - Active tab treatment is visible in active and inactive windows. The active
-  tab takes its terminal's background and runs on into the terminal, under a
-  2 px accent cap held to 3:1 on that background. The cap is the essential
+  tab takes its terminal's background and runs on into the terminal, with
+  rounded upper corners and sides that flare out into the row below, under a
+  2 px accent cap held to 3:1 on that background, its ends following the
+  corners. The cap is the essential
   cue, a shape and not only a colour; the background is often under 3:1
   against the tab row, so it is extra, and the label keeps 4.5:1 on any
   terminal background. `* ` stays in the window text for screen readers, and

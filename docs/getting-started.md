@@ -31,7 +31,7 @@ Then skip to [First launch](#first-launch).
 
 ## Install by hand
 
-The current stable release is `1.3.135`. Every release ships these files for
+The current stable release is `1.3.136`. Every release ships these files for
 `<arch>` = `x64` and `arm64`:
 
 | File                                                    | What it is                        |
@@ -113,11 +113,14 @@ name Windows registers as `Legacy (Typographic)`, for example
 either name.
 
 A character your fonts lack is drawn from the font Windows picks for its
-script. For Arabic that is Segoe UI, a proportional UI font, so the letters sit
-unevenly in the cell grid. `najm +show-face --string="مرحبا"` names the face
+script. For Arabic that is often Segoe UI, a proportional UI font, so the
+letters sit unevenly in the cell grid; which font Windows picks depends on the
+machine and its locale. `najm +show-face --string="مرحبا"` names the face
 each character comes from. To draw a script from a monospace font that has it,
-map its Unicode blocks to that family; the Cascadia Code release on GitHub
-includes Arabic, but the older copy that ships with Windows does not:
+map its Unicode blocks to that family; the Cascadia Code release on
+[GitHub](https://github.com/microsoft/cascadia-code/releases) includes Arabic,
+but the older copy that ships with Windows does not. Install the NF variant
+(`Cascadia Code NF`), which the map below names:
 
 ```ini
 font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+FE70-U+FEFF=Cascadia Code NF
@@ -193,7 +196,8 @@ keybind = ctrl+shift+r=reload_config
 ## Shell
 
 noctty detects PowerShell, cmd, Git Bash, and WSL distributions and lists them
-in the profile picker. Without a `command`, a new tab runs `pwsh.exe` (PowerShell
+in the command palette (`Ctrl+Shift+P`, then `~` and a name opens one in a new
+tab) and in the [▾] menu next to the new-tab button. Without a `command`, a new tab runs `pwsh.exe` (PowerShell
 7) when it is on `PATH`, otherwise Windows PowerShell, otherwise Command Prompt.
 `najm --safe-mode` always starts `cmd.exe /D`, which loads no PowerShell
 profile and skips cmd's `AutoRun` command. To pin a shell as the default:
