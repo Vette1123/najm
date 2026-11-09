@@ -614,7 +614,10 @@ pub const PaletteRanked = win32_palette.catalog.Ranked;
 pub const PaletteStableId = @TypeOf((@as(PaletteItem, undefined)).id);
 pub const palette_catalog_label_bytes: usize = 128;
 pub const host_tab_max_button_width: i32 = default_metrics.tab_max_width;
-pub const host_tab_close_zone_width: i32 = default_metrics.tab_close_zone; // per-tab close button hit zone width
+/// A tab's close zone: the X's own zone plus the air between it and the
+/// button's right edge (`win32_tab_visual.close_edge`), so the pointer, UIA
+/// and the label's reserve all reach the edge while the X stays off it.
+pub const host_tab_close_zone_width: i32 = @as(i32, default_metrics.tab_close_zone) + win32_tab_visual.close_edge;
 
 pub const WNDPROC = win32_types.WNDPROC;
 

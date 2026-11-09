@@ -194,13 +194,20 @@ pub fn closeHitRect(tab_rect: Rect, alpha: f32, close_zone_width_px: i32) Rect {
     };
 }
 
+/// The air, in DIPs, between a tab's close X and the button's right edge:
+/// past the active tab's flare (4 DIP), where its body ends, and 4 DIP
+/// more, so the X never touches the tab's side.
+pub const close_edge: i32 = 8;
+
 /// The chip behind a tab's close X: a `chip_px` square centered in the close
-/// zone, below `top_inset` (the rows a flush tab keeps out of the close zone).
-/// A tab too short for the chip gets as much of it as fits.
-pub fn closeChipRect(button: Rect, zone_px: i32, chip_px: i32, top_inset: i32) Rect {
+/// zone less its `edge_px` of air on the right, below `top_inset` (the rows a
+/// flush tab keeps out of the close zone). A tab too short for the chip gets
+/// as much of it as fits.
+pub fn closeChipRect(button: Rect, zone_px: i32, chip_px: i32, top_inset: i32, edge_px: i32) Rect {
     const top = button.top + top_inset;
-    const side = @max(0, @min(chip_px, @min(zone_px, button.bottom - top)));
-    const left = button.right - zone_px + @divTrunc(zone_px - side, 2);
+    const room = @max(0, zone_px - edge_px);
+    const side = @max(0, @min(chip_px, @min(room, button.bottom - top)));
+    const left = button.right - zone_px + @divTrunc(room - side, 2);
     const y = top + @divTrunc(button.bottom - top - side, 2);
     return .{ .left = left, .top = y, .right = left + side, .bottom = y + side };
 }
@@ -264,6 +271,20 @@ pub const Silhouette = struct {
         }
         const reach = cornerInset(self.flare, self.bottom - 1 - y);
         return .{ .left = left - reach, .right = right + reach };
+    }
+
+    /// The same shape `px` inside this one on its top and both sides,
+    /// corners and flares included; the bottom stays open, so filling it
+    /// over this one leaves a `px` outline that runs down into the join.
+    pub fn inset(self: Silhouette, px: i32) Silhouette {
+        return .{
+            .top = self.top + px,
+            .bottom = self.bottom,
+            .body_left = self.body_left + px,
+            .body_right = self.body_right - px,
+            .radius = @max(0, self.radius - px),
+            .flare = self.flare,
+        };
     }
 };
 
@@ -417,20 +438,46 @@ test "closeHitRect: alpha=0.5 gives half-width" {
 test "closeChipRect centers the chip in the close zone at every DPI" {
     for ([_]i32{ 1, 2, 3 }) |scale| {
         const tab: Rect = .{ .left = 0, .top = 0, .right = 200 * scale, .bottom = 32 * scale };
-        const chip = closeChipRect(tab, 22 * scale, 18 * scale, 0);
+        const chip = closeChipRect(tab, 30 * scale, 18 * scale, 0, 8 * scale);
         try std.testing.expectEqual(18 * scale, chip.right - chip.left);
         try std.testing.expectEqual(18 * scale, chip.bottom - chip.top);
-        try std.testing.expectEqual(tab.right - 2 * scale, chip.right);
+        try std.testing.expectEqual(tab.right - 10 * scale, chip.right);
         try std.testing.expectEqual(chip.top, tab.bottom - chip.bottom);
     }
 }
 
+test "closeChipRect keeps the X off the active tab's side at every DPI" {
+    // Regression: the chip was centered in a zone flush with the button's
+    // edge, so the X ran into the silhouette's side 4 DIP inside it.
+    for ([_]i32{ 1, 2, 3 }) |scale| {
+        const tab: Rect = .{ .left = 0, .top = 0, .right = 200 * scale, .bottom = 32 * scale };
+        const shape = silhouette(tab, 0, 6 * scale, 4 * scale).?;
+        const chip = closeChipRect(tab, 30 * scale, 18 * scale, 0, close_edge * scale);
+        try std.testing.expect(shape.body_right - chip.right >= 4 * scale);
+    }
+}
+
+test "Silhouette.inset leaves a one pixel outline on the top, sides and flares, open at the bottom" {
+    const tab: Rect = .{ .left = 0, .top = 0, .right = 200, .bottom = 32 };
+    const outer = silhouette(tab, 0, 6, 4).?;
+    const inner = outer.inset(1);
+    try std.testing.expect(inner.row(0) == null);
+    var y: i32 = 1;
+    while (y < outer.bottom) : (y += 1) {
+        const o = outer.row(y).?;
+        const i = inner.row(y).?;
+        try std.testing.expect(i.left - o.left >= 1 - 1e-4);
+        try std.testing.expect(o.right - i.right >= 1 - 1e-4);
+    }
+    try std.testing.expectEqual(outer.bottom, inner.bottom);
+}
+
 test "closeChipRect stays below a flush tab's top inset and inside a short tab" {
     const tab: Rect = .{ .left = 0, .top = 0, .right = 200, .bottom = 34 };
-    const flush = closeChipRect(tab, 22, 18, 3);
+    const flush = closeChipRect(tab, 30, 18, 3, 8);
     try std.testing.expect(flush.top >= 3);
     const short: Rect = .{ .left = 0, .top = 0, .right = 200, .bottom = 12 };
-    const squeezed = closeChipRect(short, 22, 18, 0);
+    const squeezed = closeChipRect(short, 30, 18, 0, 8);
     try std.testing.expectEqual(@as(i32, 12), squeezed.bottom - squeezed.top);
     try std.testing.expectEqual(squeezed.right - squeezed.left, squeezed.bottom - squeezed.top);
 }
