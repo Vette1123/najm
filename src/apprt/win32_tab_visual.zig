@@ -276,7 +276,7 @@ pub const Silhouette = struct {
     /// The same shape `px` inside this one on its top and both sides,
     /// corners and flares included; the bottom stays open, so filling it
     /// over this one leaves a `px` outline that runs down into the join.
-    pub fn inset(self: Silhouette, px: i32) Silhouette {
+    pub fn insetBy(self: Silhouette, px: i32) Silhouette {
         return .{
             .top = self.top + px,
             .bottom = self.bottom,
@@ -457,10 +457,10 @@ test "closeChipRect keeps the X off the active tab's side at every DPI" {
     }
 }
 
-test "Silhouette.inset leaves a one pixel outline on the top, sides and flares, open at the bottom" {
+test "Silhouette.insetBy leaves a one pixel outline on the top, sides and flares, open at the bottom" {
     const tab: Rect = .{ .left = 0, .top = 0, .right = 200, .bottom = 32 };
     const outer = silhouette(tab, 0, 6, 4).?;
-    const inner = outer.inset(1);
+    const inner = outer.insetBy(1);
     try std.testing.expect(inner.row(0) == null);
     var y: i32 = 1;
     while (y < outer.bottom) : (y += 1) {

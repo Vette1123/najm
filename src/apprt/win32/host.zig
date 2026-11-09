@@ -8902,7 +8902,7 @@ pub const Host = struct {
                     const status: win32_program_status.Indicator = if (tab_index) |i| self.tabs.items[i].status_indicator else .none;
                     const edge = blendColorRGB(parent_bg, activeTabOutline(status, theme, bg), tab_arrival);
                     fillTabSilhouette(draw.hDC, shape.?, edge, parent_bg);
-                    fillTabSilhouette(draw.hDC, shape.?.inset(1), bg, edge);
+                    fillTabSilhouette(draw.hDC, shape.?.insetBy(1), bg, edge);
                 } else fillTabSilhouette(draw.hDC, shape.?, bg, parent_bg);
             } else {
                 if (tab_lit or is_hc) gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, corner, flush_top);

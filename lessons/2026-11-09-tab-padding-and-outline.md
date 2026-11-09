@@ -8,7 +8,7 @@
   minus that edge.
 - The icon starts 14 DIP in (`tab_content_left`, was 10).
 - The active tab has a 1 px outline in the dividers' colour. It follows the rounded corners
-  and the flares and stays open at the join (`Silhouette.inset`).
+  and the flares and stays open at the join (`Silhouette.insetBy`).
 - The outline and the arriving tab's label fade in with the cap slide. The outline takes
   the status badge's colour while the tab's program is done, failed or blocked
   (`activeTabOutline`). A looping colour pulse was left out on purpose: the working ring
@@ -22,6 +22,10 @@
   (close chip, label) was still laid out from the button's outer rect. So the X landed on
   the body's edge. The pixel test pinned the shape but never checked where the X sat
   relative to it.
+- I named the new method `Silhouette.inset`, but `row()` already had a local `const inset`.
+  Zig rejects a local that shadows a container declaration, so the first CI run failed to
+  compile. With no local Zig, a grep for each new name against locals in the same container
+  would have caught it before pushing.
 
 ## What worked
 
