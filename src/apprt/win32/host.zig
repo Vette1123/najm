@@ -485,6 +485,29 @@ fn tabOutlineColor(theme: *const ThemeColors) u32 {
     return blendColorRGB(theme.chrome_bg, theme.button_chrome_fg, 0.22);
 }
 
+/// The active tab's outline: the plain line, tinted toward its program's
+/// status badge colour while a finished, failed or blocked program wants a
+/// look. A working program already moves its ring, so its tab keeps the
+/// plain line and nothing on the strip pulses.
+fn activeTabOutline(status: win32_program_status.Indicator, theme: *const ThemeColors, background: u32) u32 {
+    const plain = tabOutlineColor(theme);
+    return switch (status) {
+        .none, .working => plain,
+        .done, .failed, .blocked => blendColorRGB(plain, tabStatusBadgeColor(status, theme, background), 0.7),
+    };
+}
+
+test "the active tab's outline takes its program's status colour, but not while it works" {
+    const theme = win32.darkTheme();
+    const background = rgb(0x17, 0x17, 0x17);
+    const plain = tabOutlineColor(&theme);
+    try std.testing.expectEqual(plain, activeTabOutline(.none, &theme, background));
+    try std.testing.expectEqual(plain, activeTabOutline(.{ .working = null }, &theme, background));
+    const failed = activeTabOutline(.failed, &theme, background);
+    try std.testing.expect(failed != plain);
+    try std.testing.expect(failed != activeTabOutline(.done, &theme, background));
+}
+
 /// Paint `shape` in `fill` over `under`: the straight body in one rect, and
 /// the curved rows one at a time, blending the pixel each curved edge cuts.
 fn fillTabSilhouette(hdc: HDC, shape: win32_tab_visual.Silhouette, fill: u32, under: u32) void {
@@ -8876,7 +8899,8 @@ pub const Host = struct {
                 // The active tab is outlined, so its corners and flares read
                 // as drawn against the band; a leaving tab fades unoutlined.
                 if (tab_background != null) {
-                    const edge = blendColorRGB(parent_bg, tabOutlineColor(theme), tab_arrival);
+                    const status: win32_program_status.Indicator = if (tab_index) |i| self.tabs.items[i].status_indicator else .none;
+                    const edge = blendColorRGB(parent_bg, activeTabOutline(status, theme, bg), tab_arrival);
                     fillTabSilhouette(draw.hDC, shape.?, edge, parent_bg);
                     fillTabSilhouette(draw.hDC, shape.?.inset(1), bg, edge);
                 } else fillTabSilhouette(draw.hDC, shape.?, bg, parent_bg);

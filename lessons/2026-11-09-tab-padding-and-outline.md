@@ -9,6 +9,10 @@
 - The icon starts 14 DIP in (`tab_content_left`, was 10).
 - The active tab has a 1 px outline in the dividers' colour. It follows the rounded corners
   and the flares and stays open at the join (`Silhouette.inset`).
+- The outline and the arriving tab's label fade in with the cap slide. The outline takes
+  the status badge's colour while the tab's program is done, failed or blocked
+  (`activeTabOutline`). A looping colour pulse was left out on purpose: the working ring
+  already moves, and a strip seen all day shouldn't pulse.
 - Checked Noctty for tab changes to copy: upstream has 2 commits since 31796f5d0 (release
   docs, dropping `ghostty-vt.dll`). Neither touches tabs, so there was nothing to port.
 

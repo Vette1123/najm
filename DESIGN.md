@@ -90,7 +90,8 @@ Focus is never represented by hover styling.
 - Active tab treatment is visible in active and inactive windows. The active
   tab takes its terminal's background and runs on into the terminal, with
   rounded upper corners and sides that flare out into the row below, outlined
-  by a 1 px line in the dividers' colour, under a
+  by a 1 px line in the dividers' colour (tinted toward the status badge's
+  colour while its program is done, failed or blocked), under a
   2 px accent cap held to 3:1 on that background, its ends following the
   corners. Content keeps clear of the sides: the icon starts 14 DIP in and
   the close X stays 8 DIP off the right edge. The cap is the essential
