@@ -30,7 +30,7 @@ const budget = .{
     // `readableOn` contrast floor.
     .facade_pub_decls = 477,
     // Root declarations of win32.zig whose value is a field access (`a.b`).
-    .facade_aliases = 188,
+    .facade_aliases = 187,
     // Fields of win32.App named `test_*`.
     .app_test_hooks = 10,
 };
