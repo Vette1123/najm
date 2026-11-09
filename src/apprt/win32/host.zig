@@ -306,7 +306,7 @@ const tab_icon_min_content: i32 = 64;
 
 /// Space from a tab's left edge to its content, and from its number to its
 /// title, in DIPs.
-const tab_content_left: i32 = 10;
+const tab_content_left: i32 = 14;
 
 const tab_index_gap: i32 = 7;
 
@@ -477,6 +477,12 @@ fn nextFocusStop(
         if (available(ctx, candidate)) return candidate;
     }
     return null;
+}
+
+/// The active tab's outline, the same quiet line the dividers between
+/// resting tabs draw.
+fn tabOutlineColor(theme: *const ThemeColors) u32 {
+    return blendColorRGB(theme.chrome_bg, theme.button_chrome_fg, 0.22);
 }
 
 /// Paint `shape` in `fill` over `under`: the straight body in one rect, and
@@ -8807,12 +8813,15 @@ pub const Host = struct {
         var tab_lit = false;
         var tab_leaving = false;
         var tab_fade: f32 = 0;
+        var tab_arrival: f32 = 1;
         const tab_now = sys.GetTickCount64();
         if (tab_button and !disabled and !is_hc) {
-            // A slide also crossfades the two tabs' surfaces.
+            // A slide also crossfades the two tabs' surfaces, labels and the
+            // arriving tab's outline, so the whole tab changes colour as one.
             const slide_progress = self.tab_cap_slide.progressAt(tab_now);
             if (active) {
-                colors.fg = tab_theme.text_primary;
+                tab_arrival = slide_progress;
+                colors.fg = blendColorRGB(theme.button_chrome_fg, tab_theme.text_primary, slide_progress);
                 colors.bg = blendColorRGB(theme.chrome_bg, tab_background orelse if (theme.is_dark)
                     adjustColor(theme.chrome_bg, 18, 18, 22)
                 else
@@ -8864,7 +8873,13 @@ pub const Host = struct {
             // on into its terminal; a hovered resting tab keeps its chip.
             const silhouetted = !is_hc and shape != null and (tab_background != null or (tab_lit and tab_leaving));
             if (silhouetted) {
-                fillTabSilhouette(draw.hDC, shape.?, bg, parent_bg);
+                // The active tab is outlined, so its corners and flares read
+                // as drawn against the band; a leaving tab fades unoutlined.
+                if (tab_background != null) {
+                    const edge = blendColorRGB(parent_bg, tabOutlineColor(theme), tab_arrival);
+                    fillTabSilhouette(draw.hDC, shape.?, edge, parent_bg);
+                    fillTabSilhouette(draw.hDC, shape.?.inset(1), bg, edge);
+                } else fillTabSilhouette(draw.hDC, shape.?, bg, parent_bg);
             } else {
                 if (tab_lit or is_hc) gdi.drawTabButton(draw.hDC, draw.rcItem, bg, border, corner, flush_top);
                 // Square lower corners and the last row, which the rounded
@@ -8928,7 +8943,7 @@ pub const Host = struct {
                         .top = top,
                         .right = draw.rcItem.right,
                         .bottom = top + height,
-                    }, blendColorRGB(theme.chrome_bg, theme.button_chrome_fg, 0.22));
+                    }, tabOutlineColor(theme));
                 }
             };
         } else {
@@ -9066,6 +9081,7 @@ pub const Host = struct {
                     close_zone_width,
                     self.scaled(tab_close_chip),
                     content_top_inset,
+                    self.scaled(win32_tab_visual.close_edge),
                 );
                 const chip = RECT{ .left = chip_box.left, .top = chip_box.top, .right = chip_box.right, .bottom = chip_box.bottom };
                 const hot = self.tab_close_chip_hwnd == draw.hwndItem;
@@ -9921,9 +9937,9 @@ pub const Host = struct {
             }
         }
 
-        // The active tab's own button: its terminal's background inside and
-        // as its edge (no border), rounded upper corners, and sides that
-        // flare out over its last rows to meet the band's part below.
+        // The active tab's own button: its terminal's background inside a
+        // one pixel outline, rounded upper corners, and sides that flare out
+        // over its last rows to meet the band's part below.
         const width = active.right - active.left;
         const height = active.bottom - active.top;
         const tab_canvas = try BannerTestCanvas.init(width, height);
@@ -9952,8 +9968,12 @@ pub const Host = struct {
             host.scaled(tab_flare),
         ).?;
         const middle = @divTrunc(height, 2);
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_left, middle));
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_right - 1, middle));
+        // Regression: the tab had no outline, so its edge read as cut.
+        const edge = tabOutlineColor(&theme);
+        try std.testing.expectEqual(edge, tab_canvas.pixel(outline.body_left, middle));
+        try std.testing.expectEqual(edge, tab_canvas.pixel(outline.body_right - 1, middle));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_left + 1, middle));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(outline.body_right - 2, middle));
         // Beside the body the band shows, until the flares reach out.
         try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(0, middle));
         try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(width - 1, middle));
@@ -9961,8 +9981,11 @@ pub const Host = struct {
         const last_left: i32 = @intFromFloat(@ceil(last.left));
         const last_right: i32 = @intFromFloat(@floor(last.right));
         try std.testing.expect(last_left < outline.body_left and last_right > outline.body_right);
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_left, height - 1));
-        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_right - 1, height - 1));
+        // The outline follows the flares down to the join, one pixel wide.
+        try std.testing.expect(tab_canvas.pixel(last_left, height - 1) != terminal_bg);
+        try std.testing.expect(tab_canvas.pixel(last_right - 1, height - 1) != terminal_bg);
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_left + 1, height - 1));
+        try std.testing.expectEqual(terminal_bg, tab_canvas.pixel(last_right - 2, height - 1));
         // The rounded corner leaves the band at the very top.
         try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(0, 0));
         try std.testing.expectEqual(theme.chrome_bg, tab_canvas.pixel(outline.body_left, outline.top));

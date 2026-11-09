@@ -89,9 +89,11 @@ Focus is never represented by hover styling.
 - Preserve the active and recently used tabs longest during compression.
 - Active tab treatment is visible in active and inactive windows. The active
   tab takes its terminal's background and runs on into the terminal, with
-  rounded upper corners and sides that flare out into the row below, under a
+  rounded upper corners and sides that flare out into the row below, outlined
+  by a 1 px line in the dividers' colour, under a
   2 px accent cap held to 3:1 on that background, its ends following the
-  corners. The cap is the essential
+  corners. Content keeps clear of the sides: the icon starts 14 DIP in and
+  the close X stays 8 DIP off the right edge. The cap is the essential
   cue, a shape and not only a colour; the background is often under 3:1
   against the tab row, so it is extra, and the label keeps 4.5:1 on any
   terminal background. `* ` stays in the window text for screen readers, and
