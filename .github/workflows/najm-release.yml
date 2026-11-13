@@ -85,10 +85,18 @@ jobs:
           )
           foreach ($a in $assets) { if (-not (Test-Path $a)) { throw "Missing release asset: $a" } }
           $base = (Get-Content UPSTREAM_BASE -ErrorAction SilentlyContinue | Select-Object -First 1)
-          $notes = "Najm $v, based on Noctty $base.`n`nInstall: download ``najm-$v-windows-x64-setup.exe``. Checksums are in ``SHA256SUMS-windows-x64.txt``."
+          # The changelog is release-notes/<version>.md (najm-release.ps1
+          # refuses to tag without it); the footer is added here.
+          $changes = "release-notes/$v.md"
+          if (-not (Test-Path $changes)) { throw "Missing $($changes): write the changelog before tagging." }
+          $footer = "---`n`nNajm $v, based on Noctty $base.`n`nInstall: download ``najm-$v-windows-x64-setup.exe``, or use the portable ZIP. Checksums are in ``SHA256SUMS-windows-x64.txt``. Installed copies offer the update on their own within a day, or at once from **Check for updates**."
+          $notesFile = Join-Path $env:RUNNER_TEMP "najm-notes.md"
+          ((Get-Content $changes -Raw).TrimEnd() + "`n`n" + $footer) | Set-Content -Encoding utf8 $notesFile
+          Write-Host "Release notes from $changes ($((Get-Item $changes).Length) bytes)"
           gh release view "v$v" *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create "v$v" @assets --title "Najm $v" --notes $notes --target $env:GITHUB_SHA
+            gh release create "v$v" @assets --title "Najm $v" --notes-file $notesFile --target $env:GITHUB_SHA
           } else {
+            gh release edit "v$v" --notes-file $notesFile
             gh release upload "v$v" @assets --clobber
           }
