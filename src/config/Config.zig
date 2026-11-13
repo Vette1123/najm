@@ -1541,9 +1541,10 @@ link: RepeatableLink = .{},
 /// only ever label one target.
 @"quick-select-alphabet": QuickSelectAlphabet = .{},
 
-/// Enable URL matching. URLs are matched on hover with control (Linux) or
-/// command (macOS) pressed and open using the default system application for
-/// the linked URL.
+/// Enable URL matching. In Najm a URL is underlined and drawn in the theme's
+/// link blue on hover, and a click opens it with the default system
+/// application for the linked URL, with or without Ctrl. A drag across it
+/// selects it without opening it.
 ///
 /// The URL matcher is always lowest priority of any configured links (see
 /// `link`). If you want to customize URL matching, use `link` and disable this.
@@ -1551,13 +1552,13 @@ link: RepeatableLink = .{},
 
 /// Enable hyperlinks created with the OSC 8 escape sequence. When disabled,
 /// noctty does not use the target a program puts behind OSC 8 link text:
-/// Ctrl+hover, Ctrl+click, the context menu's link selection and
+/// hover, click, the context menu's link selection and
 /// `copy_url_to_clipboard` see only what `link` and `link-url` match in the
 /// text itself.
 ///
 /// Two things still show OSC 8 hyperlinks when disabled. A copy that
 /// includes HTML, as the default copy bindings do, keeps a web, mail or ftp
-/// target as a link. The Ctrl+hover highlight can still light an OSC 8
+/// target as a link. The hover highlight can still light an OSC 8
 /// hyperlink when the hovered text is itself a matched URL.
 ///
 /// This does not affect URL matching controlled by `link-url`.

@@ -2506,16 +2506,24 @@ drag-and-drop path, so a match carrying shell metacharacters,
 environment-variable expansion, or control bytes raises the paste
 confirmation.
 
-A Ctrl+click (or Ctrl in quick select) opens an `http`, `https` or `mailto`
+Hovering a link (a URL, a path the matcher below finds, or an OSC 8
+hyperlink) underlines it, draws it in the theme's blue where that blue reads
+against the background, and shows a hand pointer. A click opens it, with or
+without Ctrl. Dragging across a link selects it instead, so it can still be
+copied; Ctrl+click opens it even then. A double-click selects the whole
+link, but its first click has already opened it. While a program reports
+the mouse (vim or tmux with the mouse on), hold Shift to reach links.
+
+A click (or Ctrl in quick select) opens an `http`, `https` or `mailto`
 link at once. A link with one of the other schemes Najm opens (`ftp`,
 `ssh`, `git`, `tel`, `magnet`, `ipfs`, `ipns`, `gemini`, `gopher`, `news`)
 asks first: the prompt shows the exact link and the app currently set to
 open it (or says no app is set), and starts on Cancel. Windows opens the
-link with whatever app is set when you accept. A Ctrl+click on a `file:`
+link with whatever app is set when you accept. A click on a `file:`
 link to this machine follows the path rules below. Links with any other
 scheme are not opened.
 
-The same matcher finds paths for Ctrl+click links and double-click selection:
+The same matcher finds paths for clicked links and double-click selection:
 `C:\dir\file`, `C:/dir/file`, `\\server\share\file`, `.\file` and
 `dir\file.ext`, with an optional `:line:col` or `(line,col)`. A path ends at
 `;`, `,`, `"`, an unbalanced bracket, and a trailing `.`, `!`, `'` or `}`; a

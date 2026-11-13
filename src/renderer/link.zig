@@ -81,7 +81,8 @@ pub const Set = struct {
             );
             links.appendAssumeCapacity(.{
                 .regex = regex,
-                .highlight = .{ .hover_mods = inputpkg.ctrlOrSuper(.{}) },
+                // Najm: a URL marks on plain hover, as a plain click opens it.
+                .highlight = .hover,
             });
         }
 
@@ -433,7 +434,8 @@ test "fromConfigWithUrl adds builtin URL matcher only when enabled" {
     try state.update(alloc, &t);
 
     const mousePoint: point.Coordinate = .{ .x = 6, .y = 0 };
-    const hoverMods = inputpkg.ctrlOrSuper(.{});
+    // No modifier held: Najm's URL matcher marks on plain hover.
+    const hoverMods: inputpkg.Mods = .{};
 
     {
         var set = try Set.fromConfigWithUrl(alloc, &.{}, false);

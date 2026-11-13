@@ -815,7 +815,9 @@ const DerivedConfig = struct {
             links.appendAssumeCapacity(.{
                 .regex = regex,
                 .action = .{ .open = {} },
-                .highlight = .{ .hover_mods = input.ctrlOrSuper(.{}) },
+                // Najm: a URL marks on plain hover and opens on a plain
+                // click (see `linkOpensOnRelease`), not only with Ctrl.
+                .highlight = .hover,
             });
         }
 
@@ -841,10 +843,7 @@ const DerivedConfig = struct {
 
         try testing.expectEqual(@as(usize, 2), derived.links.len);
         try testing.expectEqual(input.Link.Highlight.hover, derived.links[0].highlight);
-        try testing.expectEqualDeep(
-            input.Link.Highlight{ .hover_mods = input.ctrlOrSuper(.{}) },
-            derived.links[1].highlight,
-        );
+        try testing.expectEqual(input.Link.Highlight.hover, derived.links[1].highlight);
     }
 
     test "DerivedConfig owns its title" {
@@ -5780,7 +5779,9 @@ pub fn mouseButtonCallback(
         // Handle link clicking. We want to do this before we do mouse
         // reporting or any other mouse handling because a successfully
         // clicked link will swallow the event.
-        if (self.mouse.over_link) {
+        if (self.mouse.over_link and
+            linkOpensOnRelease(self.mouse.mods, self.hasSelection()))
+        {
             const pos = try self.rt_surface.getCursorPos();
             if (self.processLinks(pos)) |processed| {
                 if (processed) return true;
@@ -6319,10 +6320,9 @@ fn linkAtPos(
     // Get our comparison mods
     const mouse_mods = self.mouseModsWithCapture(self.mouse.mods);
 
-    // If we have the proper modifiers set then we can check for OSC8 links.
-    if (self.config.link_osc8 and
-        mouse_mods.equal(input.ctrlOrSuper(.{})))
-    hyperlink: {
+    // Najm finds an OSC 8 link with or without Ctrl, like its URL matcher:
+    // the click rule is `linkOpensOnRelease`.
+    if (self.config.link_osc8) hyperlink: {
         const rac = mouse_pin.rowAndCell();
         const cell = rac.cell;
         if (!cell.hyperlink) break :hyperlink;
@@ -6332,6 +6332,74 @@ fn linkAtPos(
 
     // Fall back to configured links
     return try self.linkAtPin(mouse_pin, mouse_mods);
+}
+
+/// Whether a left release over a link opens it. With Ctrl it always opens.
+/// A plain release opens it only when it ends a click: a drag across the
+/// link selects text, and the selection it leaves keeps the link shut so
+/// the user can copy it. A Ctrl let go a moment before the button is a
+/// plain click and still opens; before Najm made URLs plain-hover links,
+/// that release found no link and dropped the click.
+fn linkOpensOnRelease(mods: input.Mods, has_selection: bool) bool {
+    return mods.ctrlOrSuper() or !has_selection;
+}
+
+test "Surface: a plain click opens a link, a drag across it does not, Ctrl+click always does" {
+    const testing = std.testing;
+    try testing.expect(linkOpensOnRelease(.{}, false));
+    try testing.expect(!linkOpensOnRelease(.{}, true));
+    try testing.expect(linkOpensOnRelease(input.ctrlOrSuper(.{}), false));
+    try testing.expect(linkOpensOnRelease(input.ctrlOrSuper(.{}), true));
+    try testing.expect(!linkOpensOnRelease(.{ .shift = true }, true));
+}
+
+test "Surface: a release without Ctrl still finds the URL and OSC 8 link under the pointer" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var config = try configpkg.Config.default(alloc);
+    defer config.deinit();
+    var derived = try DerivedConfig.init(alloc, &config);
+    defer derived.deinit();
+
+    const surface = try alloc.create(Surface);
+    defer alloc.destroy(surface);
+    @memset(std.mem.asBytes(surface), 0);
+    surface.alloc = alloc;
+    surface.config.links = derived.links;
+    surface.config.link_osc8 = true;
+    surface.size = .{
+        .screen = .{ .width = 400, .height = 20 },
+        .cell = .{ .width = 10, .height = 10 },
+        .padding = .{},
+    };
+    surface.io.terminal = try .init(alloc, .{ .cols = 40, .rows = 2 });
+    defer surface.io.terminal.deinit(alloc);
+    surface.renderer_state.terminal = &surface.io.terminal;
+    {
+        var stream = surface.io.terminal.vtStream();
+        defer stream.deinit();
+        stream.nextSlice("see https://example.com/docs now\r\n");
+        stream.nextSlice("\x1b]8;;https://example.com/hidden\x1b\\click here\x1b]8;;\x1b\\");
+    }
+
+    // The mods a release reports after Ctrl came up first, and a plain click.
+    for ([_]input.Mods{ .{}, input.ctrlOrSuper(.{}) }) |mods| {
+        surface.mouse.mods = mods;
+
+        const url = try surface.linkAtPos(.{ .x = 85, .y = 5 }) orelse return error.TestUnexpectedResult;
+        try testing.expectEqual(input.Link.Action.open, url.action);
+        const text = try surface.io.terminal.screens.active.selectionString(alloc, .{ .sel = url.selection, .trim = false });
+        defer alloc.free(text);
+        try testing.expectEqualStrings("https://example.com/docs", text);
+
+        const osc8 = try surface.linkAtPos(.{ .x = 25, .y = 15 }) orelse return error.TestUnexpectedResult;
+        try testing.expectEqual(input.Link.Action._open_osc8, osc8.action);
+    }
+
+    // Plain text is never a link.
+    surface.mouse.mods = .{};
+    try testing.expect(try surface.linkAtPos(.{ .x = 15, .y = 5 }) == null);
 }
 
 test "Surface: link-osc8 = false finds no OSC 8 link, only the text's own" {

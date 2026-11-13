@@ -237,7 +237,8 @@ that govern each symbol you change, or that none does.
   synchronized output, vsync, `RenderPass` viewport, cursor sprites,
   search highlights after a resize, the IME preedit and composition caret in
   `rebuildCells` and `State.Preedit.layout`, the glyph options `addGlyph` and
-  `addPreeditCell` pass), the unfocused-split dim
+  `addPreeditCell` pass), a hovered link's colour and underline
+  (`hoveredLinkColor`), the unfocused-split dim
   (`split_dim`, `Host.syncSplitDim`), `win32/pixel_format.zig`, Windows font
   discovery (`src/font/discovery_windows.zig`: the registry scan, variable
   `wght` bounds, bold matching), font fallback and `font-thicken`, renderer
@@ -426,7 +427,10 @@ that govern each symbol you change, or that none does.
   (the composition string, its caret and target clause:
   `win32_input.imeTargetCodepointRange`, `Surface.imePosAt`), mouse buttons
   (the X buttons: `win32_input.xMouseButton`, and the button codes
-  `src/input/mouse_encode.zig` writes), wheel and context-menu input, and
+  `src/input/mouse_encode.zig` writes), wheel and context-menu input, which
+  click opens a link and with which modifiers a link is found
+  (`Surface.linkOpensOnRelease`, `linkAtPos`, the built-in URL link's
+  `highlight` in `DerivedConfig.init` and `Set.fromConfigWithUrl`), and
   key binding dispatch and chains (`Surface.maybeHandleBinding`,
   `dispatchLeaf`, `bindingOutcome`, `startLeader`, `performChain`,
   `closeToken`, `closesCaller`, `mayDetachCaller`, the stand-ins'
