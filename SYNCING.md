@@ -14,7 +14,9 @@ its work, and ship our own fixes on our own schedule.
 
 `najm-sync` merges and never rebases or force-pushes. It never pushes, either: push `main` yourself.
 CI runs on every push, and `najm-release` tags the release. **Najm release** builds, signs and
-publishes it, and installed copies pick it up through the in-app updater.
+publishes it, and installed copies pick it up through the in-app updater. The release notes are
+`release-notes/<version>.md`, the full changelog since the last release, committed before
+`najm-release` runs (it refuses without one); the workflow adds the Noctty base and install lines.
 
 ## What Najm renames, and where
 

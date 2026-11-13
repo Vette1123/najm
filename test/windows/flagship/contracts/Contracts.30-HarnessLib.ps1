@@ -129,7 +129,8 @@ $windowLibConsumerAsts = foreach ($source in $windowLibConsumerSources) {
 $forceForegroundCallContracts = @(
     [pscustomobject]@{ Path = $accessibilityHarness; Count = 20; AltTap = 'true'; SendInputAltTap = 'true' },
     [pscustomobject]@{ Path = $keyInputHarness; Count = 5; AltTap = 'false'; SendInputAltTap = 'false' },
-    [pscustomobject]@{ Path = $shellCommandLiveHarness; Count = 2; AltTap = 'true'; SendInputAltTap = 'false' }
+    [pscustomobject]@{ Path = $shellCommandLiveHarness; Count = 2; AltTap = 'true'; SendInputAltTap = 'false' },
+    [pscustomobject]@{ Path = $statefulWin11Lib; Count = 1; AltTap = 'true'; SendInputAltTap = 'true' }
 )
 foreach ($contract in $forceForegroundCallContracts) {
     $sourceAst = @($windowLibConsumerAsts | Where-Object { $_.Path -eq $contract.Path })[0].Ast
@@ -218,6 +219,11 @@ foreach ($source in $resolutionSourceAsts) {
         }
     }
 }
+# The window library the stateful library dot-sources is held to the same
+# command-resolution rules (no alias, no command-resolution mutation, no dot
+# source or call operator), since an alias it defines would outrank the
+# stateful library's functions (EVIDENCE-FOREGROUND-01).
+Assert-CommandResolutionContract -Ast $windowLibAst -Tokens $windowLibTokens -Context $interactiveWin11WindowLib -ExpectedDotSources @() -ExpectedAmpersandCommands @()
 $interactiveWin11LibAst = @($resolutionSourceAsts | Where-Object { $_.Path -eq $interactiveWin11Lib })[0].Ast
 $waitUntilFunctions = @($interactiveWin11LibAst.FindAll({
     param($node)
@@ -292,6 +298,487 @@ try {
 finally {
     Remove-Item -LiteralPath Function:\Wait-InteractiveWin11Until, Function:\Save-StatefulPixelDiagnostic -ErrorAction SilentlyContinue
     Remove-Variable -Scope Script -Name pixelDiagnosticCalls, InteractiveWin11PixelWindow -ErrorAction SilentlyContinue
+}
+
+# Show-StatefulHost takes the foreground back from another application with
+# ForceForeground, and only then (EVIDENCE-FOREGROUND-01). Its one call, on
+# $HostHwnd, sits in the body of an `if` whose whole condition re-reads the
+# foreground's process (the recheck below), and that `if` sits in the body of
+# one whose whole condition is the Test-StatefulForeignForeground call below:
+# no negation, no other operand, the arguments in order, no other clause. The
+# host's process id comes from $HostHwnd and the foreground's from
+# Get-StatefulForegroundProcessId, which reads GetForegroundWindow; and each
+# name comes from Get-StatefulProcessName on its own id. Show-StatefulHost is
+# also pinned statement for statement, like its two helpers, so any other edit
+# to its code (another write to one of its variables in any form, a removed
+# sleep, an early return, a trap or clean block) fails here until the pinned
+# copy below is updated with it. The decision's answers are table-tested, and
+# the behaviour run below checks what the function does. The controls below
+# must each parse and be refused.
+# PowerShell resolves function names without regard to case or a scope prefix
+# (`script:`, `global:` ...), so a second definition spelled either way counts
+# as a second one (controls below); depending on where the library is loaded,
+# that copy can be the one that runs. The pinned code calls its cmdlets
+# module-qualified, which no plain-named function or alias can stand in for.
+# PowerShell would still accept a function named with the qualified name
+# itself (`function Microsoft.PowerShell.Management\Get-Process {}`), and
+# $PSDefaultParameterValues or $InformationPreference set at a library's top
+# level would reach the pinned calls (the latter set to Ignore silences the
+# pinned Write-Host), so none of the libraries the pinned code is loaded with
+# (this one, the window library it dot-sources, and the interactive, measure
+# and history libraries its calling harnesses dot-source first) may define a
+# function whose name contains `\`, or name either variable anywhere (as a
+# variable or as the -Name of Set-Variable, sv, New-Variable or Get-Variable).
+# Deliberately obfuscated definitions (a function drive path built from a
+# string, a wildcard variable name) are out of reach of these text checks.
+$statefulFunctionName = { param([string] $Name) $Name -replace '^(?i)(?:global|script|local|private):', '' }
+$libraryRewiring = {
+    param($Ast)
+    $qualifiedDefinitions = @($Ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and (& $statefulFunctionName $node.Name).Contains('\')
+    }, $true) | ForEach-Object { "function $($_.Name)" })
+    # The names anywhere in the text, not only as variables: Set-Variable, sv,
+    # New-Variable and Get-Variable reach them by name too.
+    $preferences = @('PSDefaultParameterValues', 'InformationPreference' | Where-Object { $Ast.Extent.Text -match "(?i)$_" })
+    @($qualifiedDefinitions) + @($preferences)
+}
+# The harnesses that call Show-StatefulHost (palette-theme, shaders), like
+# every harness that loads the stateful library, dot-source
+# scripts/windows-harness-history.ps1 and scripts/interactive-win11-lib.ps1
+# (which dot-sources the measure library) first, so those three are held to the
+# same refusals. The interactive library is already under the command-resolution
+# contract above; the measure and history libraries are put under it here (no
+# alias, no command-resolution mutation, no dot source or call operator), since
+# an alias either defines would outrank the stateful library's functions
+# whatever the load order (CodeRabbit).
+$siblingLibraries = foreach ($sibling in @(@{ Name = 'measure'; File = 'interactive-win11-measure-lib.ps1' }, @{ Name = 'history'; File = 'windows-harness-history.ps1' })) {
+    $siblingPath = Join-Path $repoRoot "scripts\$($sibling.File)"
+    $siblingTokens = $null
+    $siblingErrors = $null
+    $siblingAst = [System.Management.Automation.Language.Parser]::ParseFile($siblingPath, [ref]$siblingTokens, [ref]$siblingErrors)
+    if ($siblingErrors.Count -ne 0) { throw "scripts\$($sibling.File) does not parse: $($siblingErrors[0].Message)" }
+    Assert-CommandResolutionContract -Ast $siblingAst -Tokens $siblingTokens -Context $siblingPath -ExpectedDotSources @() -ExpectedAmpersandCommands @()
+    foreach ($resolutionControl in @(
+            'Set-Alias -Name Get-StatefulForegroundProcessId -Value Get-Date',
+            'New-Alias Test-StatefulForeignForeground Get-Date',
+            '${function:global:Microsoft.PowerShell.Utility\Start-Sleep} = { }',
+            '[scriptblock]${function:global:Microsoft.PowerShell.Utility\Start-Sleep} = { param($Milliseconds) }',
+            "Set-Item 'function:Microsoft.PowerShell.Management\Get-Process' { }",
+            'New-Module -Name Microsoft.PowerShell.Utility { function Write-Host { } } | Import-Module')) {
+        $resolutionTokens = $null
+        $resolutionErrors = $null
+        $resolutionAst = [System.Management.Automation.Language.Parser]::ParseInput("$($siblingAst.Extent.Text)`n$resolutionControl`n", [ref]$resolutionTokens, [ref]$resolutionErrors)
+        if ($resolutionErrors.Count -ne 0) { throw "Command-resolution control '$resolutionControl' does not parse with scripts\$($sibling.File)." }
+        $resolutionRefused = $false
+        try { Assert-CommandResolutionContract -Ast $resolutionAst -Tokens $resolutionTokens -Context "control: $resolutionControl" -ExpectedDotSources @() -ExpectedAmpersandCommands @() } catch { $resolutionRefused = $true }
+        if (-not $resolutionRefused) { throw "The command-resolution contract accepted '$resolutionControl' in scripts\$($sibling.File)." }
+    }
+    @{ Name = $sibling.Name; Ast = $siblingAst }
+}
+foreach ($library in @(
+        @{ Name = 'stateful'; Ast = $statefulLibAst },
+        @{ Name = 'window'; Ast = $windowLibAst },
+        @{ Name = 'interactive'; Ast = $interactiveWin11LibAst }) + @($siblingLibraries)) {
+    $rewiring = @(& $libraryRewiring $library.Ast)
+    if ($rewiring.Count -ne 0) {
+        throw "The $($library.Name) library must not define a function named with a module-qualified name, or name `$PSDefaultParameterValues or `$InformationPreference anywhere, comments included (found $($rewiring -join ', '))."
+    }
+}
+foreach ($rewiringControl in @(
+        @{ Base = $statefulWin11LibText; Add = 'function Microsoft.PowerShell.Management\Get-Process { }' },
+        @{ Base = $statefulWin11LibText; Add = 'function script:Microsoft.PowerShell.Utility\Start-Sleep { }' },
+        @{ Base = $interactiveWin11WindowLibText; Add = 'function Microsoft.PowerShell.Utility\Write-Host { }' },
+        @{ Base = $statefulWin11LibText; Add = "`$PSDefaultParameterValues['Write-Host:InformationAction'] = 'Ignore'" },
+        @{ Base = $interactiveWin11WindowLibText; Add = "`$global:PSDefaultParameterValues['Get-Process:IncludeUserName'] = `$true" },
+        @{ Base = $statefulWin11LibText; Add = "Set-Variable -Name PSDefaultParameterValues -Value @{ 'Get-Process:Module' = `$true }" },
+        @{ Base = $interactiveWin11WindowLibText; Add = "sv PSDefaultParameterValues @{ 'Write-Host:InformationAction' = 'Ignore' }" },
+        @{ Base = $statefulWin11LibText; Add = "(Get-Variable PSDefaultParameterValues -ValueOnly)['Write-Host:InformationAction'] = 'Ignore'" },
+        @{ Base = $interactiveWin11LibText; Add = "`$PSDefaultParameterValues['*:InformationAction'] = 'Ignore'" },
+        @{ Base = $interactiveWin11LibText; Add = 'function Microsoft.PowerShell.Utility\Start-Sleep { }' },
+        @{ Base = $statefulWin11LibText; Add = "`$InformationPreference = 'Ignore'" },
+        @{ Base = $interactiveWin11LibText; Add = "Set-Variable -Name InformationPreference -Value 'Ignore' -Scope Global" }
+    )) {
+    $rewiringTokens = $null
+    $rewiringErrors = $null
+    $rewiringAst = [System.Management.Automation.Language.Parser]::ParseInput("$($rewiringControl.Base)`n$($rewiringControl.Add)`n", [ref]$rewiringTokens, [ref]$rewiringErrors)
+    if ($rewiringErrors.Count -ne 0) { throw "Library rewiring control '$($rewiringControl.Add)' does not parse." }
+    if (@(& $libraryRewiring $rewiringAst).Count -eq 0) { throw "The library rewiring check accepted '$($rewiringControl.Add)'." }
+}
+$statefulDefinitions = {
+    param($Ast, [string] $Name)
+    @($Ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and (& $statefulFunctionName $node.Name) -eq $Name
+    }, $true))
+}
+$statefulFunction = { param([string] $Name) & $statefulDefinitions $statefulLibAst $Name }
+$showHostFunctions = @(& $statefulFunction 'Show-StatefulHost')
+$foreignForegroundFunctions = @(& $statefulFunction 'Test-StatefulForeignForeground')
+$foregroundProcessIdFunctions = @(& $statefulFunction 'Get-StatefulForegroundProcessId')
+$processNameFunctions = @(& $statefulFunction 'Get-StatefulProcessName')
+if ($showHostFunctions.Count -ne 1 -or $foreignForegroundFunctions.Count -ne 1 -or $foregroundProcessIdFunctions.Count -ne 1 -or $processNameFunctions.Count -ne 1) {
+    throw 'The stateful library must define Show-StatefulHost, Test-StatefulForeignForeground, Get-StatefulForegroundProcessId and Get-StatefulProcessName once each.'
+}
+foreach ($protectedName in @('Show-StatefulHost', 'Test-StatefulForeignForeground', 'Get-StatefulForegroundProcessId', 'Get-StatefulProcessName')) {
+    foreach ($spelling in @("script:$protectedName", "global:$protectedName", "local:$protectedName", "private:$protectedName", $protectedName.ToLowerInvariant())) {
+        $duplicateTokens = $null
+        $duplicateErrors = $null
+        $duplicateAst = [System.Management.Automation.Language.Parser]::ParseInput("$statefulWin11LibText`nfunction $spelling { }`n", [ref]$duplicateTokens, [ref]$duplicateErrors)
+        if ($duplicateErrors.Count -ne 0 -or @(& $statefulDefinitions $duplicateAst $protectedName).Count -ne 2) {
+            throw "The once-each check must count a second definition spelled 'function $spelling'."
+        }
+    }
+}
+# Show-StatefulHost and both helpers are pinned statement for statement (line
+# endings aside; comments between top-level statements are free), with no
+# trap, no other named block and the parameters as given, so no code can be
+# added, removed or rewritten in them without updating this copy.
+$showHostPinnedIf = @'
+if (Test-StatefulForeignForeground $hostProcessId $hostProcessName $foregroundProcessId $foregroundProcessName) {
+        # Reading the names takes a moment: send nothing if the foreground has
+        # moved to another process since. ForceForeground sends its Alt tap
+        # before it reads the foreground again, so a change in the few
+        # milliseconds between this check and the tap is not covered.
+        if ((Get-StatefulForegroundProcessId) -eq $foregroundProcessId) {
+            $taken = [InteractiveWin11WindowNative]::ForceForeground($HostHwnd, $true, $true)
+            [void][InteractiveWin11WindowNative]::SetWindowPos($HostHwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0043)
+            $outcome = if ($taken) { 'took it back' } else { 'did not take it back' }
+            Microsoft.PowerShell.Utility\Write-Host "Show-StatefulHost: process '$foregroundProcessName' held the foreground; ForceForeground $outcome."
+        }
+    }
+'@
+$showHostPin = @{ Function = $showHostFunctions[0]; Parameters = '[IntPtr] $HostHwnd'; Statements = @(
+    '[void][InteractiveWin11WindowNative]::ShowWindow($HostHwnd, 9)',
+    '[void][InteractiveWin11WindowNative]::SetWindowPos($HostHwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0043)',
+    '[void][InteractiveWin11WindowNative]::SetForegroundWindow($HostHwnd)',
+    '$hostProcessId = [uint32]0',
+    '[void][InteractiveWin11WindowNative]::GetWindowThreadProcessId($HostHwnd, [ref]$hostProcessId)',
+    '$foregroundProcessId = Get-StatefulForegroundProcessId',
+    '$hostProcessName = Get-StatefulProcessName $hostProcessId',
+    '$foregroundProcessName = Get-StatefulProcessName $foregroundProcessId',
+    $showHostPinnedIf,
+    'Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds $script:STATEFUL_HOST_SETTLE_MS') }
+$pinnedFunctions = @(
+    @{ Function = $foregroundProcessIdFunctions[0]; Parameters = $null; Statements = @(
+        '$processId = [uint32]0',
+        '[void][InteractiveWin11WindowNative]::GetWindowThreadProcessId([InteractiveWin11WindowNative]::GetForegroundWindow(), [ref]$processId)',
+        'return $processId') },
+    @{ Function = $processNameFunctions[0]; Parameters = '[uint32] $ProcessId'; Statements = @(
+        'if ($ProcessId -eq 0) { return $null }',
+        'try { return (Microsoft.PowerShell.Management\Get-Process -Id $ProcessId -ErrorAction Stop).ProcessName } catch { return $null }') },
+    $showHostPin
+)
+$matchesPin = {
+    param([System.Management.Automation.Language.FunctionDefinitionAst] $Function, $Pin)
+    $body = $Function.Body
+    $parameters = if ($null -eq $Function.Parameters) { $null } else { ($Function.Parameters | ForEach-Object { $_.Extent.Text }) -join ', ' }
+    $statements = (($body.EndBlock.Statements | ForEach-Object { $_.Extent.Text }) -join "`n") -replace "`r`n", "`n"
+    # A trap body sits in NamedBlockAst.Traps, not in Statements, and PowerShell
+    # 7.3 added a clean block; none of the pinned functions has either.
+    $cleanBlock = if ($body.PSObject.Properties['CleanBlock']) { $body.CleanBlock } else { $null }
+    return (@($body.EndBlock.Traps).Where({ $null -ne $_ }).Count -eq 0 -and $null -eq $cleanBlock -and
+        $null -eq $body.ParamBlock -and $null -eq $body.BeginBlock -and $null -eq $body.ProcessBlock -and $null -eq $body.DynamicParamBlock -and
+        $parameters -ceq $Pin.Parameters -and $statements -ceq (($Pin.Statements -join "`n") -replace "`r`n", "`n"))
+}
+foreach ($pin in $pinnedFunctions) {
+    if (-not (& $matchesPin $pin.Function $pin)) {
+        # Name the first statement, and the first line in it, that differs, so a
+        # maintainer need not diff by hand.
+        $endStatements = if ($null -eq $pin.Function.Body.EndBlock) { @() } else { @($pin.Function.Body.EndBlock.Statements) }
+        $actualStatements = @($endStatements | Where-Object { $null -ne $_ } | ForEach-Object { $_.Extent.Text -replace "`r`n", "`n" })
+        $pinnedStatements = @($pin.Statements | ForEach-Object { $_ -replace "`r`n", "`n" })
+        $index = 0
+        while ($index -lt $actualStatements.Count -and $index -lt $pinnedStatements.Count -and $actualStatements[$index] -ceq $pinnedStatements[$index]) { $index++ }
+        $where = if ($index -lt $actualStatements.Count -or $index -lt $pinnedStatements.Count) {
+            # @() around the whole if: assigning an if's output unwraps a
+            # one-line statement into a string, which then indexes by character.
+            $actualLines = @(if ($index -lt $actualStatements.Count) { $actualStatements[$index] -split "`n" })
+            $pinnedLines = @(if ($index -lt $pinnedStatements.Count) { $pinnedStatements[$index] -split "`n" })
+            $line = 0
+            while ($line -lt $actualLines.Count -and $line -lt $pinnedLines.Count -and $actualLines[$line] -ceq $pinnedLines[$line]) { $line++ }
+            $actualLine = if ($line -lt $actualLines.Count) { $actualLines[$line].Trim() } else { '(none)' }
+            $pinnedLine = if ($line -lt $pinnedLines.Count) { $pinnedLines[$line].Trim() } else { '(none)' }
+            "statement $($index + 1), line $($line + 1) of it, is '$actualLine', pinned '$pinnedLine'"
+        } else {
+            'the statements match, so a trap, another named block or the parameters differ'
+        }
+        throw "$($pin.Function.Name) must match its pinned copy in Contracts.30-HarnessLib.ps1 statement for statement ($where); update the copy with any intended change."
+    }
+}
+# The name helper also runs: id 0, this process, and an id no process has.
+. ([scriptblock]::Create($processNameFunctions[0].Extent.Text))
+try {
+    $currentProcessName = [Diagnostics.Process]::GetCurrentProcess().ProcessName
+    if ($null -ne (Get-StatefulProcessName 0) -or (Get-StatefulProcessName ([uint32]$PID)) -cne $currentProcessName -or
+        $null -ne (Get-StatefulProcessName ([uint32]::MaxValue - 3))) {
+        throw 'Get-StatefulProcessName must answer $null for 0 and for an id no process has, and the name for a live process.'
+    }
+}
+finally {
+    Remove-Item -LiteralPath Function:\Get-StatefulProcessName -ErrorAction SilentlyContinue
+}
+$showHostGuardCall = 'Test-StatefulForeignForeground $hostProcessId $hostProcessName $foregroundProcessId $foregroundProcessName'
+$showHostRecheck = '(Get-StatefulForegroundProcessId) -eq $foregroundProcessId'
+$showHostHostRead = '[void][InteractiveWin11WindowNative]::GetWindowThreadProcessId($HostHwnd, [ref]$hostProcessId)'
+$showHostForegroundRead = '$foregroundProcessId = Get-StatefulForegroundProcessId'
+$showHostHostNameRead = '$hostProcessName = Get-StatefulProcessName $hostProcessId'
+$showHostForegroundNameRead = '$foregroundProcessName = Get-StatefulProcessName $foregroundProcessId'
+$testShowHostGuard = {
+    param([System.Management.Automation.Language.FunctionDefinitionAst] $Function)
+    $text = $Function.Extent.Text
+    foreach ($required in @($showHostHostRead, $showHostForegroundRead, $showHostHostNameRead, $showHostForegroundNameRead)) {
+        if (([regex]::Matches($text, [regex]::Escape($required))).Count -ne 1) { return $false }
+    }
+    # A quick check that each of the four has one plain `=` write; the pin above
+    # is what refuses every other form of write.
+    foreach ($variable in @('hostProcessId', 'hostProcessName', 'foregroundProcessId', 'foregroundProcessName')) {
+        if (([regex]::Matches($text, "\`$$variable\s*=(?!=)")).Count -ne 1) { return $false }
+    }
+    if (([regex]::Matches($text, '\[ref\]\$hostProcessId')).Count -ne 1) { return $false }
+    $calls = @(Get-NamedMemberExpressions -Ast $Function.Body -Name 'ForceForeground' -InvocationOnly)
+    if ($calls.Count -ne 1 -or $calls[0].Arguments.Count -ne 3 -or
+        $calls[0].Arguments[0] -isnot [System.Management.Automation.Language.VariableExpressionAst] -or
+        $calls[0].Arguments[0].VariablePath.UserPath -cne 'HostHwnd') { return $false }
+    # Innermost first: the recheck, then the guard.
+    $inner = $calls[0]
+    foreach ($expected in @(@{ Text = $showHostRecheck; Command = $false }, @{ Text = $showHostGuardCall; Command = $true })) {
+        $if = $inner.Parent
+        while ($null -ne $if -and $if -isnot [System.Management.Automation.Language.IfStatementAst]) { $if = $if.Parent }
+        if ($null -eq $if -or $if.Clauses.Count -ne 1 -or $null -ne $if.ElseClause) { return $false }
+        $condition = $if.Clauses[0].Item1
+        if ($condition -isnot [System.Management.Automation.Language.PipelineAst] -or $condition.PipelineElements.Count -ne 1 -or
+            $condition.PipelineElements[0].Extent.Text -cne $expected.Text -or
+            ($expected.Command -and $condition.PipelineElements[0] -isnot [System.Management.Automation.Language.CommandAst])) { return $false }
+        $inBody = $false
+        for ($node = $inner; $null -ne $node; $node = $node.Parent) {
+            if ([object]::ReferenceEquals($node, $if.Clauses[0].Item2)) { $inBody = $true; break }
+        }
+        if (-not $inBody) { return $false }
+        $inner = $if
+    }
+    return $true
+}
+if (-not (& $testShowHostGuard $showHostFunctions[0])) {
+    throw 'Show-StatefulHost must call ForceForeground once, on $HostHwnd, only under the foreground recheck inside an if whose whole condition is Test-StatefulForeignForeground, with both process ids and both names read once from their sources.'
+}
+$showHostText = $showHostFunctions[0].Extent.Text
+$showHostGuardLine = "if ($showHostGuardCall) {"
+$showHostRecheckLine = "if ($showHostRecheck) {"
+$showHostForceLine = '$taken = [InteractiveWin11WindowNative]::ForceForeground($HostHwnd, $true, $true)'
+foreach ($control in @(
+        @{ Name = 'an always-true guard'; Edits = @(, @($showHostGuardLine, 'if ($true) {')) },
+        @{ Name = 'a negated guard'; Edits = @(, @($showHostGuardLine, "if (-not ($showHostGuardCall)) {")) },
+        @{ Name = 'a guard with another operand'; Edits = @(, @($showHostGuardLine, "if (($showHostGuardCall) -or `$true) {")) },
+        @{ Name = 'swapped arguments'; Edits = @(, @($showHostGuardLine, 'if (Test-StatefulForeignForeground $foregroundProcessId $foregroundProcessName $hostProcessId $hostProcessName) {')) },
+        @{ Name = 'a second clause'; Edits = @(, @($showHostGuardLine, "if (`$false) { } elseif ($showHostGuardCall) {")) },
+        @{ Name = 'the recheck removed'; Edits = @(, @($showHostRecheckLine, 'if ($true) {')) },
+        @{ Name = 'the recheck negated'; Edits = @(, @($showHostRecheckLine, "if (-not ($showHostRecheck)) {")) },
+        @{ Name = 'the foreground id read from the host'; Edits = @(, @($showHostForegroundRead, '$foregroundProcessId = $hostProcessId')) },
+        @{ Name = 'the host id read from the foreground'; Edits = @(, @($showHostHostRead, '$hostProcessId = Get-StatefulForegroundProcessId')) },
+        @{ Name = 'the host name read from the foreground id'; Edits = @(, @($showHostHostNameRead, '$hostProcessName = Get-StatefulProcessName $foregroundProcessId')) },
+        @{ Name = 'the foreground name read from the host id'; Edits = @(, @($showHostForegroundNameRead, '$foregroundProcessName = Get-StatefulProcessName $hostProcessId')) },
+        @{ Name = 'the host id overwritten'; Edits = @(, @($showHostForegroundRead, "$showHostForegroundRead; `$hostProcessId = `$foregroundProcessId")) },
+        @{ Name = 'the host name overwritten'; Edits = @(, @($showHostGuardLine, "`$hostProcessName = `$foregroundProcessName; $showHostGuardLine")) },
+        @{ Name = 'a null target'; Edits = @(, @($showHostForceLine, '$taken = [InteractiveWin11WindowNative]::ForceForeground([IntPtr]::Zero, $true, $true)')) },
+        @{ Name = 'the call moved out of the ifs'; Edits = @(@($showHostForceLine, '$taken = $false'), @($showHostGuardLine, "$showHostForceLine; $showHostGuardLine")) }
+    )) {
+    $controlText = $showHostText
+    foreach ($edit in $control.Edits) {
+        if (([regex]::Matches($controlText, [regex]::Escape($edit[0]))).Count -ne 1) {
+            throw "Show-StatefulHost guard control '$($control.Name)' lost its anchor."
+        }
+        $controlText = $controlText.Replace($edit[0], $edit[1])
+    }
+    $controlTokens = $null
+    $controlErrors = $null
+    $controlAst = [System.Management.Automation.Language.Parser]::ParseInput($controlText, [ref]$controlTokens, [ref]$controlErrors)
+    $controlFunction = @($controlAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true))
+    if ($controlErrors.Count -ne 0 -or $controlFunction.Count -ne 1) {
+        throw "Show-StatefulHost guard control '$($control.Name)' does not parse."
+    }
+    if (& $testShowHostGuard $controlFunction[0]) {
+        throw "The Show-StatefulHost guard check accepted $($control.Name)."
+    }
+}
+# What the guard check above does not look at, the pin refuses: each of these
+# must parse and fail the pin (and the unchanged text must pass it).
+$showHostSleepLine = 'Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds $script:STATEFUL_HOST_SETTLE_MS'
+$showHostForegroundLine = '[void][InteractiveWin11WindowNative]::SetForegroundWindow($HostHwnd)'
+$parseShowHost = {
+    param([string] $Text, [string] $Name)
+    $tokens = $null
+    $errors = $null
+    $parsed = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$tokens, [ref]$errors)
+    $functions = @($parsed.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true))
+    if ($errors.Count -ne 0 -or $functions.Count -ne 1) { throw "Show-StatefulHost pin control '$Name' does not parse." }
+    $functions[0]
+}
+if (-not (& $matchesPin (& $parseShowHost $showHostText 'unchanged') $showHostPin)) {
+    throw 'The Show-StatefulHost pin must accept the function reparsed from its own text.'
+}
+foreach ($control in @(
+        @{ Name = 'the host name appended to'; Edits = @(, @($showHostGuardLine, "`$hostProcessName += 'x'; $showHostGuardLine")) },
+        @{ Name = 'the host id incremented'; Edits = @(, @($showHostGuardLine, "`$hostProcessId++; $showHostGuardLine")) },
+        @{ Name = 'the foreground id decremented'; Edits = @(, @($showHostGuardLine, "--`$foregroundProcessId; $showHostGuardLine")) },
+        @{ Name = 'the host name cast and overwritten'; Edits = @(, @($showHostGuardLine, "[string]`$hostProcessName = 'x'; $showHostGuardLine")) },
+        @{ Name = 'the names swapped by one assignment'; Edits = @(, @($showHostGuardLine, "`$hostProcessName, `$foregroundProcessName = `$foregroundProcessName, `$hostProcessName; $showHostGuardLine")) },
+        @{ Name = 'the foreground name set by Set-Variable'; Edits = @(, @($showHostGuardLine, "Set-Variable -Name foregroundProcessName -Value `$null; $showHostGuardLine")) },
+        @{ Name = 'the foreground name set by the sv alias'; Edits = @(, @($showHostGuardLine, "sv foregroundProcessName `$hostProcessName; $showHostGuardLine")) },
+        @{ Name = 'the foreground name written through [ref]'; Edits = @(, @($showHostGuardLine, "([ref]`${foregroundProcessName}).Value = `$hostProcessName; $showHostGuardLine")) },
+        @{ Name = 'the host name read replaced, a commented-out copy left'; Edits = @(, @($showHostHostNameRead, "# $showHostHostNameRead`n    `$hostProcessName = Get-StatefulProcessName `$foregroundProcessId")) },
+        @{ Name = 'the settle sleep removed'; Edits = @(, @($showHostSleepLine, '')) },
+        @{ Name = 'a top-level trap added'; Edits = @(, @($showHostSleepLine, "trap { Set-Variable hostProcessName 'x'; continue }`n    $showHostSleepLine")) },
+        @{ Name = 'the body moved into end {} beside a clean block'; Edits = @(
+                @('function Show-StatefulHost([IntPtr] $HostHwnd) {', "function Show-StatefulHost([IntPtr] `$HostHwnd) {`n    end {"),
+                @($showHostSleepLine, "$showHostSleepLine`n    }`n    clean { `$script:STATEFUL_HOST_SETTLE_MS = 0 }")) },
+        @{ Name = 'a return once SetForegroundWindow succeeds'; Edits = @(, @($showHostForegroundLine, "if ([InteractiveWin11WindowNative]::SetForegroundWindow(`$HostHwnd)) { return }")) }
+    )) {
+    $controlText = $showHostText
+    foreach ($edit in $control.Edits) {
+        if (([regex]::Matches($controlText, [regex]::Escape($edit[0]))).Count -ne 1) {
+            throw "Show-StatefulHost pin control '$($control.Name)' lost its anchor."
+        }
+        $controlText = $controlText.Replace($edit[0], $edit[1])
+    }
+    if (& $matchesPin (& $parseShowHost $controlText $control.Name) $showHostPin) {
+        throw "The Show-StatefulHost pin accepted $($control.Name)."
+    }
+}
+. ([scriptblock]::Create($foreignForegroundFunctions[0].Extent.Text))
+try {
+    $foreignForegroundCases = @(
+        @{ Case = 'nothing in the foreground'; Args = @(100, 'noctty', 0, $null); Expected = $false },
+        @{ Case = 'no foreground window, whatever the name'; Args = @(100, 'noctty', 0, 'explorer'); Expected = $false },
+        @{ Case = 'the host itself'; Args = @(100, 'noctty', 100, 'noctty'); Expected = $false },
+        @{ Case = "the host's process, whatever the name"; Args = @(100, 'noctty', 100, 'explorer'); Expected = $false },
+        @{ Case = 'another noctty process'; Args = @(100, 'noctty', 200, 'noctty'); Expected = $false },
+        @{ Case = 'another noctty, other case'; Args = @(100, 'noctty', 200, 'NOCTTY'); Expected = $false },
+        @{ Case = 'another application'; Args = @(100, 'noctty', 300, 'T3 Code (Nightly)'); Expected = $true },
+        @{ Case = 'a process whose name cannot be read'; Args = @(100, 'noctty', 300, $null); Expected = $false },
+        @{ Case = "a host whose name cannot be read"; Args = @(100, $null, 300, 'chrome'); Expected = $false }
+    )
+    foreach ($case in $foreignForegroundCases) {
+        $answer = Test-StatefulForeignForeground $case.Args[0] $case.Args[1] $case.Args[2] $case.Args[3]
+        if ($answer -isnot [bool] -or $answer -ne $case.Expected) {
+            throw "Test-StatefulForeignForeground answered $answer for $($case.Case); expected $($case.Expected)."
+        }
+    }
+}
+finally {
+    Remove-Item -LiteralPath Function:\Test-StatefulForeignForeground -ErrorAction SilentlyContinue
+}
+
+# Behavior, with no desktop: the real Show-StatefulHost and its helpers run with
+# InteractiveWin11WindowNative swapped for a recording stand-in (the foreground
+# window is handle 2; it can change process between the first read and the
+# recheck) and Get-Process for a table of names, so nothing touches a window,
+# the foreground or input.
+if (-not ('StatefulHostContractNative' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+public static class StatefulHostContractNative {
+    public static uint HostPid, ForegroundPid, ForegroundPidLater;
+    public static int ForegroundReads;
+    public static bool ForceResult;
+    public static List<string> Calls = new List<string>();
+    public static void Reset(uint hostPid, uint foregroundPid, uint foregroundPidLater, bool forceResult) {
+        HostPid = hostPid; ForegroundPid = foregroundPid; ForegroundPidLater = foregroundPidLater;
+        ForegroundReads = 0; ForceResult = forceResult; Calls.Clear();
+    }
+    public static bool ShowWindow(IntPtr hwnd, int command) { Calls.Add("ShowWindow:" + hwnd + ":" + command); return true; }
+    public static bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags) { Calls.Add("SetWindowPos:" + hwnd + ":" + after + ":" + flags); return true; }
+    public static bool SetForegroundWindow(IntPtr hwnd) { Calls.Add("SetForegroundWindow:" + hwnd); return false; }
+    public static IntPtr GetForegroundWindow() { Calls.Add("GetForegroundWindow"); return new IntPtr(2); }
+    public static uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId) {
+        Calls.Add("GetWindowThreadProcessId:" + hwnd);
+        if (hwnd == new IntPtr(2)) { ForegroundReads++; processId = ForegroundReads == 1 ? ForegroundPid : ForegroundPidLater; }
+        else { processId = hwnd == IntPtr.Zero ? 0u : HostPid; }
+        return processId == 0 ? 0u : 1u;
+    }
+    public static bool ForceForeground(IntPtr hwnd, bool altTap, bool useSendInputForAltTap) {
+        Calls.Add("ForceForeground:" + hwnd + ":" + altTap + ":" + useSendInputForAltTap); return ForceResult;
+    }
+}
+'@
+}
+$script:statefulContractNames = @{ 100 = 'noctty'; 200 = 'noctty'; 300 = 'T3 Code (Nightly)'; 301 = 'explorer' }
+function script:Get-Process {
+    [CmdletBinding()]
+    param([int] $Id)
+    if (-not $script:statefulContractNames.ContainsKey($Id)) { throw "no process $Id" }
+    [pscustomobject]@{ ProcessName = $script:statefulContractNames[$Id] }
+}
+$statefulBehaviorFunctions = @($showHostFunctions[0], $foregroundProcessIdFunctions[0], $processNameFunctions[0], $foreignForegroundFunctions[0])
+$savedSettle = $script:STATEFUL_HOST_SETTLE_MS
+$script:STATEFUL_HOST_SETTLE_MS = 0
+try {
+    foreach ($function in $statefulBehaviorFunctions) {
+        # The stand-in replaces the native class, and the Get-Process table
+        # replaces the module-qualified cmdlet the name helper calls.
+        . ([scriptblock]::Create($function.Extent.Text.Replace('[InteractiveWin11WindowNative]', '[StatefulHostContractNative]').Replace('Microsoft.PowerShell.Management\Get-Process', 'Get-Process')))
+    }
+    function script:Invoke-StatefulContractShowHost {
+        [CmdletBinding()]
+        param([IntPtr] $Hwnd)
+        Show-StatefulHost $Hwnd
+    }
+    # Every native call is recorded, the reads included, in order.
+    $plain = 'ShowWindow:10:9|SetWindowPos:10:-1:67|SetForegroundWindow:10|GetWindowThreadProcessId:10|GetForegroundWindow|GetWindowThreadProcessId:2'
+    $rechecked = "$plain|GetForegroundWindow|GetWindowThreadProcessId:2"
+    $forced = "$rechecked|ForceForeground:10:True:True|SetWindowPos:10:-1:67"
+    $took = "Show-StatefulHost: process '{0}' held the foreground; ForceForeground took it back."
+    foreach ($case in @(
+            @{ Case = 'nothing in the foreground'; Host = 10; Foreground = 0; Later = 0; Expected = $plain },
+            @{ Case = 'the host in the foreground'; Host = 10; Foreground = 100; Later = 100; Expected = $plain },
+            @{ Case = 'another noctty in the foreground'; Host = 10; Foreground = 200; Later = 200; Expected = $plain },
+            @{ Case = 'a process whose name cannot be read'; Host = 10; Foreground = 400; Later = 400; Expected = $plain },
+            @{ Case = 'another application'; Host = 10; Foreground = 300; Later = 300; Expected = $forced; Log = ($took -f 'T3 Code (Nightly)') },
+            @{ Case = 'explorer'; Host = 10; Foreground = 301; Later = 301; Expected = $forced; Log = ($took -f 'explorer') },
+            @{ Case = 'another application, take-back failed'; Host = 10; Foreground = 300; Later = 300; Force = $false; Expected = $forced; Log = "Show-StatefulHost: process 'T3 Code (Nightly)' held the foreground; ForceForeground did not take it back." },
+            @{ Case = 'another application, then the host'; Host = 10; Foreground = 300; Later = 100; Expected = $rechecked },
+            @{ Case = 'another application, then another'; Host = 10; Foreground = 300; Later = 301; Expected = $rechecked },
+            @{ Case = 'a null host window'; Host = 0; Foreground = 300; Later = 300; Expected = 'ShowWindow:0:9|SetWindowPos:0:-1:67|SetForegroundWindow:0|GetWindowThreadProcessId:0|GetForegroundWindow|GetWindowThreadProcessId:2' },
+            @{ Case = 'a host whose name cannot be read'; Host = 10; HostPid = 500; Foreground = 300; Later = 300; Expected = $plain }
+        )) {
+        $forceResult = if ($case.ContainsKey('Force')) { $case.Force } else { $true }
+        $hostPid = if ($case.ContainsKey('HostPid')) { [uint32]$case.HostPid } else { [uint32]100 }
+        [StatefulHostContractNative]::Reset($hostPid, [uint32]$case.Foreground, [uint32]$case.Later, $forceResult)
+        # The success stream and the information stream, captured apart: an
+        # advanced wrapper's -InformationVariable collects Write-Host's records
+        # (tagged PSHOST), and what the wrapper returns is the success stream
+        # alone, which must stay empty (a record redirected into it with 6>&1
+        # lands there). 6>$null keeps the records out of the contract run's own
+        # log, where the line would otherwise read like a real take-back. A
+        # Write-Host given -InformationAction Ignore shows nothing yet is still
+        # collected here; the pin refuses that edit in the function's text, and
+        # the rewiring check above refuses it through $PSDefaultParameterValues
+        # or $InformationPreference.
+        $hostRecords = $null
+        $successOutput = @(Invoke-StatefulContractShowHost -Hwnd ([IntPtr]$case.Host) -InformationVariable hostRecords 6>$null)
+        $hostRecords = @($hostRecords)
+        $logged = ($hostRecords | ForEach-Object { "$($_.MessageData)" }) -join "`n"
+        $expectedLines = if ($case.ContainsKey('Log')) { 1 } else { 0 }
+        $calls = [StatefulHostContractNative]::Calls -join '|'
+        if ($calls -cne $case.Expected -or $successOutput.Count -ne 0 -or $hostRecords.Count -ne $expectedLines -or
+            @($hostRecords | Where-Object { $_.Tags -notcontains 'PSHOST' }).Count -ne 0 -or
+            ($case.ContainsKey('Log') -and $logged -cne $case.Log)) {
+            throw "Show-StatefulHost with $($case.Case): calls '$calls', host output '$logged', success output $($successOutput.Count); expected calls '$($case.Expected)'."
+        }
+    }
+    [StatefulHostContractNative]::Reset(100, 300, 300, $true)
+    $foregroundIds = @(Get-StatefulForegroundProcessId)
+    if ($foregroundIds.Count -ne 1 -or $foregroundIds[0] -isnot [uint32] -or $foregroundIds[0] -ne 300) {
+        throw "Get-StatefulForegroundProcessId must return the foreground's process id as one [uint32]; it returned '$($foregroundIds -join ',')'."
+    }
+}
+finally {
+    $script:STATEFUL_HOST_SETTLE_MS = $savedSettle
+    foreach ($behaviorFunctionName in @('Show-StatefulHost', 'Get-StatefulForegroundProcessId', 'Get-StatefulProcessName', 'Test-StatefulForeignForeground', 'Get-Process', 'Invoke-StatefulContractShowHost')) {
+        Remove-Item -LiteralPath "Function:\$behaviorFunctionName" -ErrorAction SilentlyContinue
+    }
+    Remove-Variable -Scope Script -Name statefulContractNames -ErrorAction SilentlyContinue
 }
 
 # Harness screenshots go to the uploaded artifacts of a public repository, so

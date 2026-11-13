@@ -34,10 +34,10 @@ noctty is based on post-`v1.3.1` upstream main (`1.3.2-dev`, `ba398dfff`,
   weekly, non-required job on Windows Server 2022 (build 20348) runs the unit
   suite and a hidden-desktop launch below build 22000, which exercises the
   startup-time Windows 10 branches; unit tests also stand in for older builds.
-  A person runs the
-  [Windows 10 release checklist](windows10-release-checklist.md) on a Windows 10
-  22H2 machine before a release. Chrome, input and startup changes are
-  unmeasured on Windows 10 unless a page says otherwise.
+  A release does not require a manual Windows 10 pass; the
+  [Windows 10 manual checklist](windows10-release-checklist.md) is an optional
+  pass for a change that needs Windows 10 evidence. Chrome, input and startup
+  changes are unmeasured on Windows 10 unless a page says otherwise.
   [windows.md](windows.md#windows-tabs-and-splits) describes the
   frameless undecorated window on Windows 10, which was exercised only by
   forcing that code path on Windows 11.
@@ -70,7 +70,14 @@ noctty is based on post-`v1.3.1` upstream main (`1.3.2-dev`, `ba398dfff`,
   from `PROMPT`; an active Clink adds command-finish marks and exit codes when
   it loads the shipped script.
 - Live config reload via keybind (`Ctrl+Shift+,`).
-- `libghostty-vt` retained for Zig and C consumers.
+- `libghostty-vt` retained in the tree, built and tested, for Zig and C
+  consumers who build it themselves. No package ships it. From 1.3.137 the
+  portable ZIP's `ghostty-vt.dll` is a noctty placeholder, not the library:
+  it exports nothing and fails to load (`ERROR_DLL_INIT_FAILED`), and it is
+  there only because the portable updater of 1.3.125 to 1.3.136 requires the
+  file. v1.4.100 drops it; portable copies on 1.3.125 to 1.3.136 that have
+  not installed 1.3.137 or later by then update by hand
+  ([PACKAGING.md](../PACKAGING.md#library-consumers)).
 
 Win32-validated VT protocol coverage is tracked in
 [windows-vt-conformance.md](windows-vt-conformance.md).
@@ -83,15 +90,17 @@ Win32-validated VT protocol coverage is tracked in
   reason. See
   [windows-vt-conformance.md](windows-vt-conformance.md#conpty-transport-generations-and-mangling-catalog).
 - Native Win32 windows, tab bar with overflow, a numeric tab overview
-  (`toggle_tab_overview`, no default keybind), same-window tab reorder, and
-  exact-pane drag-to-split.
+  (`toggle_tab_overview`, no default keybind), tab reorder, exact-pane
+  drag-to-split, and tab tear-off into a new window or another window of the
+  same process (`move_tab_to_new_window`, no default keybind).
 - Horizontal and vertical splits.
 - Deliberate elevated windows through the command palette or
   `new_window_elevated:<profile-key>`, with integrity-scoped single-instance
   IPC and no elevated session restore. See [Running elevated](windows.md#running-elevated).
 - Structural undo/redo for new splits, single-tab close (restoring the
   exact tab, panes, and layout), and drag-to-split subtree transfers. Tab
-  reorder and multi-tab close modes are not undoable. `clear_screen` and
+  reorder, moving a tab to another window, and multi-tab close modes are not
+  undoable. `clear_screen` and
   `reset` have a terminal-local undo and redo that restores the saved
   screen; with the bundled ConPTY the restored content is shifted to the
   console's live cursor, and some cases can still leave noctty and ConPTY

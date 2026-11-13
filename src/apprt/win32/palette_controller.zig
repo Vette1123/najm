@@ -30,7 +30,6 @@ const sys_rgn = struct {
     extern "gdi32" fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) callconv(.winapi) ?*anyopaque;
 };
 const fillSolidRect = runtime.fillSolidRect;
-const host_overlay_height = runtime.host_overlay_height;
 const lParamBits = runtime.lParamBits;
 const lastError = child_window.lastError;
 const log = runtime.log;
@@ -1034,12 +1033,8 @@ pub const HostControls = struct {
         const hwnd = self.hwnd orelse return 0;
         var rect: RECT = undefined;
         if (sys.GetClientRect(hwnd, &rect) == 0) return 0;
-        const bands = self.contentBands(
-            self.tabBarHeight(),
-            self.scaled(host_overlay_height),
-            0,
-        );
-        const list_top = bands.inspector_top;
+        // The list hangs under the overlay band, over an open inspector.
+        const list_top = self.paletteListTop(self.chromeBands().inspector_top);
         return paletteVisibleRowCapacity(
             rect.bottom - list_top - self.scaled(8),
             self.scaled(palette_row_height),

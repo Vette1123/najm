@@ -31,6 +31,14 @@ if ($latest -and ([version]$Version -le [version]($latest.TrimStart('v')))) {
     throw "Version $Version is not newer than the latest Najm release $latest; the updater would ignore it."
 }
 
+# The release's changelog, which the workflow publishes as its notes.
+$notes = Join-Path "release-notes" "$Version.md"
+if (-not (Test-Path $notes)) { throw "Missing $notes. Write the changelog (what changed since $latest) and commit it first." }
+$notesBytes = (Get-Item $notes).Length
+if ($notesBytes -lt 200) { throw "$notes is $notesBytes bytes; a changelog under 200 bytes is a stub, not release notes." }
+if (-not (git ls-files $notes)) { throw "$notes is not committed." }
+Write-Host "Changelog: $notes ($notesBytes bytes)"
+
 & (Join-Path $PSScriptRoot "najm-identity-check.ps1")
 
 Invoke-Git tag -a "v$Version" -m "Najm $Version"

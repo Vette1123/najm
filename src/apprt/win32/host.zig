@@ -7,6 +7,12 @@ const BannerButton = win32.BannerButton;
 const ButtonTooltipAction = win32.ButtonTooltipAction;
 const CaptionButton = win32.CaptionButton;
 const ChildPlacement = child_window.ChildPlacement;
+const MONITORINFO = sys.MONITORINFO;
+const stackChildAbove = win32.stackChildAbove;
+const tab_drag = @import("tab_drag.zig");
+const window_start = @import("window_start.zig");
+/// `SetWindowPos`'s bottom of the z-order.
+const HWND_BOTTOM: ?*anyopaque = @ptrFromInt(1);
 const ChromeRepaintMask = win32.ChromeRepaintMask;
 const ChromeTextDirty = win32.ChromeTextDirty;
 const CloseScope = confirm_text.CloseScope;
@@ -141,6 +147,7 @@ const overlayLabelReservation = win32.overlayLabelReservation;
 const overlayPanelInterior = win32.overlayPanelInterior;
 const overlay_session = @import("overlay_session.zig");
 const overlay_view = @import("overlay_view.zig");
+const pane_divider = @import("pane_divider.zig");
 const ownedStringEquals = paint_text.ownedStringEquals;
 const paintPinnedSlotBadge = win32.paintPinnedSlotBadge;
 const paintTargetButtonBadge = win32.paintTargetButtonBadge;
@@ -286,6 +293,8 @@ const host_tab_height: i32 = (win32_theme.ThemeMetrics{}).height_tab;
 const host_tab_small_button_width: i32 = (win32_theme.ThemeMetrics{}).tab_small_button_width;
 
 const host_tab_overflow_button_width: i32 = (win32_theme.ThemeMetrics{}).tab_overflow_button_width;
+
+const host_overlay_query_height: i32 = (win32_theme.ThemeMetrics{}).height_overlay_query;
 
 pub const palette_catalog_capacity: usize = 768;
 
@@ -582,11 +591,12 @@ fn keyEventTogglesCommandPalette(
 ) bool {
     const event = remapWin32KeyEvent(event_orig, remaps);
     const entry = keybinds.getEvent(event) orelse return false;
-    const actions: []const input.Binding.Action = switch (entry.value_ptr.*) {
+    // A local, not a temporary: a single action's slice points into it.
+    const generic: input.Binding.Set.GenericLeaf = switch (entry.value_ptr.*) {
         .leader => return false,
-        inline .leaf, .leaf_chained => |leaf| leaf.generic().actionsSlice(),
+        inline .leaf, .leaf_chained => |leaf| leaf.generic(),
     };
-    return bindingActionsToggleCommandPalette(actions);
+    return bindingActionsToggleCommandPalette(generic.actionsSlice());
 }
 
 /// A menu item's text: the label, then the shortcut after a tab. In a menu
@@ -646,6 +656,80 @@ fn nextTabOverviewSelection(current: usize, total: usize, reverse: bool) usize {
     return if (clamped >= total) 1 else clamped + 1;
 }
 
+const PaneDividers = pane_divider.For(SplitTreeSurface);
+
+/// A split divider drag in progress (`Host.beginPaneDividerDrag`): what it
+/// moves and what Esc puts back. The tab and its tree are checked again at
+/// every step (`Host.paneDividerDragTab`): a pane can close, and the tree be
+/// replaced, while the button is held.
+pub const PaneDividerDrag = struct {
+    tab_id: u32,
+    nodes: [*]const SplitTreeSurface.Node,
+    nodes_len: usize,
+    handle: SplitTreeSurface.Node.Handle,
+    layout: SplitTreeSurface.Split.Layout,
+    start_ratio: f16,
+    /// The pointer's coordinate along the split's axis at the press. A move
+    /// puts the split at `start_ratio` plus the pointer's distance from here
+    /// over the split's extent, so the divider keeps its offset from the
+    /// pointer, and a pointer back at the press gives `start_ratio` exactly,
+    /// which a round trip through the rounded pixel position would not.
+    press_along: i32,
+    /// The pointer's distance from the divider's position at the press,
+    /// along the axis: where a re-anchor puts the divider.
+    grab_offset: i32,
+    /// The next undo sequence at the press: history recorded before it is
+    /// what this drag, as a resize made at the press, discards when it ends
+    /// changed (`Host.clearPaneDividerHistory`); history recorded during it
+    /// stays.
+    press_sequence: u64,
+    /// The tree's generation at the press (`SplitTree.generation`): a tree
+    /// that replaced it has another, even at the same address and length.
+    generation: u64,
+    /// What moves are measured from: the pointer coordinate, the ratio and
+    /// the panes' rectangle of the last anchor, at first the press. When the
+    /// rectangle changes mid-drag (an overlay opens and moves the content's
+    /// top), coordinates from the old anchor no longer match the layout, so
+    /// the drag re-anchors where the divider sits under the pointer at its
+    /// grab offset (`Host.dragPaneDivider`).
+    anchor_along: i32,
+    anchor_ratio: f32,
+    anchor_content: RECT,
+    /// Whether the drag ever wrote a ratio other than `start_ratio`: the
+    /// panes were resized, so its end catches their repaints up.
+    moved: bool = false,
+    /// Whether the divider sits off the pixel it started on, as of the last
+    /// step taken while the drag's tree was valid. When the tree is
+    /// replaced (a pane closes under the drag), that decides the history:
+    /// a divider off its start pixel is a change that may live on in the
+    /// new tree and cannot be put back, so it counts as one change; one
+    /// back on its start pixel (an out-and-back drag) changed nothing.
+    off_start: bool = false,
+    /// The ratios the drag may take (the minimum pane), measured at the
+    /// press and again only when the split's extent changes
+    /// (`Host.paneDividerBounds`).
+    bounds: PaneDividers.Bounds,
+};
+
+/// A divider under the mouse, with the tab and tree it was read on.
+const PaneDividerHover = struct {
+    layout: SplitTreeSurface.Split.Layout,
+    tab_id: u32,
+    generation: u64,
+};
+
+/// A press on a divider, which a second one on the same divider within the
+/// system's double-click time and rectangle makes a double-click.
+pub const PaneDividerPress = struct {
+    tab_id: u32,
+    /// The tree's generation: a pane that exits between the clicks can put
+    /// another split at the same handle and spot.
+    generation: u64,
+    handle: SplitTreeSurface.Node.Handle,
+    time_ms: u32,
+    point: POINT,
+};
+
 pub const Host = struct {
     app: *App,
     id: u32,
@@ -690,6 +774,35 @@ pub const Host = struct {
     /// must still defer terminal surface repaints so the explicit
     /// post-layout flush owns the single repaint request.
     defer_surface_repaints_until_flush: bool = false,
+    /// The split divider the mouse is dragging (`beginPaneDividerDrag`),
+    /// while the host holds the capture.
+    pane_divider_drag: ?PaneDividerDrag = null,
+    /// The divider the last host `WM_MOUSEMOVE` was over, for a
+    /// `WM_SETCURSOR` whose `GetCursorPos` fails (a private desktop). It
+    /// holds only for the tree it was read on (`PaneDividerHover`), and a
+    /// pane that keeps the mouse in its hit test clears it: the host hears
+    /// no `WM_MOUSEMOVE` while the pointer is in a pane.
+    pane_divider_hover: ?PaneDividerHover = null,
+    /// The last press on a divider, which a second press makes a
+    /// double-click (the host class has no `CS_DBLCLKS`).
+    pane_divider_press: ?PaneDividerPress = null,
+    /// The host still holds the capture for a left button whose press was a
+    /// divider's but whose drag already ended (Esc, a double-click, the
+    /// panes changing under it), until that button's release.
+    pane_divider_button_held: bool = false,
+    /// While a divider step lays the panes out, how many more of them may
+    /// paint synchronously on their WM_SIZE (`paneDividerStepRepaintMode`);
+    /// null outside a step.
+    pane_divider_step_paints: ?u8 = null,
+    /// Test-only: the content rectangle `paneDividerContent` reports for a
+    /// host with no window, so tests can drive `handlePaneDividerMessage`.
+    test_pane_divider_content: ?RECT = null,
+    /// Test-only: makes `paneDividerPosition` fail, as when its slots
+    /// cannot be allocated.
+    test_pane_divider_lookup_fails: bool = false,
+    /// Test-only: `WM_SETCURSOR` reads no cursor position, as on a private
+    /// desktop, where `GetCursorPos` fails.
+    test_pane_divider_no_cursor_pos: bool = false,
     overlay_mode: HostOverlayMode = .none,
     /// Surface a title prompt's text was last filled from, while
     /// `overlay_view.shape(overlay_mode).follows_active_surface`, so the
@@ -866,10 +979,9 @@ pub const Host = struct {
     /// `win32_tab_visual.close_fade_ms` (120 ms) cubic ease-in-out.
     tab_close_hover: win32_tab_visual.CloseState = .{},
     tab_close_hover_hwnd: ?HWND = null,
-    /// The tab whose close zone the pointer is in (`syncTabCloseHot`), and
-    /// whether a press that started there is held.
+    /// The tab whose close zone the pointer is in (`syncTabCloseHot`). A
+    /// press held on its X is `tab_close_press`.
     tab_close_hot_hwnd: ?HWND = null,
-    tab_close_pressed: bool = false,
     /// The close chip's own fade, and the tab it belongs to, which outlives
     /// `tab_close_hot_hwnd` while the chip fades out.
     tab_close_chip_state: win32_tab_visual.CloseState = .{},
@@ -891,6 +1003,10 @@ pub const Host = struct {
     /// `WM_NCMOUSELEAVE`.
     caption_hover: CaptionButton = .none,
     caption_pressed: CaptionButton = .none,
+    /// The integrated titlebar's Close took the press and holds the pointer
+    /// (`SetCapture`) until the release, which closes the window only over
+    /// Close; a capture lost meanwhile forgets the press.
+    caption_close_held: bool = false,
     /// Last zoomed state the caption buttons were announced with. The
     /// middle button's UIA name is "Maximize" or "Restore", so a flip has
     /// to raise a Name property-changed event.
@@ -966,6 +1082,49 @@ pub const Host = struct {
     tab_drop_operation: win32_tab_drop_zones.Operation = .none,
     tab_drop_target_surface: ?*Surface = null,
     tab_drop_preview_hwnd: ?HWND = null,
+    /// Where the pointer held the dragged tab's button when the drag began,
+    /// in the button's client coordinates, so a torn-off tab lands under the
+    /// pointer in its new window (`tearOffDrop`). `tab_drag_start_*` moves
+    /// with each reorder step; this does not.
+    tab_drag_grab: POINT = .{ .x = 0, .y = 0 },
+    /// The tab's index when the drag began.
+    tab_drag_origin_index: ?usize = null,
+    /// The dragged tab, and the tab after it when the drag began (null: it
+    /// was last), by id: Esc puts it back before that tab. By id, since a
+    /// key binding (`move_tab`, `move_tab_to_new_window`, a close) can change
+    /// the list during a drag; the tab button's handler finds the dragged
+    /// tab by its own button for the same reason.
+    tab_drag_tab_id: u32 = 0,
+    tab_drag_next_id: ?u32 = null,
+    /// Esc ended the drag while the button was still down: the button keeps
+    /// the capture until it comes up, and that release does nothing, so it
+    /// neither clicks a tab's X nor reaches a terminal as a stray release.
+    tab_drag_cancelled: bool = false,
+    /// The tab button that took the press inside its close X: only its own
+    /// release there closes its tab, never a release whose press began
+    /// elsewhere (on a tab that left mid-drag, in another window, outside
+    /// noctty).
+    tab_close_press: ?HWND = null,
+    /// What dropping the dragged tab would do now (`tab_drag.decide`).
+    tab_drag_target: tab_drag.Target = .stay,
+    /// In this window, while another window's tab is dragged over its strip:
+    /// the bar where the tab would go.
+    tab_insert_marker_hwnd: ?HWND = null,
+    tab_insert_marker_placement: ChildPlacement = .{},
+    /// The insert bar's UIA element: decorative, since the drag label says
+    /// where the tab goes.
+    tab_insert_marker_uia_provider: ?*win32_uia.ChromeControlProvider = null,
+    tab_insert_marker_prev_proc: ?*const anyopaque = null,
+    /// This window's only tab started a window move (`beginOnlyTabWindowMove`):
+    /// its rect and DPI then. How the move ends decides whether the tab joins
+    /// another window's strip (`tab_drag.windowMoveMerges`).
+    only_tab_window_move: ?OnlyTabMove = null,
+    /// The same, while the system's move loop runs (`WM_SYSCOMMAND`).
+    only_tab_move_loop: ?OnlyTabMove = null,
+    /// A moved tab is being shown here (`App.moveTabToWindow`): a pane's
+    /// `initial_size` from its new DPI's font records its size but does not
+    /// resize the window, whose size the move decided (`placeTearOff`).
+    hold_initial_size: bool = false,
 
     // Hover tooltip for the tab strip. Created on the first hover that has
     // something to show and reused after that; `tab_tooltip_tab_id` names the
@@ -1044,6 +1203,11 @@ pub const Host = struct {
     resize_settle_until_ms: u64 = 0,
     structural_history_disposing: bool = false,
     destroy_after_structural_dispose: bool = false,
+    /// Structural history with a lower sequence (`sequence_id`) is from
+    /// before a tab move that could not dispose it (`App.retireMoveHistory`):
+    /// it keeps tab indices and panes of the windows as they were, so it
+    /// never replays. An undo or redo that reaches it disposes it instead.
+    history_floor: u64 = 0,
     structural_undo_entries: win32_structural_history.List(StructuralUndoEntry) = .empty,
     structural_redo_entries: win32_structural_history.List(StructuralUndoEntry) = .empty,
 
@@ -1243,8 +1407,10 @@ pub const Host = struct {
     }
 
     fn disposeStructuralNormalLogged(self: *Host, entry: *StructuralUndoEntry) !void {
+        // A warning: the entry stays, whole, and the undo prune disposes it
+        // later (`pruneUndoHistoryNow` retries a second on); nothing is lost.
         entry.dispose(self, .normal) catch |err| {
-            log.err("structural history disposal deferred err={}", .{err});
+            log.warn("structural history disposal deferred err={}", .{err});
             return err;
         };
     }
@@ -1351,6 +1517,15 @@ pub const Host = struct {
             &self.structural_undo_entries,
             &self.structural_redo_entries,
         );
+    }
+
+    /// Disposes the structural undo and redo recorded before
+    /// `min_sequence_id` (`App.nextUndoSequence`), keeping what was recorded
+    /// since. False when an entry could not be disposed now.
+    pub fn pruneStructuralHistoryBeforeSequence(self: *Host, min_sequence_id: u64) bool {
+        const undo_complete = win32_structural_history.pruneBeforeSequence(StructuralUndoEntry, &self.structural_undo_entries, min_sequence_id, self, disposeStructuralNormalLogged);
+        const redo_complete = win32_structural_history.pruneBeforeSequence(StructuralUndoEntry, &self.structural_redo_entries, min_sequence_id, self, disposeStructuralNormalLogged);
+        return undo_complete and redo_complete;
     }
 
     pub fn pruneStructuralHistoryBefore(self: *Host, min_timestamp_ms: u64) bool {
@@ -2041,7 +2216,17 @@ pub const Host = struct {
         return true;
     }
 
+    /// What an undo or redo says when history from before a tab move
+    /// (`history_floor`) could not be disposed yet; the prune tries again.
+    const history_floor_message = "Undo history from before a tab moved is still being cleared.";
+
     pub fn applyLatestStructuralUndo(self: *Host) !?[]const u8 {
+        // From before a tab move: disposed, never replayed. No live tab
+        // changes, so nothing to refresh or audit, which also holds when a
+        // move is still under way.
+        if (self.peekStructuralUndo()) |newest| if (newest.sequence_id < self.history_floor) {
+            return if (self.discardNewestStructuralUndo()) null else history_floor_message;
+        };
         // Replays move panes between tabs; their status badges follow.
         defer self.refreshAllTabStatus();
         // Once the replay's activation is done: an undo may show another
@@ -2092,6 +2277,9 @@ pub const Host = struct {
     }
 
     pub fn applyLatestStructuralRedo(self: *Host) !?[]const u8 {
+        if (self.peekStructuralRedo()) |newest| if (newest.sequence_id < self.history_floor) {
+            return if (self.discardNewestStructuralRedo()) null else history_floor_message;
+        };
         // Replays move panes between tabs; their status badges follow.
         defer self.refreshAllTabStatus();
         defer self.app.auditShellNativeMapping("structural-redo");
@@ -2547,7 +2735,10 @@ pub const Host = struct {
     pub fn handleNcMouseLeave(self: *Host) void {
         self.caption_track_armed = false;
         self.setCaptionHover(.none);
-        self.clearCaptionPressed();
+        // A press on Close holds the pointer (`caption_close_held`): the
+        // pointer may leave the frame and come back before the release, as
+        // with a stock caption button (council round 7 L1).
+        if (!self.caption_close_held) self.clearCaptionPressed();
     }
 
     pub const paletteSnapshot = palette_controller.HostControls.paletteSnapshot;
@@ -2702,6 +2893,14 @@ pub const Host = struct {
             host.refreshChrome() catch |err| {
                 log.warn("palette theme chrome refresh failed err={}", .{err});
             };
+            // A theme file is a config file and can set
+            // `command-palette-hint`, which moves an open palette's band
+            // with the tab strip and the decorations unchanged, so nothing
+            // above lays the window out (`refreshChrome` moves the list,
+            // not the terminal). The swap changes nothing else the band's
+            // height reads, so the replaced config's height is its height
+            // before the swap.
+            host.overlayBandChanged(host.overlayBandHeightWith(old.@"command-palette-hint"));
         }
         return old;
     }
@@ -3355,6 +3554,8 @@ pub const Host = struct {
         }
         destroyChildWindow(&self.palette_list_hwnd);
         destroyChildWindow(&self.tab_drop_preview_hwnd);
+        detachChromeControlProvider(self.app, &self.tab_insert_marker_uia_provider);
+        destroySubclassedWindow(&self.tab_insert_marker_hwnd, &self.tab_insert_marker_prev_proc);
         detachChromeControlProvider(self.app, &self.tab_tooltip_uia_provider);
         destroyChildWindow(&self.tab_tooltip_hwnd);
         self.tab_tooltip_tab_id = null;
@@ -3483,6 +3684,23 @@ pub const Host = struct {
         if (self.tab_tooltip_tab_id) |shown| {
             if (shown == tab.id) self.hideTabTooltip();
         }
+        // The button of a tab being dragged (a key binding moved or closed
+        // it during the drag): the drag ends here. Its subclass is taken off
+        // before the window goes, so its own `WM_CAPTURECHANGED` cleanup
+        // would never run, and the label, the insert bar and the drag state
+        // (which takes the next Esc anywhere) would stay.
+        // Its press still holds the button down (a drag, a press on its X),
+        // and the release comes to whatever is under the pointer then:
+        // swallowed, so it closes no other tab's X (council round 5 M1).
+        // `endTabDrag` releases the capture, whose `WM_CAPTURECHANGED`
+        // clears the swallow, so it is set after.
+        if (tab.button_hwnd) |button| if (sys.GetCapture() == button) {
+            self.endTabDrag();
+            self.tab_drag_cancelled = true;
+            // With the capture gone it can land in any window, on a
+            // terminal there too: the pump takes it (`App.takeHeldRelease`).
+            self.app.held_release_pending = true;
+        };
         detachChromeControlProvider(self.app, &tab.uia_provider);
         destroySubclassedWindow(&tab.button_hwnd, &tab.button_prev_proc);
     }
@@ -3552,28 +3770,34 @@ pub const Host = struct {
         try std.testing.expectEqual(@as(?usize, null), host.tabIndexAtScreenX(x));
     }
 
-    pub fn swapTabs(self: *Host, a: usize, b: usize) void {
-        if (a == b) return;
-        if (a >= self.tabs.items.len or b >= self.tabs.items.len) return;
+    /// Refuses every reorder, quietly, for the test of a refused one: each
+    /// real refusal logs an error, which fails a test.
+    pub var test_swap_refused = false;
+
+    /// Whether the tab moved: a refused reorder leaves every index as it was.
+    pub fn swapTabs(self: *Host, a: usize, b: usize) bool {
+        if (a == b) return false;
+        if (a >= self.tabs.items.len or b >= self.tabs.items.len) return false;
+        if (builtin.is_test and test_swap_refused) return false;
         var shell_prepared: ?win32_shell.runtime.Prepared = null;
         if (self.app.shell_runtime_initialized) shell: {
             const shell_id = self.tabs.items[a].shell_id orelse {
                 log.err("refusing tab drag reorder: shell tab mapping missing", .{});
-                return;
+                return false;
             };
             shell_prepared = self.app.shell_runtime.prepare(.{ .reorder_tab = .{
                 .tab = shell_id,
                 .index = b,
             } }) catch |err| {
                 log.err("refusing tab drag reorder: shell preflight failed err={}", .{err});
-                return;
+                return false;
             };
             break :shell;
         }
         defer if (shell_prepared) |*prepared| prepared.deinit();
         if (!self.tryClearStructuralHistory(.normal)) {
             log.err("refusing tab drag reorder: structural history disposal deferred", .{});
-            return;
+            return false;
         }
 
         const old_active = self.active_tab;
@@ -3586,13 +3810,14 @@ pub const Host = struct {
             self.tabs.insertAssumeCapacity(a, rollback);
             self.active_tab = old_active;
             log.err("tab drag reorder shell commit failed err={}", .{err});
-            return;
+            return false;
         };
         if (shell_prepared) |*prepared| self.app.applyShellEffects(prepared.effects(), .{});
         self.tabs.items[a].clearRedoHistory();
         self.tabs.items[b].clearRedoHistory();
         self.app.auditShellNativeMapping("tab-drag-reorder");
         runUiActionOrLog("tab drag reorder layout failed", self.layout());
+        return true;
     }
 
     /// Hide the tooltip popup if one is up (a tab's title or a chrome button's name).
@@ -3983,6 +4208,496 @@ pub const Host = struct {
         );
         _ = sys.ShowWindow(preview, c.SW_SHOWNOACTIVATE);
         _ = sys.InvalidateRect(preview, null, 1);
+    }
+
+    /// Where this window's only tab started a window move, and its size once
+    /// the move loop moved it (`Host.only_tab_window_move`).
+    pub const OnlyTabMove = struct {
+        rect: RECT,
+        dpi: u32,
+        /// The window's size once the move loop began moving it (its first
+        /// `WM_MOVING`): a snapped or maximized window takes back its normal
+        /// size there, which is not a resize at the end.
+        moving: ?tab_drag.Size = null,
+    };
+
+    /// A tab move asked of a window (`App.requestTabMove`): the tab by its
+    /// id in that window, and where it goes.
+    pub const TabMoveRequest = struct {
+        tab_id: u32,
+        dest: Dest,
+
+        pub const Dest = union(enum) {
+            /// A new window, where the tab was dropped, or (null) a cascade
+            /// step off this one (`move_tab_to_new_window`).
+            new_window: ?window_start.Drop,
+            /// Another window of this process, by id, at `index` in its strip.
+            window: tab_drag.Over,
+        };
+    };
+
+    /// The tab strip's band in screen coordinates: the client top, as tall
+    /// as the strip, as wide as tabs may go (the [+] and [v] cluster and the
+    /// caption buttons aside). Null with the strip hidden.
+    pub fn tabStripScreenRect(self: *Host) ?RECT {
+        if (!self.shouldShowTabBar()) return null;
+        const hwnd = self.hwnd orelse return null;
+        const height = self.tabBarHeight();
+        if (height <= 0) return null;
+        var client: RECT = undefined;
+        if (sys.GetClientRect(hwnd, &client) == 0) return null;
+        const width = @max(1, (client.right - client.left) - self.rightButtonsWidth() - self.captionButtonsWidth());
+        var origin: POINT = .{ .x = 0, .y = 0 };
+        if (sys.ClientToScreen(hwnd, &origin) == 0) return null;
+        return .{ .left = origin.x, .top = origin.y, .right = origin.x + width, .bottom = origin.y + height };
+    }
+
+    /// Where a tab dropped at screen `x` goes in this window's strip, from
+    /// the buttons on screen (`tab_drag.insertIndex`). A button scrolled out
+    /// of the strip keeps a stale rect, so only the shown ones count (the
+    /// 2026-09-19 entry in chrome-tabs-paint.md).
+    pub fn tabInsertIndexAtScreenX(self: *Host, x: i32) usize {
+        var scan: tab_drag.InsertScan = .{ .x = x, .tab_count = self.tabs.items.len };
+        for (self.tabs.items, 0..) |tab, i| {
+            if (!tab.button_placement.visible_known or !tab.button_placement.visible) continue;
+            const button = tab.button_hwnd orelse continue;
+            var rect: RECT = undefined;
+            if (sys.GetWindowRect(button, &rect) == 0) continue;
+            if (scan.add(.{ .index = i, .left = rect.left, .right = rect.right })) |index| return index;
+        }
+        return scan.end();
+    }
+
+    /// The bar that shows where a tab dragged from another window would go
+    /// in this strip: at the left edge of the tab now at `index`, or past the
+    /// last tab shown.
+    pub fn showTabInsertMarker(self: *Host, index: usize) void {
+        const hwnd = self.hwnd orelse return;
+        const placement = chrome_layout.tabButtonPlacement(self.tabBarHeight(), self.current_dpi, self.tabsFlushWithTop());
+        var x: ?i32 = null;
+        var last_right: ?i32 = null;
+        for (self.tabs.items, 0..) |tab, i| {
+            if (!tab.button_placement.visible_known or !tab.button_placement.visible or !tab.button_placement.rect_known) continue;
+            if (i >= index and x == null) x = tab.button_placement.rect.left;
+            last_right = tab.button_placement.rect.right;
+        }
+        const left = x orelse last_right orelse 0;
+        const width = @max(2, self.scaled(3));
+        const rect = childRect(@max(0, left - @divTrunc(width, 2)), placement.top, width, placement.height);
+        if (self.tab_insert_marker_hwnd == null) {
+            self.tab_insert_marker_hwnd = sys.CreateWindowExW(
+                0,
+                prompt_label_class,
+                std.unicode.utf8ToUtf16LeStringLiteral(""),
+                c.WS_CHILD | c.SS_OWNERDRAW,
+                rect.left,
+                rect.top,
+                rect.right - rect.left,
+                rect.bottom - rect.top,
+                hwnd,
+                null,
+                self.app.hinstance,
+                null,
+            );
+            self.tab_insert_marker_placement = .{};
+            // Subclassed once, as it is made: a second subclass would save
+            // `tabInsertMarkerProc` as its own previous procedure, and every
+            // message would forward to itself until the stack ran out.
+            if (self.tab_insert_marker_hwnd) |made| {
+                setWindowData(made, self);
+                const previous = sys.SetWindowLongPtrW(made, c.GWLP_WNDPROC, @bitCast(@intFromPtr(&tabInsertMarkerProc)));
+                self.tab_insert_marker_prev_proc = if (previous == 0) null else @ptrFromInt(@as(usize, @bitCast(previous)));
+            }
+        }
+        const marker = self.tab_insert_marker_hwnd orelse return;
+        // Its UIA element may be made later than the bar (no COM yet, or a
+        // failed allocation): only the provider is tried again.
+        if (self.tab_insert_marker_uia_provider == null) {
+            self.tab_insert_marker_uia_provider = self.createChromeUiaProvider(marker, .{
+                .ctx = @ptrCast(self),
+                .role = .decorative,
+                .name = &tabInsertMarkerUiaName,
+            });
+        }
+        _ = applyChildRect(marker, &self.tab_insert_marker_placement, rect);
+        if (applyChildVisibility(marker, &self.tab_insert_marker_placement, true)) raiseChildToTop(hwnd, marker);
+        _ = sys.InvalidateRect(marker, null, 0);
+    }
+
+    fn tabInsertMarkerUiaName(_: *anyopaque, _: usize, _: []u8) []const u8 {
+        return "";
+    }
+
+    /// The insert bar answers UIA with its decorative element; the rest is
+    /// the STATIC's.
+    fn tabInsertMarkerProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.winapi) LRESULT {
+        const data: usize = @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWLP_USERDATA));
+        const host: ?*Host = if (data == 0) null else @ptrFromInt(data);
+        if (host) |v| {
+            if (msg == c.WM_GETOBJECT) if (v.tab_insert_marker_uia_provider) |provider| {
+                if (win32_uia.returnChromeControlProvider(hwnd, wParam, lParam, provider)) |lr| return lr;
+            };
+            if (v.tab_insert_marker_prev_proc) |previous| return sys.CallWindowProcW(previous, hwnd, msg, wParam, lParam);
+        }
+        return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+
+    pub fn hideTabInsertMarker(self: *Host) void {
+        const marker = self.tab_insert_marker_hwnd orelse return;
+        _ = applyChildVisibility(marker, &self.tab_insert_marker_placement, false);
+    }
+
+    /// `WM_DRAWITEM` for the insert bar: the accent, which High Contrast
+    /// gives the system highlight.
+    pub fn drawTabInsertMarker(self: *Host, draw: *const DRAWITEMSTRUCT) bool {
+        const marker = self.tab_insert_marker_hwnd orelse return false;
+        if (draw.hwndItem != marker) return false;
+        gdi.fillSolidRect(draw.hDC, draw.rcItem, self.app.resolved_theme.accent);
+        return true;
+    }
+
+    /// Where a restored window of this one's kind puts its client area, from
+    /// its window rect's top-left, at `dpi`: the frame a
+    /// torn-off tab's window opens with, whatever state this one is in now.
+    /// The integrated caption and a 0 px caption row put the client area's
+    /// top at the window's top (`handleNcCalcSize` keeps only the stock
+    /// side frame); the stock caption keeps the whole stock frame.
+    pub fn restoredClientOffset(self: *const Host, hwnd: HWND, dpi: u32) POINT {
+        const keeps_frame = window_start.undecoratedKeepsFrame(self.app.os_build, self.quick_terminal);
+        const framed = self.top_level.decorations_visible or keeps_frame;
+        const ex_style: u32 = @truncate(@as(usize, @bitCast(sys.GetWindowLongPtrW(hwnd, c.GWL_EXSTYLE))));
+        var rect: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
+        if (sys.AdjustWindowRectExForDpi(&rect, window_start.hostStyle(framed, false), 0, ex_style, dpi) == 0) {
+            // Not a (0,0) frame: this window's own, scaled to `dpi`, which is
+            // what the grab used before #703.
+            log.warn("tear-off frame at dpi={} not known err={}; this window's own frame, scaled", .{ dpi, windows.kernel32.GetLastError() });
+            var window_rect: RECT = undefined;
+            var origin: POINT = .{ .x = 0, .y = 0 };
+            if (sys.GetWindowRect(hwnd, &window_rect) == 0 or sys.ClientToScreen(hwnd, &origin) == 0) return .{ .x = 0, .y = 0 };
+            const from = @max(self.current_dpi, 1);
+            return .{ .x = scaleByDpi(origin.x - window_rect.left, dpi, from), .y = scaleByDpi(origin.y - window_rect.top, dpi, from) };
+        }
+        const client_top = self.usingIntegratedTitlebar() or (keeps_frame and !self.top_level.decorations_visible);
+        return .{ .x = -rect.left, .y = if (client_top) 0 else -rect.top };
+    }
+
+    /// Where the window of a tab torn off at `screen` goes: the pointer, and
+    /// where it held the tab (`tab_drag_grab`) as an offset from the new
+    /// window's top-left (`tab_drag.grabOffset`), on the monitor under it.
+    pub fn tearOffDrop(self: *Host, screen: POINT, button: ?HWND) ?window_start.Drop {
+        if (self.hwnd == null) return null;
+        const monitor = sys.MonitorFromPoint(screen, c.MONITOR_DEFAULTTONEAREST) orelse return null;
+        var info: MONITORINFO = std.mem.zeroes(MONITORINFO);
+        info.cbSize = @sizeOf(MONITORINFO);
+        if (sys.GetMonitorInfoW(monitor, &info) == 0) return null;
+        var dpi_x: u32 = 0;
+        var dpi_y: u32 = 0;
+        // 0 (unknown) keeps the source's DPI.
+        if (sys.GetDpiForMonitor(monitor, 0, &dpi_x, &dpi_y) < 0) dpi_x = 0;
+        return self.tearOffDropOn(screen, button, info.rcWork, dpi_x);
+    }
+
+    /// `tearOffDrop` onto a monitor of work area `work` and DPI `dpi` (0:
+    /// this window's). The new window opens restored, whatever this one is
+    /// now (maximized, with its extra top margin and its tabs flush with the
+    /// top; fullscreen, with no caption), and at the DPI it is dropped at:
+    /// the pointer goes where that window's frame and tab row put the tab
+    /// (Greptile r4520680639), each taken at that DPI, since a frame does
+    /// not scale with it (a stock caption is 8,31 at 96 DPI and 13,58 at 192,
+    /// not 16,62; #703 M1). Only where the pointer held the tab scales. The
+    /// grab is in the destination's pixels (`grab_dpi`).
+    pub fn tearOffDropOn(self: *Host, screen: POINT, button: ?HWND, work: RECT, dpi: u32) ?window_start.Drop {
+        const hwnd = self.hwnd orelse return null;
+        const from = @max(self.current_dpi, 1);
+        const to = if (dpi == 0) from else dpi;
+        const frame = self.restoredClientOffset(hwnd, to);
+        // Only `.top` is read, which depends on the DPI alone (this window's
+        // tab-bar height, at its own DPI, sets only `.height`).
+        const placement = chrome_layout.tabButtonPlacement(self.tabBarHeight(), to, false);
+        var button_width: i32 = self.scaled(host_tab_max_button_width);
+        if (button) |held| {
+            var rect: RECT = undefined;
+            if (sys.GetClientRect(held, &rect) != 0) button_width = rect.right - rect.left;
+        }
+        const grab = tab_drag.grabOffset(
+            frame.x,
+            frame.y,
+            placement.top,
+            scaleByDpi(self.tab_drag_grab.x, to, from),
+            scaleByDpi(self.tab_drag_grab.y, to, from),
+            scaleByDpi(button_width, to, from),
+        );
+        return .{ .at = screen, .grab = .{ .x = grab.x, .y = grab.y }, .work = work, .dpi = dpi, .grab_dpi = to };
+    }
+
+    /// The pointer moved during a tab drag that passed its threshold: lays
+    /// out what a drop there would do (`tab_drag.decide`) and shows it.
+    /// `client` is `screen` in this window's client coordinates.
+    pub fn updateTabDragTarget(self: *Host, drag_index: usize, screen: POINT, client: POINT) void {
+        const hwnd = self.hwnd orelse return;
+        var client_rect: RECT = undefined;
+        const inside = sys.GetClientRect(hwnd, &client_rect) != 0 and
+            client.x >= client_rect.left and client.x < client_rect.right and
+            client.y >= client_rect.top and client.y < client_rect.bottom;
+        const band = @max(1, self.tabBarHeight());
+        const target = tab_drag.decide(.{
+            .tab_count = self.tabs.items.len,
+            .quick_terminal = self.quick_terminal,
+            .inside_source = inside,
+            .outside_strip = tab_drag.leavesStrip(client.y, 0, band, @max(self.scaled(16), @divTrunc(band, 2))),
+            .split_zone = self.tab_drop_operation != .none,
+            .over = self.app.tabStripTargetAt(screen, null, hwnd),
+        });
+        self.tab_drag_target = target;
+        // A tear-off or a move takes no split zone of this window.
+        if (target != .stay) self.hideTabDropPreview();
+        self.app.showTabDragFeedback(self, drag_index, target, screen);
+    }
+
+    /// Hides an open close prompt that counted this window's terminals
+    /// (`window`, `other_tabs`, `right_tabs`). The quit prompt counts every
+    /// window's, which a move leaves the same; `this_tab` is the tab's own,
+    /// which `cancelConfirmFromTab` handles.
+    fn cancelCountingClosePrompt(self: *Host) void {
+        const payload = self.confirm_payload orelse return;
+        const scope = payload.close_scope orelse return;
+        switch (scope) {
+            .window, .other_tabs, .right_tabs => self.hideOverlay(),
+            .this_tab, .app, .update => {},
+        }
+    }
+
+    /// A drag that ends because its tab left: nothing to put back.
+    pub fn endTabDrag(self: *Host) void {
+        self.tab_drag_index = null;
+        self.tab_drag_active = false;
+        self.tab_drag_origin_index = null;
+        self.tab_drag_target = .stay;
+        self.tab_drag_cancelled = false;
+        self.hideTabDropPreview();
+        self.app.endTabDragFeedback();
+        if (sys.GetCapture()) |captured| if (self.tabIndexForButton(captured) != null) {
+            _ = sys.ReleaseCapture();
+        };
+    }
+
+    /// Esc during a tab drag: the drag ends where it began, a reorder made
+    /// on the way taken back, and nothing is dropped.
+    pub fn cancelTabDrag(self: *Host) void {
+        self.tab_drag_index = null;
+        self.tab_drag_active = false;
+        self.tab_drag_origin_index = null;
+        self.tab_drag_target = .stay;
+        self.tab_drag_cancelled = true;
+        self.hideTabDropPreview();
+        self.app.endTabDragFeedback();
+        // Back before the tab it was before, whatever else changed meanwhile.
+        const at = self.findTabIndexById(self.tab_drag_tab_id) orelse return;
+        const before: usize = if (self.tab_drag_next_id) |next| before: {
+            const next_at = self.findTabIndexById(next) orelse return;
+            break :before if (next_at > at) next_at - 1 else next_at;
+        } else self.tabs.items.len - 1;
+        if (before != at) _ = self.swapTabs(at, before);
+    }
+
+    /// The drag of a window's only tab passed its threshold: the window moves
+    /// with it, as the system moves it by its caption (Windows Terminal's
+    /// behaviour), and where the move ends decides whether the tab joins
+    /// another window's strip (`App.finishOnlyTabWindowMove`). A fullscreen
+    /// window stays where it is.
+    ///
+    /// The button gives up the pointer here. When no move starts after all
+    /// (no window, fullscreen, no rect, the post failing), the release would
+    /// land on whatever is under the pointer, a terminal pane included,
+    /// with no press there: the pump swallows it (`App.takeHeldRelease`;
+    /// CodeRabbit r4528360855). Only while `button_down`, the left button
+    /// down in the mouse move that got here, so its release is still to
+    /// come; a release already made is never armed for.
+    pub fn beginOnlyTabWindowMove(self: *Host, screen: POINT, button_down: bool) void {
+        self.tab_drag_index = null;
+        self.tab_drag_active = false;
+        self.tab_drag_origin_index = null;
+        self.tab_drag_target = .stay;
+        _ = sys.ReleaseCapture();
+        if (!self.startOnlyTabWindowMove(screen) and button_down) self.app.held_release_pending = true;
+    }
+
+    /// The system move `beginOnlyTabWindowMove` asks for, posted; false when
+    /// none was.
+    fn startOnlyTabWindowMove(self: *Host, screen: POINT) bool {
+        const hwnd = self.hwnd orelse return false;
+        if (self.top_level.isFullscreen()) return false;
+        var rect: RECT = undefined;
+        if (sys.GetWindowRect(hwnd, &rect) == 0) return false;
+        self.only_tab_window_move = .{ .rect = rect, .dpi = sys.GetDpiForWindow(hwnd) };
+        const x: u32 = @as(u16, @bitCast(@as(i16, @truncate(screen.x))));
+        const y: u32 = @as(u16, @bitCast(@as(i16, @truncate(screen.y))));
+        const packed_point: LPARAM = @bitCast(@as(usize, (y << 16) | x));
+        // SC_MOVE with HTCAPTION in its low bits is the caption drag.
+        if (sys.PostMessageW(hwnd, c.WM_SYSCOMMAND, c.SC_MOVE | c.HTCAPTION, packed_point) == 0) {
+            self.only_tab_window_move = null;
+            return false;
+        }
+        return true;
+    }
+
+    /// Runs at the two points of handing a tab over where window code has
+    /// just run (the prompts it cancels), for the tests that make a window go
+    /// there (council round 8 M1).
+    pub var test_give_tab_step: ?*const fn (*Host, GiveTabStep) void = null;
+    pub const GiveTabStep = enum { after_source_prompts, after_target_prompts };
+
+    /// What handing tab `tab_id` over to the window `target_id` runs first,
+    /// all of it window code: the prompts it puts away, the rename it hides,
+    /// the drag it ends. Before the model's commit (`App.moveTabToWindow`),
+    /// so nothing between the commit and the transfer runs a window's code
+    /// (council round 8 M1); each window is found again by id before it is
+    /// read, since what ran can close one, and the caller finds them and the
+    /// tab again after it.
+    pub fn prepareGiveTab(source: *Host, tab_id: u32, target_id: u32) void {
+        const app = source.app;
+        const source_id = source.id;
+        // A prompt one of its terminals raised stays with this window and
+        // would answer a terminal that has left it.
+        if (source.findTabIndexById(tab_id)) |at| source.cancelConfirmFromTab(&source.tabs.items[at]);
+        // A prompt to close this window, or its other or right tabs, counted
+        // terminals the tab takes away; one in the window it joins counted
+        // none of its own, so its Close would end them unwarned. Both go,
+        // and the next close asks with the windows as they are.
+        if (app.registry.findHostById(source_id)) |host| {
+            host.cancelCountingClosePrompt();
+            if (builtin.is_test) {
+                if (test_give_tab_step) |hook| hook(host, .after_source_prompts);
+            }
+        }
+        if (app.registry.findHostById(target_id)) |host| host.cancelCountingClosePrompt();
+        if (builtin.is_test) {
+            if (app.registry.findHostById(source_id)) |host| if (test_give_tab_step) |hook| hook(host, .after_target_prompts);
+        }
+        const self = app.registry.findHostById(source_id) orelse return;
+        const first = self.findTabIndexById(tab_id) orelse return;
+        // So would a rename of the tab in front, or of its terminal, which
+        // `submitOverlay` applies to the front tab as it is at Enter.
+        if (first == self.active_tab and (self.overlay_mode == .tab_title or self.overlay_mode == .surface_title)) self.hideOverlay();
+        const host = app.registry.findHostById(source_id) orelse return;
+        host.setHoveredButton(null);
+        // The dragged tab leaving (a key binding moved it mid-drag) ends the
+        // drag, as a pane's teardown does (`windowDestroyed`).
+        // So does a drag Esc ended whose release has not come yet. The
+        // button is still down: its release is swallowed, in this window and
+        // wherever it lands (`App.takeHeldRelease`).
+        if ((host.tab_drag_index != null or host.tab_drag_cancelled) and tab_id == host.tab_drag_tab_id) {
+            host.endTabDrag();
+            host.tab_drag_cancelled = true;
+            app.held_release_pending = true;
+        }
+        // A split divider of the tab mid-drag (automation moved it): the
+        // drag ends as Esc ends it, its ratio back, so the tab leaves with
+        // the split it had, and the button stays this window's until its
+        // release, no drag left for a tab it no longer has (council round
+        // 11 L2). Last: its layout is window code too.
+        if (host.pane_divider_drag) |drag| if (drag.tab_id == tab_id) host.cancelPaneDividerDrag();
+    }
+
+    /// Takes the tab at `index` out of this window and puts it at `insert`
+    /// in `target` with its panes, which keep running: the transfer alone,
+    /// once the model has the move (`App.moveTabToWindow`) and what it runs
+    /// first has run (`prepareGiveTab`). It runs no code of a window that
+    /// can close a tab or a window: list moves, the panes hidden and given
+    /// their new parent (`SetParent`), and the old button destroyed, whose
+    /// messages reach only noctty's own pane, button and host procedures.
+    /// The panes are hidden while they change windows, so no two OpenGL
+    /// children overlap in either (the 2026-04-14 entries in tabs-panes.md),
+    /// and nothing pumps messages between the tab leaving one list and
+    /// joining the other (the 2026-11-01 NOTIFY-MODULE entry in
+    /// app-lifecycle.md). `target` has room for the tab. Returns the tab's
+    /// index there.
+    pub fn giveTab(self: *Host, index: usize, target: *Host, insert: usize) usize {
+        const previous_tab_id = if (self.active_tab < self.tabs.items.len) self.tabs.items[self.active_tab].id else null;
+        var tab = self.tabs.orderedRemove(index);
+        self.destroyTabButton(&tab);
+        tab.button_placement = .{};
+        tab.button_label_cache_valid = false;
+        self.active_tab = activeTabAfterRemoval(self.active_tab, index, self.tabs.items.len);
+        var hide_it = tab.tree.iterator();
+        while (hide_it.next()) |entry| {
+            entry.view.host_active = false;
+            entry.view.setVisible(false);
+            _ = entry.view.hideSearchBarControls();
+        }
+        var move_it = tab.tree.iterator();
+        while (move_it.next()) |entry| reparentSurface(entry.view, target);
+        // Tab ids are a window's own.
+        tab.id = target.nextTabId();
+        const at = @min(insert, target.tabs.items.len);
+        target.tabs.insertAssumeCapacity(at, tab);
+        if (target.tabs.items.len == 1) target.active_tab = 0 else if (at <= target.active_tab) target.active_tab += 1;
+        self.notifyActiveTabUiaSelectionChanged(previous_tab_id);
+        self.notifyTabListUiaChanged();
+        return at;
+    }
+
+    /// `surface`'s pane and the controls it keeps in its window (the
+    /// scrollbar and the docked search bar) become `target`'s children. A
+    /// pane keeps its HWND, and with it its OpenGL context and pixel format
+    /// or its Direct3D 11 swap chain and composition target, which belong to
+    /// the pane's own window, not to the top-level one.
+    fn reparentSurface(surface: *Surface, target: *Host) void {
+        surface.host = target;
+        surface.host_id = target.id;
+        const parent = target.hwnd orelse return;
+        const pane = surface.hwnd orelse return;
+        _ = sys.SetParent(pane, parent);
+        // At the bottom, where a new tab's pane is made, so chrome the target
+        // raised over its panes stays over this one (the 2026-10-15 entry in
+        // chrome-tabs-paint.md).
+        _ = sys.SetWindowPos(pane, HWND_BOTTOM, 0, 0, 0, 0, c.SWP_NOMOVE | c.SWP_NOSIZE | c.SWP_NOACTIVATE);
+        // The cached rects and visibility were the old window's.
+        surface.placement = .{};
+        const controls = [_]struct { hwnd: ?HWND, placement: *ChildPlacement }{
+            .{ .hwnd = surface.scrollbar_hwnd, .placement = &surface.scrollbar_placement },
+            .{ .hwnd = surface.search_bar_bg_hwnd, .placement = &surface.search_bar_bg_placement },
+            .{ .hwnd = surface.search_bar_edit_hwnd, .placement = &surface.search_bar_edit_placement },
+            .{ .hwnd = surface.search_bar_prev_hwnd, .placement = &surface.search_bar_prev_placement },
+            .{ .hwnd = surface.search_bar_next_hwnd, .placement = &surface.search_bar_next_placement },
+            .{ .hwnd = surface.search_bar_regex_hwnd, .placement = &surface.search_bar_regex_placement },
+            .{ .hwnd = surface.search_bar_case_hwnd, .placement = &surface.search_bar_case_placement },
+            .{ .hwnd = surface.search_bar_word_hwnd, .placement = &surface.search_bar_word_placement },
+            .{ .hwnd = surface.search_bar_close_hwnd, .placement = &surface.search_bar_close_placement },
+            .{ .hwnd = surface.search_bar_results_hwnd, .placement = &surface.search_bar_results_placement },
+        };
+        for (controls) |control| {
+            const child = control.hwnd orelse continue;
+            _ = sys.SetParent(child, parent);
+            control.placement.* = .{};
+            // A window whose background alone is translucent makes the
+            // controls that paint themselves solid as they arrive; an opaque
+            // one gives back what a translucent source layered.
+            window_state.childReparented(target, child);
+        }
+        // The search edit and its six buttons find their pane through the
+        // Host in their window data (`searchEditProc`, `hostButtonProc`,
+        // `Host.searchControlSurface`); the pane, its quick-select overlay,
+        // the scrollbar, the search frame and the results chip name the
+        // Surface itself, which moves with them. Left naming the window the
+        // tab left, search stopped in the new one, and once an only tab's
+        // merge freed that window, they read freed memory.
+        const host_named = [_]?HWND{
+            surface.search_bar_edit_hwnd,
+            surface.search_bar_prev_hwnd,
+            surface.search_bar_next_hwnd,
+            surface.search_bar_regex_hwnd,
+            surface.search_bar_case_hwnd,
+            surface.search_bar_word_hwnd,
+            surface.search_bar_close_hwnd,
+        };
+        for (host_named) |control| if (control) |child| setWindowData(child, target);
+        if (surface.scrollbar_hwnd) |bar| stackChildAbove(bar, pane);
+        // The pseudo console's window, which a console program parents its
+        // dialogs to, is owned by the window it opened in (`consoleOwner`).
+        if (surface.core_initialized and surface.console_window_attached) surface.core_surface.ptyOwnerCallback(parent);
+        // The old window's font goes with it.
+        if (surface.search_bar_edit_hwnd != null) surface.applySearchBarFont(target.chrome_font);
     }
 
     pub fn commitTabDropSplit(self: *Host, source_index: usize) bool {
@@ -4698,6 +5413,160 @@ pub const Host = struct {
     test "showing a tab holds its panes' resizes until the whole tab is placed" {
         if (builtin.os.tag != .windows) return error.SkipZigTest;
         try runOnPrivateDesktop(shownTabResizeTestBody);
+    }
+
+    test "a divider drag step makes one synchronous paint request across all the panes it moves" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        try runOnPrivateDesktop(dividerStepPaintCountTestBody);
+    }
+
+    fn dividerStepPaintCountTestBody() !void {
+        var core_app: CoreApp = undefined;
+        var app: App = undefined;
+        var host: Host = undefined;
+        var surface_a: Surface = undefined;
+        var surface_b: Surface = undefined;
+        var surface_c: Surface = undefined;
+        var session: TestSession = .{};
+        try session.init(.{
+            .core_app = &core_app,
+            .app = &app,
+            .hosts = &.{.{ .storage = &host, .register = true }},
+            .surfaces = &.{
+                .{ .storage = &surface_a, .host = &host, .register = true, .window_visible = false },
+                .{ .storage = &surface_b, .host = &host, .register = true, .window_visible = false },
+                .{ .storage = &surface_c, .host = &host, .register = true, .window_visible = false },
+            },
+            .tabs = &.{.{ .host = &host, .surface = &surface_a, .id = 1 }},
+        });
+        defer session.deinit();
+        const window = try BannerTestWindow.init(&host);
+        defer window.deinit(&host);
+        _ = sys.ShowWindow(window.parent, c.SW_SHOWNOACTIVATE);
+        defer if (host.cached_window_title) |value| std.testing.allocator.free(value);
+        host.surfaces_visible = true;
+        try startTestPane(&surface_a, &host, window.parent);
+        defer stopTestPane(&surface_a);
+        try startTestPane(&surface_b, &host, window.parent);
+        defer stopTestPane(&surface_b);
+        try startTestPane(&surface_c, &host, window.parent);
+        defer stopTestPane(&surface_c);
+
+        // [A | (B / C)]: the root's divider moves all three panes.
+        const tab = &host.tabs.items[0];
+        var b_tree = try SplitTreeSurface.init(std.testing.allocator, &surface_b);
+        defer b_tree.deinit();
+        const with_b = try tab.tree.split(std.testing.allocator, .root, .right, 0.5, &b_tree);
+        tab.tree.deinit();
+        tab.tree = with_b;
+        var c_tree = try SplitTreeSurface.init(std.testing.allocator, &surface_c);
+        defer c_tree.deinit();
+        const with_c = try tab.tree.split(std.testing.allocator, tab.findHandle(&surface_b).?, .down, 0.5, &c_tree);
+        tab.tree.deinit();
+        tab.tree = with_c;
+        tab.focused = tab.findHandle(&surface_a).?;
+        // The stand-ins have no renderer: the dim the layout gives each pane
+        // is the one already "sent", so nothing goes to a renderer thread.
+        const high_contrast = isHighContrastActive();
+        surface_a.split_dimmed_sent = win32_chrome_state.splitDimmed(3, true, high_contrast);
+        surface_b.split_dimmed_sent = win32_chrome_state.splitDimmed(3, false, high_contrast);
+        surface_c.split_dimmed_sent = win32_chrome_state.splitDimmed(3, false, high_contrast);
+        try host.layout();
+        try std.testing.expect(surface_a.window_visible and surface_b.window_visible and surface_c.window_visible);
+
+        // The stand-ins are STATIC windows: their WM_SIZE goes to the pane's
+        // `windowSizeChanged` here, as the terminal window's own procedure
+        // sends it.
+        SizeChangeForwarder.install(0, surface_a.hwnd.?, &surface_a);
+        SizeChangeForwarder.install(1, surface_b.hwnd.?, &surface_b);
+        SizeChangeForwarder.install(2, surface_c.hwnd.?, &surface_c);
+        defer SizeChangeForwarder.uninstall();
+        // Settle mode is on, as right after an earlier drag ended: on its own
+        // it makes every resized pane paint at once on its WM_SIZE.
+        host.startResizeSettleRepaints();
+        defer host.killResizeSettleTimer();
+        try std.testing.expect(surface_presentation.resizeSettleActive(&host, sys.GetTickCount64()));
+
+        const content = host.paneDividerContent() orelse return error.TestNoContent;
+        const press = try paneDividerPositionForTest(&host, content);
+        try std.testing.expect(host.beginPaneDividerDrag(content, .{ .x = press, .y = content.top + 10 }, 1000));
+        surface_presentation.test_sync_paint_requests = 0;
+        SizeChangeForwarder.sizes = 0;
+        // One step of the drag: the layout moves A, B and C. Their WM_SIZE
+        // paints and the layout's own repaint of every visible pane all
+        // count; one of them may paint at once, the others queue.
+        host.dragPaneDivider(content, .{ .x = press - 60, .y = content.top + 10 });
+        try std.testing.expect(tab.tree.nodes[0].split.ratio < 0.5);
+        try std.testing.expect(SizeChangeForwarder.sizes >= 3);
+        try std.testing.expectEqual(@as(usize, 1), surface_presentation.test_sync_paint_requests);
+        host.finishPaneDividerDrag(content);
+
+        // A step of the inner divider moves B and C and leaves A alone. A
+        // holds a repaint an earlier frame resize deferred and never
+        // flushed: the step's layout flushes it with the rest, within the
+        // same one synchronous paint, not as one more.
+        surface_a.paint_pending = false;
+        surface_a.live_resize_repaint_deferred = true;
+        const inner = tab.tree.nodes[0].split.right;
+        const line = try paneDividerPositionAt(&host, content, inner);
+        const x = content.right - 40;
+        try std.testing.expect(host.beginPaneDividerDrag(content, .{ .x = x, .y = line }, 9000));
+        try std.testing.expectEqual(inner, host.pane_divider_drag.?.handle);
+        surface_presentation.test_sync_paint_requests = 0;
+        host.dragPaneDivider(content, .{ .x = x, .y = line - 30 });
+        try std.testing.expect(!surface_a.live_resize_repaint_deferred);
+        try std.testing.expectEqual(@as(usize, 1), surface_presentation.test_sync_paint_requests);
+        host.finishPaneDividerDrag(content);
+    }
+
+    fn paneDividerPositionAt(host: *Host, content: RECT, handle: SplitTreeSurface.Node.Handle) !i32 {
+        const tab = host.activeTab() orelse return error.TestNoTab;
+        var spatial = try tab.tree.spatial(std.testing.allocator);
+        defer spatial.deinit(std.testing.allocator);
+        return (PaneDividers.divider(&tab.tree, spatial, paneDividerArea(content), handle, 0) orelse return error.TestNoDivider).position;
+    }
+
+    /// Sends a stand-in pane's WM_SIZE to its Surface's `windowSizeChanged`.
+    const SizeChangeForwarder = struct {
+        var panes: [3]?HWND = .{ null, null, null };
+        var surfaces: [3]?*Surface = .{ null, null, null };
+        var previous: [3]?*const anyopaque = .{ null, null, null };
+        var sizes: usize = 0;
+
+        fn install(index: usize, pane: HWND, surface: *Surface) void {
+            panes[index] = pane;
+            surfaces[index] = surface;
+            const old = sys.SetWindowLongPtrW(pane, c.GWLP_WNDPROC, @as(LONG_PTR, @intCast(@intFromPtr(&proc))));
+            previous[index] = if (old == 0) null else @ptrFromInt(@as(usize, @intCast(old)));
+        }
+
+        fn uninstall() void {
+            for (panes, previous) |pane, old| {
+                const window = pane orelse continue;
+                _ = sys.SetWindowLongPtrW(window, c.GWLP_WNDPROC, @as(LONG_PTR, @intCast(@intFromPtr(old))));
+            }
+            panes = .{ null, null, null };
+            surfaces = .{ null, null, null };
+        }
+
+        fn proc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.winapi) LRESULT {
+            for (panes, 0..) |pane, i| {
+                if (pane != hwnd) continue;
+                if (msg == c.WM_SIZE) {
+                    sizes += 1;
+                    surfaces[i].?.windowSizeChanged();
+                }
+                return sys.CallWindowProcW(previous[i], hwnd, msg, wParam, lParam);
+            }
+            return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
+        }
+    };
+
+    fn paneDividerPositionForTest(host: *Host, content: RECT) !i32 {
+        const tab = host.activeTab() orelse return error.TestNoTab;
+        var spatial = try tab.tree.spatial(std.testing.allocator);
+        defer spatial.deinit(std.testing.allocator);
+        return (PaneDividers.divider(&tab.tree, spatial, paneDividerArea(content), .root, 0) orelse return error.TestNoDivider).position;
     }
 
     test "showing a zoomed tab keeps its other panes hidden until a layout places them" {
@@ -5801,6 +6670,9 @@ pub const Host = struct {
     pub fn showAfterToggle(self: *Host) !void {
         if (!self.hidden_by_toggle) return;
         self.hidden_by_toggle = false;
+        // An empty window waiting for its undo history to go
+        // (`destroy_after_structural_dispose`) stays hidden.
+        if (self.destroy_after_structural_dispose and self.tabs.items.len == 0) return;
         self.setVisible(true);
         try self.layout();
     }
@@ -5892,6 +6764,7 @@ pub const Host = struct {
     }
 
     pub fn setBanner(self: *Host, kind: HostBannerKind, text: ?[]const u8) !void {
+        const band_height = self.overlayBandHeight();
         var next_text = text;
         var next_kind: HostBannerKind = if (text == null) .none else kind;
         if (text == null) {
@@ -5933,6 +6806,12 @@ pub const Host = struct {
         // While an overlay is open, banner text is rendered inside the
         // overlay feedback lane rather than the ordinary host banner lane.
         if (self.overlay_mode != .none) self.invalidateOverlayText();
+        // A command palette without its hint line has that lane only while
+        // a message is up, so the message coming or going moves the results
+        // list and the terminal by one row. Not while the overlay is still
+        // opening: `showOverlay` clears a message before it shows its query
+        // field, and lays the window out itself once it has.
+        if (self.overlay_edit_placement.visible) self.overlayBandChanged(band_height);
         // A confirm prompt's feedback lane is an owner-drawn child rather
         // than chrome paint, so invalidating the paint text is not enough
         // to put a banner raised mid-prompt on screen. Push it into the
@@ -6887,8 +7766,10 @@ pub const Host = struct {
                 result.* = body();
             }
         };
-        var name_buf: [64]u8 = undefined;
-        const name = try std.fmt.bufPrint(&name_buf, "noctty-banner-test-{x}-{d}", .{ @intFromPtr(&name_buf), sys.GetTickCount64() });
+        // The process id keeps concurrent test processes (`-Dtest-shards`) off
+        // each other's desktop: CreateDesktopW opens an existing one.
+        var name_buf: [96]u8 = undefined;
+        const name = try std.fmt.bufPrint(&name_buf, "noctty-banner-test-{d}-{x}-{d}", .{ sys.GetCurrentProcessId(), @intFromPtr(&name_buf), sys.GetTickCount64() });
         const wide_name = try std.unicode.utf8ToUtf16LeAllocZ(std.testing.allocator, name);
         defer std.testing.allocator.free(wide_name);
         const desktop = Desktop.CreateDesktopW(wide_name.ptr, null, null, 0, 0x10000000, null) orelse return error.SkipZigTest;
@@ -8737,6 +9618,14 @@ pub const Host = struct {
     /// as the X shows (`win32_tab_visual.closeHitRect`): a touch or pen
     /// tap on an idle tab, whose hover fade has only just started,
     /// activates it instead of closing it unseen.
+    /// Najm: where the palette's results list starts for an overlay band
+    /// ending at `band_bottom`: tucked under the panel's bottom edge, so
+    /// panel and list read as one card. The layout and the row count
+    /// (`paletteListRowCapacity`) both read it.
+    pub fn paletteListTop(self: *const Host, band_bottom: i32) i32 {
+        return band_bottom - self.scaled(6) - 1;
+    }
+
     pub fn tabCloseAlpha(self: *Host, child: HWND, active: bool, hovered: bool, now_ms: u64) f32 {
         // Two animation slots: the incoming hover target
         // (`tab_close_hover_*` fades 0 → 1) and the departing tab
@@ -9111,7 +10000,7 @@ pub const Host = struct {
                 const hot = self.tab_close_chip_hwnd == draw.hwndItem;
                 const strength = win32_tab_visual.closeChipStrength(
                     hot,
-                    self.tab_close_pressed,
+                    self.tab_close_press == draw.hwndItem,
                     alpha * self.tab_close_chip_state.alphaAt(tab_now),
                 );
                 if (strength > 0) {
@@ -9606,16 +10495,66 @@ pub const Host = struct {
         return win32_chrome_state.scaled(base, self.current_dpi);
     }
 
+    /// `value`, in pixels at DPI `from`, in pixels at `to`: rounded as
+    /// kernel32's `MulDiv`, as `window_start.placeTearOff` scales (that leaf
+    /// keeps its own copy private: its pub surface is budgeted).
+    pub fn scaleByDpi(value: i32, to: u32, from: u32) i32 {
+        std.debug.assert(from > 0);
+        const product = @as(i64, value) * to;
+        const half: i64 = from / 2;
+        const rounded = if (product < 0) product - half else product + half;
+        return std.math.cast(i32, @divTrunc(rounded, @as(i64, from))) orelse -1;
+    }
+
     /// DPI-scale helper usable from free functions that lack a Host pointer.
     pub fn scaledBy(base: i32, dpi: u32) i32 {
         return win32_chrome_state.scaled(base, dpi);
     }
 
-    pub fn contentRectFromClient(self: *Host, rect: RECT) RECT {
-        const tab_offset: i32 = self.tabBarHeight();
-        const overlay_offset: i32 = if (self.overlay_mode == .none) 0 else self.scaled(host_overlay_height);
+    /// The overlay band's height, scaled: none with no overlay open, else
+    /// the query row and the line under it, which the command palette has
+    /// only while it has something to say there (`overlay_view.feedbackRow`).
+    /// A message coming or going can change it (`setBanner`), and so can a
+    /// palette theme, whose file may set `command-palette-hint`
+    /// (`swapRuntimeConfigFromPalette`); both lay the window out again when
+    /// it does (`overlayBandChanged`).
+    pub fn overlayBandHeight(self: *const Host) i32 {
+        return self.overlayBandHeightWith(self.app.config.@"command-palette-hint");
+    }
+
+    /// `overlayBandHeight` with `palette_hint` for the app config's
+    /// `command-palette-hint`.
+    fn overlayBandHeightWith(self: *const Host, palette_hint: bool) i32 {
+        if (self.overlay_mode == .none) return 0;
+        const feedback_row = overlay_view.feedbackRow(self.overlay_mode, palette_hint, self.banner_text != null);
+        return self.scaled(if (feedback_row) host_overlay_height else host_overlay_query_height);
+    }
+
+    /// The overlay band was `before` high and may not be now: lay the window
+    /// out so the results list and the terminal follow it, paint the band
+    /// at its new height as an overlay's open does, and when it shrank, the
+    /// terminal rows it gave up as `hideOverlay` does.
+    fn overlayBandChanged(self: *Host, before: i32) void {
+        const after = self.overlayBandHeight();
+        if (after == before) return;
+        runUiActionOrLog("overlay band layout failed", self.layout());
+        self.forceOverlayTransitionPaint();
+        if (after < before) self.forceVisibleSurfaceRepaintsNow();
+    }
+
+    /// Where the overlay band, the inspector panel and the terminal start
+    /// under the tab strip now. Chrome paint draws the band from these
+    /// (`paintChrome`), the terminal is placed from them
+    /// (`contentRectFromClient`) and the palette counts its rows from them
+    /// (`paletteListRowCapacity`), so the band they paint, the terminal's
+    /// top and the list's room agree.
+    pub fn chromeBands(self: *Host) win32_nc_layout.ContentBands {
         const inspector_offset: i32 = if (self.inspectorPanelVisible()) self.scaled(host_inspector_panel_height) else 0;
-        const bands = self.contentBands(tab_offset, overlay_offset, inspector_offset);
+        return self.contentBands(self.tabBarHeight(), self.overlayBandHeight(), inspector_offset);
+    }
+
+    pub fn contentRectFromClient(self: *Host, rect: RECT) RECT {
+        const bands = self.chromeBands();
         return .{
             .left = 0,
             .top = bands.content_top,
@@ -9685,7 +10624,9 @@ pub const Host = struct {
         const prompt = words.close(alloc, .{ .scope = .{ .scope = scope, .terminals = count, .behind = behind } });
         self.showConfirm(prompt, on_accept, null, userdata) catch |err| {
             log.warn("close confirm unavailable err={}; declining close to honour confirm-close-surface", .{err});
+            return;
         };
+        if (self.confirm_payload) |*payload| payload.close_scope = scope;
     }
 
     /// The tab of this window that holds `surface`, as a prompt names it,
@@ -10934,11 +11875,8 @@ pub const Host = struct {
             const edit_hwnd = self.overlay_edit_hwnd orelse return false;
             const accept_hwnd = self.overlay_accept_hwnd orelse return false;
             const cancel_hwnd = self.overlay_cancel_hwnd orelse return false;
-            const bands = self.contentBands(
-                self.tabBarHeight(),
-                self.scaled(host_overlay_height),
-                0,
-            );
+            const band_height = self.overlayBandHeight();
+            const bands = self.contentBands(self.tabBarHeight(), band_height, 0);
             const overlay_y = bands.overlay_top;
             const padding = self.scaled(host_overlay_padding);
             const label_w = self.scaled(host_overlay_label_width);
@@ -10988,7 +11926,7 @@ pub const Host = struct {
             // above the topmost Surface sibling on the transition to
             // visible.
             const confirm_prompt = self.overlay_mode == .confirm;
-            const overlay_bottom = overlay_y + self.scaled(host_overlay_height);
+            const overlay_bottom = overlay_y + band_height;
             const panel_interior = overlayPanelInterior(overlay_y, overlay_bottom, self.current_dpi);
             const title_text = if (confirm_prompt)
                 confirmTextPlacement(confirmTitlePaintRect(
@@ -11095,8 +12033,10 @@ pub const Host = struct {
                     const card_inset = self.scaled(8);
                     const list_x = card_inset;
                     // Its top meets the panel's bottom edge, below the
-                    // feedback line the panel still paints.
-                    const list_y = overlay_y + self.scaled(host_overlay_height) - self.scaled(6) - 1;
+                    // feedback line the panel still paints. `band_height`
+                    // drops the feedback row when `command-palette-hint`
+                    // hides it.
+                    const list_y = self.paletteListTop(overlay_y + band_height);
                     const list_width_bounds = paletteListRect(width, list_x, card_inset, list_y, 0);
                     const has_list_width = paletteListWidthIsReadable(list_width_bounds, self.scaled(160));
                     const row_capacity = if (has_list_width)
@@ -11165,7 +12105,7 @@ pub const Host = struct {
                     confirmPreviewRect(
                         width,
                         rect.bottom,
-                        overlay_y + self.scaled(host_overlay_height),
+                        overlay_y + band_height,
                         padding + self.scaled(10),
                         padding,
                         self.current_dpi,
@@ -11377,10 +12317,529 @@ pub const Host = struct {
         try std.testing.expect(!surface_b.split_dimmed_sent);
     }
 
+    // Split dividers under the mouse. The host paints the 2 px gap between
+    // panes and receives the mouse there; a pane leaves the rest of a
+    // divider's grab zone to the host by answering `HTTRANSPARENT`
+    // (`paneDividerAtScreen`), as it does for the frame's resize edges
+    // (`resizesFrom`). Geometry and ratios are `win32/pane_divider.zig`'s.
+
+    /// The rectangle the panes are laid out in, in client coordinates, as
+    /// `layout` computes it, without recording the client rect.
+    fn paneDividerContent(self: *Host) ?RECT {
+        if (builtin.is_test) if (self.test_pane_divider_content) |content| return content;
+        const hwnd = self.hwnd orelse return null;
+        var live: RECT = undefined;
+        if (sys.GetClientRect(hwnd, &live) == 0) return null;
+        const rect = hostLayoutClientRect(live, self.last_layout_client_rect) orelse return null;
+        return self.contentRectFromClient(rect);
+    }
+
+    /// The tab whose dividers the mouse can use: the active one, when it is
+    /// split, not zoomed, and no overlay is over the window.
+    fn paneDividerTab(self: *Host) ?*Tab {
+        if (self.overlay_mode != .none) return null;
+        const tab = self.activeTab() orelse return null;
+        if (tab.tree.zoomed != null or tab.leafCount() < 2) return null;
+        return tab;
+    }
+
+    fn paneDividerArea(content: RECT) pane_divider.Rect {
+        return .{ .left = content.left, .top = content.top, .right = content.right, .bottom = content.bottom };
+    }
+
+    /// The innermost divider of the active tab whose grab zone holds `point`
+    /// (client coordinates), with the panes laid out in `content`.
+    pub fn paneDividerAt(self: *Host, content: RECT, point: POINT) ?PaneDividers.Divider {
+        const tab = self.paneDividerTab() orelse return null;
+        var fallback = std.heap.stackFallback(2048, self.app.core_app.alloc);
+        const alloc = fallback.get();
+        var spatial = tab.tree.spatial(alloc) catch return null;
+        defer spatial.deinit(alloc);
+        return PaneDividers.hitTest(
+            &tab.tree,
+            spatial,
+            paneDividerArea(content),
+            .{ .x = point.x, .y = point.y },
+            pane_divider.grabMargin(self.current_dpi),
+        );
+    }
+
+    /// Whether a terminal pane's `WM_NCHITTEST` point (`lParam`, screen
+    /// coordinates) is in a divider's grab zone, which the pane then leaves
+    /// to the host.
+    pub fn paneDividerAtScreen(self: *Host, lParam: LPARAM) bool {
+        const hwnd = self.hwnd orelse return false;
+        if (self.paneDividerTab() == null) return false;
+        const bits: u32 = @truncate(@as(u64, @bitCast(lParam)));
+        var point: POINT = .{
+            .x = @as(i16, @bitCast(@as(u16, @truncate(bits)))),
+            .y = @as(i16, @bitCast(@as(u16, @truncate(bits >> 16)))),
+        };
+        if (sys.ScreenToClient(hwnd, &point) == 0) return false;
+        const content = self.paneDividerContent() orelse return false;
+        return self.paneDividerAt(content, point) != null;
+    }
+
+    /// The hovered divider's layout, while the tree it was read on is still
+    /// the front tab's.
+    fn paneDividerHoverNow(self: *Host) ?SplitTreeSurface.Split.Layout {
+        const hover = self.pane_divider_hover orelse return null;
+        const tab = self.paneDividerTab() orelse return null;
+        // Both are needed. A tree's generation changes whenever the tree is
+        // rebuilt (`SplitTree.nextGeneration`), but a tab moved to another
+        // window and back (`prepareGiveTab`, `giveTab`) keeps its tree, and
+        // so its generation, while each window gives it a new id: the
+        // hover cached before the move then names the same generation under
+        // the old id (Sol, council round 2 on #702).
+        if (tab.id != hover.tab_id or tab.tree.generation != hover.generation) return null;
+        return hover.layout;
+    }
+
+    fn setPaneDividerCursor(self: *const Host, divider_layout: SplitTreeSurface.Split.Layout) void {
+        if (self.hwnd == null) return;
+        _ = sys.SetCursor(sys.LoadCursorW(null, switch (divider_layout) {
+            .horizontal => c.IDC_SIZEWE,
+            .vertical => c.IDC_SIZENS,
+        }));
+    }
+
+    /// The host's `WM_SETCURSOR`, `WM_MOUSEMOVE`, `WM_LBUTTONDOWN`,
+    /// `WM_LBUTTONUP` and `WM_CAPTURECHANGED` for the dividers. Returns
+    /// whether the message was a divider's; the window procedure then
+    /// answers it (TRUE for `WM_SETCURSOR`, else 0).
+    pub fn handlePaneDividerMessage(self: *Host, msg: UINT, wParam: WPARAM, lParam: LPARAM) bool {
+        switch (msg) {
+            c.WM_SETCURSOR => {
+                const hwnd = self.hwnd orelse return false;
+                // The host's own client area only: a child's DefWindowProc
+                // passes its WM_SETCURSOR up with the child in wParam.
+                if (wParam != @intFromPtr(hwnd)) return false;
+                if ((@as(usize, @bitCast(lParam)) & 0xFFFF) != c.HTCLIENT) return false;
+                if (self.pane_divider_drag) |drag| {
+                    self.setPaneDividerCursor(drag.layout);
+                    return true;
+                }
+                var point: POINT = .{ .x = 0, .y = 0 };
+                const no_position = builtin.is_test and self.test_pane_divider_no_cursor_pos;
+                const divider_layout = if (!no_position and sys.GetCursorPos(&point) != 0 and sys.ScreenToClient(hwnd, &point) != 0) found: {
+                    const content = self.paneDividerContent() orelse return false;
+                    break :found (self.paneDividerAt(content, point) orelse return false).layout;
+                } else self.paneDividerHoverNow() orelse return false;
+                self.setPaneDividerCursor(divider_layout);
+                return true;
+            },
+            c.WM_MOUSEMOVE => {
+                const point = paneDividerClientPoint(lParam);
+                // MK_LBUTTON clear: the button went up where the host never
+                // heard of it. End as the release would have.
+                if ((wParam & c.MK_LBUTTON) == 0 and (self.pane_divider_drag != null or self.pane_divider_button_held)) {
+                    if (self.pane_divider_drag != null) self.finishPaneDividerDrag(self.paneDividerContent());
+                    self.pane_divider_button_held = false;
+                    self.releasePaneDividerCapture();
+                    return true;
+                }
+                if (self.pane_divider_drag != null) {
+                    if (self.paneDividerContent()) |content| self.dragPaneDivider(content, point);
+                    if (self.pane_divider_drag) |drag| self.setPaneDividerCursor(drag.layout);
+                    return true;
+                }
+                // The drag ended with the button still down: its moves are
+                // nobody's until the release.
+                if (self.pane_divider_button_held) return true;
+                const content = self.paneDividerContent() orelse {
+                    self.pane_divider_hover = null;
+                    return false;
+                };
+                const found = self.paneDividerAt(content, point);
+                self.pane_divider_hover = null;
+                if (found) |hit| if (self.paneDividerTab()) |tab| {
+                    self.pane_divider_hover = .{ .layout = hit.layout, .tab_id = tab.id, .generation = tab.tree.generation };
+                };
+                if (found) |hit| self.setPaneDividerCursor(hit.layout);
+                return found != null;
+            },
+            c.WM_LBUTTONDOWN => {
+                const content = self.paneDividerContent() orelse return false;
+                return self.beginPaneDividerDrag(content, paneDividerClientPoint(lParam), @bitCast(sys.GetMessageTime()));
+            },
+            c.WM_LBUTTONUP => {
+                if (self.pane_divider_drag == null and !self.pane_divider_button_held) return false;
+                if (self.pane_divider_drag != null) {
+                    const content = self.paneDividerContent();
+                    if (content) |area| self.dragPaneDivider(area, paneDividerClientPoint(lParam));
+                    self.finishPaneDividerDrag(content);
+                }
+                // Before the capture goes: `ReleaseCapture` sends
+                // WM_CAPTURECHANGED at once.
+                self.pane_divider_button_held = false;
+                self.releasePaneDividerCapture();
+                return true;
+            },
+            c.WM_CAPTURECHANGED => {
+                // Another window took the mouse (Alt+Tab, a menu, a modal
+                // loop): the drag ends where it is, as a release does, and
+                // the button is no longer the host's.
+                const owned = self.pane_divider_drag != null or self.pane_divider_button_held;
+                if (self.pane_divider_drag != null) self.finishPaneDividerDrag(self.paneDividerContent());
+                self.pane_divider_button_held = false;
+                return owned;
+            },
+            else => return false,
+        }
+    }
+
+    fn paneDividerClientPoint(lParam: LPARAM) POINT {
+        const bits: u32 = @truncate(@as(u64, @bitCast(lParam)));
+        return .{
+            .x = @as(i16, @bitCast(@as(u16, @truncate(bits)))),
+            .y = @as(i16, @bitCast(@as(u16, @truncate(bits >> 16)))),
+        };
+    }
+
+    /// A press at `point` (client coordinates, panes in `content`, message
+    /// time `time_ms`): on a divider it takes the mouse and starts a drag,
+    /// or, as the second press of a double-click on the same divider,
+    /// equalizes that split (`equalizePaneDivider`). Returns whether the
+    /// press was on a divider.
+    pub fn beginPaneDividerDrag(self: *Host, content: RECT, point: POINT, time_ms: u32) bool {
+        if (self.pane_divider_drag != null) return true;
+        const found = self.paneDividerAt(content, point) orelse {
+            self.pane_divider_press = null;
+            return false;
+        };
+        const tab = self.activeTab() orelse return false;
+        if (self.pane_divider_press) |press| {
+            if (press.tab_id == tab.id and press.generation == tab.tree.generation and press.handle == found.handle and paneDividerDoubleClick(press, time_ms, point)) {
+                self.pane_divider_press = null;
+                self.equalizePaneDivider(tab, found.handle);
+                // The divider may have moved from under the pointer: the
+                // button's release must not land on a terminal.
+                self.pane_divider_button_held = true;
+                if (self.hwnd) |hwnd| _ = sys.SetCapture(hwnd);
+                return true;
+            }
+        }
+        const start_ratio = tab.tree.nodes[found.handle.idx()].split.ratio;
+        const bounds = self.paneDividerBounds(tab, found.handle, start_ratio, content) orelse return false;
+        self.pane_divider_press = .{ .tab_id = tab.id, .generation = tab.tree.generation, .handle = found.handle, .time_ms = time_ms, .point = point };
+        const along = switch (found.layout) {
+            .horizontal => point.x,
+            .vertical => point.y,
+        };
+        self.pane_divider_drag = .{
+            .tab_id = tab.id,
+            .nodes = tab.tree.nodes.ptr,
+            .nodes_len = tab.tree.nodes.len,
+            .handle = found.handle,
+            .layout = found.layout,
+            .start_ratio = start_ratio,
+            .press_along = along,
+            .press_sequence = self.app.next_undo_sequence,
+            .generation = tab.tree.generation,
+            .grab_offset = along - found.position,
+            .anchor_along = along,
+            .anchor_ratio = start_ratio,
+            .anchor_content = content,
+            .bounds = bounds,
+        };
+        if (self.hwnd) |hwnd| _ = sys.SetCapture(hwnd);
+        self.setPaneDividerCursor(found.layout);
+        return true;
+    }
+
+    fn paneDividerDoubleClick(press: PaneDividerPress, time_ms: u32, point: POINT) bool {
+        if (time_ms -% press.time_ms > sys.GetDoubleClickTime()) return false;
+        const half_width = @divTrunc(@max(1, sys.GetSystemMetrics(c.SM_CXDOUBLECLK)), 2);
+        const half_height = @divTrunc(@max(1, sys.GetSystemMetrics(c.SM_CYDOUBLECLK)), 2);
+        return @abs(point.x - press.point.x) <= half_width and @abs(point.y - press.point.y) <= half_height;
+    }
+
+    /// The tab a drag started in, while its tree is still the one the drag
+    /// changes: the tab found by id, the same nodes, and the drag's node
+    /// still a split of its layout; null once anything replaced the tree.
+    /// Whether the tab is in front, zoomed or under an overlay does not
+    /// matter here: those decide whether the drag goes on
+    /// (`paneDividerDragLive`) and whether a new one may start
+    /// (`paneDividerTab`), never whether its change still needs accounting.
+    fn paneDividerDragTab(self: *Host, drag: PaneDividerDrag) ?*Tab {
+        for (self.tabs.items) |*tab| {
+            if (tab.id != drag.tab_id) continue;
+            if (tab.tree.generation != drag.generation) return null;
+            if (tab.tree.nodes.ptr != drag.nodes or tab.tree.nodes.len != drag.nodes_len) return null;
+            if (drag.handle.idx() >= tab.tree.nodes.len) return null;
+            return switch (tab.tree.nodes[drag.handle.idx()]) {
+                .split => |s| if (s.layout == drag.layout) tab else null,
+                .leaf => null,
+            };
+        }
+        return null;
+    }
+
+    /// Whether a drag in `tab` can go on: the tab is in front and not
+    /// zoomed. An overlay that opens mid-drag (an OSC 52 prompt, a close
+    /// confirmation) changes no tree, so the drag goes on under it and ends
+    /// as any drag does; the overlay only keeps a new drag from starting.
+    fn paneDividerDragLive(self: *Host, tab: *Tab) bool {
+        const active = self.activeTab() orelse return false;
+        return active == tab and tab.tree.zoomed == null;
+    }
+
+    fn paneDividerSameRect(a: RECT, b: RECT) bool {
+        return a.left == b.left and a.top == b.top and a.right == b.right and a.bottom == b.bottom;
+    }
+
+    fn paneDividerAlong(divider_layout: SplitTreeSurface.Split.Layout, point: POINT) i32 {
+        return switch (divider_layout) {
+            .horizontal => point.x,
+            .vertical => point.y,
+        };
+    }
+
+    /// Move the dragged divider to follow `point`, held at the minimum pane
+    /// size, and lay the panes out at once: the terminals reflow as the
+    /// mouse moves, as they do for a keyboard `resize_split`. The ratio is
+    /// changed in place (`resizeInPlace`); the history is not touched until
+    /// the drag ends. A drag whose tab went behind another or was zoomed
+    /// ends there, as a release would.
+    pub fn dragPaneDivider(self: *Host, content: RECT, point: POINT) void {
+        const drag = if (self.pane_divider_drag) |*active| active else return;
+        const tab = self.paneDividerDragTab(drag.*) orelse return self.dropPaneDividerDrag();
+        if (!self.paneDividerDragLive(tab)) {
+            self.finishPaneDividerDrag(content);
+            // The button is still down: its release must not reach a
+            // terminal that never saw the press.
+            self.pane_divider_button_held = true;
+            return;
+        }
+        const along = paneDividerAlong(drag.layout, point);
+        const same_content = paneDividerSameRect(content, drag.anchor_content);
+        const ratio = if (same_content and along == drag.press_along and drag.anchor_along == drag.press_along) drag.start_ratio else ratio: {
+            var fallback = std.heap.stackFallback(2048, self.app.core_app.alloc);
+            const alloc = fallback.get();
+            var spatial = tab.tree.spatial(alloc) catch return;
+            defer spatial.deinit(alloc);
+            const area = paneDividerArea(content);
+            const found = PaneDividers.divider(&tab.tree, spatial, area, drag.handle, 0) orelse return;
+            const extent = PaneDividers.splitExtent(found);
+            if (extent <= 0) return;
+            if (extent != drag.bounds.extent or pane_divider.minPane(self.current_dpi) != drag.bounds.min_px) {
+                drag.bounds = self.paneDividerBounds(tab, drag.handle, drag.start_ratio, content) orelse return;
+            }
+            const span: f32 = @floatFromInt(extent);
+            if (!same_content) {
+                const split_start = switch (drag.layout) {
+                    .horizontal => found.split.left,
+                    .vertical => found.split.top,
+                };
+                drag.anchor_ratio = @as(f32, @floatFromInt(along - drag.grab_offset - split_start)) / span;
+                drag.anchor_along = along;
+                drag.anchor_content = content;
+            }
+            const want = drag.anchor_ratio + @as(f32, @floatFromInt(along - drag.anchor_along)) / span;
+            break :ratio PaneDividers.stepRatio(alloc, &tab.tree, area, found, want, drag.bounds, drag.start_ratio, pane_divider.minPane(self.current_dpi)) catch return;
+        };
+        const changed = ratio != tab.tree.nodes[drag.handle.idx()].split.ratio;
+        if (changed) {
+            tab.tree.resizeInPlace(drag.handle, ratio);
+            if (ratio != drag.start_ratio) drag.moved = true;
+        }
+        // Read on every step, not only when the ratio moves: the same ratio
+        // lands on another pixel once the panes' width changes.
+        drag.off_start = self.paneDividerOffStart(tab, drag.*, content);
+        if (changed) self.layoutPaneDividerStep();
+    }
+
+    /// The ratios a drag of the divider at `handle` may take, measured with
+    /// that split at `ratio`, its ratio at the press: a pane that started
+    /// below the minimum keeps its starting size as its floor for the whole
+    /// drag, wherever the drag has moved it since.
+    fn paneDividerBounds(self: *Host, tab: *Tab, handle: SplitTreeSurface.Node.Handle, ratio: f16, content: RECT) ?PaneDividers.Bounds {
+        const now = tab.tree.nodes[handle.idx()].split.ratio;
+        defer tab.tree.resizeInPlace(handle, now);
+        tab.tree.resizeInPlace(handle, ratio);
+        var fallback = std.heap.stackFallback(2048, self.app.core_app.alloc);
+        const alloc = fallback.get();
+        var spatial = tab.tree.spatial(alloc) catch return null;
+        defer spatial.deinit(alloc);
+        const area = paneDividerArea(content);
+        const found = PaneDividers.divider(&tab.tree, spatial, area, handle, 0) orelse return null;
+        return PaneDividers.ratioBounds(&tab.tree, spatial, area, found, pane_divider.minPane(self.current_dpi));
+    }
+
+    /// The drag's tree was replaced (a pane closed under it). A divider off
+    /// its start pixel is a change that may live on in the tree that
+    /// replaced it and cannot be put back, so it counts as a change of the
+    /// split (`off_start`); one back on its start pixel changed nothing.
+    fn dropPaneDividerDrag(self: *Host) void {
+        const drag = self.pane_divider_drag orelse return;
+        self.pane_divider_drag = null;
+        self.pane_divider_button_held = true;
+        if (drag.moved) self.settlePaneDividerRepaints();
+        if (drag.off_start) _ = self.clearPaneDividerHistory(drag.tab_id, drag.press_sequence);
+    }
+
+    /// What one keyboard `resize_split` clears (`App.resizeSplitFallback`),
+    /// for a resize made at the press: the structural undo and redo recorded
+    /// before `press_sequence`, and the terminal redo of the tab's panes.
+    /// What was recorded during the drag (a close or a split that
+    /// automation made meanwhile) is newer than the resize and stays: a
+    /// close's entry keeps its tab's sessions. Undo and redo cannot run
+    /// mid-drag (keys are intercepted, and `isSafeAutomationAction` refuses
+    /// both); an entry `moveNewest` carries between the stacks keeps its old
+    /// sequence, so one moved during a drag would go. False when an entry
+    /// could not be disposed now.
+    fn clearPaneDividerHistory(self: *Host, tab_id: u32, press_sequence: u64) bool {
+        if (!self.pruneStructuralHistoryBeforeSequence(press_sequence)) return false;
+        for (self.tabs.items) |*tab| {
+            if (tab.id == tab_id) tab.clearRedoHistory();
+        }
+        return true;
+    }
+
+    /// Where the divider at `handle` sits in `content`, along its axis.
+    fn paneDividerPosition(self: *Host, tab: *Tab, handle: SplitTreeSurface.Node.Handle, content: RECT) ?i32 {
+        if (builtin.is_test and self.test_pane_divider_lookup_fails) return null;
+        var fallback = std.heap.stackFallback(2048, self.app.core_app.alloc);
+        const alloc = fallback.get();
+        var spatial = tab.tree.spatial(alloc) catch return null;
+        defer spatial.deinit(alloc);
+        const found = PaneDividers.divider(&tab.tree, spatial, paneDividerArea(content), handle, 0) orelse return null;
+        return found.position;
+    }
+
+    /// Whether the drag's divider sits on the pixel it started on, in
+    /// `content`: both positions come from the same layout code, so this is
+    /// exact where comparing ratios is not (f16 holds no 1 px step on a wide
+    /// window, and a stationary click on an odd width rounds off the ratio).
+    /// Null when a position could not be computed (its slots could not be
+    /// allocated): nothing is confirmed, and callers keep the last reading
+    /// (`paneDividerOffStart`).
+    fn paneDividerOnStartPixel(self: *Host, tab: *Tab, drag: PaneDividerDrag, content: RECT) ?bool {
+        const now = tab.tree.nodes[drag.handle.idx()].split.ratio;
+        defer tab.tree.resizeInPlace(drag.handle, now);
+        const now_position = self.paneDividerPosition(tab, drag.handle, content) orelse return null;
+        tab.tree.resizeInPlace(drag.handle, drag.start_ratio);
+        const start_position = self.paneDividerPosition(tab, drag.handle, content) orelse return null;
+        return now_position == start_position;
+    }
+
+    /// Whether the drag's divider sits off its start pixel now, or, when
+    /// the position lookup fails, the last confirmed reading: an
+    /// unconfirmed position must not count as a move, since a move decides
+    /// that history (and the sessions it keeps) goes.
+    fn paneDividerOffStart(self: *Host, tab: *Tab, drag: PaneDividerDrag, content: RECT) bool {
+        if (tab.tree.nodes[drag.handle.idx()].split.ratio == drag.start_ratio) return false;
+        const on = self.paneDividerOnStartPixel(tab, drag, content) orelse {
+            log.warn("pane divider position lookup failed; keeping the last start-pixel reading", .{});
+            return drag.off_start;
+        };
+        return !on;
+    }
+
+    /// End the drag where it is. A drag is one change of the split, so it
+    /// clears the undo history once, as one keyboard `resize_split` does
+    /// (`clearPaneDividerHistory`). A drag that leaves the divider on the
+    /// pixel it started on changed nothing anyone can see: the split gets
+    /// its starting ratio back exactly and the history is kept, since
+    /// clearing it can close sessions kept for undo. History that cannot be
+    /// disposed now refuses the change, as it does for the keyboard.
+    /// `content` is the panes' rectangle for that pixel check; without one
+    /// (no window) the ratios are compared as they are.
+    pub fn finishPaneDividerDrag(self: *Host, content: ?RECT) void {
+        const drag = self.pane_divider_drag orelse return;
+        // A release or a capture loss calls this and ends the hold itself;
+        // a drag ended from a move (its tab left the front or was zoomed)
+        // keeps the button until its release (`dragPaneDivider`).
+        self.pane_divider_drag = null;
+        if (drag.moved) self.settlePaneDividerRepaints();
+        const tab = self.paneDividerDragTab(drag) orelse {
+            if (drag.off_start) _ = self.clearPaneDividerHistory(drag.tab_id, drag.press_sequence);
+            return;
+        };
+        if (tab.tree.nodes[drag.handle.idx()].split.ratio == drag.start_ratio) return;
+        if (content) |area| if (!self.paneDividerOffStart(tab, drag, area)) {
+            tab.tree.resizeInPlace(drag.handle, drag.start_ratio);
+            self.layoutPaneDividerStep();
+            return;
+        };
+        if (!self.clearPaneDividerHistory(drag.tab_id, drag.press_sequence)) {
+            tab.tree.resizeInPlace(drag.handle, drag.start_ratio);
+            self.layoutPaneDividerStep();
+        }
+    }
+
+    /// Esc during a drag: the split goes back to the ratio the drag started
+    /// from, and the history is kept. A drag whose tree was replaced after
+    /// it moved cannot be put back and counts as a change instead.
+    pub fn cancelPaneDividerDrag(self: *Host) void {
+        const drag = self.pane_divider_drag orelse return;
+        self.pane_divider_drag = null;
+        self.pane_divider_press = null;
+        self.pane_divider_button_held = true;
+        if (drag.moved) self.settlePaneDividerRepaints();
+        const tab = self.paneDividerDragTab(drag) orelse {
+            if (drag.off_start) _ = self.clearPaneDividerHistory(drag.tab_id, drag.press_sequence);
+            return;
+        };
+        if (tab.tree.nodes[drag.handle.idx()].split.ratio == drag.start_ratio) return;
+        tab.tree.resizeInPlace(drag.handle, drag.start_ratio);
+        self.layoutPaneDividerStep();
+    }
+
+    /// Lay the panes out for a divider step. One pane the step resizes
+    /// paints synchronously on its WM_SIZE and the others queue
+    /// (`surface_presentation.paneDividerStepRepaintMode`): a stream of
+    /// WM_MOUSEMOVE outranks queued WM_PAINT, but a synchronous paint per
+    /// resized pane would wait for vsync once each, on every move. The
+    /// drag's end catches every pane up (`settlePaneDividerRepaints`).
+    fn layoutPaneDividerStep(self: *Host) void {
+        self.pane_divider_step_paints = 1;
+        defer self.pane_divider_step_paints = null;
+        runUiActionOrLog("pane divider layout failed", self.layout());
+    }
+
+    /// After a drag that changed the panes, resize-settle repaints bring
+    /// every pane up to date, as after WM_EXITSIZEMOVE, within settle
+    /// mode's bounds (renderer.md, 2026-10-10).
+    fn settlePaneDividerRepaints(self: *Host) void {
+        self.startResizeSettleRepaints();
+    }
+
+    /// While a drag's tree is still valid, reread whether its divider sits
+    /// off its start pixel in the panes' current rectangle. A layout the
+    /// drag did not make (WM_SIZE, an overlay opening) moves the pixels
+    /// without a drag step, and a tree replaced before the next step is
+    /// decided by this value (`dropPaneDividerDrag`); once the tree is
+    /// replaced, it keeps the last value read on the valid tree.
+    fn refreshPaneDividerOffStart(self: *Host) void {
+        const drag = if (self.pane_divider_drag) |*active| active else return;
+        const tab = self.paneDividerDragTab(drag.*) orelse return;
+        const content = self.paneDividerContent() orelse return;
+        drag.off_start = self.paneDividerOffStart(tab, drag.*, content);
+    }
+
+    fn releasePaneDividerCapture(self: *Host) void {
+        const hwnd = self.hwnd orelse return;
+        if (sys.GetCapture() == hwnd) _ = sys.ReleaseCapture();
+    }
+
+    /// Double-click on a divider: that split takes the ratio `equalize_splits`
+    /// gives it (its sides weighted by their panes), one change of the split
+    /// like a drag. `equalize_splits` itself still equalizes the whole tab.
+    fn equalizePaneDivider(self: *Host, tab: *Tab, handle: SplitTreeSurface.Node.Handle) void {
+        const ratio = PaneDividers.equalRatio(&tab.tree, handle) orelse return;
+        if (ratio == tab.tree.nodes[handle.idx()].split.ratio) return;
+        if (!self.clearPaneDividerHistory(tab.id, self.app.next_undo_sequence)) return;
+        tab.tree.resizeInPlace(handle, ratio);
+        self.layoutPaneDividerStep();
+        self.settlePaneDividerRepaints();
+    }
+
     pub fn layout(self: *Host) !void {
         // Every structural change ends in a layout, including the ones that
         // fail or return before placing panes.
         defer self.syncSplitDim();
+        self.refreshPaneDividerOffStart();
         const rect = (try self.layoutClientRect()) orelse return;
         var chrome_layout_changed = false;
         if (!self.layoutChromeForRect(rect, &chrome_layout_changed)) return;
@@ -12025,6 +13484,229 @@ test "win32 a palette pick with no live preview keeps the catalog's config alive
             try std.testing.expect(app.config_revision != revision);
             try std.testing.expect(host.palette_catalog_config_source == .retained);
             host.resetPaletteCatalogConfigOwner();
+        }
+    }.body);
+}
+
+/// The geometry the `command-palette-hint` tests check, in a window sized so
+/// that the row the hint line gives back makes room for one more result row:
+/// in a tall window both bands leave room for `palette_max_visible_rows`, and
+/// the palette's row count could not tell them apart.
+const PaletteBandTest = struct {
+    /// Where the band starts, under the tab strip.
+    band_top: i32,
+    /// The terminal's top with no overlay open.
+    closed_top: i32,
+    /// The query row and the line under it.
+    both_rows: i32,
+    /// The query row alone in its panel: 4 above it, 24 for it, 4 under it
+    /// in the panel and 6 under the panel.
+    query_row: i32,
+
+    const rows_under_both: usize = 2;
+    const rows_under_query: usize = 3;
+
+    fn init(host: *Host, pane: anytype) !PaletteBandTest {
+        const hwnd = host.hwnd orelse return error.SkipZigTest;
+        const band_top = host.contentBands(host.tabBarHeight(), 0, 0).overlay_top;
+        const both_rows = host.scaled(58);
+        const query_row = host.scaled(38);
+        const row_h = host.scaled(palette_row_height);
+        // Under both rows, room for two result rows and all but half the
+        // line's height of a third: without the line, the third fits.
+        const room = 3 * row_h - @divTrunc(both_rows - query_row, 2);
+        const client_bottom = band_top + both_rows + host.scaled(8) + room;
+        var client: RECT = undefined;
+        var outer: RECT = undefined;
+        if (sys.GetClientRect(hwnd, &client) == 0 or sys.GetWindowRect(hwnd, &outer) == 0) return error.SkipZigTest;
+        _ = sys.SetWindowPos(
+            hwnd,
+            null,
+            0,
+            0,
+            outer.right - outer.left,
+            outer.bottom - outer.top + client_bottom - client.bottom,
+            c.SWP_NOMOVE | c.SWP_NOZORDER | c.SWP_NOACTIVATE,
+        );
+        if (sys.GetClientRect(hwnd, &client) == 0) return error.SkipZigTest;
+        try std.testing.expectEqual(client_bottom, client.bottom);
+        try host.layout();
+        return .{
+            .band_top = band_top,
+            .closed_top = pane.placement.rect.top,
+            .both_rows = both_rows,
+            .query_row = query_row,
+        };
+    }
+
+    /// Every reader of the band's height sees `band`: the bands chrome
+    /// paint draws from (`chromeBands`), the results list, the terminal, and
+    /// the rows the palette counts room for (`paletteListRowCapacity`).
+    fn expectBand(self: PaletteBandTest, host: *Host, pane: anytype, band: i32) !void {
+        const bands = host.chromeBands();
+        try std.testing.expectEqual(self.band_top + band, bands.inspector_top);
+        try std.testing.expectEqual(host.paletteListTop(self.band_top + band), host.palette_list_placement.rect.top);
+        try std.testing.expectEqual(self.closed_top + band, pane.placement.rect.top);
+        try std.testing.expectEqual(bands.content_top, pane.placement.rect.top);
+        const rows = if (band == self.both_rows) rows_under_both else rows_under_query;
+        try std.testing.expectEqual(rows, host.paletteListRowCapacity());
+    }
+};
+
+test "win32 command-palette-hint = false takes the palette's hint line and its row away, and a message brings the row back" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        /// The status line chrome paint draws under the query, from the
+        /// same facts paint reads.
+        fn feedback(arena: Allocator, host: *Host) ![]const u8 {
+            return (try overlay_view.compose(arena, host.overlayFacts(""))).feedback;
+        }
+
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+            defer arena_state.deinit();
+            const arena = arena_state.allocator();
+            // The palette opens with no catalog: building one lists the
+            // user's theme and layout folders.
+            const catalog = host.palette_catalog;
+            host.palette_catalog = null;
+            defer host.palette_catalog = catalog;
+            const geometry = try PaletteBandTest.init(host, pane);
+
+            // By default the line and its row are there: the results list
+            // and the terminal start under both.
+            try host.showOverlay(.command_palette, null);
+            try geometry.expectBand(host, pane, geometry.both_rows);
+            try std.testing.expect(std.mem.indexOf(u8, try feedback(arena, host), "Type to search") != null);
+            host.hideOverlay();
+            try std.testing.expectEqual(geometry.closed_top, pane.placement.rect.top);
+
+            // Turned off, the line goes and so does its row: the list and
+            // the terminal move up under the query row.
+            app.config.@"command-palette-hint" = false;
+            try host.showOverlay(.command_palette, null);
+            try std.testing.expectEqualStrings("", try feedback(arena, host));
+            try geometry.expectBand(host, pane, geometry.query_row);
+
+            // A message the palette raises has no other place on screen
+            // while it is open, so the row comes back for it, and the
+            // terminal moves down under it (`setBanner` lays the window out
+            // again)...
+            try host.setBanner(.err, "Tab is no longer available; reopen the palette.");
+            try std.testing.expectEqualStrings("Error: Tab is no longer available; reopen the palette.", try feedback(arena, host));
+            try geometry.expectBand(host, pane, geometry.both_rows);
+            // ... and goes again with it, as the next keystroke clears it
+            // (`syncCommandPaletteBanner`).
+            try host.setBanner(.none, null);
+            try std.testing.expectEqualStrings("", try feedback(arena, host));
+            try geometry.expectBand(host, pane, geometry.query_row);
+            host.hideOverlay();
+            try std.testing.expectEqual(geometry.closed_top, pane.placement.rect.top);
+        }
+    }.body);
+}
+
+test "win32 a palette theme preview whose theme sets command-palette-hint moves the terminal with the band, and its revert moves it back" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const catalog = host.palette_catalog;
+            host.palette_catalog = null;
+            defer host.palette_catalog = catalog;
+            const geometry = try PaletteBandTest.init(host, pane);
+
+            // The palette opens with the key on...
+            try host.showOverlay(.command_palette, null);
+            try geometry.expectBand(host, pane, geometry.both_rows);
+
+            // ... and a theme whose file sets it off is previewed. A theme
+            // file is a config file: it changes the key for as long as the
+            // preview runs, with the tab strip and the decorations as they
+            // were, so nothing else lays the window out. Before, the band
+            // and the list moved up a row and the terminal stayed under
+            // both rows.
+            var previewed = try app.config.clone(std.testing.allocator);
+            previewed.@"command-palette-hint" = false;
+            host.showPaletteThemePreview(previewed);
+            try std.testing.expect(!app.config.@"command-palette-hint");
+            try geometry.expectBand(host, pane, geometry.query_row);
+
+            // The palette stays open when a preview is taken back without
+            // closing it (High Contrast, or a row that is no theme).
+            host.revertPaletteThemePreview();
+            try std.testing.expect(app.config.@"command-palette-hint");
+            try geometry.expectBand(host, pane, geometry.both_rows);
+            host.hideOverlay();
+            try std.testing.expectEqual(geometry.closed_top, pane.placement.rect.top);
+        }
+    }.body);
+}
+
+test "win32 with command-palette-hint = false, a message up when the palette opens costs it no extra paint" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    try win32.runOnHiddenDesktop(struct {
+        const Paints = struct {
+            threadlocal var count: usize = 0;
+            threadlocal var previous: WNDPROC = undefined;
+            fn proc(h: HWND, msg: UINT, wp: WPARAM, lp: LPARAM) callconv(.winapi) LRESULT {
+                if (msg == c.WM_PAINT) count += 1;
+                return sys.CallWindowProcW(previous, h, msg, wp, lp);
+            }
+        };
+
+        fn body() !void {
+            var fixture: win32.WindowStartTestApp = .{};
+            try fixture.init();
+            defer fixture.deinit();
+            const app = &fixture.app;
+            app.config.@"command-palette-hint" = false;
+            try app.createWindow(default_title);
+            const pane = fixture.newest();
+            const host = pane.host.?;
+            const hwnd = host.hwnd.?;
+            const catalog = host.palette_catalog;
+            host.palette_catalog = null;
+            defer host.palette_catalog = catalog;
+            const geometry = try PaletteBandTest.init(host, pane);
+            // Makes the overlay's controls.
+            try host.showOverlay(.command_palette, null);
+            host.hideOverlay();
+
+            Paints.previous = @ptrFromInt(@as(usize, @intCast(sys.SetWindowLongPtrW(hwnd, c.GWLP_WNDPROC, @intCast(@intFromPtr(&Paints.proc))))));
+            defer _ = sys.SetWindowLongPtrW(hwnd, c.GWLP_WNDPROC, @intCast(@intFromPtr(Paints.previous)));
+
+            Paints.count = 0;
+            try host.showOverlay(.command_palette, null);
+            const quiet = Paints.count;
+            try std.testing.expect(quiet > 0);
+            host.hideOverlay();
+
+            // The open clears a message that is up (`setOverlayDefaultBanner`)
+            // before it shows its controls, which drops the band's second
+            // row. That is the open's own layout and paint, not one more:
+            // before, `setBanner` laid the window out and painted it there,
+            // halfway through the open.
+            try host.setBanner(.info, "Layout saved.");
+            Paints.count = 0;
+            try host.showOverlay(.command_palette, null);
+            try std.testing.expectEqual(quiet, Paints.count);
+            try std.testing.expect(host.banner_text == null);
+            try geometry.expectBand(host, pane, geometry.query_row);
+            host.hideOverlay();
         }
     }.body);
 }

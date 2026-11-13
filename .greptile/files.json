@@ -191,7 +191,12 @@
         "src/apprt/win32_structural_history.zig",
         "src/apprt/win32_shell.zig",
         "src/apprt/win32_shell/**",
-        "src/apprt/win32/confirm_text.zig"
+        "src/apprt/win32/confirm_text.zig",
+        "src/apprt/win32/tab_drag.zig",
+        "src/apprt/win32/window_start.zig",
+        "src/apprt/win32/pane_divider.zig",
+        "src/apprt/win32_layout.zig",
+        "src/datastruct/split_tree.zig"
       ]
     },
     {
@@ -207,7 +212,9 @@
         "src/apprt/win32/terminal_window.zig",
         "src/input/**",
         "src/config/Config.zig",
-        "src/Surface.zig"
+        "src/Surface.zig",
+        "src/App.zig",
+        "src/inspector/widgets/key.zig"
       ]
     },
     {
@@ -265,6 +272,7 @@
         "src/apprt/win32_settings*.zig",
         "src/apprt/win32/save_target.zig",
         "src/apprt/win32/settings_patch.zig",
+        "src/apprt/win32/settings_pane_preview.zig",
         "src/cli/args.zig",
         "src/config/Config.zig",
         "src/config/origin.zig",
@@ -350,9 +358,12 @@
         "build.zig.zon",
         "src/build/**",
         "src/update/**",
+        "src/ghostty_vt_stub/**",
         "pkg/wuffs/**",
         "scripts/**",
         "dist/**",
+        "test/windows/test_dll_init.c",
+        "test/windows/flagship/contracts/Contracts.93-ConPty.ps1",
         ".github/**"
       ]
     },
@@ -385,7 +396,11 @@
         "src/apprt/win32/host.zig",
         "src/apprt/win32/registry.zig",
         "src/apprt/win32_compositor_native.zig",
-        "src/apprt/win32/sys.zig"
+        "src/apprt/win32/sys.zig",
+        "scripts/check-test-skips.ps1",
+        "scripts/ci-test-timing.ps1",
+        "src/test_runner.zig",
+        "src/test_shard.zig"
       ]
     },
     {

@@ -14,6 +14,8 @@ Corrected in other files:
 
 See also:
 - The Terminal theme field as a UIA combo box that expands (`SettingsControlProvider.dropdown`, `dropdown_message`, `setDropdownOpen`), opened by a posted message because its list is a modal menu: the 2026-10-29 entry in accessibility.md.
+- The Settings test fixture's thread (`run` under `onHiddenDesktop`) brings up the UI thread's apartment with `OleInitialize`, because a provider's UIA disconnect from a thread with none worked only when an earlier test had left a multithreaded apartment in the process (inferred), and a `-Dtest-shards` process need not have run it: item (7) of the 2026-11-11 TEST-SHARDS-01 entry in test-harnesses.md.
+- Closing Settings decides the last-window question again (`settingsOnClosedThunk` calls `App.afterLastWindow`), and an open Settings window counts as a window for the terminal handoff (embedding) server's idle exit, in `afterLastWindow` and `onTerminalHandoffIdleTimer`, so an idle server no longer exits under an unsaved draft: rule (5) of the 2026-11-08 CHAIN-CLOSE-UAF entry in input.md.
 - Counting Settings-open work in a trace per window-creation interval, not per PID (Windows reuses PIDs across cold launches): the 2026-10-19 "Windows reused PIDs within a SETSTALL cohort" entry in test-harnesses.md.
 - The profile list and the `default-profile` resolution that the Default profile row shows (`pane_launch.defaultProfile` and `pane_launch.outcome` over `Config._launch.default_profile`, and a Visual Studio lookup that got no answer): the 2026-10-23 PROFILES part 2 and part 3 entries in launch-and-paths.md.
 - Names in the 2026-10-23 PROFILES-4 entry (traps 8 and 12) and in trap 2 of the 2026-10-31 `config.origin` entry (#631) that moved into `src/config/pane_launch.zig`: `Config.defaultProfileFromFiles()` is `pane_launch.filesDefaultProfile` (the old name is gone since #651), `SettingsWindow.useSavedValues` is `pane_launch.asWritten`, which also leaves a Settings copy no command and no `default-profile` answer of noctty's, and the row's outcome (`settingsDefaultProfileOutcome`, whose `.unresolved` is `.not_found`) is `pane_launch.outcome`, asked of the app config. Their rules stand.
@@ -23,6 +25,38 @@ See also:
 - Why `config.origin` and the launch Ledger (`Config._launch`) both stay, where they part (`pane_launch.keepSources`), and why `origin.Derivation` has only `.automatic` (a form note shows no text for a derived value, `writeOriginNote`; All settings says "noctty chose this value when it read the config", `Model.writeLocation`; neither tells one kind from another): the 2026-11-01 "Pane launch step 6 is not done" entry in launch-and-paths.md.
 - Ending a Settings preview of a theme and an opacity together (`App.endSettingsPreview`) rebuilds the theme with `reconfigureTheme(.caller_applies)`, so each window shows its opacity once, at the saved value, through the opacity arm's `window_state.applyConfig`, never first at the previewed one; a theme preview that ends alone still refreshes. The theme goes first because the `std.EnumSet` of `PreviewEffect` iterates in its declaration order, which a comptime check in `endSettingsPreview` pins; its test ends a save-shaped preview (at the saved 1.0) and a cancel-shaped one (back to the config's 0.8 and theme): rule (2) of the 2026-11-06 OPACITY-640-FOLLOWUPS entry in window-frame.md. A rollback of every preview (a close, or Discard with the window open: `rollbackPreviews`) reaches it through one handle call, `endPreviews` (`settingsEndPreviewsThunk`), not one `previewField` per reverted field, which the app cannot tell from single edits; a Reset or an edit of one row stays on `previewField`. Both are tested through the real window: open item (c) there. Settings' theme preview and its end are no system theme change: the rebuild is the baseline the next system theme message compares with, so an unchanged one after them rebuilds nothing (unless a theme resource is missing) and lets no failed blur-behind try again: rule (3) there.
 
+- 2026-11-13: Najm previews terminal looks in the open panes (font size, font
+  family, theme, text colour, cursor style, padding and its balance:
+  `win32/settings_pane_preview.zig` `keys`). Trap: the 2026-10-25 PKG-39
+  rule (1) reads as "these fields cannot be previewed", and the obvious fix
+  was to give them a `PreviewEffect` and write them onto the chrome's clone
+  (`App.settings_preview`). That clone cannot carry a terminal's look: a
+  theme sets colours a later theme has to take away, `finalize` fills
+  `text-color` and the bold/italic families, and a `config-file` include or
+  a command-line value can override what Save writes. Read from the code,
+  not measured. Rule: the pane preview is a second, separate path. Settings
+  writes the changed keys as config lines (`writeLines`, the same
+  `writeEntry` Save uses), debounced 150 ms (`pane_preview_timer_id`), sends
+  them only when they change (`pane_preview_sent`), and the App loads the
+  config Save would give (`settings_pane_preview.load`: default files, the
+  lines, the CLI, the includes, `finish` in the running light/dark state, no
+  launch layout) into `App.settings_pane_preview`, then pushes it to every
+  pane through `updatePaneCoreConfig` inside `app_wide_config_change`, so
+  windows keep the app's half. `app.config`, new tabs and splits never see
+  it (known limit: a terminal opened while a draft is unsaved starts from the
+  saved config). It ends at a save that did not fail, at Discard or close
+  (`clearPending`), and in `App.terminate` (both hooks nulled before
+  `settings_window.deinit`, as trap (d) of PKG-39 does for `previewField`).
+  A reload re-sends it (`reshowPanePreview` after `externalConfigChanged` in
+  the `.app` arm; it keeps an empty `pane_preview_sent` mark so a draft that
+  now equals the reload ends the App's copy), except during the save's own
+  reload (`saveInFlight`). Not covered: a palette theme preview pushes
+  `app.config` to the panes over the Settings pane preview; the next Settings
+  edit shows it again. Safe mode previews nothing in panes. PKG-39 rule (1)
+  still holds for `PreviewEffect` and `settingsPreviewFieldThunk`; it no
+  longer means the panes show no draft. Tests: "Najm: a Settings terminal
+  draft is the panes' preview only, ..." in `win32/app.zig` and the three in
+  `settings_pane_preview.zig`.
 - 2026-11-02: SETTINGS-POLISH-2 part A.
   - (1) The check before a save leaves `App.settings_check`: a digest of the target file, taken before its load, and whether it may apply a changed file. The save compares the file with it when it reads it, and again just before the replace (`save_target.writeOver`). On a mismatch it checks again, once.
   - (2) While a save is in flight the window drops every external update (`ApplyAlreadyPending`). Anything the App applies during a save must be merged by the window after the save fails, as `DiskChanged` now is.

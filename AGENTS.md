@@ -10,11 +10,14 @@ reading step under [Self-Correction Log](#self-correction-log).
   `OpenConsole.exe` beside the exe; staging traps: the 2026-10-10 bundled
   ConPTY entry in `docs/agents/log/conpty.md`)
 - **Test (Zig):** `zig build test -Demit-test-exe=true --summary all`
-  (full suite, ~5.9k tests; the run took 5 minutes on 2026-10-28, and a run
-  that stops printing is sampled with `scripts/zig-test-stacks.ps1` before it
-  is called hung). This is the only invocation that
+  (full suite, ~6.8k tests, several minutes; a run that stops printing is
+  sampled with `scripts/zig-test-stacks.ps1` before it is called hung). This
+  is the only invocation that
   is trustworthy on its own, and `--summary all` is part of it: the count is
   the evidence.
+  - `-Dtest-shards=4` runs it as four concurrent processes with the same
+    count, about a third of the time (test-harnesses.md: 2026-11-11
+    TEST-SHARDS-01).
   - Bare `zig build test` errors in this fork.
   - `-Dtest-filter=<token>` (one token: quote it or use a no-space
     substring, or `zig build` reads the rest as step names) runs the tests
@@ -284,8 +287,8 @@ that govern each symbol you change, or that none does.
   `App.takeSystemInputs`, from `reconfigureSystemTheme` and
   `systemColorSetChanged`, and `App.init` set), `App.endSettingsPreview`
   (and the Settings rollback that ends both previews through it:
-  `rollbackPreviews`, the handle's `endPreviews`, App's private
-  `settingsEndPreviewsThunk`), the
+  `rollbackPreviews`, the handle's `endPreviews`, and
+  `App.settingsEndPreviewsThunk`, which the Settings test fixtures share), the
   window half of a config change (the `.surface` and `.app`
   `config_change` arms, `App.app_wide_config_change`,
   `App.updateCoreConfig`, `App.updatePaneCoreConfig`, and after a failed
@@ -303,10 +306,12 @@ that govern each symbol you change, or that none does.
   `initPresentComposedPipeline` and the `split_dim` pipeline's flags in
   `src/renderer/opengl/shaders.zig`, and
   `src/renderer/shaders/glsl/present_composed.f.glsl`), the
-  window menu, the quick terminal (`win32_quick_terminal.zig`,
+  window menu, a torn-off tab's window (`window_state.Origin.tear_off`,
+  `window_start.placeTearOff`), the quick terminal (`win32_quick_terminal.zig`,
   `win32/quick_terminal_host.zig`).
 - [chrome-tabs-paint.md](docs/agents/log/chrome-tabs-paint.md): tab buttons
-  (`tabButtonProc`, `drawButton`, labels, tooltips, close X, the active tab's
+  (`tabButtonProc`, `drawButton`, labels, tooltips, close X and the press it
+  needs (`Host.tab_close_press`, `App.takeHeldRelease`), the active tab's
   join to its terminal, `win32_tab_visual.zig`; what a tab's label, tooltip
   and UIA name say and which tabs the strip shows: `win32/tab_label.zig`,
   `key`, `text`, `tooltip`, `uiaName`, `visible`, and `Tab.cachedKey` and
@@ -344,7 +349,12 @@ that govern each symbol you change, or that none does.
   profile overlay, host banners and the update notice, what the overlay
   says and shows in each mode (`win32/overlay_view.zig`: `compose`, its
   hint lane against chrome paint's feedback lane, `shape`, `nextFocus`,
-  `bannerLine`; the one reader of Host state for it, `Host.overlayFacts`,
+  `bannerLine`; the palette's hint line, `command-palette-hint`, and the
+  band's height, `feedbackRow`, `Host.overlayBandHeight`, the bands paint,
+  the terminal and the row capacity read (`Host.chromeBands`), and
+  `overlayBandChanged`, which `setBanner` and a palette theme's swap
+  (`swapRuntimeConfigFromPalette`) call; the one reader of Host state for
+  it, `Host.overlayFacts`,
   and the syncs that write its controls, `syncOverlayLabel`,
   `syncOverlayHint` and `syncOverlayButtons`, in
   `win32/overlay_session.zig`), overlay EDIT writes
@@ -361,7 +371,9 @@ that govern each symbol you change, or that none does.
   restart after `restoreClosedTabEntryNative` and `redoSplitCreateEntry`,
   the `test_core_steps` seam of `applyDockedSearch`) and the
   layered overlay scrollbar
-  (`win32_scrollbar_geometry.zig`, heartbeat, alpha, markers).
+  (`win32_scrollbar_geometry.zig`, heartbeat, alpha, markers, and the band
+  that keeps the mouse beside a split divider:
+  `Surface.scrollbarBandAtScreen`).
 - [tabs-panes.md](docs/agents/log/tabs-panes.md): tabs, splits and windows as
   a structure: `Surface.init` ordering, `activateSurface`, showing and hiding
   pane surfaces (occlusion, overlapping WGL children), `windowDestroyed`,
@@ -371,7 +383,40 @@ that govern each symbol you change, or that none does.
   `win32/registry.zig`), focus after a close, shell reducer effects,
   local and structural undo/redo (`win32_undo.zig`,
   `win32_structural_history.zig`, `undo-timeout`, split undo and redo through
-  the shell model: `Host.applyCommittedSplitHistory`).
+  the shell model: `Host.applyCommittedSplitHistory`), moving a tab to a new
+  window or another window (tab tear-off: `App.moveTabToWindow`,
+  `App.requestTabMove`, the outer-pump queue `App.pending_tab_moves` and
+  `App.drainPendingTabMoves` and the move it runs, `App.runTabMove`,
+  and what a declined one says, `App.tabMoveDeclined`,
+  its wake `App.noteTabMoveWake`,
+  `App.revalidateTabMove` and the entry checks it applies again,
+  `App.moveTabAllowed`, `Host.endTabDrag`, a drag's Esc
+  (`App.cancelTabDragForKey`, with the IME key resolver it shares with a
+  divider drag, `App.keyMessageOriginalKey` and `App.isEscapeKey`, and
+  what it asks first, `App.anyTabDragActive` and
+  `App.tab_drag_escape_down`),
+  the only tab's window move (`Host.beginOnlyTabWindowMove`),
+  `Host.prepareGiveTab`,
+  `Host.giveTab`, `Host.reparentSurface`, where a torn-off tab's
+  pointer lands: `Host.tearOffDrop`, `Host.tearOffDropOn`,
+  `Host.restoredClientOffset`, the grab's DPI scaling `Host.scaleByDpi`,
+  and the window it lands in,
+  `window_start.placeTearOff`,
+  `win32/tab_drag.zig`, the shell model's `move_tab_to_window`,
+  `move_tab_to_new_window`), split dividers under the mouse
+  (`win32/pane_divider.zig`, `Host.handlePaneDividerMessage` and
+  the drag behind it, `Host.paneDividerAtScreen`, keys during a drag:
+  `App.paneDividerDragKey`, and the loop's routing that hands it a
+  message before translation, `App.routeLoopMessage`; global hotkeys
+  during a drag: `App.takeGlobalHotkey`), the gaps and slot rounding they find
+  (`win32_layout.zig`: `splitSurfacePlacement`, `roundedSlotPixel`), the tree
+  identity a drag checks (`SplitTree.generation` in
+  `src/datastruct/split_tree.zig`), a ratio of -0 entering the tree as
+  +0, every other ratio as given (`SplitTree.canonicalRatio`, which the
+  session restore's `buildRestoredSessionSplitTree` also takes), the one
+  synchronous paint a drag step makes
+  (`surface_presentation.paneDividerStepRepaintMode`) and the keyboard
+  `resize_split` they match (`App.resizeSplitFallback`).
 - [input.md](docs/agents/log/input.md): `win32/input.zig` and key messages,
   Ctrl+Backspace in the app's text fields (`win32/edit_keys.zig`)
   (`WM_KEYDOWN`/`WM_CHAR`/`WM_SYSCHAR`, dead keys, `ToUnicode`, non-Latin
@@ -381,7 +426,20 @@ that govern each symbol you change, or that none does.
   (the composition string, its caret and target clause:
   `win32_input.imeTargetCodepointRange`, `Surface.imePosAt`), mouse buttons
   (the X buttons: `win32_input.xMouseButton`, and the button codes
-  `src/input/mouse_encode.zig` writes), wheel and context-menu input.
+  `src/input/mouse_encode.zig` writes), wheel and context-menu input, and
+  key binding dispatch and chains (`Surface.maybeHandleBinding`,
+  `dispatchLeaf`, `bindingOutcome`, `startLeader`, `performChain`,
+  `closeToken`, `closesCaller`, `mayDetachCaller`, the stand-ins'
+  `closingAction`, `bindingTags`, `cursorKeyWrite`,
+  `GenericLeaf.cloneActions` and `Action.cloneSlice` in `src/input/Binding.zig`, `src/App.zig`'s
+  `keyEvent`, `performAllChainedAction`, `performAllOwnedChain`,
+  `performChainOnAll`, `performAllAction`, `forEachListed`,
+  `receivesAppWideActions` and `hasSurfaceInstance`, Win32's
+  `handleGlobalHotkey`, `holdLastWindowQuit`, `releaseLastWindowQuit`,
+  `afterLastWindow`, `onTerminalHandoffIdleTimer`, `settingsOnClosedThunk`,
+  `Surface.receivesAppWideActions` and `keyEventTogglesCommandPalette`,
+  and the inspector's tag-only `Event.binding` in
+  `src/inspector/widgets/key.zig`).
 - [launch-and-paths.md](docs/agents/log/launch-and-paths.md): which process a
   terminal starts and with what environment: a new pane's launch
   (`src/config/pane_launch.zig` `prepare`, its `Origin` and `Stamp`,
@@ -445,7 +503,9 @@ that govern each symbol you change, or that none does.
   they are made (`SettingsWindow.open`, `materializeSection`), dialog
   manager, viewport, live preview (`App.settings_preview`, `App.shownConfig`,
   `App.shownBackgroundOpacity`, and its rollback at a close or Discard:
-  `rollbackPreviews` and the handle's `endPreviews`), theming (`SettingsThemeAdapter`,
+  `rollbackPreviews` and the handle's `endPreviews`; Najm's preview in the
+  open panes: `win32/settings_pane_preview.zig`, `App.settings_pane_preview`,
+  `previewSettingsPanes`, `runPanePreview`, `reshowPanePreview`), theming (`SettingsThemeAdapter`,
   `themeChanged`), its own UIA patterns, combo and open traces
   (`NOCTTY_SETTINGS_COMBO_TRACE`, `NOCTTY_SETTINGS_OPEN_TRACE`,
   `win32/bench_trace.zig`), the Default profile row
@@ -509,12 +569,30 @@ that govern each symbol you change, or that none does.
   and resources, the Windows target floor (`src/build/Config.zig`,
   `-Dtarget` `win10`/`win10_rs5`, and the std APIs it gates), packaging
   (`scripts/package-windows.ps1`, `dist/windows/noctty.iss`, what Setup's
-  `CloseApplications` closes), signing, the updater (including
-  `RegisterApplicationRestart` while an installer closes noctty, with
-  `stagedInstallerRunning`; `pkg/wuffs/src/deflate.zig`, the raw DEFLATE
-  decoder for update payloads), release workflows
+  `CloseApplications` closes, and what it installs and deletes; the
+  placeholder staging contract and its controls,
+  `Get-PlaceholderStagingProblems` and `Assert-PlaceholderControlFails` in
+  `Contracts.93-ConPty.ps1`), signing,
+  the updater (including `RegisterApplicationRestart` while an installer
+  closes noctty, with `stagedInstallerRunning`; `pkg/wuffs/src/deflate.zig`,
+  the raw DEFLATE decoder for update payloads; the files a portable payload
+  must hold and the ones it may drop: `managed_entries`, `retired_entries`,
+  `legacy_updater_required_entries`, `portable_zip_carries_legacy_entries`,
+  `requirePayloadEntries`, `swapPayload`, `rollback`, `fileMatches`,
+  `verifyBackupManifest`, `checkSetupRetiresLibVt`, `retired_placeholders`
+  and `checkPackagingStagesPlaceholders` in
+  `src/update/portable_apply.zig`, `verifyPortablePayload` and
+  `verifyInstalledPortablePayloadAgainstManifest` in
+  `src/update/github_releases.zig`, and the packaging scripts'
+  `$runtimeFiles`; the portable ZIP's `ghostty-vt.dll` placeholder:
+  `src/build/GhosttyVtStub.zig`, `src/ghostty_vt_stub/`,
+  `scripts/ghostty-vt-stub.ps1` `Assert-GhosttyVtStub`, and its packaged
+  smoke `test/windows/test_dll_init.c`), release workflows
   and package managers (WinGet, Scoop,
-  Chocolatey), GitHub Actions CI (path filter, caching, runners), CRLF and
+  Chocolatey), GitHub Actions CI (path filter, caching, runners, the gates
+  the `main: CI gates` ruleset requires and their `always()`, Dependabot's
+  `.github/dependabot.yml`, the action pins and the workflow digests the
+  contracts pin), CRLF and
   `.gitattributes` in shipped files.
 - [docs-and-site.md](docs/agents/log/docs-and-site.md): Najm's site (`web/`,
   `web/pages.mjs`, `web/build.mjs`, `.github/workflows/najm-pages.yml`);
@@ -534,7 +612,9 @@ that govern each symbol you change, or that none does.
   the PKG-37, LAT-01 and LAT-02 measurement harnesses on the
   `origin/*-measurement-harness` branches), CI test steps (the raw
   `zig test src/apprt/win32_compositor_native.zig` step, which confines
-  `win32/sys.zig`'s imports to `src/apprt`), the Zig
+  `win32/sys.zig`'s imports to `src/apprt`), the Zig test runner and its
+  shards (`src/test_runner.zig`, `src/test_shard.zig`, `-Dtest-shards`,
+  `addTestRuns` in `build.zig`, and the names tests share across processes), the
   test runner's probe children and thread tests (`src/pty_transport_probe.zig`,
   `std.Progress.lockStdErr`, the search-thread tests in
   `src/terminal/search/Thread.zig`), the shared Win32 test fixtures
@@ -544,8 +624,10 @@ that govern each symbol you change, or that none does.
   (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a bash
   probe's `HISTFILE`, a suite that seems hung (`scripts/zig-test-stacks.ps1`,
   the `PageList` test helper `growRows`), a failing test's error name (the
-  installed test executable), and a test count or result that contradicts the
-  code.
+  installed test executable), the skip budget (`scripts/check-test-skips.ps1`,
+  `test/windows/test-skip-budget.json`) and the nightly per-test log it reads
+  (`scripts/ci-test-timing.ps1`), and a test count or result that
+  contradicts the code.
 - [tooling.md](docs/agents/log/tooling.md): declaring `extern` functions or
   structs, casting Win32 handles and `LPARAM`/`LRESULT` (`@intCast`,
   `@bitCast`, `@ptrFromInt`), passing `[:0]u16` to text APIs, renaming or moving

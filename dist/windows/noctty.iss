@@ -73,13 +73,21 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
 ; The recursive stage rule includes the bundled ConPTY pair and its license.
-Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The portable ZIP carries a noctty placeholder named ghostty-vt.dll (no
+; exports; it refuses to load) until v1.4.100, because the portable updaters
+; of 1.3.125 to 1.3.136 refuse a payload without that name. Setup runs this
+; script, so it excludes it (retired_entries in src/update/portable_apply.zig).
+Source: "{#StageDir}\*"; DestDir: "{app}"; Excludes: "\ghostty-vt.dll"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 ; Always clear a previously bundled ConPTY before staging this package.
 Type: files; Name: "{app}\conpty.dll"
 Type: files; Name: "{app}\OpenConsole.exe"
 Type: files; Name: "{app}\LICENSE-conpty.txt"
+; libghostty-vt files an older Setup installed. noctty never loaded them.
+Type: files; Name: "{app}\ghostty-vt.dll"
+Type: files; Name: "{app}\share\pkgconfig\libghostty-vt.pc"
+Type: dirifempty; Name: "{app}\share\pkgconfig"
 ; Remove pre-rename WingHostty binaries and shortcuts left behind when an
 ; existing install upgrades in-place (same AppId, new file names).
 Type: files; Name: "{app}\winghostty.exe"
