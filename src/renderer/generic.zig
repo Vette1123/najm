@@ -377,6 +377,46 @@ pub fn splitDimUniforms(base: anytype, fill: terminal.color.RGB, opacity: f32) ?
     return result;
 }
 
+/// The palette entries a hovered link may take, in order: bright blue, blue,
+/// bright cyan, cyan. Themes keep these readable as link colours.
+const hovered_link_palette = [_]u8{ 12, 4, 14, 6 };
+
+/// The colour of a hovered link's text and underline. The text under the
+/// pointer stands apart from the rest of the line, in the theme's link
+/// blue, only where that blue reads against the cell's background (3:1,
+/// WCAG's floor for large text and UI); otherwise the cell keeps its own
+/// colour and only the underline marks it.
+fn hoveredLinkColor(
+    fg: terminal.color.RGB,
+    bg: terminal.color.RGB,
+    palette: *const terminal.color.Palette,
+) terminal.color.RGB {
+    for (hovered_link_palette) |i| {
+        if (palette[i].contrast(bg) >= 3.0) return palette[i];
+    }
+    return fg;
+}
+
+test "a hovered link takes the first link blue that reads on its background" {
+    var palette = terminal.color.default;
+    const black: terminal.color.RGB = .{ .r = 0, .g = 0, .b = 0 };
+    const grey: terminal.color.RGB = .{ .r = 0xcc, .g = 0xcc, .b = 0xcc };
+
+    palette[12] = .{ .r = 0x5c, .g = 0x9c, .b = 0xff };
+    try std.testing.expectEqual(palette[12], hoveredLinkColor(grey, black, &palette));
+
+    // Bright blue the same as the background: the next entry that reads.
+    palette[12] = black;
+    palette[4] = .{ .r = 0x00, .g = 0x00, .b = 0x20 };
+    palette[14] = .{ .r = 0x40, .g = 0xe0, .b = 0xe0 };
+    try std.testing.expectEqual(palette[14], hoveredLinkColor(grey, black, &palette));
+
+    // No entry reads: the cell keeps its own colour.
+    palette[14] = black;
+    palette[6] = black;
+    try std.testing.expectEqual(grey, hoveredLinkColor(grey, black, &palette));
+}
+
 test "split dim uniforms blend in gamma space" {
     const Uniforms = @import("opengl/shaders.zig").Uniforms;
     var base = std.mem.zeroes(Uniforms);
@@ -1670,10 +1710,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                     // If our mouse isn't hovering, we have no links.
                     const vp = state.mouse.point orelse break :osc8 .empty;
 
-                    // If the right mods aren't pressed, then we can't match.
-                    if (!state.mouse.mods.equal(inputpkg.ctrlOrSuper(.{})))
-                        break :osc8 .empty;
-
+                    // Najm marks a hovered OSC 8 link with or without Ctrl,
+                    // as `Surface.linkAtPos` finds it for a click.
                     break :osc8 self.terminal_state.linkCells(
                         arena_alloc,
                         vp,
@@ -3621,7 +3659,12 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                         bg_style,
                 };
 
-                const fg = fg: {
+                const on_link = links.contains(.{
+                    .x = @intCast(logical_x),
+                    .y = @intCast(y),
+                });
+
+                const cell_fg = fg: {
                     // Our happy-path non-selection background color
                     // is our style or our configured defaults.
                     const final_bg = bg_style orelse state.colors.background;
@@ -3655,6 +3698,13 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                             fg_style,
                     };
                 };
+
+                // A hovered link stands out in the link blue; a selected or
+                // matched cell keeps the selection's or search's colours.
+                const fg = if (on_link and selected == .false)
+                    hoveredLinkColor(cell_fg, bg orelse state.colors.background, &state.colors.palette)
+                else
+                    cell_fg;
 
                 // Foreground alpha for this cell.
                 const alpha: u8 = if (style.flags.faint) self.config.faint_opacity else 255;
@@ -3713,10 +3763,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 // an underline, in which case use a double underline to
                 // distinguish them.
                 const underline: terminal.Attribute.Underline = underline: {
-                    if (links.contains(.{
-                        .x = @intCast(logical_x),
-                        .y = @intCast(y),
-                    })) {
+                    if (on_link) {
                         break :underline if (style.flags.underline == .single)
                             .double
                         else
