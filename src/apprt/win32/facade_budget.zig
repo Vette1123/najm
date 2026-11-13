@@ -85,6 +85,15 @@ const leaves = .{
         .pub_decls = 7,
     },
     .{
+        .file = "settings_pane_preview.zig",
+        .module = @import("settings_pane_preview.zig"),
+        .source = @embedFile("settings_pane_preview.zig"),
+        // why: Najm's Settings preview in open terminals: `keys`,
+        // `previews`, `writeEntry` (Save's lines too), `writeLines`,
+        // `loadLines`, `load` and `finish`.
+        .pub_decls = 7,
+    },
+    .{
         .file = "tab_label.zig",
         .module = @import("tab_label.zig"),
         .source = @embedFile("tab_label.zig"),

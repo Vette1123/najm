@@ -253,6 +253,7 @@ const win32_session_state = @import("../win32_session_state.zig");
 const win32_settings = @import("../win32_settings.zig");
 const settings_reference = @import("../win32_settings_reference.zig");
 const settings_patch = @import("settings_patch.zig");
+const settings_pane_preview = @import("settings_pane_preview.zig");
 const save_target = @import("save_target.zig");
 const win32_shell = @import("../win32_shell.zig");
 const win32_structural_history = @import("../win32_structural_history.zig");
@@ -683,6 +684,12 @@ pub const App = struct {
     /// light/dark switch is one) and Settings' own snapshots read it, and an
     /// unsaved draft must reach none of them (PKG-39).
     settings_preview: ?configpkg.Config = null,
+    /// Najm: what every open terminal shows while Settings has unsaved
+    /// terminal drafts (font, theme, text color, cursor, padding): the config
+    /// a save of them would give (`settings_pane_preview.load`). Null while
+    /// the terminals show `config`. Like `settings_preview`, it reaches no
+    /// new terminal and no reload.
+    settings_pane_preview: ?configpkg.Config = null,
     /// Cached TokenElevation state. This scopes the title and IPC namespace
     /// consistently for the full lifetime of the process.
     is_elevated: bool = false,
@@ -1382,6 +1389,8 @@ pub const App = struct {
             .configRevision = &settingsConfigRevisionThunk,
             .previewField = &settingsPreviewFieldThunk,
             .endPreviews = &settingsEndPreviewsThunk,
+            .previewPanes = &settingsPreviewPanesThunk,
+            .endPanePreview = &settingsEndPanePreviewThunk,
             .notifyConflict = &settingsNotifyConflictThunk,
             .reconcileDisk = &settingsReconcileDiskThunk,
             .failureDetail = &settingsFailureDetailThunk,
@@ -2095,8 +2104,12 @@ pub const App = struct {
         // windows a redraw walks are gone by now: nothing to show it to.
         self.settings_window.handle.previewField = null;
         self.settings_window.handle.endPreviews = null;
+        self.settings_window.handle.previewPanes = null;
+        self.settings_window.handle.endPanePreview = null;
         self.settings_window.deinit();
         self.dropSettingsPreview();
+        if (self.settings_pane_preview) |*preview| preview.deinit();
+        self.settings_pane_preview = null;
         const uia_disconnect_hr = win32_uia.disconnectAllProviders();
         if (uia_disconnect_hr != 0) {
             log.warn("win32 UIA disconnect-all failed hr=0x{x}", .{@as(u32, @bitCast(uia_disconnect_hr))});
@@ -4599,6 +4612,9 @@ pub const App = struct {
                         // that started with them off (or on another channel).
                         if (self.registry.windows.items.len > 0 and self.update_startup_ready) self.maybeScheduleAutomaticUpdateCheck();
                         self.settings_window.externalConfigChanged(&self.config, self.config_revision);
+                        // Najm: the reload gave every pane `app.config`;
+                        // Settings' terminal drafts go back over it.
+                        self.settings_window.reshowPanePreview();
                         self.refreshConfigProblems();
                         if (self.registry.windows.items.len == 0) {
                             self.startQuitTimer();
@@ -6368,6 +6384,75 @@ pub const App = struct {
     pub fn settingsEndPreviewsThunk(ctx: *anyopaque) void {
         const app: *App = @ptrCast(@alignCast(ctx));
         app.endSettingsPreview();
+    }
+
+    /// Najm: Settings' drafts of how terminal text looks, shown in every open
+    /// pane (`previewSettingsPanes`).
+    pub fn settingsPreviewPanesThunk(ctx: *anyopaque, lines: []const u8) void {
+        const app: *App = @ptrCast(@alignCast(ctx));
+        app.previewSettingsPanes(lines);
+    }
+
+    pub fn settingsEndPanePreviewThunk(ctx: *anyopaque) void {
+        const app: *App = @ptrCast(@alignCast(ctx));
+        app.endSettingsPanePreview();
+    }
+
+    /// Every open pane shows the config Save would give with `lines` saved
+    /// (`settings_pane_preview.load`). `app.config`, new terminals and the
+    /// chrome never see it. A load that fails keeps what the panes show and
+    /// logs the error only: never a value. Safe mode previews nothing, as
+    /// it loads no file.
+    fn previewSettingsPanes(self: *App, lines: []const u8) void {
+        if (self.safe_mode) return;
+        const next = load: {
+            var scope = self.enterStartupCwd();
+            defer scope.restore();
+            break :load self.loadPanePreview(lines) catch |err| {
+                log.warn("settings pane preview load failed err={} lines_len={d}", .{ err, lines.len });
+                return;
+            };
+        };
+        if (self.settings_pane_preview) |*old| old.deinit();
+        self.settings_pane_preview = next;
+        self.showPanesConfig(&self.settings_pane_preview.?);
+    }
+
+    /// A test that stands in for the user's files (`test_config_load`)
+    /// loads none of them: the lines over the defaults.
+    fn loadPanePreview(self: *const App, lines: []const u8) !configpkg.Config {
+        const alloc = self.core_app.alloc;
+        const conditional = self.config._conditional_state;
+        if (builtin.is_test and settings_patch.test_config_load != null) {
+            var result = try configpkg.Config.default(alloc);
+            errdefer result.deinit();
+            try settings_pane_preview.loadLines(&result, alloc, lines);
+            try settings_pane_preview.finish(&result, conditional);
+            return result;
+        }
+        return settings_pane_preview.load(alloc, lines, conditional);
+    }
+
+    /// The panes go back to `app.config` once Settings previews nothing in
+    /// them (a save, Discard, a close).
+    fn endSettingsPanePreview(self: *App) void {
+        var previous = self.settings_pane_preview orelse return;
+        self.settings_pane_preview = null;
+        defer previous.deinit();
+        self.showPanesConfig(&self.config);
+    }
+
+    /// Every pane takes `config` through core (`updatePaneCoreConfig`), as
+    /// one app-wide change: the window half stays as the app's config set it.
+    fn showPanesConfig(self: *App, config: *const configpkg.Config) void {
+        const outer = self.app_wide_config_change;
+        self.app_wide_config_change = true;
+        defer self.app_wide_config_change = outer;
+        for (self.registry.windows.items) |pane| {
+            self.updatePaneCoreConfig(pane, config) catch |err| {
+                log.warn("settings pane preview apply failed err={}", .{err});
+            };
+        }
     }
 
     pub fn refreshSystemWheelSettings(self: *App) void {
@@ -14269,6 +14354,60 @@ test "PKG-39 a Settings preview is shown without reaching the config terminals a
     if (!isHighContrastActive()) try std.testing.expect(app.resolved_theme.is_dark);
     app.endSettingsPreview();
     try std.testing.expectEqual(rebuilds + 1, app.theme_rebuilds);
+}
+
+test "Najm: a Settings terminal draft is the panes' preview only, replaced whole and ended once" {
+    if (builtin.os.tag != .windows) return error.SkipZigTest;
+    var core_app: CoreApp = undefined;
+    var app: App = undefined;
+    var session: TestSession = .{};
+    try session.init(.{ .core_app = &core_app, .app = &app });
+    defer session.deinit();
+    defer app.endSettingsPanePreview();
+    app.safe_mode = false;
+    // No user file reaches the preview: the lines over the defaults.
+    const Files = struct {
+        fn load(a: std.mem.Allocator) !configpkg.Config {
+            return configpkg.Config.default(a);
+        }
+    };
+    settings_patch.test_config_load = Files.load;
+    defer settings_patch.test_config_load = null;
+    const saved_font_size = app.config.@"font-size";
+
+    App.settingsPreviewPanesThunk(&app, "font-size = 19\ncursor-style = underline\n");
+    {
+        const preview = &(app.settings_pane_preview orelse return error.TestExpectedPreview);
+        try std.testing.expectEqual(@as(f32, 19), preview.@"font-size");
+        try std.testing.expect(preview.@"cursor-style" == .underline);
+    }
+    // The running config, and so a new tab, keeps what is saved.
+    try std.testing.expectEqual(saved_font_size, app.config.@"font-size");
+    {
+        var tab = try apprt.surface.newConfig(&core_app, &app.config, .tab);
+        defer tab.deinit();
+        try std.testing.expectEqual(saved_font_size, tab.@"font-size");
+    }
+
+    // A later draft replaces the preview whole (the testing allocator
+    // reports the first one if it leaks).
+    App.settingsPreviewPanesThunk(&app, "font-size = 21\n");
+    try std.testing.expectEqual(@as(f32, 21), app.settings_pane_preview.?.@"font-size");
+    try std.testing.expect(app.settings_pane_preview.?.@"cursor-style" != .underline);
+    App.settingsPreviewPanesThunk(&app, "font-size = 22\n");
+    try std.testing.expectEqual(@as(f32, 22), app.settings_pane_preview.?.@"font-size");
+
+    // Discard, a close or a save: the panes go back to the app's config.
+    App.settingsEndPanePreviewThunk(&app);
+    try std.testing.expect(app.settings_pane_preview == null);
+    App.settingsEndPanePreviewThunk(&app);
+    try std.testing.expect(app.settings_pane_preview == null);
+
+    // Safe mode loads no file, so it previews nothing.
+    app.safe_mode = true;
+    defer app.safe_mode = false;
+    App.settingsPreviewPanesThunk(&app, "font-size = 19\n");
+    try std.testing.expect(app.settings_pane_preview == null);
 }
 
 test "PKG-39 App.terminate takes both Settings preview hooks away before the window rolls its previews back, with both previews live" {

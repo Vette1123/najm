@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-13 | [Noctty sync and the Settings pane preview](2026-11-13-noctty-sync-and-settings-pane-preview.md) | A terminal-look preview loads config text Save would write; a clone with typed fields cannot show a theme change |
 | 2026-11-09 | [Tab padding and outline](2026-11-09-tab-padding-and-outline.md) | A shape that insets its body must inset the content too: the X sat in the 4 DIP the silhouette gave up |
 | 2026-11-07 | [Noctty sync and the active tab's silhouette](2026-11-07-noctty-sync-and-tab-silhouette.md) | Grep moved upstream code for display strings: the identity check missed ~20 re-introduced "noctty"s |
 | 2026-11-01 | [Site SEO pass](2026-11-01-site-seo.md) | Twitter cards, WebPage JSON-LD, x-default in the sitemap and Arabic social alt, each pinned by a built-HTML test |

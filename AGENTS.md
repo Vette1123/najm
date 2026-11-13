@@ -503,7 +503,9 @@ that govern each symbol you change, or that none does.
   they are made (`SettingsWindow.open`, `materializeSection`), dialog
   manager, viewport, live preview (`App.settings_preview`, `App.shownConfig`,
   `App.shownBackgroundOpacity`, and its rollback at a close or Discard:
-  `rollbackPreviews` and the handle's `endPreviews`), theming (`SettingsThemeAdapter`,
+  `rollbackPreviews` and the handle's `endPreviews`; Najm's preview in the
+  open panes: `win32/settings_pane_preview.zig`, `App.settings_pane_preview`,
+  `previewSettingsPanes`, `runPanePreview`, `reshowPanePreview`), theming (`SettingsThemeAdapter`,
   `themeChanged`), its own UIA patterns, combo and open traces
   (`NOCTTY_SETTINGS_COMBO_TRACE`, `NOCTTY_SETTINGS_OPEN_TRACE`,
   `win32/bench_trace.zig`), the Default profile row

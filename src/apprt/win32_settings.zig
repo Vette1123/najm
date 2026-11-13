@@ -42,6 +42,7 @@ const settings_reference = @import("win32_settings_reference.zig");
 const settings_keybinds = @import("win32_settings_keybinds.zig");
 const settings_profiles = @import("win32_settings_profiles.zig");
 const settings_patch = @import("win32/settings_patch.zig");
+const settings_pane_preview = @import("win32/settings_pane_preview.zig");
 const profile_map = @import("../config/profile_map.zig");
 const LineIterator = @import("../cli/args.zig").LineIterator;
 const bench_trace = @import("win32/bench_trace.zig");
@@ -189,6 +190,12 @@ const search_announce_quiet_ms: UINT = 500;
 /// `owes_external`) is tried again this often, until it is.
 const refresh_timer_id: usize = 3;
 const refresh_retry_ms: u32 = 500;
+/// Najm: the quiet period after an edit of a terminal-visible setting before
+/// the open terminals show it (`SettingsWindow.schedulePanePreview`): each
+/// preview reloads the config and rebuilds every pane's fonts, so typing
+/// "14" in Font size previews 14, not 1 and then 14.
+const pane_preview_timer_id: usize = 5;
+const pane_preview_quiet_ms: UINT = 150;
 /// The Profiles page's list of profiles, which could not be listed (no
 /// memory), is listed again this long after (`retryProfileListing`): once,
 /// not on every key.
@@ -835,7 +842,7 @@ pub const editable_keys = .{
     Config.Key.@"shell-integration",      Config.Key.@"cursor-style",      Config.Key.@"background-blur",
     Config.Key.@"window-padding-balance", Config.Key.@"auto-update",       Config.Key.@"auto-update-channel",
     Config.Key.@"font-family",            Config.Key.theme,                Config.Key.command,
-    Config.Key.@"default-profile",        Config.Key.@"window-accent", Config.Key.@"text-color",
+    Config.Key.@"default-profile",        Config.Key.@"window-accent",     Config.Key.@"text-color",
 };
 
 /// A control that goes with a number field and writes the field as typing
@@ -1072,7 +1079,7 @@ const StatusNote = enum {
             .saved_unread => "Saved, but a config file could not be read whole, so the running settings are unchanged. Reload the configuration once it can be read to use the saved values.",
             .saved_not_applied => "Saved, but the saved settings could not be applied, so the running settings are unchanged. Reload the configuration to use the saved values.",
             .saved_partly_applied => "Saved, but the saved settings may be only partly applied. Reload the configuration to apply all of them.",
-            .saved_lists_unchecked => "Saved. A later config file or command-line option adds to the hidden profiles, and noctty has not found every profile yet, so it could not check whether that hides more of them.",
+            .saved_lists_unchecked => "Saved. A later config file or command-line option adds to the hidden profiles, and Najm has not found every profile yet, so it could not check whether that hides more of them.",
             .disk_changed => "Nothing was saved: another program changed the config file while it was being saved. Save again. Your edits are kept.",
             .profile_changed => "Nothing was saved: another program changed a profile in the config file since Settings read it. Reload the configuration, then make the change again. Your edits are kept.",
             .profile_lists_foreign => "Nothing was saved: another layer than the config file Settings saves to sets the profile order or the hidden profiles. Your edits are kept.",
@@ -1089,7 +1096,7 @@ const StatusNote = enum {
             .resolve_first => "Fix the invalid fields or choose Keep mine or Use disk before saving.",
             .conflict_not_resolved => "Could not resolve the conflict; your edit is kept.",
             .disk_value_not_adopted => "Could not take the value from disk; your edit is kept.",
-            .previews_live => "Previewing now. Save to keep it.",
+            .previews_live => "Previewing now. Save to keep it, or Discard changes to undo it.",
             .applies_on_save => "Applies when you save.",
             .field_reset => "The setting is back to its default. Save to keep it.",
             .already_default => "The setting already has its default.",
@@ -2462,6 +2469,16 @@ pub const AppHandle = struct {
     /// rollback sends `previewField` the saved value of each previewed field.
     /// A Reset or an edit of one row still goes through `previewField`.
     endPreviews: ?*const fn (ctx: *anyopaque) void = null,
+    /// Optional (Najm). Show every open terminal the config a save would
+    /// give with `lines` (`settings_pane_preview.writeLines`: the drafts of
+    /// the keys `settings_pane_preview.keys` names) saved; the app's config
+    /// and new terminals keep the saved one. Each call replaces the last
+    /// preview, and comes only when the lines changed
+    /// (`SettingsWindow.runPanePreview`). Borrowed for the call.
+    previewPanes: ?*const fn (ctx: *anyopaque, lines: []const u8) void = null,
+    /// Optional (Najm). The open terminals go back to the app's config: no
+    /// terminal draft is left, Discard, a close, or a save that applied.
+    endPanePreview: ?*const fn (ctx: *anyopaque) void = null,
     /// Optional conflict notification. The UI model retains the draft until
     /// `resolveConflict` is called with keep-mine or use-disk.
     notifyConflict: ?*const fn (ctx: *anyopaque, field: SettingField) void = null,
@@ -2551,6 +2568,9 @@ pub const AppHandle = struct {
 
 pub const SettingsWindow = struct {
     handle: AppHandle,
+    /// Najm: the lines the open terminals preview (`runPanePreview`), owned;
+    /// null while they show the app's config.
+    pane_preview_sent: ?[]u8 = null,
     combo_trace: bench_trace.SettingsComboTrace = .{},
     /// How long each step of the last `open` took, when the App's
     /// `NOCTTY_SETTINGS_OPEN_TRACE` is on; the App writes and empties it.
@@ -3165,6 +3185,7 @@ pub const SettingsWindow = struct {
     /// reloaded) app config.
     fn clearPending(self: *SettingsWindow) void {
         self.rollbackPreviews();
+        self.endPanePreview();
         self.transaction = null;
         self.validation_control = null;
         self.owned_validation_control = null;
@@ -3269,9 +3290,92 @@ pub const SettingsWindow = struct {
         self.dispatchEffects(emitted);
         self.refreshNativeSectionText();
         // Whether the edit shows in the open windows now or only after a save
-        // is told by what its preview refreshes.
-        self.status_note = if (previewEffect(field) != .none) .previews_live else .applies_on_save;
+        // is told by what its preview refreshes: the chrome's, or (Najm) the
+        // open terminals'.
+        const in_panes = settings_pane_preview.previews(field_model.descriptor(field).key) and self.handle.previewPanes != null;
+        self.status_note = if (previewEffect(field) != .none or in_panes) .previews_live else .applies_on_save;
+        self.schedulePanePreview();
         self.updateSaveEnabled();
+    }
+
+    // ---- Najm: the open terminals' preview ----------------------------
+
+    fn ownedPreviewsInPanes(field: OwnedSettingField) bool {
+        return switch (field) {
+            .font_family => settings_pane_preview.previews(.@"font-family"),
+            .theme => settings_pane_preview.previews(.theme),
+            .command, .default_profile => false,
+        };
+    }
+
+    fn saveInFlight(self: *const SettingsWindow) bool {
+        const transaction = &(self.transaction orelse return false);
+        return transaction.pending_apply_id != null;
+    }
+
+    /// Show the terminal drafts in the open terminals after a quiet period
+    /// (`pane_preview_quiet_ms`), or now when there is no window to time it.
+    fn schedulePanePreview(self: *SettingsWindow) void {
+        if (self.handle.previewPanes == null) return;
+        const hwnd = self.hwnd orelse return self.runPanePreview();
+        // The same id restarts the countdown.
+        _ = sys.SetTimer(hwnd, pane_preview_timer_id, pane_preview_quiet_ms, null);
+    }
+
+    fn killPanePreviewTimer(self: *SettingsWindow) void {
+        const hwnd = self.hwnd orelse return;
+        _ = sys.KillTimer(hwnd, pane_preview_timer_id);
+    }
+
+    /// Sends the terminal drafts' lines when they differ from the last ones
+    /// sent, and ends the terminals' preview when none is left. Nothing
+    /// while a save is in flight: its reload shows the saved config.
+    fn runPanePreview(self: *SettingsWindow) void {
+        self.killPanePreviewTimer();
+        const preview = self.handle.previewPanes orelse return;
+        if (self.saveInFlight()) return;
+        const original = &(self.original orelse return self.endPanePreview());
+        const pending = &(self.pending orelse return self.endPanePreview());
+        var lines: std.Io.Writer.Allocating = .init(self.handle.alloc);
+        defer lines.deinit();
+        const count = settings_pane_preview.writeLines(original, pending, &lines.writer) catch |err| {
+            std.log.warn("settings: terminal preview lines failed err={}", .{err});
+            return;
+        };
+        if (count == 0) return self.endPanePreview();
+        if (self.pane_preview_sent) |sent| {
+            if (std.mem.eql(u8, sent, lines.written())) return;
+        }
+        const owned = self.handle.alloc.dupe(u8, lines.written()) catch |err| {
+            std.log.warn("settings: terminal preview copy failed err={}", .{err});
+            return;
+        };
+        if (self.pane_preview_sent) |sent| self.handle.alloc.free(sent);
+        self.pane_preview_sent = owned;
+        preview(self.handle.ctx, owned);
+    }
+
+    /// The open terminals go back to the app's config, once.
+    fn endPanePreview(self: *SettingsWindow) void {
+        self.killPanePreviewTimer();
+        const sent = self.pane_preview_sent orelse return;
+        self.handle.alloc.free(sent);
+        self.pane_preview_sent = null;
+        if (self.handle.endPanePreview) |end| end(self.handle.ctx);
+    }
+
+    /// The app replaced its config (a reload, a palette theme) and with it
+    /// what every pane shows: show the terminal drafts again over it.
+    pub fn reshowPanePreview(self: *SettingsWindow) void {
+        // A save's own reload: `save` ends the preview once it returns.
+        if (self.saveInFlight()) return;
+        const sent = self.pane_preview_sent orelse return self.runPanePreview();
+        // Still sent (an empty mark no draft's lines equal), so the drafts
+        // are sent again, or the preview the app holds is ended when no
+        // draft is left.
+        self.handle.alloc.free(sent);
+        self.pane_preview_sent = &.{};
+        self.runPanePreview();
     }
 
     pub fn hasPendingChanges(self: *const SettingsWindow) bool {
@@ -4353,8 +4457,10 @@ pub const SettingsWindow = struct {
             self.owned_dirty[index] = true;
             self.owned_conflict[index] = !ownedSettingEql(current, original, field);
         }
-        // Font family, theme and default command are only read at save.
-        self.status_note = .applies_on_save;
+        // Font family and theme show in the open terminals (Najm); the
+        // default command and profile are only read at save.
+        self.status_note = if (ownedPreviewsInPanes(field) and self.handle.previewPanes != null) .previews_live else .applies_on_save;
+        self.schedulePanePreview();
         self.surfaceNextValidation(false);
         self.refreshNativeSectionText();
         self.updateSaveEnabled();
@@ -6992,7 +7098,12 @@ pub const SettingsWindow = struct {
             };
         }
 
-        switch (saveReloadOutcome(self.handle.saveAndReload(self.handle.ctx, &p, &o, &baselines))) {
+        const outcome = saveReloadOutcome(self.handle.saveAndReload(self.handle.ctx, &p, &o, &baselines));
+        // Najm: written, so the terminals leave the preview for the running
+        // config, which the reload made the saved one (or kept, when it could
+        // not apply it: the status says to reload).
+        if (std.meta.activeTag(outcome) != .failed) self.endPanePreview();
+        switch (outcome) {
             .completed => self.completeSynchronousSave(apply_id, .clean),
             .completed_masked => {
                 // Persisted bytes are correct but a later config
@@ -7028,6 +7139,7 @@ pub const SettingsWindow = struct {
                 // preview (`livePreviews` is empty while a save is in
                 // flight); the draft stays, and so does its preview.
                 self.previewDrafts();
+                self.reshowPanePreview();
                 // Another program changed the file after the check read it.
                 // When that was under an edited setting the App applied the
                 // file, while this save was in flight, when the window takes
@@ -12232,7 +12344,7 @@ test "settings previews only the fields an open window shows" {
             // Opacity and the window theme show in the open windows.
             typeInto(settings.fields.edit_bg_opacity.?, "0.5");
             try std.testing.expectEqual(@as(u32, 1), fixture.previews);
-            try std.testing.expectEqualStrings("Previewing now. Save to keep it.", try statusTextOf(settings, &buf));
+            try std.testing.expectEqualStrings("Previewing now. Save to keep it, or Discard changes to undo it.", try statusTextOf(settings, &buf));
             _ = sys.SendMessageW(settings.fields.combo_window_theme.?, CB_SETCURSEL, 2, 0);
             settings.syncCombo(.window_theme);
             try std.testing.expectEqual(@as(u32, 2), fixture.previews);
@@ -18955,7 +19067,7 @@ test "settings status line says whether an edit previews or waits for a save" {
             // An edit that shows in the open terminals now.
             _ = sys.SendMessageW(settings.fields.combo_window_theme.?, CB_SETCURSEL, 3, 0);
             settings.syncCombo(.window_theme);
-            try std.testing.expectEqualStrings("Previewing now. Save to keep it.", try statusTextOf(settings, &buf));
+            try std.testing.expectEqualStrings("Previewing now. Save to keep it, or Discard changes to undo it.", try statusTextOf(settings, &buf));
 
             // No open terminal reads cursor style until the save, so it is
             // not previewed and must not claim a preview.
@@ -22247,6 +22359,7 @@ fn wndProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.wina
                 validation_timer_id => if (owner) |o| o.validationQuietElapsed(),
                 search_announce_timer_id => if (owner) |o| o.searchAnnounceElapsed(),
                 refresh_timer_id => if (owner) |o| o.retryRefresh(),
+                pane_preview_timer_id => if (owner) |o| o.runPanePreview(),
                 profile_retry_timer_id => if (owner) |o| o.retryProfileListing(),
                 else => return sys.DefWindowProcW(hwnd, msg, wParam, lParam),
             }

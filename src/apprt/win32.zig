@@ -4868,7 +4868,6 @@ pub fn resolveTheme(config: *const configpkg.Config) ThemeColors {
     return withSplitDividerColor(withAccent(theme, accent), config.@"split-divider-color");
 }
 
-
 /// The accent the config asks for, before any readability adjustment, or
 /// null for the theme's own. `window-accent-color` wins over `window-accent`;
 /// `system` with no readable Windows accent (or a zero one) keeps the theme's.
@@ -6894,17 +6893,14 @@ fn settingsEditRemovesLines(pending: *const configpkg.Config, comptime key: Sett
     return key == .@"default-profile" and pending.@"default-profile" == null;
 }
 
-/// One edited setting as config text, each line ending in a newline. A
-/// repeatable list that is not empty starts with `<key> = `, which resets
-/// what lower layers set; an empty list's formatter already emits that reset.
+/// One edited setting as config text; the Settings pane preview writes its
+/// lines with the same function, so a preview shows what a save writes.
 fn writeSettingsEntry(
     comptime field: std.builtin.Type.StructField,
     value: field.type,
     writer: *std.Io.Writer,
 ) !void {
-    if (field.type == configpkg.Config.RepeatableString and value.list.items.len != 0)
-        try writer.print("{s} = \n", .{field.name});
-    try @import("../config/formatter.zig").formatEntry(field.type, field.name, value, writer);
+    return @import("win32/settings_pane_preview.zig").writeEntry(field, value, writer);
 }
 
 test "win32 settings automatic command is not masked by default resolution" {
