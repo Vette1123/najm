@@ -70,6 +70,8 @@ pub fn writeLines(
 }
 
 fn fieldOf(comptime key: Key) std.builtin.Type.StructField {
+    // Config has several hundred fields: the default quota runs out.
+    @setEvalBranchQuota(20_000);
     for (std.meta.fields(Config)) |field| {
         if (std.mem.eql(u8, field.name, @tagName(key))) return field;
     }
