@@ -17937,12 +17937,15 @@ test "win32 a close X click works after Esc ended a drag whose tab a key binding
             try std.testing.expect(host.tab_drag_cancelled);
             try std.testing.expectEqual(@as(usize, 2), host.tabs.items.len);
             // The next click on a close X in that window closes its tab.
-            const closing = host.tabs.items[0].button_hwnd orelse return error.TestNoTabButton;
+            // Najm: the active tab's, the X a press can hit without a hover
+            // (an idle tab's X is hidden: `tabCloseDownLeft`).
+            const active = host.active_tab;
+            const closing = host.tabs.items[active].button_hwnd orelse return error.TestNoTabButton;
             var rect: RECT = undefined;
             _ = sys.GetClientRect(closing, &rect);
             const x = rect.right - 4;
             const y = @divTrunc(rect.bottom, 2);
-            fixture.core_app.deleteSurface(host.tabs.items[0].focusedSurface().?);
+            fixture.core_app.deleteSurface(host.tabs.items[active].focusedSurface().?);
             testPostTabMouse(closing, c.WM_LBUTTONDOWN, x, y);
             testPostTabMouse(closing, c.WM_LBUTTONUP, x, y);
             try std.testing.expectEqual(@as(usize, 1), host.tabs.items.len);
@@ -18123,14 +18126,17 @@ test "win32 a close X release closes its tab only after a press on that X (counc
             try testReleaseOnCloseX(host, 0);
             try std.testing.expectEqual(@as(usize, 3), host.tabs.items.len);
             // A press on one tab's X and its release on another's: nothing.
-            const first = host.tabs.items[0].button_hwnd orelse return error.TestNoTabButton;
+            // Najm: the press is on the active tab, whose X shows without a
+            // hover (an idle tab's X is hidden: `tabCloseDownLeft`).
+            const active = host.active_tab;
+            const first = host.tabs.items[active].button_hwnd orelse return error.TestNoTabButton;
             var rect: RECT = undefined;
             _ = sys.GetClientRect(first, &rect);
             testPostTabMouse(first, c.WM_LBUTTONDOWN, rect.right - 4, @divTrunc(rect.bottom, 2));
-            try testReleaseOnCloseX(host, 1);
+            try testReleaseOnCloseX(host, (active + 1) % host.tabs.items.len);
             try std.testing.expectEqual(@as(usize, 3), host.tabs.items.len);
             // A press and its release on the same X closes that tab.
-            fixture.core_app.deleteSurface(host.tabs.items[0].focusedSurface().?);
+            fixture.core_app.deleteSurface(host.tabs.items[active].focusedSurface().?);
             testPostTabMouse(first, c.WM_LBUTTONDOWN, rect.right - 4, @divTrunc(rect.bottom, 2));
             testPostTabMouse(first, c.WM_LBUTTONUP, rect.right - 4, @divTrunc(rect.bottom, 2));
             try std.testing.expectEqual(@as(usize, 2), host.tabs.items.len);

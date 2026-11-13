@@ -9618,6 +9618,14 @@ pub const Host = struct {
     /// as the X shows (`win32_tab_visual.closeHitRect`): a touch or pen
     /// tap on an idle tab, whose hover fade has only just started,
     /// activates it instead of closing it unseen.
+    /// Najm: where the palette's results list starts for an overlay band
+    /// ending at `band_bottom`: tucked under the panel's bottom edge, so
+    /// panel and list read as one card. The layout and the row count
+    /// (`paletteListRowCapacity`) both read it.
+    pub fn paletteListTop(self: *const Host, band_bottom: i32) i32 {
+        return band_bottom - self.scaled(6) - 1;
+    }
+
     pub fn tabCloseAlpha(self: *Host, child: HWND, active: bool, hovered: bool, now_ms: u64) f32 {
         // Two animation slots: the incoming hover target
         // (`tab_close_hover_*` fades 0 → 1) and the departing tab
@@ -12028,7 +12036,7 @@ pub const Host = struct {
                     // feedback line the panel still paints. `band_height`
                     // drops the feedback row when `command-palette-hint`
                     // hides it.
-                    const list_y = overlay_y + band_height - self.scaled(6) - 1;
+                    const list_y = self.paletteListTop(overlay_y + band_height);
                     const list_width_bounds = paletteListRect(width, list_x, card_inset, list_y, 0);
                     const has_list_width = paletteListWidthIsReadable(list_width_bounds, self.scaled(160));
                     const row_capacity = if (has_list_width)
@@ -13537,7 +13545,7 @@ const PaletteBandTest = struct {
     fn expectBand(self: PaletteBandTest, host: *Host, pane: anytype, band: i32) !void {
         const bands = host.chromeBands();
         try std.testing.expectEqual(self.band_top + band, bands.inspector_top);
-        try std.testing.expectEqual(self.band_top + band, host.palette_list_placement.rect.top);
+        try std.testing.expectEqual(host.paletteListTop(self.band_top + band), host.palette_list_placement.rect.top);
         try std.testing.expectEqual(self.closed_top + band, pane.placement.rect.top);
         try std.testing.expectEqual(bands.content_top, pane.placement.rect.top);
         const rows = if (band == self.both_rows) rows_under_both else rows_under_query;

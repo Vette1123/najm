@@ -1034,7 +1034,7 @@ pub const HostControls = struct {
         var rect: RECT = undefined;
         if (sys.GetClientRect(hwnd, &rect) == 0) return 0;
         // The list hangs under the overlay band, over an open inspector.
-        const list_top = self.chromeBands().inspector_top;
+        const list_top = self.paletteListTop(self.chromeBands().inspector_top);
         return paletteVisibleRowCapacity(
             rect.bottom - list_top - self.scaled(8),
             self.scaled(palette_row_height),
