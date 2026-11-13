@@ -28,6 +28,12 @@
   `@setEvalBranchQuota`), and `Config.loadReader` panics on a name with no
   directory (`dirname(...).?`): "Settings preview" became
   "Settings preview/draft".
+- The merge's conflict resolutions compiled but broke five of upstream's
+  new tests: its palette-band tests assume the list sits flush under the
+  band (Najm's card tucks it 7 px up, and `paletteListRowCapacity` still
+  counted from the band, so the two readers disagreed), and its close-X
+  tests press an idle tab's X, which Najm hides. Fixed with one
+  `Host.paletteListTop` and by pressing the active tab's X.
 - Upstream re-introduced "noctty" in payload names and one Settings status
   string; the identity script did not catch the status string.
 
@@ -43,5 +49,7 @@
 - A terminal-look preview loads config text, it never mutates a clone.
 - Every place that ends or replaces what panes show must end or re-send the
   pane preview (save, Discard, close, terminate, reload).
+- After an upstream merge, list upstream's new tests that touch a file
+  Najm restyled (palette, tabs) and check each against Najm's geometry.
 - After an upstream merge, grep the diff for user-visible "noctty" strings,
   not only file names.
