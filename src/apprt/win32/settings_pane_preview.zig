@@ -79,9 +79,12 @@ fn fieldOf(comptime key: Key) std.builtin.Type.StructField {
 }
 
 /// Loads `lines` (from `writeLines`) into `config` as a config file would.
+/// `loadReader` expands relative paths against the name's directory and
+/// needs one (`dirname(...).?`); no previewed key holds a path, so the
+/// directory is only a label for diagnostics.
 pub fn loadLines(config: *Config, alloc: std.mem.Allocator, lines: []const u8) !void {
     var reader: std.Io.Reader = .fixed(lines);
-    try config.loadReader(alloc, &reader, "Settings preview");
+    try config.loadReader(alloc, &reader, "Settings preview/draft");
 }
 
 /// The config Save would give with `lines` saved: loaded as `Config.load`
