@@ -23,6 +23,11 @@
   stale preview copy. It now keeps an empty mark so the end still fires.
 - The App test called the thunks unqualified from a top-level test; they
   are `App.` methods. `zig ast-check` caught it without a build.
+- CI caught two things `ast-check` cannot: a comptime scan of every Config
+  field ran out of the default 1000-branch quota (`fieldOf` needs
+  `@setEvalBranchQuota`), and `Config.loadReader` panics on a name with no
+  directory (`dirname(...).?`): "Settings preview" became
+  "Settings preview/draft".
 - Upstream re-introduced "noctty" in payload names and one Settings status
   string; the identity script did not catch the status string.
 
