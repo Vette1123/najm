@@ -60,7 +60,9 @@ then produces:
 7. Generated package-manager metadata
 
 The symbols ZIP holds one `symbols` folder with `noctty.pdb`,
-`noctty-command.pdb` (for `noctty.com`), `ghostty-vt.pdb` and
+`noctty-command.pdb` (for `noctty.com`), `ghostty-vt.pdb` (for the portable
+ZIP's `ghostty-vt.dll` placeholder, until v1.4.100; see
+[Library consumers](#library-consumers)) and
 `noctty-terminal-handoff-proxy.pdb`. Release builds therefore pass
 `-Dstrip=false` (`scripts/build-package-windows.ps1` does). Left alone,
 that would have grown `noctty.exe` by 2.1 MB and `noctty.com` by 1.4 MB, so
@@ -147,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package-windows.ps1 -Version 1.
 
 The packager builds with `-Dstrip=false`. To package an existing build with
 `-SkipBuild`, build it the same way
-(`zig build -Demit-exe=true -Demit-lib-vt=true -Doptimize=ReleaseFast -Dstrip=false ...`),
+(`zig build -Demit-exe=true -Doptimize=ReleaseFast -Dstrip=false ...`),
 or the symbols ZIP is skipped with a warning (`-RequireSymbols` makes that
 fatal).
 
@@ -302,25 +304,17 @@ Recommended order:
    workflow with `run_interactive_win11=true`. The interactive job runs
    only on this opted-in dispatch, and the **Release** workflow refuses
    to publish without its hash-bound evidence at the exact release SHA.
-5. Run the Windows 10 22H2 checklist,
-   [docs/windows10-release-checklist.md](docs/windows10-release-checklist.md),
-   against a candidate built from the intended source SHA on a Windows 10
-   machine. Use [Local packaging](#local-packaging) with `-RequireConPty` and
-   Inno Setup available for the installed rows. Local builds are unsigned unless
-   signing is configured; record that limit. **Release Readiness** produces no
-   artifacts. Record the source SHA and candidate hashes. Stable publication
-   rebuilds the assets, so this pass binds to the source SHA; record the shipped
-   hashes separately and repeat affected checks if the source changes. No
-   hosted image or interactive job covers Windows 10; the checklist is a manual
-   release step, not a CI gate. Put its results table in the release notes'
-   validation section. The scheduled **Windows 10 branches** workflow is a
-   separate, non-required check that runs the unit suite on Windows Server 2022
-   (build 20348); read its latest run too.
-6. After readiness passes, either:
+   The job uses the visible desktop for about 20 to 25 minutes (60 at most)
+   and reads screen pixels, so a window or notification banner over the
+   windows it tests can fail the run. Before dispatching, turn on Do Not
+   Disturb, close any open shell flyout, and minimize every other window,
+   your own noctty windows included. Then leave the machine alone until the
+   job finishes.
+5. After readiness passes, either:
    - push tag `v<version>`, or
    - manually dispatch the **Release** workflow with `version=<version>` and
      `prerelease=false`.
-7. Confirm the workflow published artifacts for both x64 and ARM64:
+6. Confirm the workflow published artifacts for both x64 and ARM64:
    - installer
    - portable ZIP
    - `noctty-<version>-windows-x64-portable.manifest.ps1`
@@ -329,12 +323,17 @@ Recommended order:
    - `SHA256SUMS-windows-<arch>.txt`
    - legacy x64 `SHA256SUMS.txt`
    - GitHub Release notes/assets
-8. Confirm build provenance for the eleven non-icon assets.
-9. Confirm follow-on publishes:
+7. Confirm build provenance for the eleven non-icon assets.
+8. Confirm follow-on publishes:
    - Scoop manifest update
    - WinGet submission
    - Chocolatey package push (the step is skipped while the repository
      variable `CHOCOLATEY_PUBLISH` is `off`)
+
+A release does not require a manual Windows 10 pass. The
+[Windows 10 manual checklist](docs/windows10-release-checklist.md) is an
+optional pass for a change that needs Windows 10 evidence, not a release step.
+The scheduled **Windows 10 branches** workflow is a non-required check.
 
 If a tag already exists and the workflow failed before publish, configure
 the missing signing secrets and then rerun the failed `Release` workflow or
@@ -424,7 +423,50 @@ full toolchain rules live in [HACKING.md](HACKING.md#toolchain).
 
 ## Library consumers
 
-`libghostty-vt` remains intentionally retained and keeps its existing public
-name. The app binary and Windows packaging are rebranded to `noctty`,
-but the library surface is not being renamed as part of this packaging
-cleanup.
+noctty does not ship `libghostty-vt` as a library for other programs.
+`noctty.exe` does not load `ghostty-vt.dll` (its import table has no such
+entry). The copy releases up to 1.3.136 put beside it is libghostty-vt
+version 0.1.0 with the pre-1.0 C ABI, under the same name as upstream's
+libghostty-vt 1.0 DLL, which has a stable C ABI. To use the library:
+
+- take upstream's official libghostty-vt, with its Windows x64 DLL, from
+  [lib.ghostty.org](https://lib.ghostty.org); or
+- build it from this tree: `zig build -Demit-lib-vt`, or the CMake wrapper
+  (`CMakeLists.txt`, `dist/cmake/`). CI still builds and tests it (the
+  `windows-lib-vt` job). Packaging no longer builds it.
+
+Setup no longer installs `ghostty-vt.dll`, and it deletes the copy an
+earlier Setup installed (`[InstallDelete]` in `dist/windows/noctty.iss`).
+Neither package carries `share/pkgconfig/libghostty-vt.pc` any more, and
+Setup deletes that file too. (The updater replaces a portable copy's `share`
+folder as a whole.)
+
+From 1.3.137, the portable ZIP's `ghostty-vt.dll` is a placeholder that
+noctty builds (`src/ghostty_vt_stub/`), not libghostty-vt, and the symbols
+ZIP's `ghostty-vt.pdb` is the placeholder's. The placeholder exports and
+imports nothing, and its `DllMain` refuses to initialise, so `LoadLibrary`
+fails with `ERROR_DLL_INIT_FAILED` instead of handing a program an old ABI.
+Its version resource describes it as "noctty placeholder for the retired
+ghostty-vt.dll; not libghostty-vt". There is one per architecture, and it is
+signed in the same packaging step as noctty's other binaries.
+
+It is there for the portable updater of noctty 1.3.125 to 1.3.136, which
+refuses a portable update whose payload lacks any file it manages,
+`ghostty-vt.dll` included. It checks that in the running copy when it stages
+the update, and again in the swap, which runs from a copy of the same old
+executable. Of each noctty-built DLL in the payload it asks only that the
+file is listed in the signed payload manifest with its hash, is built for the
+right machine and carries noctty's publisher signature; it never loads it.
+The updater from 1.3.137 on accepts a payload without the file. When it
+applies one, it moves the copy aside with the other files it replaces, so a
+rollback puts it back and a confirmed update deletes it (`retired_entries` in
+`src/update/portable_apply.zig`).
+
+**Manual update at v1.4.100.** v1.4.100 drops the placeholder from the
+portable and symbols ZIPs. A portable copy on 1.3.125 to 1.3.136 that has
+not installed a release from 1.3.137 on by then cannot stage that update: its
+update notice offers the release page, and the copy has to be updated by
+hand from there. A portable copy that has installed 1.3.137 or later keeps
+updating in-app. Releases up to 1.3.124 never updated a portable copy
+in-app, so those copies already update by hand. Setup installs are not
+affected.

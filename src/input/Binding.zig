@@ -622,6 +622,13 @@ pub const Action = union(enum) {
     /// the last tab.
     move_tab: isize,
 
+    /// Move a tab to a new window.
+    ///
+    /// On Windows the tab keeps its splits and its running programs; it is
+    /// the keyboard way to do what dragging a tab out of its tab bar does.
+    /// A window's only tab stays where it is.
+    move_tab_to_new_window,
+
     /// Toggle the tab overview.
     ///
     /// This is only supported on Linux and when the system's libadwaita
@@ -1500,6 +1507,7 @@ pub const Action = union(enum) {
             .last_tab,
             .goto_tab,
             .move_tab,
+            .move_tab_to_new_window,
             .toggle_tab_overview,
             .new_split,
             .goto_split,
@@ -1639,6 +1647,41 @@ pub const Action = union(enum) {
                 try cloneValue(alloc, value),
             ),
         };
+    }
+
+    /// `actions` cloned into `alloc` (an arena: nothing is freed one by
+    /// one), each through `clone`, the slices they carry included.
+    pub fn cloneSlice(
+        alloc: Allocator,
+        actions: []const Action,
+    ) Allocator.Error![]const Action {
+        const copy = try alloc.alloc(Action, actions.len);
+        for (actions, copy) |action, *out| out.* = try action.clone(alloc);
+        return copy;
+    }
+
+    test "cloneSlice copies the bytes an action carries" {
+        const testing = std.testing;
+        var arena: std.heap.ArenaAllocator = .init(testing.allocator);
+        defer arena.deinit();
+
+        // Binding storage whose bytes a reload frees: overwritten below.
+        var text = "hello".*;
+        var normal = "[A".*;
+        var application = "OA".*;
+        const source = [_]Action{
+            .{ .text = &text },
+            .{ .cursor_key = .{ .normal = &normal, .application = &application } },
+        };
+        const leaf: Set.GenericLeaf = .{ .flags = .{}, .actions = .{ .many = &source } };
+        const copy = try leaf.cloneActions(arena.allocator());
+        @memset(&text, 'x');
+        @memset(&normal, 'x');
+        @memset(&application, 'x');
+
+        try testing.expectEqualStrings("hello", copy[0].text);
+        try testing.expectEqualStrings("[A", copy[1].cursor_key.normal);
+        try testing.expectEqualStrings("OA", copy[1].cursor_key.application);
     }
 
     fn cloneValue(
@@ -2352,6 +2395,20 @@ pub const Set = struct {
                 .single => |*arr| arr,
                 .many => |slice| slice,
             };
+        }
+
+        /// The actions copied out of the binding storage, the slices
+        /// they carry included, into `alloc` (an arena: nothing is freed
+        /// one by one). A chain's actions borrow the config that owns the
+        /// binding set, and an action can free that config before the
+        /// chain is done: a reload replaces it, and on Win32 a closing
+        /// action frees the surface that owns it, both synchronously.
+        /// Read a running chain from this copy, never from the set.
+        pub fn cloneActions(
+            self: *const GenericLeaf,
+            alloc: Allocator,
+        ) Allocator.Error![]const Action {
+            return Action.cloneSlice(alloc, self.actionsSlice());
         }
     };
 

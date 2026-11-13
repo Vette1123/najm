@@ -13,11 +13,11 @@ const budget = .{
     // Entries in each `pub const *_runtime` bag on the facade.
     .bags = .{
         // why: Najm's `overlayAccentFor`, the palette's per-row accent picks.
-        .chrome_scene_runtime = 54,
+        .chrome_scene_runtime = 52,
         .chrome_scene_test_runtime = 4,
         .overlay_session_runtime = 26,
         .overlay_session_test_runtime = 5,
-        .palette_controller_runtime = 40,
+        .palette_controller_runtime = 39,
         .palette_controller_test_runtime = 7,
         .surface_presentation_runtime = 12,
         .surface_presentation_test_runtime = 3,
@@ -67,7 +67,16 @@ const leaves = .{
         .file = "overlay_view.zig",
         .module = @import("overlay_view.zig"),
         .source = @embedFile("overlay_view.zig"),
-        .pub_decls = 9,
+        // why: `feedbackRow`, which host.zig asks whether the overlay band
+        // has its second row (`Host.overlayBandHeight`): the rule belongs
+        // with `compose`, whose `feedback` is what that row shows.
+        .pub_decls = 10,
+    },
+    .{
+        .file = "pane_divider.zig",
+        .module = @import("pane_divider.zig"),
+        .source = @embedFile("pane_divider.zig"),
+        .pub_decls = 7,
     },
     .{
         .file = "profile_pick.zig",
@@ -94,7 +103,22 @@ const leaves = .{
         // `composedFullscreenRect`, the rect a fullscreen OpenGL window
         // covers (#598), which window_state.zig asks with the monitors it
         // lists.
-        .pub_decls = 30,
+        // why: `Drop` and `placeTearOff`, where a torn-off tab's window
+        // goes, which window_state.zig asks with the monitor under the drop.
+        .pub_decls = 32,
+    },
+    .{
+        .file = "tab_drag.zig",
+        .module = @import("tab_drag.zig"),
+        .source = @embedFile("tab_drag.zig"),
+        // why: the pure decisions of a tab drag and of the only tab's window
+        // move, each with its inputs, so their tables need no window:
+        // `decide`/`Input`/`Target`/`Over`, `movesWindow`, `leavesStrip`,
+        // `insertIndex`/`InsertScan`/`Button`, `grabOffset`/`Offset`,
+        // `windowMoveMerges`/`WindowMoveEnd`, `moveResized`/`Size`, and
+        // `looksSnapped`/`Edges`/`snapped`/`keptSize` for Windows 10 builds
+        // without `IsWindowArranged`.
+        .pub_decls = 19,
     },
 };
 

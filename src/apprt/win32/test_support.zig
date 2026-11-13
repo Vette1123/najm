@@ -42,12 +42,6 @@ const WINDOWPLACEMENT = sys.WINDOWPLACEMENT;
 /// that state.
 pub fn Fixtures(comptime runtime: anytype) type {
     return struct {
-        /// The App's own `endPreviews` is private to it (app.zig).
-        fn endSettingsPreviewsThunk(ctx: *anyopaque) void {
-            const app: *App = @ptrCast(@alignCast(ctx));
-            app.endSettingsPreview();
-        }
-
         const App = runtime.App;
         const Host = runtime.Host;
         const Surface = runtime.Surface;
@@ -119,8 +113,10 @@ pub fn Fixtures(comptime runtime: anytype) type {
                     };
                 }
             };
-            var name_buf: [80]u8 = undefined;
-            const name = try std.fmt.bufPrint(&name_buf, "noctty-pkg43-test-{x}-{d}", .{ @intFromPtr(&name_buf), sys.GetTickCount64() });
+            // The process id keeps concurrent test processes (`-Dtest-shards`)
+            // off each other's desktop: CreateDesktopW opens an existing one.
+            var name_buf: [96]u8 = undefined;
+            const name = try std.fmt.bufPrint(&name_buf, "noctty-pkg43-test-{d}-{x}-{d}", .{ sys.GetCurrentProcessId(), @intFromPtr(&name_buf), sys.GetTickCount64() });
             const wide_name = try std.unicode.utf8ToUtf16LeAllocZ(std.testing.allocator, name);
             defer std.testing.allocator.free(wide_name);
             const desktop = Desktop.CreateDesktopW(wide_name.ptr, null, null, 0, 0x10000000, null) orelse return error.SkipZigTest;
@@ -295,7 +291,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                         .saveAndReload = &settingsSaveAndReloadThunk,
                         .configRevision = &settingsConfigRevisionThunk,
                         .previewField = &settingsPreviewFieldThunk,
-                        .endPreviews = &endSettingsPreviewsThunk,
+                        .endPreviews = &App.settingsEndPreviewsThunk,
                         .notifyConflict = &settingsNotifyConflictThunk,
                         .reconcileDisk = &settingsReconcileDiskThunk,
                         .failureDetail = &settingsFailureDetailThunk,
@@ -434,6 +430,8 @@ pub fn Fixtures(comptime runtime: anytype) type {
                     app.registry.deinit(self.allocator);
                     app.notifications.deinit();
                     runtime.appDiscardDeferredOpens(app);
+                    // Tab moves a test asked for and never drained.
+                    app.pending_tab_moves.deinit(self.allocator);
                 }
                 if (self.core_app_initialized) self.core_app.?.deinit();
                 self.* = .{};
@@ -542,6 +540,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
                 errdefer if (self.app.com_initialized) sys.OleUninitialize();
                 try runtime.appEnsureWindowClass(&self.app);
                 self.app.test_surface_init_stage = &stage;
+                App.test_tear_off_window_created = &standInTabStrip;
                 watched = null;
                 first_show = null;
                 minimize_first_show = false;
@@ -549,7 +548,10 @@ pub fn Fixtures(comptime runtime: anytype) type {
             }
 
             pub fn deinit(self: *WindowStartTestApp) void {
+                App.test_tear_off_window_created = null;
                 self.closeWindows();
+                // A drag's label and its UIA provider, before the apartment.
+                self.app.releaseTabDragPreview();
                 if (self.app.com_initialized) sys.OleUninitialize();
                 const instance = self.app.hinstance;
                 self.session.deinit();
@@ -580,8 +582,17 @@ pub fn Fixtures(comptime runtime: anytype) type {
             }
 
             pub fn closeWindows(self: *WindowStartTestApp) void {
-                var left: usize = 16;
+                // One pass per window there is (a test can open more than 16).
+                var left: usize = self.app.registry.windows.items.len + 1;
                 while (self.app.registry.windows.items.len > 0 and left > 0) : (left -= 1) self.closeWindow(self.newest());
+            }
+
+            /// The stand-in tab strip `stage` gives a window its pane's init
+            /// creates, for a window a torn-off tab opens in.
+            pub fn standInTabStrip(host: *Host) anyerror!void {
+                if (host.tab_container_hwnd == null) {
+                    host.tab_container_hwnd = try createTestChromeChild(host.hwnd.?, prompt_label_class);
+                }
             }
 
             pub fn stage(surface: *Surface, at: SurfaceInitStage) anyerror!void {

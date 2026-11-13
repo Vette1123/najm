@@ -1465,8 +1465,11 @@ click on a portable copy's entry in Action Center goes to the installed
 copy's activator, which hands it to the portable copy when that is the
 running single-instance noctty. Uninstalling removes the activator and its
 `CustomActivator` value. None of this has been exercised against Windows'
-notification platform yet; the release checklist (W10-23) carries the
-checks.
+notification platform yet. Row W10-23 of the
+[Windows 10 manual checklist](windows10-release-checklist.md) checks most of
+these paths. It does not cover a toast shown by a second instance, or a copy
+running as administrator, in safe mode or as the default terminal's console
+host.
 
 A pane keeps at most one toast in Action Center: a newer toast from the same
 pane that Windows takes replaces its older one (one Windows refuses, or one
@@ -1722,8 +1725,13 @@ are not part of the cycle.
 ## Windows, tabs, and splits
 
 The native Win32 host window provides a tab bar with overflow handling,
-same-window drag reorder, and exact-pane drag-to-split with reversible
-subtree transfer; horizontal and vertical splits; per-monitor DPI handling;
+drag reorder, exact-pane drag-to-split with reversible subtree transfer, and
+tab tear-off (drag a tab out of the bar for a new window, or onto another
+window's bar of the same noctty process, since a drop onto another process's
+window opens a new window instead; `move_tab_to_new_window` from the
+keyboard, which does nothing for a window's only tab; see the
+[tab dragging notes](windows-capability-matrix.md#tab-dragging)), which keeps
+the tab's programs running; horizontal and vertical splits; per-monitor DPI handling;
 a DWM dark caption; high-contrast palette switching; IME support;
 drag-and-drop of files, plain text, URLs, and HTML into a pane; and native
 right-click context menus.
@@ -1870,7 +1878,12 @@ list. Type a prefix to filter one category: `>` actions, `@` tabs, `/`
 panes, `~` profiles, `:` settings, `%` themes, `#` accent colors, `!` recent
 commands, `^` layouts, or `?` for help. Selecting an accent color or a theme
 shows it in the open windows at once; Enter saves it and Escape puts back
-what was there. The native Settings window stages edits until Save
+what was there. The line under the search field says what to type, how many
+results match and what Enter does; `command-palette-hint = false` hides it
+and makes the palette one row shorter. A message shown while the palette is
+open (a help answer, an action that could not run, a notification that falls
+back to a message) brings that row back until you type again or close the
+palette. The native Settings window stages edits until Save
 (or Discard changes, which first asks how many fields would be lost) and
 patches your config without rewriting unrelated text. While you edit, Window
 theme and Background opacity preview in the open windows; the other fields,
@@ -2376,10 +2389,15 @@ staged update keeps the staged files and records the dismissal.
 
 For installer-managed installs, the update notice can launch the verified
 staged installer. Applying an update is always user-initiated. The notice says
-that installing closes all windows and running sessions, and **Install**
-asks first, like quitting, when a terminal still has a running process. It
-then re-verifies the staged installer, records apply intent, launches the
-installer elevated (UAC may prompt), and exits the app. The silent setup
+that installing closes all windows and running sessions. While the Settings
+window has unsaved changes, **Install** does not start or wait: a banner asks
+you to save or discard them and then press **Install** again. Otherwise it
+asks first, like quitting, whenever `confirm-close-surface` would ask about a
+terminal (by default, one still running a program). Just before it starts, it
+checks Settings again, then re-verifies the staged installer, launches it
+elevated (UAC may prompt), records apply intent, and exits the app. If that
+record cannot be written, noctty logs it and exits anyway, and the check for
+an unfinished update described below has nothing to go on. The silent setup
 starts noctty again when it finishes, through Explorer so that it is meant to
 run as the logged-on user and not elevated, so an update that works ends with
 a new window. (The wizard's "Launch noctty" box starts it the same way.) That
@@ -2395,13 +2413,15 @@ update state is shared by every copy of the user's. Declining the elevation
 prompt does not quit noctty or record anything: the banner just says the
 installer could not be launched.
 
-For portable installs, **Apply** re-verifies the staged ZIP payload, records the
-pending update, and exits noctty. On the next launch, noctty backs up the files
-being replaced, swaps in the staged payload, and starts the new build. The new
-build confirms the update only when its version matches the staged target;
-otherwise noctty restores the backup. A new build that exits with an error
-during the bounded startup check, or a swap that remains unconfirmed on a later
-launch, also rolls back and relaunches the previous build.
+For portable installs, the notice's button is also **Install**, and it behaves
+the same way up to the point where it starts: Settings, the same question, and
+the second Settings check. It then re-verifies the staged ZIP payload, records
+the pending update, and exits noctty. On the next launch, noctty backs up the
+files being replaced, swaps in the staged payload, and starts the new build.
+The new build confirms the update only when its version matches the staged
+target; otherwise noctty restores the backup. A new build that exits with an
+error during the bounded startup check, or a swap that remains unconfirmed on
+a later launch, also rolls back and relaunches the previous build.
 
 If recovery files are lost after a swap, noctty abandons the unrecoverable
 transaction, launches the installed build, and shows a warning with manual

@@ -243,6 +243,8 @@ pub extern "user32" fn GetClientRect(hWnd: HWND, lpRect: *RECT) callconv(.winapi
 
 pub extern "user32" fn GetKeyState(nVirtKey: i32) callconv(.winapi) SHORT;
 
+pub extern "user32" fn GetAsyncKeyState(vKey: i32) callconv(.winapi) SHORT;
+
 pub extern "user32" fn GetKeyboardState(lpKeyState: *[256]u8) callconv(.winapi) BOOL;
 
 pub extern "user32" fn SetKeyboardState(lpKeyState: *const [256]u8) callconv(.winapi) BOOL;
@@ -364,6 +366,10 @@ pub extern "user32" fn SetActiveWindow(hWnd: HWND) callconv(.winapi) ?HWND;
 pub extern "user32" fn GetActiveWindow() callconv(.winapi) ?HWND;
 
 pub extern "user32" fn GetCursorPos(lpPoint: *POINT) callconv(.winapi) BOOL;
+
+pub extern "user32" fn GetDoubleClickTime() callconv(.winapi) UINT;
+
+pub extern "user32" fn GetMessageTime() callconv(.winapi) i32;
 
 pub extern "user32" fn WindowFromPoint(point: POINT) callconv(.winapi) ?HWND;
 
@@ -721,6 +727,8 @@ pub extern "dwmapi" fn DwmDefWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, l
 
 pub extern "imm32" fn ImmGetContext(hWnd: HWND) callconv(.winapi) ?*anyopaque;
 
+pub extern "imm32" fn ImmGetVirtualKey(hWnd: HWND) callconv(.winapi) UINT;
+
 pub extern "imm32" fn ImmReleaseContext(hWnd: HWND, hIMC: ?*anyopaque) callconv(.winapi) BOOL;
 
 pub extern "imm32" fn ImmGetCompositionStringW(hIMC: *anyopaque, dwIndex: u32, lpBuf: ?*anyopaque, dwBufLen: u32) callconv(.winapi) i32;
@@ -751,6 +759,13 @@ pub extern "user32" fn EnableWindow(hWnd: HWND, bEnable: BOOL) callconv(.winapi)
 pub extern "user32" fn GetParent(hWnd: HWND) callconv(.winapi) ?HWND;
 pub extern "user32" fn GetDlgCtrlID(hWnd: HWND) callconv(.winapi) i32;
 pub extern "user32" fn GetWindow(hWnd: HWND, uCmd: UINT) callconv(.winapi) ?HWND;
+/// The window at the top of `hWnd`'s children, or of the desktop's top-level
+/// windows when null; null when there is none.
+pub extern "user32" fn GetTopWindow(hWnd: ?HWND) callconv(.winapi) ?HWND;
+/// `MDT_EFFECTIVE_DPI` is 0. Windows 8.1 and later.
+pub extern "shcore" fn GetDpiForMonitor(hmonitor: HMONITOR, dpiType: u32, dpiX: *u32, dpiY: *u32) callconv(.winapi) i32;
+/// Returns the previous parent, or null on failure.
+pub extern "user32" fn SetParent(hWndChild: HWND, hWndNewParent: ?HWND) callconv(.winapi) ?HWND;
 
 pub extern "user32" fn GetForegroundWindow() callconv(.winapi) ?HWND;
 
@@ -769,6 +784,7 @@ pub extern "user32" fn SetWindowRgn(hWnd: HWND, hRgn: ?HRGN, bRedraw: BOOL) call
 pub extern "user32" fn NotifyWinEvent(event: u32, hwnd: HWND, idObject: i32, idChild: i32) callconv(.winapi) void;
 
 pub extern "user32" fn GetClassNameW(hwnd: HWND, name: [*]u16, count: c_int) callconv(.winapi) c_int;
+pub extern "user32" fn AdjustWindowRectExForDpi(rect: *RECT, style: u32, menu: BOOL, ex_style: u32, dpi: UINT) callconv(.winapi) BOOL;
 
 pub extern "user32" fn EnumChildWindows(hWndParent: HWND, lpEnumFunc: *const fn (HWND, LPARAM) callconv(.winapi) BOOL, lParam: LPARAM) callconv(.winapi) BOOL;
 
