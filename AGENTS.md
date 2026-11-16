@@ -366,7 +366,9 @@ that govern each symbol you change, or that none does.
   `drawOverlayPanel`, `HostScene.paintOverlayFrame`; a card centred
   under the tab strip: `chrome_layout.confirmCard`, `shiftConfirmText`,
   `HostScene.paintConfirmCard`, and its red Accept,
-  `Host.confirmAcceptDestroys`, `win32_theme.destructiveButtonColors`), and
+  `Host.confirmAcceptDestroys`, `confirm_text.Prompt.destroys`,
+  `win32_theme.destructiveButtonColors`; the CI capture of it,
+  `scripts/najm-chrome-shot.ps1`), and
   `overlayBandChanged`, which `setBanner` and a palette theme's swap
   (`swapRuntimeConfigFromPalette`) call; the one reader of Host state for
   it, `Host.overlayFacts`,

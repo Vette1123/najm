@@ -29,6 +29,9 @@
   EXT-06); grepping the log for `SetWindowRgn` before pushing caught it.
 - The script that applied the card used a `shiftRectX` that did not exist and a chained
   `if/else if` expression. I caught both by grepping each new name before pushing.
+- Close was blue until hovered. I keyed the red off `close_scope`, which the caller sets
+  after `showConfirm` has already painted the buttons. Every unit test passed, and only
+  the CI screenshot of the real exe showed it. The flag now travels in the prompt.
 - A press colour on the active tab would open a seam at its join to the terminal. Motion
   (sinking) gives the press feedback without that seam.
 
@@ -45,4 +48,8 @@
   it appears, never on every layout.
 - A rounded child window paints only inside its shape, and that shape matches its region
   pixel for pixel.
+- State a control paints from must exist before the control is shown. Patching it in
+  after the show call leaves the first paint wrong.
+- A visual change gets a screenshot from the real exe (`scripts/najm-chrome-shot.ps1`
+  in Najm CI) before it ships.
 - Press feedback on a tab joined to its terminal moves the tab. It never recolours it.

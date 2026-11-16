@@ -95,6 +95,8 @@ pub const ConfirmPayload = struct {
     /// What a close prompt (`Host.askBeforeClosing`) would close; null for
     /// every other prompt.
     close_scope: ?confirm_text.CloseScope = null,
+    /// `confirm_text.Prompt.destroys`, set before the prompt is shown.
+    destroys: bool = false,
 
     pub fn deinit(self: *ConfirmPayload, alloc: std.mem.Allocator) void {
         alloc.free(self.title);
@@ -912,6 +914,7 @@ pub const HostControls = struct {
             .cancel_label = cancel_owned,
             .preview = preview,
             .program_request = prompt.program_request,
+            .destroys = prompt.destroys,
             .armed_at_ms = if (prompt.program_request) sys.GetTickCount64() + program_confirm_arming_ms else 0,
             .on_accept = on_accept,
             .on_cancel = on_cancel,

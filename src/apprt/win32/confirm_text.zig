@@ -33,6 +33,11 @@ pub const Prompt = struct {
     /// A link prompt (`Words.link`) sets it too, but the user's click
     /// raises it, so it replaces an open prompt.
     program_request: bool = false,
+    /// Accept ends something: a terminal, a tab, a window, the app or a
+    /// running install. Its button is filled red
+    /// (`win32_theme.destructiveButtonColors`). Part of the prompt, so the
+    /// button's first paint already has it.
+    destroys: bool = false,
 };
 
 /// What a close that ends several terminals at once is closing. One pane
@@ -102,6 +107,7 @@ pub const Words = struct {
         switch (what) {
             .scope => |closing| {
                 var prompt = scopePrompt(closing.scope, closing.terminals, &self.body_buf);
+                prompt.destroys = true;
                 if (closing.scope == .this_tab) if (closing.behind) |tab| self.nameTab(
                     &prompt,
                     std.fmt.bufPrint(&self.title_buf, "Close tab {d}?", .{tab.number}) catch "Close a tab?",
@@ -119,6 +125,7 @@ pub const Words = struct {
                     else
                         "A process is still running. Closing this surface will terminate it.",
                     .accept_label = "Close",
+                    .destroys = true,
                 };
                 if (terminal.behind) |tab| self.nameTab(
                     &prompt,
@@ -519,6 +526,18 @@ fn caption(alloc: Allocator, shown_bytes: usize, total_bytes: usize) Allocator.E
     }
     if (total_bytes == 1) return alloc.dupe(u8, "1 byte");
     return std.fmt.allocPrint(alloc, "{d} bytes", .{total_bytes});
+}
+
+test "every close prompt ends something and a clipboard prompt does not" {
+    const alloc = std.testing.allocator;
+    var words: Words = .{};
+    defer words.deinit(alloc);
+    for ([_]CloseScope{ .window, .this_tab, .other_tabs, .right_tabs, .app, .update }) |scope| {
+        try std.testing.expect(words.close(alloc, .{ .scope = .{ .scope = scope, .terminals = 2 } }).destroys);
+    }
+    try std.testing.expect(words.close(alloc, .{ .terminal = .{} }).destroys);
+    const unset: Prompt = .{ .title = "t", .body = "b", .accept_label = "Allow" };
+    try std.testing.expect(!unset.destroys);
 }
 
 test "win32 close prompts count the terminals they would end" {
