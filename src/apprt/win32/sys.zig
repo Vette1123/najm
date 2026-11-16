@@ -779,6 +779,7 @@ pub extern "user32" fn SetScrollPos(hWnd: HWND, nBar: c_int, nPos: c_int, bRedra
 
 pub extern "user32" fn ShowScrollBar(hWnd: HWND, wBar: c_int, bShow: BOOL) callconv(.winapi) BOOL;
 
+pub extern "gdi32" fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) callconv(.winapi) ?HRGN;
 pub extern "user32" fn SetWindowRgn(hWnd: HWND, hRgn: ?HRGN, bRedraw: BOOL) callconv(.winapi) c_int;
 
 pub extern "user32" fn NotifyWinEvent(event: u32, hwnd: HWND, idObject: i32, idChild: i32) callconv(.winapi) void;

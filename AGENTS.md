@@ -363,7 +363,10 @@ that govern each symbol you change, or that none does.
   the terminal and the row capacity read (`Host.chromeBands`, which
   takes no rows for a confirm, `Host.overlayReservedHeight`, whose band
   floats over the terminal in `Host.overlay_panel_hwnd`: `placeOverlayPanel`,
-  `drawOverlayPanel`, `HostScene.paintOverlayFrame`), and
+  `drawOverlayPanel`, `HostScene.paintOverlayFrame`; a card centred
+  under the tab strip: `chrome_layout.confirmCard`, `shiftConfirmText`,
+  `HostScene.paintConfirmCard`, and its red Accept,
+  `Host.confirmAcceptDestroys`, `win32_theme.destructiveButtonColors`), and
   `overlayBandChanged`, which `setBanner` and a palette theme's swap
   (`swapRuntimeConfigFromPalette`) call; the one reader of Host state for
   it, `Host.overlayFacts`,

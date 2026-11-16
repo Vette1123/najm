@@ -476,6 +476,32 @@ pub const HostScene = struct {
         );
     }
 
+    /// The confirm prompt's card in its own window (`Host.drawOverlayPanel`):
+    /// the overlay panel's surface and border with rounded corners, and the
+    /// mode's accent edge along the top. The window's region
+    /// (`Host.placeOverlayPanel`) has the same corners, so the terminal shows
+    /// past them. Nothing is painted outside the rounded shape: a STATIC has
+    /// `CS_PARENTDC`, which ignores a window region when it paints
+    /// (settings.md: 2026-10-11 EXT-06).
+    pub fn paintConfirmCard(self: *Host, hdc: HDC, card: RECT, diameter: i32, theme: *const ThemeColors) void {
+        // `drawRoundedRect` insets 1 px; this outline covers the client's
+        // pixels edge to edge, as `CreateRoundRectRgn(0, 0, w + 1, h + 1)` does.
+        drawRoundedRect(hdc, .{
+            .left = card.left - 1,
+            .top = card.top - 1,
+            .right = card.right + 1,
+            .bottom = card.bottom + 1,
+        }, themeSurface(theme, .overlay_panel_bg), themeSurface(theme, .overlay_panel_border), diameter);
+        const edge = @max(2, self.scaled(2));
+        const inset = @divTrunc(diameter, 2) + self.scaled(2);
+        if (card.right - card.left > 2 * inset) fancy_menu.fillRound(hdc, .{
+            .left = card.left + inset,
+            .top = card.top + 1,
+            .right = card.right - inset,
+            .bottom = card.top + 1 + edge,
+        }, overlayAccentFor(theme, self.overlay_mode), edge);
+    }
+
     pub fn paintChromeOverlay(
         self: *Host,
         hdc: HDC,

@@ -767,6 +767,27 @@ test "CHROME57 inactive chrome dims without altering high contrast" {
     }
 }
 
+/// The accept button of a prompt that ends something (a tab, a window, the
+/// app, a running install): a filled red with white text, Windows 11's
+/// close-button red, so the irreversible choice reads as one. Hover
+/// lightens it and a press darkens it.
+pub fn destructiveButtonColors(hovered: bool, pressed: bool) ButtonColors {
+    var bg = rgb(196, 43, 28);
+    if (hovered) bg = rgb(212, 58, 44);
+    if (pressed) bg = rgb(168, 34, 22);
+    return .{ .bg = bg, .border = bg, .fg = rgb(255, 255, 255) };
+}
+
+test "destructiveButtonColors: white on red, lighter on hover, darker pressed" {
+    const rest = destructiveButtonColors(false, false);
+    try std.testing.expectEqual(rgb(255, 255, 255), rest.fg);
+    try std.testing.expectEqual(rest.bg, rest.border);
+    try std.testing.expect(destructiveButtonColors(true, false).bg != rest.bg);
+    try std.testing.expect(destructiveButtonColors(false, true).bg != rest.bg);
+    // Pressed wins over hovered.
+    try std.testing.expectEqual(destructiveButtonColors(false, true).bg, destructiveButtonColors(true, true).bg);
+}
+
 pub fn buttonColorsFromTheme(
     theme: *const ThemeColors,
     active: bool,

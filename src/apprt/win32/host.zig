@@ -328,6 +328,15 @@ const tab_top_radius: i32 = 6;
 
 const tab_flare: i32 = 4;
 
+/// The confirm prompt's card, in DIPs: its widest, its gap under the tab
+/// strip, and its corner diameter (`RoundRect` and `CreateRoundRectRgn`
+/// take the diameter).
+const confirm_card_width: i32 = 760;
+
+const confirm_card_gap: i32 = 6;
+
+const confirm_card_diameter: i32 = 12;
+
 /// How far the arriving active tab rises into place during the cap slide,
 /// and how far it sinks while pressed, in DIPs (`activeTabDrop`).
 const tab_arrival_rise: i32 = 3;
@@ -9723,6 +9732,9 @@ pub const Host = struct {
         if (!is_hc) if (profile_kind) |kind| {
             colors = applyProfileChromeAccent(colors, kind, theme.is_dark, active, hovered, pressed, disabled);
         };
+        if (accept and !is_hc and !disabled and self.confirmAcceptDestroys()) {
+            colors = win32_theme.destructiveButtonColors(hovered, pressed);
+        }
         // The active tab takes its terminal's background and runs on into
         // it through the band (`activeTabJoin`): no border, square lower
         // corners, and its label, badge and focus ring in colors readable
@@ -10581,6 +10593,12 @@ pub const Host = struct {
         }
         const panel = self.ensureOverlayPanel(parent) orelse return false;
         var changed = applyChromeChildRect(panel, &self.overlay_panel_placement, rect);
+        if (changed) {
+            // Rounded like its paint, so the terminal shows past the corners;
+            // the window owns the region from here on.
+            const diameter = self.scaled(confirm_card_diameter);
+            _ = sys.SetWindowRgn(panel, sys.CreateRoundRectRgn(0, 0, rect.right - rect.left + 1, rect.bottom - rect.top + 1, diameter, diameter), 1);
+        }
         if (applyChildVisibility(panel, &self.overlay_panel_placement, true)) {
             changed = true;
             raiseChildToTop(parent, panel);
@@ -10643,14 +10661,23 @@ pub const Host = struct {
         return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
-    /// `WM_DRAWITEM` for the confirm prompt's floating panel: the band the
-    /// host paints for every other overlay, in the panel's client area.
+    /// `WM_DRAWITEM` for the confirm prompt's floating card.
+    /// Whether the open prompt's Accept ends something (a tab, a window, the
+    /// app, a running install): its button is then filled red
+    /// (`win32_theme.destructiveButtonColors`).
+    pub fn confirmAcceptDestroys(self: *const Host) bool {
+        if (self.overlay_mode != .confirm) return false;
+        const payload = self.confirm_payload orelse return false;
+        return payload.close_scope != null;
+    }
+
+    /// `WM_DRAWITEM` for the confirm prompt's floating card.
     pub fn drawOverlayPanel(self: *Host, draw: *const DRAWITEMSTRUCT) bool {
         const panel = self.overlay_panel_hwnd orelse return false;
         if (draw.hwndItem != panel) return false;
         var client: RECT = undefined;
         if (sys.GetClientRect(panel, &client) == 0) return true;
-        chrome_scene.HostScene.paintOverlayFrame(self, draw.hDC, client, &self.app.resolved_theme);
+        chrome_scene.HostScene.paintConfirmCard(self, draw.hDC, client, self.scaled(confirm_card_diameter), &self.app.resolved_theme);
         return true;
     }
 
@@ -12001,21 +12028,30 @@ pub const Host = struct {
             const cancel_hwnd = self.overlay_cancel_hwnd orelse return false;
             const band_height = self.overlayBandHeight();
             const bands = self.contentBands(self.tabBarHeight(), band_height, 0);
-            const overlay_y = bands.overlay_top;
+            // A confirm is a card centred over the terminal's top rows, a gap
+            // under the tab strip: laid out as a window of the card's width,
+            // then moved over by its left edge. Every other overlay spans the
+            // window from the band's top.
+            const card: chrome_layout.ConfirmCard = if (self.overlay_mode == .confirm)
+                chrome_layout.confirmCard(width, self.scaled(confirm_card_width))
+            else
+                .{ .left = 0, .width = width };
+            const card_gap = if (self.overlay_mode == .confirm) self.scaled(confirm_card_gap) else 0;
+            const overlay_y = bands.overlay_top + card_gap;
             const padding = self.scaled(host_overlay_padding);
             const label_w = self.scaled(host_overlay_label_width);
             const accept_button_w = self.scaled(host_overlay_accept_width);
             const cancel_button_w = self.scaled(host_overlay_cancel_width);
             const action_layout = overlayActionLayoutForWidth(
                 self.overlay_mode,
-                width,
+                card.width,
                 padding,
                 cancel_button_w,
                 accept_button_w,
                 self.current_dpi,
             );
             const edit_frame = overlayEditFrameRect(
-                width,
+                card.width,
                 overlay_y,
                 padding,
                 label_w,
@@ -12051,22 +12087,22 @@ pub const Host = struct {
             const overlay_bottom = overlay_y + band_height;
             const panel_interior = overlayPanelInterior(overlay_y, overlay_bottom, self.current_dpi);
             const title_text = if (confirm_prompt)
-                confirmTextPlacement(confirmTitlePaintRect(
+                chrome_layout.shiftConfirmText(confirmTextPlacement(confirmTitlePaintRect(
                     overlay_y,
                     padding + self.scaled(10),
                     edit_frame.right,
                     self.current_dpi,
-                ), panel_interior)
+                ), panel_interior), card.left)
             else
                 empty_confirm_text_placement;
             const body_text = if (confirm_prompt)
-                confirmTextPlacement(confirmBodyPaintRect(
-                    width,
+                chrome_layout.shiftConfirmText(confirmTextPlacement(confirmBodyPaintRect(
+                    card.width,
                     overlay_y,
                     overlay_bottom,
                     padding,
                     self.current_dpi,
-                ), panel_interior)
+                ), panel_interior), card.left)
             else
                 empty_confirm_text_placement;
             // Each line stands on its own. The title's rect is bounded by
@@ -12112,7 +12148,7 @@ pub const Host = struct {
                     accept_hwnd,
                     &self.overlay_accept_placement,
                     childRect(
-                        action_layout.accept_x,
+                        card.left + action_layout.accept_x,
                         overlay_y + self.scaled(4),
                         action_layout.accept_width,
                         self.scaled(host_overlay_row_height),
@@ -12135,7 +12171,7 @@ pub const Host = struct {
                     cancel_hwnd,
                     &self.overlay_cancel_placement,
                     childRect(
-                        action_layout.cancel_x,
+                        card.left + action_layout.cancel_x,
                         overlay_y + self.scaled(4),
                         action_layout.cancel_width,
                         self.scaled(host_overlay_row_height),
@@ -12148,11 +12184,12 @@ pub const Host = struct {
                 action_layout.cancel_visible,
             ) or changed.*;
 
+            // The card covers where the band's rounded panel was painted.
             changed.* = self.placeOverlayPanel(confirm_prompt, .{
-                .left = 0,
+                .left = card.left + self.scaled(8),
                 .top = overlay_y,
-                .right = width,
-                .bottom = overlay_bottom,
+                .right = card.left + card.width - self.scaled(8),
+                .bottom = overlay_bottom - self.scaled(6),
             }) or changed.*;
 
             if (self.overlay_mode == .command_palette) {
@@ -12231,14 +12268,14 @@ pub const Host = struct {
             // reflow the surface underneath it.
             if (self.overlay_preview_hwnd) |preview_hwnd| {
                 const preview_rect = if (self.confirmHasPreview())
-                    confirmPreviewRect(
-                        width,
+                    chrome_layout.shiftRectX(confirmPreviewRect(
+                        card.width,
                         rect.bottom,
                         overlay_y + band_height,
                         padding + self.scaled(10),
                         padding,
                         self.current_dpi,
-                    )
+                    ), card.left)
                 else
                     RECT{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
                 const show_preview = preview_rect.right > preview_rect.left and
@@ -13968,10 +14005,25 @@ test "win32 a confirm prompt floats over the terminal: the terminal keeps its ro
             // the prompt's buttons sit over the panel.
             const panel = host.overlay_panel_hwnd orelse return error.TestUnexpectedResult;
             try std.testing.expect(host.overlay_panel_placement.visible);
+            // A card a gap under the tab strip, centred, with the buttons
+            // inside it.
             const band_top = host.contentBands(host.tabBarHeight(), 0, 0).overlay_top;
-            try std.testing.expectEqual(band_top, host.overlay_panel_placement.rect.top);
-            try std.testing.expectEqual(band_top + host.overlayBandHeight(), host.overlay_panel_placement.rect.bottom);
-            try std.testing.expect(host.overlay_panel_placement.rect.bottom > closed_top);
+            const card_rect = host.overlay_panel_placement.rect;
+            const card_top = band_top + host.scaled(confirm_card_gap);
+            try std.testing.expectEqual(card_top, card_rect.top);
+            try std.testing.expectEqual(card_top + host.overlayBandHeight() - host.scaled(6), card_rect.bottom);
+            try std.testing.expect(card_rect.bottom > closed_top);
+            var client: RECT = undefined;
+            _ = sys.GetClientRect(host.hwnd.?, &client);
+            try std.testing.expect(card_rect.left >= host.scaled(8));
+            try std.testing.expect(@abs((card_rect.left - client.left) - (client.right - card_rect.right)) <= 1);
+            try std.testing.expect(card_rect.right - card_rect.left <= host.scaled(confirm_card_width));
+            for ([_]ChildPlacement{ host.overlay_accept_placement, host.overlay_cancel_placement }) |button| {
+                try std.testing.expect(button.rect.left >= card_rect.left);
+                try std.testing.expect(button.rect.right <= card_rect.right);
+            }
+            // A prompt that closes nothing keeps the theme's accept colours.
+            try std.testing.expect(!host.confirmAcceptDestroys());
             try std.testing.expect(above(host.overlay_accept_hwnd.?, panel));
             try std.testing.expect(above(host.overlay_cancel_hwnd.?, panel));
             try std.testing.expect(above(panel, pane.hwnd.?));

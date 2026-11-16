@@ -1,4 +1,4 @@
-# Noctty sync, the active tab's rise, and the floating confirm prompt
+# Noctty sync, the active tab's rise, and the floating confirm card
 
 ## What
 
@@ -12,6 +12,9 @@
   top rows instead of taking 58 px from it. The terminal no longer jumps, and ConPTY and
   the shell no longer redraw for a prompt. Its band is painted by its own STATIC
   (`Host.overlay_panel_hwnd`).
+- The prompt is now a card at most 760 DIP wide, centred 6 DIP under the tab strip, with
+  rounded corners the terminal shows past. A prompt that closes something has a red Close
+  button.
 
 ## Mistakes
 
@@ -20,6 +23,12 @@
 - I clamped the banner below the floating prompt before reading that the banner is
   already hidden while any overlay is open (`Host.bannerShown`). It was dead code, so I
   removed it. Read the log entry about the neighbour before guarding against it.
+- I first painted the card by filling its whole client and then the round rect over it.
+  A STATIC has `CS_PARENTDC`, which ignores the window region, so the corners would have
+  come out square over the terminal. The Settings log had measured that trap (2026-10-11
+  EXT-06); grepping the log for `SetWindowRgn` before pushing caught it.
+- The script that applied the card used a `shiftRectX` that did not exist and a chained
+  `if/else if` expression. I caught both by grepping each new name before pushing.
 - A press colour on the active tab would open a seam at its join to the terminal. Motion
   (sinking) gives the press feedback without that seam.
 
@@ -34,4 +43,6 @@
 
 - Anything that should not resize the terminal floats in its own child, raised once when
   it appears, never on every layout.
+- A rounded child window paints only inside its shape, and that shape matches its region
+  pixel for pixel.
 - Press feedback on a tab joined to its terminal moves the tab. It never recolours it.
