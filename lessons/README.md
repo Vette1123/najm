@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-16 | [Noctty sync, tab rise, floating confirm](2026-11-16-noctty-sync-tab-rise-floating-confirm.md) | Host GDI paint sits under a pane: anything that must not resize the terminal floats in its own raised child |
 | 2026-11-13 | [Clickable links](2026-11-13-clickable-links.md) | A click that "rarely works" re-reads its modifiers at release: Ctrl let go first dropped it |
 | 2026-11-13 | [Noctty sync and the Settings pane preview](2026-11-13-noctty-sync-and-settings-pane-preview.md) | A terminal-look preview loads config text Save would write; a clone with typed fields cannot show a theme change |
 | 2026-11-09 | [Tab padding and outline](2026-11-09-tab-padding-and-outline.md) | A shape that insets its body must inset the content too: the X sat in the 4 DIP the silhouette gave up |

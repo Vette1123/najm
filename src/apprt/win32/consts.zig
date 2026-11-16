@@ -306,6 +306,7 @@ pub const SS_CENTER = 0x00000001;
 pub const SS_NOPREFIX = 0x00000080;
 pub const SS_ENDELLIPSIS = 0x00004000;
 pub const SS_OWNERDRAW = 0x0000000D;
+pub const SS_NOTIFY = 0x00000100;
 pub const ES_AUTOHSCROLL = 0x0080;
 pub const ES_MULTILINE = 0x0004;
 pub const ES_AUTOVSCROLL = 0x0040;

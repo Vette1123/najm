@@ -11803,6 +11803,7 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                 buffered.hDC = alpha_paint.hdc;
                 const draw = &buffered;
                 if (v.drawConfirmPromptText(draw)) return 1;
+                if (v.drawOverlayPanel(draw)) return 1;
                 if (v.drawTabInsertMarker(draw)) return 1;
                 if (v.drawSearchBarBackground(draw, &alpha_paint)) return 1;
                 v.drawButton(draw);
