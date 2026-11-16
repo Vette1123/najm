@@ -100,8 +100,10 @@ const leaves = .{
         // why: `title_glyph` and `withTitleGlyph`, because the window
         // caption shows the bell glyph too, and `tooltip_max_width`, which
         // sizes Host's tooltip paint buffer. Najm adds `Parts` and `parts`,
-        // which Host's tab paint uses to draw the icon, number and title.
-        .pub_decls = 13,
+        // which Host's tab paint uses to draw the icon, number and title,
+        // and `titleCut` and `wholeTitle`, which tell Host's tab paint a
+        // title was cut and give it the whole one to fade at the tab's edge.
+        .pub_decls = 15,
     },
     .{
         .file = "window_start.zig",
