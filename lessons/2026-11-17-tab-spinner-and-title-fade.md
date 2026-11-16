@@ -19,6 +19,9 @@
   user's screenshot of a hollow ring showed it.
 - My first trigger edit anchored on AGENTS.md text across a line wrap and matched
   nothing. The asserting script caught it before anything half-applied.
+- Two new `pub fn`s in `tab_label.zig` (`titleCut`, `wholeTitle`) broke
+  `facade_budget`'s pinned pub count (13) after a 19-minute CI run. A new `pub` in a
+  `src/apprt/win32/` leaf means grepping `facade_budget.zig` for its file before pushing.
 
 ## What worked
 
