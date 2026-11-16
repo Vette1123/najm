@@ -1,4 +1,5 @@
-//! Per-tab visual polish: the close-button fade.
+//! Per-tab visual polish: the close-button fade, the sliding cap, the
+//! working spinner's clock and the fade at the end of a cut title.
 //!
 //! Each tab's close button is invisible at rest (alpha 0). On hover-enter
 //! the alpha fades to 1 over `close_fade_ms`; on hover-leave it fades back
@@ -180,6 +181,57 @@ pub fn hoverLineSpan(left: i32, right: i32, fade: f32) Span {
     const reach: i32 = @intFromFloat(@round(half * easeOutQuint(fade)));
     const center = left + @divTrunc(right - left, 2);
     return .{ .left = center - reach, .right = center + reach };
+}
+
+// ---------------------------------------------------------------------------
+// Working spinner
+// ---------------------------------------------------------------------------
+
+/// One full turn of a working tab's spinner, in milliseconds. Constant motion,
+/// so linear: the same speed all the way round.
+pub const spin_turn_ms: u64 = 1000;
+
+/// How far round the spinner's leading end is at `now_ms`, from 0 at the top
+/// toward 1, clockwise. Every spinning tab reads the same clock, so two
+/// working tabs turn together.
+pub fn spinTurn(now_ms: u64) f32 {
+    const into: f32 = @floatFromInt(now_ms % spin_turn_ms);
+    return into / @as(f32, @floatFromInt(spin_turn_ms));
+}
+
+// ---------------------------------------------------------------------------
+// Label fade
+// ---------------------------------------------------------------------------
+
+/// The run, in DIPs, over which a cut tab title fades into its tab.
+pub const label_fade_dip: i32 = 22;
+
+/// Where a tab title's last pixels fade into the tab, or null when the whole
+/// title shows. A title the label already cut short (`cut`) fades over the
+/// last `fade_px` it draws; one longer than its room fades over the room's
+/// last `fade_px`. A title narrower than the fade fades across all of it.
+pub fn labelFade(text_left: i32, text_right: i32, room_right: i32, fade_px: i32, cut: bool) ?Span {
+    if (!cut and text_right <= room_right) return null;
+    const end = @min(text_right, room_right);
+    const width = @min(fade_px, end - text_left);
+    if (width <= 0) return null;
+    return .{ .left = end - width, .right = end };
+}
+
+/// Strip `step` of `steps` across a fade: its pixel run inside `fade`, and
+/// how far its text colour has moved toward the tab's (0 keeps the text, 1 is
+/// the tab). Strips tile the fade exactly, and the share is taken at each
+/// strip's centre, so the last strip never reaches the tab's colour outright.
+pub fn labelFadeStrip(fade: Span, step: i32, steps: i32) struct { span: Span, share: f32 } {
+    const width = fade.right - fade.left;
+    const n = @max(1, steps);
+    return .{
+        .span = .{
+            .left = fade.left + @divTrunc(width * step, n),
+            .right = fade.left + @divTrunc(width * (step + 1), n),
+        },
+        .share = (@as(f32, @floatFromInt(step)) + 0.5) / @as(f32, @floatFromInt(n)),
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +612,43 @@ test "activeTabDrop: rises into place on arrival, sinks while pressed, rests at 
     try std.testing.expectEqual(@as(i32, 3), activeTabDrop(0, true, 3, 1));
     // Reduced motion snaps the slide, so its progress is 1: no rise.
     try std.testing.expectEqual(@as(i32, 0), activeTabDrop(1, false, 0, 0));
+}
+
+test "spinTurn runs linearly once round per spin_turn_ms and starts over" {
+    try std.testing.expectEqual(@as(f32, 0), spinTurn(0));
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), spinTurn(spin_turn_ms / 4), 1e-6);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.5), spinTurn(7 * spin_turn_ms + spin_turn_ms / 2), 1e-6);
+    try std.testing.expectEqual(@as(f32, 0), spinTurn(3 * spin_turn_ms));
+    try std.testing.expect(spinTurn(spin_turn_ms - 1) < 1);
+}
+
+test "labelFade: none when the title fits, at the room's edge when it runs over, at its own end when cut" {
+    // Fits and was not cut: no fade.
+    try std.testing.expect(labelFade(10, 90, 100, 22, false) == null);
+    // Runs past the room: the room's last 22 px fade.
+    try std.testing.expectEqual(Span{ .left = 78, .right = 100 }, labelFade(10, 160, 100, 22, false).?);
+    // Cut by the label inside the room: its own last 22 px fade.
+    try std.testing.expectEqual(Span{ .left = 68, .right = 90 }, labelFade(10, 90, 100, 22, true).?);
+    // A title narrower than the fade fades across all of it.
+    try std.testing.expectEqual(Span{ .left = 10, .right = 20 }, labelFade(10, 20, 100, 22, true).?);
+    // No room at all: nothing to fade.
+    try std.testing.expect(labelFade(10, 160, 10, 22, false) == null);
+}
+
+test "labelFadeStrip tiles the fade with no gap and fades toward the tab" {
+    const fade: Span = .{ .left = 78, .right = 100 };
+    const steps: i32 = 8;
+    var x = fade.left;
+    var previous: f32 = 0;
+    var step: i32 = 0;
+    while (step < steps) : (step += 1) {
+        const strip = labelFadeStrip(fade, step, steps);
+        try std.testing.expectEqual(x, strip.span.left);
+        try std.testing.expect(strip.share > previous and strip.share < 1);
+        x = strip.span.right;
+        previous = strip.share;
+    }
+    try std.testing.expectEqual(fade.right, x);
 }
 
 test "hoverLineSpan grows from the center and reaches the edges" {

@@ -377,6 +377,10 @@ pub const TERMINAL_UIA_TIMER_ID: UINT_PTR = 0x77684705; // "whgT5" in 32-bit hex
 /// One-shot expiry of an `.info` host banner; see `Host.syncBannerExpiry`.
 pub const BANNER_TIMER_ID: UINT_PTR = 0x77684706; // "whgT6" in 32-bit hex
 pub const INPUT_MODE_TIMER_ID: UINT_PTR = 0x77684707;
+/// A working tab's spinner (`Host.syncTabSpin`): about 30 frames a second,
+/// only while a shown tab works with no percentage and motion is allowed.
+pub const TAB_SPIN_TIMER_ID: UINT_PTR = 0x77684708; // "whgT8" in 32-bit hex
+pub const TAB_SPIN_TIMER_INTERVAL_MS: UINT = 33;
 pub const RESIZE_SETTLE_REPAINT_TICKS: u8 = 12;
 pub const FW_NORMAL: i32 = 400;
 pub const DEFAULT_CHARSET: u8 = 1;

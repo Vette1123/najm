@@ -106,6 +106,11 @@ pub const StatusBadge = union(enum) {
     /// clockwise from the top over a muted track; without one, the whole
     /// ring is bright.
     ring: ?u8,
+    /// Working with no percentage while motion is allowed: a bright arc a
+    /// `spinner_sweep` of the circle long, its leading end `turn` of the way
+    /// round clockwise from the top, over the muted track. The tab strip
+    /// advances it on its spin timer.
+    spin: f32,
     /// Blocked on the user: a filled disc.
     disc,
     /// Done: a check mark.
@@ -164,7 +169,7 @@ pub fn drawStatusBadge(
                 _ = sys.Ellipse(hdc, ring.left, ring.top, ring.right, ring.bottom);
                 _ = sys.SelectObject(hdc, pen);
                 if (percent == 0) return;
-                const radials = progressArcRadials(ring, percent);
+                const radials = arcRadials(ring, 0, @as(f32, @floatFromInt(percent)) / 100);
                 _ = sys.Arc(
                     hdc,
                     ring.left,
@@ -179,6 +184,22 @@ pub fn drawStatusBadge(
                 return;
             }
             _ = sys.Ellipse(hdc, ring.left, ring.top, ring.right, ring.bottom);
+        },
+        .spin => |turn| {
+            const half = @divTrunc(stroke, 2);
+            const ring: RECT = .{
+                .left = l + half,
+                .top = t + half,
+                .right = rect.right - half,
+                .bottom = rect.bottom - half,
+            };
+            const track = sys.CreatePen(c.PS_SOLID, stroke, blendColorRGB(bg, color, 0.3)) orelse return;
+            defer _ = sys.DeleteObject(track);
+            _ = sys.SelectObject(hdc, track);
+            _ = sys.Ellipse(hdc, ring.left, ring.top, ring.right, ring.bottom);
+            _ = sys.SelectObject(hdc, pen);
+            const radials = arcRadials(ring, turn - spinner_sweep, spinner_sweep);
+            _ = sys.Arc(hdc, ring.left, ring.top, ring.right, ring.bottom, radials.start.x, radials.start.y, radials.end.x, radials.end.y);
         },
         .disc => {
             _ = sys.SelectObject(hdc, no_pen);
@@ -214,22 +235,30 @@ const ArcRadials = struct {
     end: sys.POINT,
 };
 
-/// The radial end points `Arc` takes for an arc that starts at the top of
-/// `rect` and sweeps `percent` of the circle clockwise. GDI draws arcs
-/// counterclockwise from the first point to the second, so the arc starts
-/// where the clockwise sweep ends and ends at the top.
-fn progressArcRadials(rect: RECT, percent: u8) ArcRadials {
+/// How much of the circle the spinning badge's bright arc covers.
+pub const spinner_sweep: f32 = 0.3;
+
+/// The radial end points `Arc` takes for an arc that starts `from` of a turn
+/// clockwise from the top of `rect` and sweeps `sweep` of the circle
+/// clockwise. GDI draws arcs counterclockwise from the first point to the
+/// second, so the arc starts where the clockwise sweep ends.
+fn arcRadials(rect: RECT, from: f32, sweep: f32) ArcRadials {
+    return .{
+        .start = radial(rect, from + sweep),
+        .end = radial(rect, from),
+    };
+}
+
+/// A point a full width out from `rect`'s centre, `turn` of the way round
+/// clockwise from the top: far enough that `Arc` reads only its direction.
+fn radial(rect: RECT, turn: f32) sys.POINT {
     const cx: f32 = @as(f32, @floatFromInt(rect.left + rect.right)) / 2;
     const cy: f32 = @as(f32, @floatFromInt(rect.top + rect.bottom)) / 2;
     const r: f32 = @floatFromInt(rect.right - rect.left);
-    const sweep = std.math.tau * @as(f32, @floatFromInt(percent)) / 100;
-    const angle = std.math.pi / 2.0 - sweep;
+    const angle = std.math.pi / 2.0 - std.math.tau * turn;
     return .{
-        .start = .{
-            .x = @intFromFloat(@round(cx + r * @cos(angle))),
-            .y = @intFromFloat(@round(cy - r * @sin(angle))),
-        },
-        .end = .{ .x = @intFromFloat(@round(cx)), .y = @intFromFloat(@round(cy - r)) },
+        .x = @intFromFloat(@round(cx + r * @cos(angle))),
+        .y = @intFromFloat(@round(cy - r * @sin(angle))),
     };
 }
 
@@ -285,19 +314,34 @@ test "progress arc starts at the top and sweeps clockwise" {
     const rect: RECT = .{ .left = 0, .top = 0, .right = 20, .bottom = 20 };
 
     // The arc always ends at the top.
-    const quarter = progressArcRadials(rect, 25);
+    const quarter = arcRadials(rect, 0, 0.25);
     try testing.expectEqual(@as(i32, 10), quarter.end.x);
     try testing.expectEqual(@as(i32, -10), quarter.end.y);
     // A quarter sweeps to 3 o'clock.
     try testing.expectEqual(@as(i32, 30), quarter.start.x);
     try testing.expectEqual(@as(i32, 10), quarter.start.y);
     // Half sweeps to 6 o'clock, three quarters to 9 o'clock.
-    const half = progressArcRadials(rect, 50);
+    const half = arcRadials(rect, 0, 0.5);
     try testing.expectEqual(@as(i32, 10), half.start.x);
     try testing.expectEqual(@as(i32, 30), half.start.y);
-    const three_quarters = progressArcRadials(rect, 75);
+    const three_quarters = arcRadials(rect, 0, 0.75);
     try testing.expectEqual(@as(i32, -10), three_quarters.start.x);
     try testing.expectEqual(@as(i32, 10), three_quarters.start.y);
+}
+
+test "the spinner's arc trails its turn by its sweep, clockwise, and wraps past the top" {
+    const testing = std.testing;
+    const rect: RECT = .{ .left = 0, .top = 0, .right = 20, .bottom = 20 };
+    // Leading end at 3 o'clock: the arc ends (GDI's second point) 0.3 turn
+    // back from it, and starts (GDI's first point) at it.
+    const at_three = arcRadials(rect, 0.25 - spinner_sweep, spinner_sweep);
+    try testing.expectEqual(@as(i32, 30), at_three.start.x);
+    try testing.expectEqual(@as(i32, 10), at_three.start.y);
+    // A turn past the top lands where the same turn less one does.
+    const wrapped = arcRadials(rect, 1.1, spinner_sweep);
+    const plain = arcRadials(rect, 0.1, spinner_sweep);
+    try testing.expectEqual(plain.start, wrapped.start);
+    try testing.expectEqual(plain.end, wrapped.end);
 }
 
 test "win32 GDI text length accepts empty sentinel slices" {

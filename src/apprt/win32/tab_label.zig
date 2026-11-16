@@ -126,9 +126,28 @@ pub fn text(alloc: Allocator, k: Key) ![]u8 {
 /// answered differently for an active tab than for its inactive neighbour
 /// showing the same title.
 pub fn tooltip(alloc: Allocator, k: Key) !?[]u8 {
-    const title = k.title orelse return null;
-    if (displayWidth(title) <= titleBudget(k)) return null;
+    if (!titleCut(k)) return null;
+    const title = k.title.?;
     return try compactHostLabel(alloc, title, tooltip_max_width);
+}
+
+/// Whether the label cut `k`'s title to fit: what the tooltip gate asks,
+/// and what tells the tab's paint to fade the title's end instead of
+/// showing the dots the cut left.
+pub fn titleCut(k: Key) bool {
+    const title = k.title orelse return false;
+    return displayWidth(title) > titleBudget(k);
+}
+
+test "titleCut: a title that fits is whole, a longer one is cut, no title is not" {
+    const base: Key = .{ .title = "pwsh", .index = 0, .active = false, .bell = false, .pane_count = 1, .max_width = 20, .show_pane_count = false };
+    try std.testing.expect(!titleCut(base));
+    var long = base;
+    long.title = "a title far longer than twenty cells";
+    try std.testing.expect(titleCut(long));
+    var none = base;
+    none.title = null;
+    try std.testing.expect(!titleCut(none));
 }
 
 /// Widest tooltip title the tab strip will build. A title past this is

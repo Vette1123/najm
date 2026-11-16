@@ -324,7 +324,10 @@ that govern each symbol you change, or that none does.
   join to its terminal, `win32_tab_visual.zig`; what a tab's label, tooltip
   and UIA name say and which tabs the strip shows: `win32/tab_label.zig`,
   `key`, `text`, `tooltip`, `uiaName`, `visible`, and `Tab.cachedKey` and
-  `Tab.setCachedKey`), `window-show-tab-bar`, chrome theme and system accent
+  `Tab.setCachedKey`; the fade at a cut title's end: `tab_label.titleCut`,
+  `win32_tab_visual.labelFade`, `drawTitleClipped`; the working badge's
+  spin: `gdi.StatusBadge.spin`, `spinTurn`, `Host.syncTabSpin`,
+  `tickTabSpin`), `window-show-tab-bar`, chrome theme and system accent
   (`win32_theme.zig`), focus cues (`win32/focus_cue.zig`), `win32_icons.zig`,
   titlebar and tab-row icon fonts (`recreateTitlebarIconFonts`,
   `createIconFontWithGlyphs`, `fontGlyphCoverage`, `drawTitlebarGlyph`),
