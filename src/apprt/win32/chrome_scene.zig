@@ -417,6 +417,91 @@ pub const HostScene = struct {
         return sys.IsWindowVisible(list) != 0;
     }
 
+    /// The overlay band's background, its rounded panel with the mode's
+    /// accent edge, and the border under it, in `overlay_rect` (left 0).
+    /// The host paints it for a band that takes rows; the confirm prompt's
+    /// floating panel paints it in its own client area.
+    pub fn paintOverlayFrame(self: *Host, hdc: HDC, overlay_rect: RECT, theme: *const ThemeColors) void {
+        fillSolidRect(hdc, overlay_rect, theme.overlay_bg);
+        // The panel starts above the input row, so its accent edge
+        // runs clear of the input's frame.
+        const overlay_panel = RECT{
+            .left = self.scaled(8),
+            .top = overlay_rect.top + self.scaled(1) - 1,
+            .right = overlay_rect.right - self.scaled(8),
+            .bottom = overlay_rect.bottom - self.scaled(6),
+        };
+        if (overlay_panel.right > overlay_panel.left and overlay_panel.bottom > overlay_panel.top) {
+            drawRoundedRect(
+                hdc,
+                overlay_panel,
+                themeSurface(theme, .overlay_panel_bg),
+                themeSurface(theme, .overlay_panel_border),
+                self.scaled(7),
+            );
+            // The palette's results hang from this panel as one card
+            // (`paintPaletteList`): square the corners they join.
+            if (paletteListAttached(self)) {
+                const radius = self.scaled(7);
+                fillSolidRect(hdc, .{
+                    .left = overlay_panel.left + 2,
+                    .top = overlay_panel.bottom - radius,
+                    .right = overlay_panel.right - 2,
+                    .bottom = overlay_panel.bottom,
+                }, themeSurface(theme, .overlay_panel_bg));
+                const border = themeSurface(theme, .overlay_panel_border);
+                fillSolidRect(hdc, .{ .left = overlay_panel.left + 1, .top = overlay_panel.bottom - radius, .right = overlay_panel.left + 2, .bottom = overlay_panel.bottom }, border);
+                fillSolidRect(hdc, .{ .left = overlay_panel.right - 2, .top = overlay_panel.bottom - radius, .right = overlay_panel.right - 1, .bottom = overlay_panel.bottom }, border);
+            }
+            // The accent edge across the top, as on menus and the
+            // palette (`fancy_menu`), in the mode's own colour.
+            const edge = @max(2, self.scaled(2));
+            const inset = self.scaled(7);
+            fancy_menu.fillRound(hdc, .{
+                .left = overlay_panel.left + inset,
+                .top = overlay_panel.top + 1,
+                .right = overlay_panel.right - inset,
+                .bottom = overlay_panel.top + 1 + edge,
+            }, overlayAccentFor(theme, self.overlay_mode), edge);
+        }
+        fillSolidRect(
+            hdc,
+            .{
+                .left = 0,
+                .top = overlay_rect.bottom - 1,
+                .right = overlay_rect.right,
+                .bottom = overlay_rect.bottom,
+            },
+            theme.chrome_border,
+        );
+    }
+
+    /// The confirm prompt's card in its own window (`Host.drawOverlayPanel`):
+    /// the overlay panel's surface and border with rounded corners, and the
+    /// mode's accent edge along the top. The window's region
+    /// (`Host.placeOverlayPanel`) has the same corners, so the terminal shows
+    /// past them. Nothing is painted outside the rounded shape: a STATIC has
+    /// `CS_PARENTDC`, which ignores a window region when it paints
+    /// (settings.md: 2026-10-11 EXT-06).
+    pub fn paintConfirmCard(self: *Host, hdc: HDC, card: RECT, diameter: i32, theme: *const ThemeColors) void {
+        // `drawRoundedRect` insets 1 px; this outline covers the client's
+        // pixels edge to edge, as `CreateRoundRectRgn(0, 0, w + 1, h + 1)` does.
+        drawRoundedRect(hdc, .{
+            .left = card.left - 1,
+            .top = card.top - 1,
+            .right = card.right + 1,
+            .bottom = card.bottom + 1,
+        }, themeSurface(theme, .overlay_panel_bg), themeSurface(theme, .overlay_panel_border), diameter);
+        const edge = @max(2, self.scaled(2));
+        const inset = @divTrunc(diameter, 2) + self.scaled(2);
+        if (card.right - card.left > 2 * inset) fancy_menu.fillRound(hdc, .{
+            .left = card.left + inset,
+            .top = card.top + 1,
+            .right = card.right - inset,
+            .bottom = card.top + 1 + edge,
+        }, overlayAccentFor(theme, self.overlay_mode), edge);
+    }
+
     pub fn paintChromeOverlay(
         self: *Host,
         hdc: HDC,
@@ -427,65 +512,17 @@ pub const HostScene = struct {
         paint_top: bool,
         theme: *const ThemeColors,
     ) bool {
-        if (paint_top and self.overlay_mode != .none) {
+        // A band that takes no rows (the confirm prompt, which floats over
+        // the terminal in its own panel, `Host.drawOverlayPanel`) paints
+        // nothing here.
+        if (paint_top and self.overlay_mode != .none and bands.inspector_top > bands.overlay_top) {
             const overlay_rect = RECT{
                 .left = 0,
                 .top = bands.overlay_top,
                 .right = client_rect.right,
                 .bottom = bands.inspector_top,
             };
-            fillSolidRect(hdc, overlay_rect, theme.overlay_bg);
-            // The panel starts above the input row, so its accent edge
-            // runs clear of the input's frame.
-            const overlay_panel = RECT{
-                .left = self.scaled(8),
-                .top = overlay_rect.top + self.scaled(1) - 1,
-                .right = client_rect.right - self.scaled(8),
-                .bottom = overlay_rect.bottom - self.scaled(6),
-            };
-            if (overlay_panel.right > overlay_panel.left and overlay_panel.bottom > overlay_panel.top) {
-                drawRoundedRect(
-                    hdc,
-                    overlay_panel,
-                    themeSurface(theme, .overlay_panel_bg),
-                    themeSurface(theme, .overlay_panel_border),
-                    self.scaled(7),
-                );
-                // The palette's results hang from this panel as one card
-                // (`paintPaletteList`): square the corners they join.
-                if (paletteListAttached(self)) {
-                    const radius = self.scaled(7);
-                    fillSolidRect(hdc, .{
-                        .left = overlay_panel.left + 2,
-                        .top = overlay_panel.bottom - radius,
-                        .right = overlay_panel.right - 2,
-                        .bottom = overlay_panel.bottom,
-                    }, themeSurface(theme, .overlay_panel_bg));
-                    const border = themeSurface(theme, .overlay_panel_border);
-                    fillSolidRect(hdc, .{ .left = overlay_panel.left + 1, .top = overlay_panel.bottom - radius, .right = overlay_panel.left + 2, .bottom = overlay_panel.bottom }, border);
-                    fillSolidRect(hdc, .{ .left = overlay_panel.right - 2, .top = overlay_panel.bottom - radius, .right = overlay_panel.right - 1, .bottom = overlay_panel.bottom }, border);
-                }
-                // The accent edge across the top, as on menus and the
-                // palette (`fancy_menu`), in the mode's own colour.
-                const edge = @max(2, self.scaled(2));
-                const inset = self.scaled(7);
-                fancy_menu.fillRound(hdc, .{
-                    .left = overlay_panel.left + inset,
-                    .top = overlay_panel.top + 1,
-                    .right = overlay_panel.right - inset,
-                    .bottom = overlay_panel.top + 1 + edge,
-                }, overlayAccentFor(theme, self.overlay_mode), edge);
-            }
-            fillSolidRect(
-                hdc,
-                .{
-                    .left = 0,
-                    .top = overlay_rect.bottom - 1,
-                    .right = client_rect.right,
-                    .bottom = overlay_rect.bottom,
-                },
-                theme.chrome_border,
-            );
+            paintOverlayFrame(self, hdc, overlay_rect, theme);
 
             const overlay_paint_dirty = win32_chrome_state.overlayPaintCacheDirty(
                 self.chrome_text_dirty.overlay,

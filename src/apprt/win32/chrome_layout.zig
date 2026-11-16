@@ -260,6 +260,57 @@ pub const empty_confirm_text_placement: ConfirmTextPlacement = .{
 
 /// Clip `paint` to the panel interior and express the original rect in
 /// the resulting child's coordinates.
+/// Where the confirm prompt's card sits across a window `width` px wide:
+/// `max_width` px at most, centred, so a prompt reads as one card over the
+/// terminal instead of a bar across it.
+pub const ConfirmCard = struct { left: i32, width: i32 };
+
+pub fn confirmCard(width: i32, max_width: i32) ConfirmCard {
+    const card = @max(0, @min(width, max_width));
+    return .{ .left = @divTrunc(width - card, 2), .width = card };
+}
+
+/// `rect` moved `dx` px across; an empty rect stays where it is.
+pub fn shiftRectX(rect: RECT, dx: i32) RECT {
+    if (rect.right <= rect.left) return rect;
+    return .{ .left = rect.left + dx, .top = rect.top, .right = rect.right + dx, .bottom = rect.bottom };
+}
+
+test "shiftRectX moves a rect and leaves an empty one" {
+    const r = RECT{ .left = 4, .top = 2, .right = 40, .bottom = 9 };
+    try std.testing.expectEqual(RECT{ .left = 14, .top = 2, .right = 50, .bottom = 9 }, shiftRectX(r, 10));
+    const empty = RECT{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
+    try std.testing.expectEqual(empty, shiftRectX(empty, 10));
+}
+
+/// `text` moved `dx` px across, its child rect with it; an empty one
+/// stays empty.
+pub fn shiftConfirmText(text: ConfirmTextPlacement, dx: i32) ConfirmTextPlacement {
+    if (!text.visible()) return text;
+    var out = text;
+    out.child.left += dx;
+    out.child.right += dx;
+    return out;
+}
+
+test "confirmCard centres a card no wider than its cap, and fills a narrow window" {
+    try std.testing.expectEqual(ConfirmCard{ .left = 575, .width = 760 }, confirmCard(1910, 760));
+    try std.testing.expectEqual(ConfirmCard{ .left = 0, .width = 500 }, confirmCard(500, 760));
+    try std.testing.expectEqual(ConfirmCard{ .left = 0, .width = 0 }, confirmCard(0, 760));
+}
+
+test "shiftConfirmText moves a placed line and leaves an empty one empty" {
+    const placed = ConfirmTextPlacement{
+        .child = .{ .left = 10, .top = 4, .right = 110, .bottom = 20 },
+        .text = .{ .left = 0, .top = 0, .right = 100, .bottom = 16 },
+    };
+    const moved = shiftConfirmText(placed, 575);
+    try std.testing.expectEqual(@as(i32, 585), moved.child.left);
+    try std.testing.expectEqual(@as(i32, 685), moved.child.right);
+    try std.testing.expectEqual(placed.text, moved.text);
+    try std.testing.expect(!shiftConfirmText(empty_confirm_text_placement, 575).visible());
+}
+
 pub fn confirmTextPlacement(paint: RECT, interior: OverlayPanelInterior) ConfirmTextPlacement {
     if (paint.right <= paint.left or paint.bottom <= paint.top) return empty_confirm_text_placement;
     const top = @max(paint.top, interior.top);

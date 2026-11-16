@@ -26,9 +26,6 @@ const gdi = @import("gdi.zig");
 const WindowAccent = @import("../../config/Config.zig").WindowAccent;
 const AccentCombo = @import("../win32_settings_fields.zig").Combo(.window_accent);
 const win32_theme = @import("../win32_theme.zig");
-const sys_rgn = struct {
-    extern "gdi32" fn CreateRoundRectRgn(x1: i32, y1: i32, x2: i32, y2: i32, w: i32, h: i32) callconv(.winapi) ?*anyopaque;
-};
 const fillSolidRect = runtime.fillSolidRect;
 const lParamBits = runtime.lParamBits;
 const lastError = child_window.lastError;
@@ -2036,7 +2033,7 @@ pub const HostControls = struct {
         if (std.mem.eql(isize, &shape, &self.palette_list_shape)) return;
         self.palette_list_shape = shape;
         // Rounded at the bottom only: the top corners lie above the window.
-        const region = if (radius > 0) sys_rgn.CreateRoundRectRgn(0, -radius, rect.right + 1, rect.bottom + 1, radius, radius) else null;
+        const region = if (radius > 0) sys.CreateRoundRectRgn(0, -radius, rect.right + 1, rect.bottom + 1, radius, radius) else null;
         // The window owns the region from here on.
         _ = sys.SetWindowRgn(hwnd, region, 0);
     }

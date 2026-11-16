@@ -34,7 +34,11 @@ reading step under [Self-Correction Log](#self-correction-log).
 - **Formatting (other):** `prettier -w .`
 - Run `zig build*` through `scripts/dev-windows.cmd` (or an equivalent
   VS-dev + Zig 0.15.2 shell); the ambient shell can miss the native toolchain
-  and fail with misleading dependency errors. A direct `zig test <file>`
+  and fail with misleading dependency errors. A build root on another drive
+  than the effective Zig global cache (a review clone under `H:\scratch`
+  with the default `%LOCALAPPDATA%\zig`) asserts in the build runner: set
+  `ZIG_GLOBAL_CACHE_DIR` on the build root's drive first (build-release-ci.md:
+  2026-11-13 BUILD-CROSS-DRIVE-CACHE). A direct `zig test <file>`
   misses the build graph's generated modules (`build_options` and others).
   For code that needs those modules, use the full-suite command above or
   `zig build test -Dtest-filter=<token>` for iteration. Pure helpers may use
@@ -63,7 +67,11 @@ reading step under [Self-Correction Log](#self-correction-log).
 - Run a scratch portable copy (`noctty.portable` beside the exe) with
   `--window-save-state=never` and `LOCALAPPDATA` redirected for that noctty;
   that isolates session and startup state. If a `zig build` runs under the
-  redirect, pin `ZIG_GLOBAL_CACHE_DIR` to the real Zig cache. A test that
+  redirect, pin `ZIG_GLOBAL_CACHE_DIR` to the real Zig cache (the one under
+  the original `LOCALAPPDATA`), or, for a build root on another drive than
+  that cache, to a cache on the build root's drive: a build root and its
+  effective cache must share a drive (build-release-ci.md: 2026-11-13
+  BUILD-CROSS-DRIVE-CACHE). A test that
   reached the real `%LOCALAPPDATA%\noctty` once put the user's launches into
   safe mode. (window-frame.md: 2026-09-23 "Item (b) of the #262 entry";
   test-harnesses.md: 2026-09-23 #261 trap 2.) Give each PowerShell you type
@@ -352,7 +360,13 @@ that govern each symbol you change, or that none does.
   hint lane against chrome paint's feedback lane, `shape`, `nextFocus`,
   `bannerLine`; the palette's hint line, `command-palette-hint`, and the
   band's height, `feedbackRow`, `Host.overlayBandHeight`, the bands paint,
-  the terminal and the row capacity read (`Host.chromeBands`), and
+  the terminal and the row capacity read (`Host.chromeBands`, which
+  takes no rows for a confirm, `Host.overlayReservedHeight`, whose band
+  floats over the terminal in `Host.overlay_panel_hwnd`: `placeOverlayPanel`,
+  `drawOverlayPanel`, `HostScene.paintOverlayFrame`; a card centred
+  under the tab strip: `chrome_layout.confirmCard`, `shiftConfirmText`,
+  `HostScene.paintConfirmCard`, and its red Accept,
+  `Host.confirmAcceptDestroys`, `win32_theme.destructiveButtonColors`), and
   `overlayBandChanged`, which `setBanner` and a palette theme's swap
   (`swapRuntimeConfigFromPalette`) call; the one reader of Host state for
   it, `Host.overlayFacts`,
@@ -423,7 +437,9 @@ that govern each symbol you change, or that none does.
   (`WM_KEYDOWN`/`WM_CHAR`/`WM_SYSCHAR`, dead keys, `ToUnicode`, non-Latin
   layouts), default Windows keybindings, Win32 input mode (DEC 9001), the
   bytes ConPTY's input parser gets with 9001 off (`windows_legacy` in
-  `src/input/key_encode.zig`, the `function_keys.zig` rows it reads), IME
+  `src/input/key_encode.zig`, the `function_keys.zig` rows it reads), the
+  Kitty encoder's alternate keys (`kitty` in the same file, its keypad
+  break) and the 16-byte parts a report reaches a program over ssh in, IME
   (the composition string, its caret and target clause:
   `win32_input.imeTargetCodepointRange`, `Surface.imePosAt`), mouse buttons
   (the X buttons: `win32_input.xMouseButton`, and the button codes
@@ -536,8 +552,10 @@ that govern each symbol you change, or that none does.
   notifiable properties); UIA providers under `src/apprt/win32_uia/` (COM
   identity and refcounts, BSTR and VARIANT ownership, `events.zig`); terminal
   text (`win32_terminal_accessibility.zig`, TextPattern, ScrollIntoView, the
-  echo queue), palette and tab-list UIA (a tab's name: `uiaName` and
-  `Key.sameUiaName` in `win32/tab_label.zig`).
+  echo queue, and the output transport that feeds it:
+  `TerminalOutputTransport` in `apprt/surface.zig`), palette and tab-list
+  UIA (a tab's name: `uiaName` and `Key.sameUiaName` in
+  `win32/tab_label.zig`).
 - [config.md](docs/agents/log/config.md): config loading and reload outside
   the Settings window: the config file reader (`cli/args.zig` `LineIterator`,
   `streamDelimiterEnding`, `parseIntoField`, `ProfileMap`,
@@ -569,8 +587,10 @@ that govern each symbol you change, or that none does.
   Sentry, the COM apartment, default-terminal handoff, the CLI and the
   `noctty.com` wrapper.
 - [build-release-ci.md](docs/agents/log/build-release-ci.md): `build.zig`
-  (including the `bench:*` steps' `addBenchCoreImport`)
-  and resources, the Windows target floor (`src/build/Config.zig`,
+  (including the `bench:*` steps' `addBenchCoreImport`) and resources, the
+  Zig global cache a build uses (`ZIG_GLOBAL_CACHE_DIR`, which
+  `scripts/dev-windows.cmd` keeps when set and otherwise sets to
+  `%LOCALAPPDATA%\zig`), the Windows target floor (`src/build/Config.zig`,
   `-Dtarget` `win10`/`win10_rs5`, and the std APIs it gates), packaging
   (`scripts/package-windows.ps1`, `dist/windows/noctty.iss`, what Setup's
   `CloseApplications` closes, and what it installs and deletes; the
