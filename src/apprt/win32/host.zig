@@ -335,6 +335,39 @@ fn withoutCutDots(title: []const u16) []const u16 {
     return if (std.mem.endsWith(u16, title, &dots)) title[0 .. title.len - dots.len] else title;
 }
 
+/// What a tab draws of its title. A title the label cut, whose dots end the
+/// label, is drawn whole when it can be, so it runs to the tab's edge and
+/// fades only if it still runs over: the label's cell estimate stops short
+/// of the room GDI really has. Otherwise the cut title loses its dots and
+/// fades over its own end (`cut_short`).
+fn tabTitleToDraw(title_part: []const u16, cut: bool, whole: ?[]const u16) struct { text: []const u16, cut_short: bool } {
+    if (!cut) return .{ .text = title_part, .cut_short = false };
+    const trimmed = withoutCutDots(title_part);
+    if (trimmed.len != title_part.len) {
+        if (whole) |value| return .{ .text = value, .cut_short = false };
+    }
+    return .{ .text = trimmed, .cut_short = true };
+}
+
+test "tabTitleToDraw draws a cut title whole when it can and fades the label's cut otherwise" {
+    const utf16 = std.unicode.utf8ToUtf16LeStringLiteral;
+    // Not cut: the label's title as it is.
+    const plain = tabTitleToDraw(utf16("pwsh"), false, utf16("pwsh"));
+    try std.testing.expectEqualSlices(u16, utf16("pwsh"), plain.text);
+    try std.testing.expect(!plain.cut_short);
+    // Cut and whole known: the whole title, faded only where it runs over.
+    const whole = tabTitleToDraw(utf16("Administrator: C..."), true, utf16("Administrator: Command Prompt"));
+    try std.testing.expectEqualSlices(u16, utf16("Administrator: Command Prompt"), whole.text);
+    try std.testing.expect(!whole.cut_short);
+    // Cut, whole unknown: the cut title without its dots, fading at its end.
+    const short = tabTitleToDraw(utf16("Administrator: C..."), true, null);
+    try std.testing.expectEqualSlices(u16, utf16("Administrator: C"), short.text);
+    try std.testing.expect(short.cut_short);
+    // A split tab's count follows the dots: the label's text stays.
+    const split = tabTitleToDraw(utf16("Admin... (3)"), true, utf16("Administrator"));
+    try std.testing.expectEqualSlices(u16, utf16("Admin... (3)"), split.text);
+}
+
 /// Draw `title` in `rect` as `flags` lays it out, in `color`, showing only
 /// the columns from `left` to `right`.
 fn drawTitleClipped(hdc: HDC, title: []const u16, rect: RECT, flags: UINT, left: i32, right: i32, color: u32) void {
@@ -10062,6 +10095,7 @@ pub const Host = struct {
         const close_zone_width = if (can_close_tab) self.scaled(host_tab_close_zone_width) else 0;
 
         var text_buf: [160]u16 = undefined;
+        var whole_title_buf: [256]u16 = undefined;
         const text_len = sys.GetWindowTextW(draw.hwndItem, &text_buf, text_buf.len);
         _ = sys.SetBkMode(draw.hDC, c.TRANSPARENT);
         _ = sys.SetTextColor(draw.hDC, fg);
@@ -10095,6 +10129,7 @@ pub const Host = struct {
                 text_rect,
                 text_buf[0..@intCast(text_len)],
                 tab_label.titleCut(self.tabs.items[tab_index.?].cachedKey()),
+                tab_label.wholeTitle(&whole_title_buf, self.tabs.items[tab_index.?].cachedKey().title),
                 self.tabs.items[tab_index.?].status_indicator,
                 tab_theme,
                 fg,
@@ -10161,6 +10196,9 @@ pub const Host = struct {
         label: []const u16,
         /// The label cut the title (`tab_label.titleCut`): its end fades.
         cut: bool,
+        /// The tab's whole title (`tab_label.wholeTitle`), drawn in place of
+        /// a cut one so it runs to the tab's edge.
+        whole: ?[]const u16,
         status: win32_program_status.Indicator,
         theme: *const ThemeColors,
         fg: u32,
@@ -10204,12 +10242,13 @@ pub const Host = struct {
             _ = sys.DrawTextW(hdc, @ptrCast(parts.title.ptr), @intCast(parts.title.len), &rect, title_flags | c.DT_END_ELLIPSIS);
             return;
         }
-        const title = if (cut) withoutCutDots(parts.title) else parts.title;
+        const chosen = tabTitleToDraw(parts.title, cut, whole);
+        const title = chosen.text;
         if (title.len == 0) return;
         var measure: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
         _ = sys.DrawTextW(hdc, @ptrCast(title.ptr), @intCast(title.len), &measure, c.DT_CALCRECT | c.DT_SINGLELINE | c.DT_NOPREFIX);
         const fade_px = self.scaled(win32_tab_visual.label_fade_dip);
-        const fade = win32_tab_visual.labelFade(rect.left, rect.left + measure.right, rect.right, fade_px, cut) orelse {
+        const fade = win32_tab_visual.labelFade(rect.left, rect.left + measure.right, rect.right, fade_px, chosen.cut_short) orelse {
             _ = sys.DrawTextW(hdc, @ptrCast(title.ptr), @intCast(title.len), &rect, title_flags);
             return;
         };

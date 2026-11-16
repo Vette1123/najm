@@ -139,6 +139,25 @@ pub fn titleCut(k: Key) bool {
     return displayWidth(title) > titleBudget(k);
 }
 
+/// `title` in UTF-16 in `buf`, for a tab to draw whole and fade at its own
+/// edge; null when there is no title, it may not fit `buf` (UTF-16 never
+/// takes more units than UTF-8 takes bytes) or it is not valid UTF-8, and the
+/// caller draws the label's cut title instead.
+pub fn wholeTitle(buf: []u16, title: ?[]const u8) ?[]const u16 {
+    const value = title orelse return null;
+    if (value.len > buf.len) return null;
+    const len = std.unicode.utf8ToUtf16Le(buf, value) catch return null;
+    return buf[0..len];
+}
+
+test "wholeTitle converts a title that fits and refuses one that may not or is not UTF-8" {
+    var buf: [8]u16 = undefined;
+    try std.testing.expectEqualSlices(u16, std.unicode.utf8ToUtf16LeStringLiteral("pwsh"), wholeTitle(&buf, "pwsh").?);
+    try std.testing.expect(wholeTitle(&buf, "a title of more bytes") == null);
+    try std.testing.expect(wholeTitle(&buf, "\xff\xfe") == null);
+    try std.testing.expect(wholeTitle(&buf, null) == null);
+}
+
 test "titleCut: a title that fits is whole, a longer one is cut, no title is not" {
     const base: Key = .{ .title = "pwsh", .index = 0, .active = false, .bell = false, .pane_count = 1, .max_width = 20, .show_pane_count = false };
     try std.testing.expect(!titleCut(base));
