@@ -56,3 +56,18 @@ jobs:
           name: bidi-shots
           path: ${{ runner.temp }}/bidi-shots
           if-no-files-found: warn
+
+      # The tab strip and the close prompt's card, for a person to look at.
+      - name: Capture window chrome
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 3
+        shell: pwsh
+        run: ./scripts/najm-chrome-shot.ps1 -Exe "$PWD/zig-out/bin/najm.exe" -OutputDirectory "$env:RUNNER_TEMP/chrome-shots"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'pull_request'
+        with:
+          name: chrome-shots
+          path: ${{ runner.temp }}/chrome-shots
+          if-no-files-found: warn
