@@ -328,6 +328,12 @@ const tab_top_radius: i32 = 6;
 
 const tab_flare: i32 = 4;
 
+/// How far the arriving active tab rises into place during the cap slide,
+/// and how far it sinks while pressed, in DIPs (`activeTabDrop`).
+const tab_arrival_rise: i32 = 3;
+
+const tab_press_sink: i32 = 1;
+
 /// Height of the active tab's accent cap, and of the hairline between
 /// resting tabs, in DIPs.
 const tab_cap_height: i32 = 2;
@@ -9773,7 +9779,15 @@ pub const Host = struct {
             const flush_top = self.tabsFlushWithTop();
             // A restored window keeps the shape and its cap off row 0, where
             // they would merge with DWM's border.
-            const shape_top = draw.rcItem.top + @as(i32, if (flush_top) 0 else 1);
+            // The active tab rises into place as the cap arrives and sinks
+            // a pixel while held; only its top moves, its join stays put.
+            const drop = if (tab_background != null and !is_hc) win32_tab_visual.activeTabDrop(
+                tab_arrival,
+                tab_pressed,
+                self.scaled(tab_arrival_rise),
+                self.scaled(tab_press_sink),
+            ) else 0;
+            const shape_top = draw.rcItem.top + @as(i32, if (flush_top) 0 else 1) + drop;
             const shape = win32_tab_visual.silhouette(
                 .{ .left = draw.rcItem.left, .top = draw.rcItem.top, .right = draw.rcItem.right, .bottom = draw.rcItem.bottom },
                 shape_top,

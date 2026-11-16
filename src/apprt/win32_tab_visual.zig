@@ -163,6 +163,16 @@ pub const CapSlide = struct {
     }
 };
 
+/// How many px the active tab's top sits below its resting row: it rises
+/// `rise_px` into place as the cap slide brings it in (`arrival` is the
+/// slide's eased progress), and sinks `press_px` while it is held down.
+/// The bottom never moves, so the tab stays joined to its terminal.
+pub fn activeTabDrop(arrival: f32, pressed: bool, rise_px: i32, press_px: i32) i32 {
+    const left: f32 = 1.0 - std.math.clamp(arrival, 0.0, 1.0);
+    const rise: i32 = @intFromFloat(@round(left * @as(f32, @floatFromInt(rise_px))));
+    return if (pressed) @max(rise, press_px) else rise;
+}
+
 /// The hover line: it grows out of the tab's center as the hover fades in
 /// and withdraws into it as the hover fades out.
 pub fn hoverLineSpan(left: i32, right: i32, fade: f32) Span {
@@ -540,6 +550,16 @@ test "CapSlide: idle reports its resting edges and is not animating" {
     const slide: CapSlide = .{};
     try std.testing.expect(!slide.animating(5000));
     try std.testing.expectEqual(@as(f32, 1), slide.progressAt(5000));
+}
+
+test "activeTabDrop: rises into place on arrival, sinks while pressed, rests at zero" {
+    try std.testing.expectEqual(@as(i32, 3), activeTabDrop(0, false, 3, 1));
+    try std.testing.expectEqual(@as(i32, 2), activeTabDrop(0.5, false, 3, 1));
+    try std.testing.expectEqual(@as(i32, 0), activeTabDrop(1, false, 3, 1));
+    try std.testing.expectEqual(@as(i32, 1), activeTabDrop(1, true, 3, 1));
+    try std.testing.expectEqual(@as(i32, 3), activeTabDrop(0, true, 3, 1));
+    // Reduced motion snaps the slide, so its progress is 1: no rise.
+    try std.testing.expectEqual(@as(i32, 0), activeTabDrop(1, false, 0, 0));
 }
 
 test "hoverLineSpan grows from the center and reaches the edges" {
