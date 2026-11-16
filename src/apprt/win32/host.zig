@@ -316,6 +316,37 @@ const tab_icon_min_content: i32 = 64;
 /// Space from a tab's left edge to its content, and from its number to its
 /// title, in DIPs.
 const tab_content_left: i32 = 14;
+/// Colour steps across a cut title's fade (`win32_tab_visual.labelFade`):
+/// about 2 px each at 100% scale, fine enough that no band shows.
+const tab_label_fade_steps: i32 = 12;
+
+/// Whether `status` draws the spinning badge: working, with no percentage.
+fn tabSpins(status: win32_program_status.Indicator) bool {
+    return switch (status) {
+        .working => |progress| progress == null,
+        else => false,
+    };
+}
+
+/// A title the label cut ends in the dots `compactHostLabel` put there; the
+/// fade shows the cut instead.
+fn withoutCutDots(title: []const u16) []const u16 {
+    const dots = [_]u16{ '.', '.', '.' };
+    return if (std.mem.endsWith(u16, title, &dots)) title[0 .. title.len - dots.len] else title;
+}
+
+/// Draw `title` in `rect` as `flags` lays it out, in `color`, showing only
+/// the columns from `left` to `right`.
+fn drawTitleClipped(hdc: HDC, title: []const u16, rect: RECT, flags: UINT, left: i32, right: i32, color: u32) void {
+    if (right <= left) return;
+    const saved = sys.SaveDC(hdc);
+    if (saved == 0) return;
+    defer _ = sys.RestoreDC(hdc, saved);
+    _ = sys.IntersectClipRect(hdc, left, rect.top, right, rect.bottom);
+    _ = sys.SetTextColor(hdc, color);
+    var r = rect;
+    _ = sys.DrawTextW(hdc, @ptrCast(title.ptr), @intCast(title.len), &r, flags);
+}
 
 const tab_index_gap: i32 = 7;
 
@@ -1214,6 +1245,8 @@ pub const Host = struct {
     /// A restored window's saved rect is being applied; same reason.
     restore_placing: bool = false,
     tween_timer_active: bool = false,
+    /// `TAB_SPIN_TIMER_ID` runs: a shown tab's working badge spins.
+    tab_spin_timer_active: bool = false,
     search_timer_active: bool = false,
     scrollbar_timer_active: bool = false,
     resize_settle_timer_active: bool = false,
@@ -2423,6 +2456,64 @@ pub const Host = struct {
         self.tween_timer_active = false;
     }
 
+    /// Whether a tab's working badge should spin: a shown tab works with no
+    /// percentage, and motion is allowed. Reduced motion and High Contrast
+    /// keep the still ring.
+    fn tabSpinWanted(self: *Host) bool {
+        if (!self.shouldShowTabBar()) return false;
+        if (isHighContrastActive() or !clientAnimationsEnabled()) return false;
+        for (self.tabs.items) |tab| {
+            if (tab.button_hwnd != null and tabSpins(tab.status_indicator)) return true;
+        }
+        return false;
+    }
+
+    /// Start or stop the spin timer to match `tabSpinWanted`. The badge's
+    /// shape follows the timer (an arc while it runs, the still ring
+    /// otherwise), so a change repaints the spinning tabs.
+    pub fn syncTabSpin(self: *Host) void {
+        const hwnd = self.hwnd orelse return;
+        const wanted = self.tabSpinWanted();
+        if (wanted == self.tab_spin_timer_active) return;
+        if (wanted) {
+            if (sys.SetTimer(hwnd, c.TAB_SPIN_TIMER_ID, c.TAB_SPIN_TIMER_INTERVAL_MS, null) == 0) {
+                std.log.warn("tab spinner: SetTimer failed; the working ring stays still", .{});
+                return;
+            }
+            self.tab_spin_timer_active = true;
+        } else {
+            _ = sys.KillTimer(hwnd, c.TAB_SPIN_TIMER_ID);
+            self.tab_spin_timer_active = false;
+        }
+        self.invalidateSpinningTabs();
+    }
+
+    /// One spinner frame. Each tick asks again whether anything still
+    /// spins, so a closed tab, a hidden strip or a motion setting turned
+    /// off stops the timer without a hook of its own.
+    pub fn tickTabSpin(self: *Host) void {
+        self.syncTabSpin();
+        if (!self.tab_spin_timer_active) return;
+        const hwnd = self.hwnd orelse return;
+        if (sys.IsIconic(hwnd) != 0) return;
+        self.invalidateSpinningTabs();
+    }
+
+    /// Repaint only the icon slot of each tab whose badge spins, so a frame
+    /// redraws a badge, not a tab.
+    fn invalidateSpinningTabs(self: *Host) void {
+        const left = self.scaled(tab_content_left - 2);
+        const right = self.scaled(tab_content_left + tab_icon_size + 2);
+        for (self.tabs.items) |tab| {
+            if (!tabSpins(tab.status_indicator)) continue;
+            const button = tab.button_hwnd orelse continue;
+            var client: RECT = undefined;
+            if (sys.GetClientRect(button, &client) == 0) continue;
+            const slot: RECT = .{ .left = client.left + left, .top = client.top, .right = client.left + right, .bottom = client.bottom };
+            _ = sys.InvalidateRect(button, &slot, 0);
+        }
+    }
+
     pub fn tickTweens(self: *Host) void {
         const now = sys.GetTickCount64();
         var quick_terminal_finished = false;
@@ -3413,6 +3504,10 @@ pub const Host = struct {
         if (self.tween_timer_active) {
             if (self.hwnd) |h| _ = sys.KillTimer(h, c.TWEEN_TIMER_ID);
             self.tween_timer_active = false;
+        }
+        if (self.tab_spin_timer_active) {
+            if (self.hwnd) |h| _ = sys.KillTimer(h, c.TAB_SPIN_TIMER_ID);
+            self.tab_spin_timer_active = false;
         }
         if (self.search_timer_active) {
             if (self.hwnd) |h| _ = sys.KillTimer(h, c.SEARCH_TIMER_ID);
@@ -5955,6 +6050,7 @@ pub const Host = struct {
                 }
             }
             if (tab.button_hwnd) |hwnd| _ = sys.InvalidateRect(hwnd, null, 0);
+            self.syncTabSpin();
         }
         // A bell no program status outranks is the tab's status too ("Bell"
         // in `tabItemUiaItemStatus`); its key is even, a program status's odd.
@@ -9998,6 +10094,7 @@ pub const Host = struct {
                 draw.hDC,
                 text_rect,
                 text_buf[0..@intCast(text_len)],
+                tab_label.titleCut(self.tabs.items[tab_index.?].cachedKey()),
                 self.tabs.items[tab_index.?].status_indicator,
                 tab_theme,
                 fg,
@@ -10062,6 +10159,8 @@ pub const Host = struct {
         hdc: HDC,
         area: RECT,
         label: []const u16,
+        /// The label cut the title (`tab_label.titleCut`): its end fades.
+        cut: bool,
         status: win32_program_status.Indicator,
         theme: *const ThemeColors,
         fg: u32,
@@ -10099,13 +10198,32 @@ pub const Host = struct {
 
         if (rect.right <= rect.left or parts.title.len == 0) return;
         _ = sys.SetTextColor(hdc, fg);
-        _ = sys.DrawTextW(
-            hdc,
-            @ptrCast(parts.title.ptr),
-            @intCast(parts.title.len),
-            &rect,
-            c.DT_LEFT | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX | c.DT_END_ELLIPSIS,
-        );
+        const title_flags: UINT = c.DT_LEFT | c.DT_VCENTER | c.DT_SINGLELINE | c.DT_NOPREFIX;
+        // High Contrast allows only system colours, so it keeps the dots.
+        if (high_contrast) {
+            _ = sys.DrawTextW(hdc, @ptrCast(parts.title.ptr), @intCast(parts.title.len), &rect, title_flags | c.DT_END_ELLIPSIS);
+            return;
+        }
+        const title = if (cut) withoutCutDots(parts.title) else parts.title;
+        if (title.len == 0) return;
+        var measure: RECT = .{ .left = 0, .top = 0, .right = 0, .bottom = 0 };
+        _ = sys.DrawTextW(hdc, @ptrCast(title.ptr), @intCast(title.len), &measure, c.DT_CALCRECT | c.DT_SINGLELINE | c.DT_NOPREFIX);
+        const fade_px = self.scaled(win32_tab_visual.label_fade_dip);
+        const fade = win32_tab_visual.labelFade(rect.left, rect.left + measure.right, rect.right, fade_px, cut) orelse {
+            _ = sys.DrawTextW(hdc, @ptrCast(title.ptr), @intCast(title.len), &rect, title_flags);
+            return;
+        };
+        // The title is drawn whole and clipped: solid up to the fade, then
+        // in strips whose colour steps toward the tab's, so it melts into the
+        // tab instead of ending in dots. Nothing is filled, so a translucent
+        // window's lane stays see-through behind the text.
+        drawTitleClipped(hdc, title, rect, title_flags, rect.left, fade.left, fg);
+        const steps = @min(tab_label_fade_steps, fade.right - fade.left);
+        var step: i32 = 0;
+        while (step < steps) : (step += 1) {
+            const strip = win32_tab_visual.labelFadeStrip(fade, step, steps);
+            drawTitleClipped(hdc, title, rect, title_flags, strip.span.left, strip.span.right, blendColorRGB(fg, bg, strip.share));
+        }
     }
 
     fn drawTabIcon(
@@ -10153,7 +10271,11 @@ pub const Host = struct {
     ) void {
         const badge: gdi.StatusBadge = switch (status) {
             .none => return,
-            .working => |progress| .{ .ring = progress },
+            // Working with no percentage spins while the spin timer runs.
+            .working => |progress| if (progress == null and self.tab_spin_timer_active)
+                .{ .spin = win32_tab_visual.spinTurn(sys.GetTickCount64()) }
+            else
+                .{ .ring = progress },
             .blocked => .disc,
             .done => .check,
             .failed => .cross,

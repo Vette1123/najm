@@ -11762,6 +11762,10 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                 if (host) |v| v.tickTweens();
                 return 0;
             }
+            if (wParam == c.TAB_SPIN_TIMER_ID) {
+                if (host) |v| v.tickTabSpin();
+                return 0;
+            }
             if (wParam == c.SEARCH_TIMER_ID) {
                 if (host) |v| v.tickSearchBars();
                 return 0;

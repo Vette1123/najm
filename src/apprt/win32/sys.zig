@@ -693,6 +693,7 @@ pub const SRCCOPY: u32 = 0x00CC0020;
 pub extern "uxtheme" fn BufferedPaintInit() callconv(.winapi) i32;
 
 pub extern "gdi32" fn SaveDC(hdc: HDC) callconv(.winapi) c_int;
+pub extern "gdi32" fn IntersectClipRect(hdc: HDC, left: c_int, top: c_int, right: c_int, bottom: c_int) callconv(.winapi) c_int;
 
 pub extern "gdi32" fn GdiFlush() callconv(.winapi) BOOL;
 
