@@ -10662,13 +10662,17 @@ pub const Host = struct {
     }
 
     /// `WM_DRAWITEM` for the confirm prompt's floating card.
-    /// Whether the open prompt's Accept ends something (a tab, a window, the
-    /// app, a running install): its button is then filled red
-    /// (`win32_theme.destructiveButtonColors`).
+    /// Whether the open prompt's Accept ends something (a terminal, a tab, a
+    /// window, the app, a running install): its button is then filled red
+    /// (`win32_theme.destructiveButtonColors`). It reads the prompt's own
+    /// `destroys`, which the payload has before the button first paints;
+    /// `close_scope` is set only after `showConfirm` returns, so a button
+    /// read from it painted in the theme's colours until hovered (CI capture
+    /// of PR #27).
     pub fn confirmAcceptDestroys(self: *const Host) bool {
         if (self.overlay_mode != .confirm) return false;
         const payload = self.confirm_payload orelse return false;
-        return payload.close_scope != null;
+        return payload.destroys;
     }
 
     /// `WM_DRAWITEM` for the confirm prompt's floating card.
@@ -14031,6 +14035,14 @@ test "win32 a confirm prompt floats over the terminal: the terminal keeps its ro
             host.hideOverlay();
             try std.testing.expect(!host.overlay_panel_placement.visible);
             try std.testing.expectEqual(closed_top, pane.placement.rect.top);
+
+            // A close prompt's Close is red from its first paint: the prompt
+            // brings `destroys` with it, and nothing is patched in after
+            // `showConfirm` returns (a CI capture showed it blue until hovered).
+            try host.showConfirm(.{ .title = "Close this window?", .body = "Body", .accept_label = "Close", .destroys = true }, &accept, null, null);
+            try std.testing.expect(host.confirmAcceptDestroys());
+            host.hideOverlay();
+            try std.testing.expect(!host.confirmAcceptDestroys());
         }
     }.body);
 }
