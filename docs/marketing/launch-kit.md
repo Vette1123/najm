@@ -4,6 +4,10 @@ Search only finds Najm once other sites link to it. The website does the
 on-page work; these posts earn the links. Everything here is ready to paste.
 Post one a day, reply to every comment, and post nothing the app cannot back.
 
+Every link carries its source tag ([tracked-links.md](tracked-links.md)), and every
+post gets a line in [posted.json](posted.json). Site analytics: the portfolio's
+PostHog project, `site = najm`.
+
 Install counts: `gh api repos/Vette1123/najm/releases --jq '.[].assets[].download_count'`.
 Traffic and referrers: `gh api repos/Vette1123/najm/traffic/popular/referrers`.
 
@@ -11,7 +15,7 @@ Traffic and referrers: `gh api repos/Vette1123/najm/traffic/popular/referrers`.
 
 | # | Where | Why | Time |
 |---|---|---|---|
-| 1 | Bing Webmaster Tools | Google Search Console is verified; Bing imports it | 5 min |
+| 1 | Bing Webmaster Tools | Done 2026-11-17: sitemap submitted under mohamedgado.com | 0 |
 | 2 | WinGet | `winget search terminal` is a permanent install channel | 20 min |
 | 3 | AlternativeTo | Ranks for "Windows Terminal alternatives" and "Ghostty alternatives" | 10 min |
 | 4 | Show HN | The largest single audience for a new terminal | 10 min, then a day of replies |
@@ -20,9 +24,9 @@ Traffic and referrers: `gh api repos/Vette1123/najm/traffic/popular/referrers`.
 
 ## Search engines
 
-Google Search Console is verified and the sitemap is submitted. Bing Webmaster
-Tools can import the property from it, and the site notifies Bing through
-IndexNow on every deploy.
+The `sc-domain:mohamedgado.com` Search Console property covers the subdomain, and
+`https://najm.mohamedgado.com/sitemap.xml` is submitted there and in Bing Webmaster
+Tools (both on 2026-11-17). The site notifies Bing through IndexNow on every deploy.
 
 ## WinGet
 
@@ -59,7 +63,7 @@ Show HN: Najm, a native Ghostty-based terminal for Windows
 URL:
 
 ```text
-https://najm.mohamedgado.com/
+https://najm.mohamedgado.com/?s=hn
 ```
 
 First comment:
@@ -106,7 +110,7 @@ Najm is a free, open-source terminal for Windows built on Ghostty's core. It's a
 
 It installs beside Windows Terminal and doesn't touch its settings, so trying it is safe. SmartScreen will warn you on first install because I sign it with my own certificate; the download page shows how to verify the file first.
 
-Site: https://najm.mohamedgado.com/
+Site: https://najm.mohamedgado.com/?s=reddit
 Source: https://github.com/Vette1123/najm
 
 Feedback and bug reports are welcome.
@@ -123,10 +127,12 @@ Hsoub I/O (`io.hsoub.com`).
 بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد. وتعرض العربية من اليمين إلى اليسار في مخرجات الأوامر.
 
 جرّبها وأخبرني بما يحتاج إلى تحسين:
-https://najm.mohamedgado.com/ar/
+https://najm.mohamedgado.com/ar/?s=ar-community
 ```
 
-## X and LinkedIn
+## X
+
+LinkedIn is posted by the owner by hand (`?s=linkedin`), never by an agent.
 
 Attach `web/assets/shot-splits-dark.png`, or better, a short recording.
 
@@ -135,7 +141,7 @@ I wanted Ghostty on Windows, so I built Najm.
 
 Native tabs and splits, session restore, a command palette, and Ctrl+V that pastes screenshots into Claude Code.
 
-Free and open source: https://najm.mohamedgado.com/
+Free and open source: https://najm.mohamedgado.com/?s=x
 ```
 
 ## awesome-terminals

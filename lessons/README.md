@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-17 | [SEO, analytics, marketing parity](2026-11-17-najm-seo-marketing-parity.md) | Run CI test globs on the CI Node: a folder argument passed on 26 and failed on 22 |
 | 2026-11-17 | [Site on najm.mohamedgado.com](2026-11-17-najm-mohamedgado-domain.md) | Set the Pages domain after DNS answers, or no certificate is ever requested |
 | 2026-11-17 | [Confirm card without the stray strip](2026-11-17-confirm-card-edge.md) | An edge on a rounded shape follows the shape or goes: a bar inset from round corners reads as a bug |
 | 2026-11-17 | [Tab spinner and title fade](2026-11-17-tab-spinner-and-title-fade.md) | "Already moves" needs a timer that repaints it: the working ring was a still circle |
