@@ -12,15 +12,15 @@
 </p>
 
 <p align="center">
-  <b><a href="https://vette1123.github.io/najm/download/">Download</a></b>
+  <b><a href="https://najm.mohamedgado.com/download/">Download</a></b>
   ·
-  <a href="https://vette1123.github.io/najm/">Website</a>
+  <a href="https://najm.mohamedgado.com/">Website</a>
   ·
   <a href="#features">Features</a>
   ·
   <a href="#arabic-text">Arabic</a>
   ·
-  <a href="https://vette1123.github.io/najm/ar/">العربية</a>
+  <a href="https://najm.mohamedgado.com/ar/">العربية</a>
   ·
   <a href="#configure">Configure</a>
 </p>
@@ -36,8 +36,8 @@ on [Ghostty](https://github.com/ghostty-org/ghostty)'s terminal core. It draws o
 in tabs and splits, and restores your session. It runs PowerShell,
 Command Prompt, Git Bash and WSL with no setup.
 
-Looking for [Ghostty on Windows](https://vette1123.github.io/najm/ghostty-for-windows/) or a
-[Windows Terminal alternative](https://vette1123.github.io/najm/windows-terminal-alternative/)?
+Looking for [Ghostty on Windows](https://najm.mohamedgado.com/ghostty-for-windows/) or a
+[Windows Terminal alternative](https://najm.mohamedgado.com/windows-terminal-alternative/)?
 Najm reads Ghostty's config syntax and installs beside Windows Terminal. If it works for you, a
 star helps other people find it.
 
@@ -54,7 +54,7 @@ merged.
   jump lists and toasts.
 - One line in your config makes `Ctrl+V` paste the way Windows Terminal does: text, the paths of
   files copied in Explorer, and images, so tools like
-  [Claude Code and opencode can attach screenshots](https://vette1123.github.io/najm/paste-images-claude-code-windows/).
+  [Claude Code and opencode can attach screenshots](https://najm.mohamedgado.com/paste-images-claude-code-windows/).
 - It sends no telemetry. Its only network call is the update check against this repo's
   releases, and you can turn that off.
 
@@ -151,7 +151,7 @@ font-codepoint-map = U+0600-U+06FF,U+0750-U+077F,U+08A0-U+08FF,U+FB50-U+FDFF,U+F
 The copy of Cascadia Code that ships with Windows has no Arabic. Install the current release from
 [microsoft/cascadia-code](https://github.com/microsoft/cascadia-code/releases), which has.
 `najm +show-face --string="مرحبا"` shows which font each letter comes from. The
-[Arabic text guide](https://vette1123.github.io/najm/arabic-terminal-windows/) has more.
+[Arabic text guide](https://najm.mohamedgado.com/arabic-terminal-windows/) has more.
 
 ## Keyboard shortcuts
 

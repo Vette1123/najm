@@ -2,10 +2,11 @@
 // Titles stay under 60 characters and descriptions under 160, so search
 // results show them whole; web/tests/site.test.mjs enforces both.
 
-// ponytail: a project-page URL. A custom domain means changing these two
-// lines and adding a CNAME file; every canonical, sitemap and link follows.
-export const SITE_URL = "https://vette1123.github.io/najm";
-export const BASE_PATH = "/najm";
+// The custom domain lives in the repo's Pages settings (an Actions deploy
+// ignores a CNAME file), and vette1123.github.io/najm/* 301s here. Every
+// canonical, sitemap and link follows these two lines.
+export const SITE_URL = "https://najm.mohamedgado.com";
+export const BASE_PATH = "";
 
 export const REPO_URL = "https://github.com/Vette1123/najm";
 export const INDEXNOW_KEY = "6f1d2c7ab3e94d0c8e57a1b46d90c3f2";

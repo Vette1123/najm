@@ -84,7 +84,7 @@ for (const { page, html } of built) {
   });
 
   test(`${name} has no broken internal links`, () => {
-    const hrefs = [...html.matchAll(/(?:href|src)="(\/najm[^"#]*)/g)];
+    const hrefs = [...html.matchAll(new RegExp(`(?:href|src)="(${BASE_PATH}/(?!/)[^"#]*)`, "g"))];
     assert.ok(hrefs.length > 3);
     for (const [, href] of hrefs) {
       const path = href.slice(BASE_PATH.length + 1);
@@ -125,6 +125,11 @@ test("the sitemap lists exactly the pages, with dates", () => {
   const expected = pages.map((page) => `${SITE_URL}/${page.slug}`).sort();
   assert.deepEqual(locs, expected);
   assert.equal(sitemap.match(/<lastmod>\d{4}-\d{2}-\d{2}</g).length, pages.length);
+});
+
+test("robots.txt points crawlers at the sitemap on the site's own host", () => {
+  assert.match(read("robots.txt"), new RegExp(`^Sitemap: ${SITE_URL}/sitemap\\.xml$`, "m"));
+  assert.ok(new URL(SITE_URL).pathname === "/", "robots.txt only counts at a host root");
 });
 
 test("sitemap pairs carry x-default and the image alt follows the page language", () => {

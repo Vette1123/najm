@@ -59,7 +59,7 @@ Show HN: Najm, a native Ghostty-based terminal for Windows
 URL:
 
 ```text
-https://vette1123.github.io/najm/
+https://najm.mohamedgado.com/
 ```
 
 First comment:
@@ -106,7 +106,7 @@ Najm is a free, open-source terminal for Windows built on Ghostty's core. It's a
 
 It installs beside Windows Terminal and doesn't touch its settings, so trying it is safe. SmartScreen will warn you on first install because I sign it with my own certificate; the download page shows how to verify the file first.
 
-Site: https://vette1123.github.io/najm/
+Site: https://najm.mohamedgado.com/
 Source: https://github.com/Vette1123/najm
 
 Feedback and bug reports are welcome.
@@ -123,7 +123,7 @@ Hsoub I/O (`io.hsoub.com`).
 بنيت نجم، طرفية مجانية مفتوحة المصدر لويندوز مبنية على نواة Ghostty. تدعم التبويبات وتقسيم النوافذ وتعيد الجلسة بعد إعادة التشغيل، وتعمل مع PowerShell وGit Bash وWSL دون إعداد. وتعرض العربية من اليمين إلى اليسار في مخرجات الأوامر.
 
 جرّبها وأخبرني بما يحتاج إلى تحسين:
-https://vette1123.github.io/najm/ar/
+https://najm.mohamedgado.com/ar/
 ```
 
 ## X and LinkedIn
@@ -135,7 +135,7 @@ I wanted Ghostty on Windows, so I built Najm.
 
 Native tabs and splits, session restore, a command palette, and Ctrl+V that pastes screenshots into Claude Code.
 
-Free and open source: https://vette1123.github.io/najm/
+Free and open source: https://najm.mohamedgado.com/
 ```
 
 ## awesome-terminals

@@ -292,6 +292,15 @@ ${urls}
 `;
 }
 
+// Crawlers read robots.txt at the host root, which the custom domain gives us.
+function robots() {
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${SITE_URL}/sitemap.xml
+`;
+}
+
 // A plain-text map for AI assistants: https://llmstxt.org
 function llms() {
   const lines = pages
@@ -337,6 +346,7 @@ await writeFile(
 await writeFile(join(out, "sitemap.xml"), sitemap());
 await writeFile(join(out, "llms.txt"), llms());
 await writeFile(join(out, `${INDEXNOW_KEY}.txt`), INDEXNOW_KEY);
+await writeFile(join(out, "robots.txt"), robots());
 await writeFile(join(out, ".nojekyll"), "");
 
 console.log(`Built ${pages.length} pages for Najm ${version} into ${out}`);
