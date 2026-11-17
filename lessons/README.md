@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-17 | [Confirm card without the stray strip](2026-11-17-confirm-card-edge.md) | An edge on a rounded shape follows the shape or goes: a bar inset from round corners reads as a bug |
 | 2026-11-17 | [Tab spinner and title fade](2026-11-17-tab-spinner-and-title-fade.md) | "Already moves" needs a timer that repaints it: the working ring was a still circle |
 | 2026-11-16 | [Noctty sync, tab rise, floating confirm](2026-11-16-noctty-sync-tab-rise-floating-confirm.md) | Host GDI paint sits under a pane: anything that must not resize the terminal floats in its own raised child |
 | 2026-11-13 | [Clickable links](2026-11-13-clickable-links.md) | A click that "rarely works" re-reads its modifiers at release: Ctrl let go first dropped it |
