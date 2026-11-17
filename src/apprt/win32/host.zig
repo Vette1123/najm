@@ -7695,6 +7695,24 @@ pub const Host = struct {
         }
     };
 
+    test "the confirm card's top inside its border is the panel colour, with no accent strip" {
+        if (builtin.os.tag != .windows) return error.SkipZigTest;
+        const width: i32 = 400;
+        const height: i32 = 60;
+        const canvas = try BannerTestCanvas.init(width, height);
+        defer canvas.deinit();
+        for ([_]ThemeColors{ win32.darkTheme(), win32.lightTheme() }) |theme| {
+            fillSolidRect(canvas.dc, .{ .left = 0, .top = 0, .right = width, .bottom = height }, BannerTestCanvas.untouched);
+            chrome_scene.HostScene.paintConfirmCard(canvas.dc, .{ .left = 0, .top = 0, .right = width, .bottom = height }, confirm_card_diameter, &theme);
+            _ = BannerTestCanvas.raw.GdiFlush();
+            const panel = themeSurface(&theme, .overlay_panel_bg);
+            // Rows 1 to 5 under the top border, clear of the round corners:
+            // the 2 px accent strip sat at rows 1 and 2 here.
+            try std.testing.expectEqual(@as(usize, 0), canvas.inked(.{ .left = confirm_card_diameter, .top = 1, .right = width - confirm_card_diameter, .bottom = 6 }, panel));
+            try std.testing.expectEqual(themeSurface(&theme, .overlay_panel_border), canvas.pixel(@divTrunc(width, 2), 0));
+        }
+    }
+
     fn bannerTestVisible(hwnd: HWND) bool {
         return (sys.GetWindowLongPtrW(hwnd, c.GWL_STYLE) & c.WS_VISIBLE) != 0;
     }
@@ -10842,7 +10860,7 @@ pub const Host = struct {
         if (draw.hwndItem != panel) return false;
         var client: RECT = undefined;
         if (sys.GetClientRect(panel, &client) == 0) return true;
-        chrome_scene.HostScene.paintConfirmCard(self, draw.hDC, client, self.scaled(confirm_card_diameter), &self.app.resolved_theme);
+        chrome_scene.HostScene.paintConfirmCard(draw.hDC, client, self.scaled(confirm_card_diameter), &self.app.resolved_theme);
         return true;
     }
 
