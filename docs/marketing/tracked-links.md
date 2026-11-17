@@ -44,7 +44,7 @@ Read it on the portfolio's PostHog project, filtered to `site = najm`.
 | Telegram | `telegram` | `https://najm.mohamedgado.com/?s=telegram` |
 | Arabic communities (Hsoub I/O, groups) | `ar-community` | `https://najm.mohamedgado.com/ar/?s=ar-community` |
 | dev.to / Hashnode / Medium articles | `devto` / `hashnode` / `medium` | `https://najm.mohamedgado.com/?s=devto` |
-| Portfolio project page | `portfolio` | `https://najm.mohamedgado.com/?s=portfolio` |
+| Portfolio project page | none | Bare deep links: the referrer already names www.mohamedgado.com, and the links carry SEO weight |
 | LinkedIn (owner posts by hand) | `linkedin` | `https://najm.mohamedgado.com/?s=linkedin` |
 
 AlternativeTo forbids tracking tags on the website field: paste the bare site URL
