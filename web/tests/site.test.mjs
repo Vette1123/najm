@@ -80,7 +80,12 @@ for (const { page, html } of built) {
     assert.match(html, /name="robots" content="index, follow, max-image-preview:large"/);
     const web = jsonLd(html).find((item) => item["@type"] === "WebPage");
     assert.equal(web.inLanguage, page.lang);
-    assert.equal(web.dateModified, page.updated);
+    assert.match(web.dateModified, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(web.dateModified >= page.updated, "dateModified is older than pages.mjs says");
+    const lastmod = read("sitemap.xml").match(
+      new RegExp(`<loc>${SITE_URL}/${page.slug}</loc><lastmod>([^<]+)<`),
+    )?.[1];
+    assert.equal(lastmod, web.dateModified, "sitemap and JSON-LD disagree on the date");
   });
 
   test(`${name} has no broken internal links`, () => {
@@ -141,6 +146,57 @@ test("sitemap pairs carry x-default and the image alt follows the page language"
 test("the 404 page stays out of the index", () => {
   assert.match(read("404.html"), /name="robots" content="noindex"/);
   assert.doesNotMatch(read("404.html"), /rel="canonical"/);
+});
+
+// The portfolio declares the same Person @id, so search engines merge the two
+// into one author; the app and the site each keep one @id across pages.
+test("every page names one owner, one app and one site by @id", () => {
+  for (const { page, html } of built) {
+    const graph = jsonLd(html);
+    const person = graph.find((item) => item["@type"] === "Person");
+    assert.equal(person?.["@id"], "https://www.mohamedgado.com/#person", page.slug);
+    assert.ok(person.sameAs.includes("https://github.com/Vette1123"), page.slug);
+    assert.equal(
+      graph.find((item) => item["@type"] === "WebPage").isPartOf["@id"],
+      `${SITE_URL}/#website`,
+      page.slug,
+    );
+    const app = graph.find((item) => item["@type"] === "SoftwareApplication");
+    if (!page.software) continue;
+    assert.equal(app["@id"], `${SITE_URL}/#app`, page.slug);
+    assert.equal(app.author["@id"], person["@id"], page.slug);
+    assert.ok(app.sameAs.includes("https://www.mohamedgado.com/projects/najm"), page.slug);
+    assert.match(app.releaseNotes, /\/releases\/tag\/v\d+\.\d+\.\d+$/);
+  }
+});
+
+test("the footer links the portfolio and discloses the site's analytics", () => {
+  for (const { page, html } of built) {
+    assert.match(html, /href="https:\/\/www\.mohamedgado\.com\/projects\/najm"/, page.slug);
+    assert.match(html, /without cookies|دون ملفات تعريف الارتباط/, page.slug);
+    assert.match(html, /<script type="module" src="\/analytics\.js">/, page.slug);
+  }
+  assert.ok(existsSync(join(out, "analytics.js")));
+});
+
+test("favicons, the touch icon and the manifest are linked and built", () => {
+  const home = built.find(({ page }) => page.slug === "").html;
+  for (const href of ["/favicon.ico", "/apple-touch-icon.png", "/manifest.webmanifest"]) {
+    assert.ok(home.includes(`href="${href}"`), `${href} is not linked`);
+    assert.ok(existsSync(join(out, href)), `${href} is not built`);
+  }
+  const ico = readFileSync(join(out, "favicon.ico"));
+  assert.deepEqual([...ico.subarray(0, 4)], [0, 0, 1, 0], "favicon.ico has no ICO header");
+  const manifest = JSON.parse(read("manifest.webmanifest"));
+  for (const icon of manifest.icons) {
+    assert.ok(existsSync(join(out, icon.src)), `manifest icon ${icon.src} is missing`);
+  }
+});
+
+// Chat apps fetch the card on every share; it was 316 KB, 42 KB as a palette PNG.
+test("the social card stays under 150 KB", () => {
+  const size = readFileSync(join(out, "assets", "najm-social.png")).length;
+  assert.ok(size < 150_000, `najm-social.png is ${size} bytes`);
 });
 
 test("Pages and IndexNow files exist", () => {

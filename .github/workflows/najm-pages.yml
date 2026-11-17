@@ -34,6 +34,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # build.mjs dates each page from its source file's last commit.
+          fetch-depth: 0
 
       - name: Read the latest release
         env:
@@ -50,7 +53,7 @@ jobs:
         run: node web/build.mjs
 
       - name: Test
-        run: node --test web/tests/site.test.mjs
+        run: node --test web/tests/
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

@@ -2,12 +2,15 @@
 //   NAJM_VERSION=1.0.6 node web/build.mjs
 // GOOGLE_SITE_VERIFICATION and BING_SITE_VERIFICATION, when set, add the
 // ownership meta tags that Search Console and Bing Webmaster Tools ask for.
+import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BASE_PATH,
   INDEXNOW_KEY,
+  OWNER,
+  PROJECT_URL,
   REPO_URL,
   SITE_URL,
   pages,
@@ -49,11 +52,37 @@ const stamp = (html) =>
 
 const pageUrl = (slug) => `${SITE_URL}/${slug}`;
 
+// A page's real last change: its source file's last commit, or the date set in
+// pages.mjs, whichever is later. A shallow clone dates every file to its one
+// commit, so najm-pages.yml checks out full history (fetch-depth: 0).
+function gitDate(file) {
+  try {
+    return execFileSync("git", ["log", "-1", "--format=%cs", "--", file], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+const modifiedCache = new Map();
+function modified(page) {
+  if (!modifiedCache.has(page.slug)) {
+    const git = gitDate(join("pages", `${page.source}.html`));
+    modifiedCache.set(page.slug, git > page.updated ? git : page.updated);
+  }
+  return modifiedCache.get(page.slug);
+}
+
 const mark = `<img class="mark" src="${BASE_PATH}/assets/najm-mark.svg" width="28" height="28" alt="" />`;
+
+const APP_ID = `${SITE_URL}/#app`;
+const WEBSITE_ID = `${SITE_URL}/#website`;
 
 function softwareSchema(page) {
   return {
     "@type": "SoftwareApplication",
+    "@id": APP_ID,
     name: "Najm",
     alternateName: "نجم",
     url: `${SITE_URL}/`,
@@ -70,19 +99,42 @@ function softwareSchema(page) {
     description: page.description,
     inLanguage: ["en", "ar"],
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    author: { "@type": "Person", name: "Mohamed Gado" },
-    sameAs: [REPO_URL],
+    author: { "@id": OWNER["@id"] },
+    publisher: { "@id": OWNER["@id"] },
+    releaseNotes: `${REPO_URL}/releases/tag/v${version}`,
+    softwareRequirements: "Windows 10 version 1809 or later, x64; OpenGL 4.3 or Direct3D 11",
+    featureList: [
+      "GPU rendering through OpenGL, with a Direct3D 11 fallback",
+      "Tabs, split panes and session restore",
+      "Command palette",
+      "PowerShell, Command Prompt, Git Bash and WSL with no setup",
+      "Arabic and Hebrew read right to left",
+      "Paste images into Claude Code and opencode",
+      "Ghostty config syntax and hundreds of themes",
+      "Signed, checksum-verified updates",
+      "No telemetry",
+    ],
+    isBasedOn: [
+      { "@type": "SoftwareSourceCode", name: "Ghostty", codeRepository: "https://github.com/ghostty-org/ghostty" },
+      { "@type": "SoftwareSourceCode", name: "Noctty" },
+    ],
+    sameAs: [REPO_URL, PROJECT_URL],
   };
 }
 
 function schema(page) {
-  const graph = [];
+  // Every JSON-LD node for the site, the app or the owner carries its @id, so
+  // search engines read one Najm and one Mohamed Gado across every page.
+  const graph = [OWNER];
   if (page.slug === "") {
     graph.push({
       "@type": "WebSite",
+      "@id": WEBSITE_ID,
       name: "Najm",
       alternateName: ["نجم", "Najm terminal"],
       url: `${SITE_URL}/`,
+      inLanguage: ["en", "ar"],
+      publisher: { "@id": OWNER["@id"] },
     });
   }
   graph.push({
@@ -92,8 +144,9 @@ function schema(page) {
     name: page.title,
     description: page.description,
     inLanguage: page.lang,
-    dateModified: page.updated,
-    isPartOf: { "@type": "WebSite", name: "Najm", url: `${SITE_URL}/` },
+    dateModified: modified(page),
+    isPartOf: { "@id": WEBSITE_ID },
+    ...(page.software ? { about: { "@id": APP_ID } } : {}),
   });
   if (page.software) graph.push(softwareSchema(page));
   if (page.slug !== "" && page.slug !== "ar/") {
@@ -229,13 +282,17 @@ function shell(page, body, { indexable = true } = {}) {
   <meta name="twitter:description" content="${esc(page.description)}" />
   <meta name="twitter:image" content="${SITE_URL}/assets/najm-social.png" />
   <meta name="twitter:image:alt" content="${esc(t.socialAlt)}" />
+  <link rel="icon" href="${BASE_PATH}/favicon.ico" sizes="48x48" />
   <link rel="icon" href="${BASE_PATH}/assets/najm-mark.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="${BASE_PATH}/apple-touch-icon.png" />
+  <link rel="manifest" href="${BASE_PATH}/manifest.webmanifest" />
   <link rel="preload" as="font" type="font/woff2" href="${BASE_PATH}/assets/fonts/geist.woff2" crossorigin />
   ${preload}
   <link rel="stylesheet" href="${BASE_PATH}/styles.css" />
   <script src="${BASE_PATH}/copy.js" defer></script>
+  <script type="module" src="${BASE_PATH}/analytics.js"></script>
 </head>
-<body>
+<body data-route="${indexable ? `/${page.slug}` : "/404"}">
   <a class="skip" href="#main">${t.skip}</a>
   <header class="site-header">
     <div class="frame site-header__inner">
@@ -252,7 +309,7 @@ ${body}
       <h2>${t.closeTitle}</h2>
       <p>${t.closeText}</p>
       <div class="actions">
-        <a class="button" href="${tokens.setupUrl}">${t.download}</a>
+        <a class="button" href="${tokens.setupUrl}" data-place="close">${t.download}</a>
         <a class="button button--ghost" href="${REPO_URL}">${t.github}</a>
       </div>
     </div>
@@ -262,6 +319,7 @@ ${body}
     <div class="frame">
       ${relatedBlock(page)}
       <p>${t.footer}</p>
+      <p>${t.madeBy} <a href="${PROJECT_URL}" data-place="footer">${page.lang === "ar" ? OWNER.alternateName : OWNER.name}</a>. ${t.analyticsNote}</p>
     </div>
   </footer>
 </body>
@@ -282,7 +340,7 @@ function sitemap() {
           `<xhtml:link rel="alternate" hreflang="x-default" href="${pageUrl(en)}"/>`,
         );
       }
-      return `  <url><loc>${pageUrl(page.slug)}</loc><lastmod>${page.updated}</lastmod>${links.join("")}</url>`;
+      return `  <url><loc>${pageUrl(page.slug)}</loc><lastmod>${modified(page)}</lastmod>${links.join("")}</url>`;
     })
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -323,6 +381,11 @@ await mkdir(out, { recursive: true });
 await cp(join(root, "assets"), join(out, "assets"), { recursive: true });
 await cp(join(root, "styles.css"), join(out, "styles.css"));
 await cp(join(root, "copy.js"), join(out, "copy.js"));
+await cp(join(root, "analytics.js"), join(out, "analytics.js"));
+await cp(join(root, "icons"), join(out, "icons"), { recursive: true });
+for (const file of ["favicon.ico", "apple-touch-icon.png", "manifest.webmanifest"]) {
+  await cp(join(root, "icons", file), join(out, file));
+}
 
 for (const page of pages) {
   const body = await readFile(join(root, "pages", `${page.source}.html`), "utf8");

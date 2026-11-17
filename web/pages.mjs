@@ -9,6 +9,25 @@ export const SITE_URL = "https://najm.mohamedgado.com";
 export const BASE_PATH = "";
 
 export const REPO_URL = "https://github.com/Vette1123/najm";
+// The portfolio's own Person node: the same @id there and here makes one entity.
+export const PORTFOLIO_URL = "https://www.mohamedgado.com";
+export const PROJECT_URL = `${PORTFOLIO_URL}/projects/najm`;
+export const OWNER = {
+  "@type": "Person",
+  "@id": `${PORTFOLIO_URL}/#person`,
+  name: "Mohamed Gado",
+  alternateName: "محمد جادو",
+  url: PORTFOLIO_URL,
+  sameAs: [
+    "https://www.linkedin.com/in/mgado/",
+    "https://github.com/Vette1123",
+    "https://x.com/Sadge1996",
+    "https://www.facebook.com/mohamedgadodev",
+    "https://dev.to/mohamedgado",
+    "https://mohamedgado.hashnode.dev",
+    "https://medium.com/@boogado66",
+  ],
+};
 export const INDEXNOW_KEY = "6f1d2c7ab3e94d0c8e57a1b46d90c3f2";
 
 const faqEn = [
@@ -203,6 +222,9 @@ export const ui = {
     home: "Home",
     footer:
       "Najm is an independent project, not affiliated with the Ghostty or Noctty projects. MIT license.",
+    madeBy: "Made by",
+    analyticsNote:
+      "This website counts visits without cookies. The Najm app sends nothing.",
     copy: "Copy",
     copied: "Copied",
     logoAlt: "Najm home",
@@ -225,6 +247,8 @@ export const ui = {
     relatedTitle: "المزيد عن نجم",
     home: "الرئيسية",
     footer: "نجم مشروع مستقل، ولا يتبع مشروعي Ghostty أو Noctty. رخصة MIT.",
+    madeBy: "من تطوير",
+    analyticsNote: "يحصي هذا الموقع الزيارات دون ملفات تعريف الارتباط. أما تطبيق نجم فلا يرسل شيئًا.",
     copy: "نسخ",
     copied: "تم النسخ",
     logoAlt: "الصفحة الرئيسية لنجم",
