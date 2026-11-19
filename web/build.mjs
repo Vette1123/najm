@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import {
   BASE_PATH,
   INDEXNOW_KEY,
@@ -18,6 +19,16 @@ import {
 } from "./pages.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
+
+// Every page on mohamedgado.com and its subdomains loads www's shared PostHog tracker
+// (pageviews, time on page, clicks, errors; cookieless, EU). It reads body[data-route] and
+// data-place, and ?s= as utm_source. Nothing loads off mohamedgado.com (local preview, forks).
+const TRACKER_LOADER = String.raw`if (/(^|\.)mohamedgado\.com$/.test(location.hostname)) {
+    var t = document.createElement("script");
+    t.src = "https://www.mohamedgado.com/t.js";
+    t.async = true;
+    document.head.appendChild(t);
+  }`;
 const out = join(root, "_site");
 
 const version = process.env.NAJM_VERSION;
@@ -290,7 +301,7 @@ function shell(page, body, { indexable = true } = {}) {
   ${preload}
   <link rel="stylesheet" href="${BASE_PATH}/styles.css" />
   <script src="${BASE_PATH}/copy.js" defer></script>
-  <script type="module" src="${BASE_PATH}/analytics.js"></script>
+  <script>${TRACKER_LOADER}</script>
 </head>
 <body data-route="${indexable ? `/${page.slug}` : "/404"}">
   <a class="skip" href="#main">${t.skip}</a>
@@ -381,7 +392,6 @@ await mkdir(out, { recursive: true });
 await cp(join(root, "assets"), join(out, "assets"), { recursive: true });
 await cp(join(root, "styles.css"), join(out, "styles.css"));
 await cp(join(root, "copy.js"), join(out, "copy.js"));
-await cp(join(root, "analytics.js"), join(out, "analytics.js"));
 await cp(join(root, "icons"), join(out, "icons"), { recursive: true });
 for (const file of ["favicon.ico", "apple-touch-icon.png", "manifest.webmanifest"]) {
   await cp(join(root, "icons", file), join(out, file));

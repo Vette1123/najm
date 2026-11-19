@@ -224,7 +224,7 @@ export const ui = {
       "Najm is an independent project, not affiliated with the Ghostty or Noctty projects. MIT license.",
     madeBy: "Made by",
     analyticsNote:
-      "This website counts visits without cookies. The Najm app sends nothing.",
+      "Visits to this site are counted, without cookies, by PostHog analytics on EU servers. The Najm app sends nothing.",
     copy: "Copy",
     copied: "Copied",
     logoAlt: "Najm home",
@@ -248,7 +248,7 @@ export const ui = {
     home: "الرئيسية",
     footer: "نجم مشروع مستقل، ولا يتبع مشروعي Ghostty أو Noctty. رخصة MIT.",
     madeBy: "من تطوير",
-    analyticsNote: "يحصي هذا الموقع الزيارات دون ملفات تعريف الارتباط. أما تطبيق نجم فلا يرسل شيئًا.",
+    analyticsNote: "تُعدّ زيارات هذا الموقع بلا كوكيز عبر تحليلات PostHog على خوادم في الاتحاد الأوروبي. أما تطبيق نجم فلا يرسل شيئًا.",
     copy: "نسخ",
     copied: "تم النسخ",
     logoAlt: "الصفحة الرئيسية لنجم",

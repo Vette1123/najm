@@ -173,10 +173,16 @@ test("every page names one owner, one app and one site by @id", () => {
 test("the footer links the portfolio and discloses the site's analytics", () => {
   for (const { page, html } of built) {
     assert.match(html, /href="https:\/\/www\.mohamedgado\.com\/projects\/najm"/, page.slug);
-    assert.match(html, /without cookies|دون ملفات تعريف الارتباط/, page.slug);
-    assert.match(html, /<script type="module" src="\/analytics\.js">/, page.slug);
+    assert.match(html, /without cookies|بلا كوكيز/, page.slug);
+    assert.ok(html.includes("https://www.mohamedgado.com/t.js"), `${page.slug}: shared tracker loader`);
+    assert.ok(!html.includes("analytics.js"), `${page.slug}: no own tracker`);
+    assert.match(html, /body data-route="/, page.slug);
+    assert.match(html, /PostHog analytics on EU servers|تحليلات PostHog/, page.slug);
   }
-  assert.ok(existsSync(join(out, "analytics.js")));
+  assert.ok(!existsSync(join(out, "analytics.js")), "the own tracker is not shipped");
+  const notFound = read("404.html");
+  assert.ok(notFound.includes("https://www.mohamedgado.com/t.js"), "404 loads the tracker");
+  assert.ok(notFound.includes('<body data-route="/404">'), "404 carries data-route");
 });
 
 test("favicons, the touch icon and the manifest are linked and built", () => {
