@@ -9,6 +9,12 @@ Settings' blur checkbox is enabled; docs and the config doc say where it works.
 
 ## Mistakes
 
+- CI went red on the first push, twice. `applyBackgroundOpacity` began reading
+  `App.shownConfig()`, and `placementTestApp` leaves `settings_preview`
+  undefined, so a placement test crashed. And the Settings reset test still
+  expected blur to be the one kind it could not reset. Before an apply path
+  reads a new App field, grep the `App = undefined` fixtures that reach it.
+
 - I first planned to add `DwmExtendFrameIntoClientArea`, because the 2026-09-14
   log entry's positive control used it. The code's own comment already said
   blur-behind with an empty region (#640) is enough for the material.
