@@ -186,8 +186,10 @@ limit: the decision routes (key to action, stop order, modifiers) are unit
 tests, and Tab traversal and the key-release swallow run natively on a
 hidden desktop; opening the real context menu from a key press, the tooltip
 popup under a real cursor and any screen-reader output are not measured.
-What the cycle itself still does not reach: the caption buttons, the
-profile picker and tab-overview rows, and menus other than the tab context menu. The caption buttons are deliberately outside the
+What the cycle itself still does not reach: the caption buttons and menus
+other than the tab context menu. The profile picker and the tab overview are
+overlays, like the command palette below: a native query box and label with
+their own focus, and no row list. The caption buttons are deliberately outside the
 cycle: they are exposed and invokable through UIA, and they report
 `IsKeyboardFocusable = false` so no reader is told otherwise. Overlays such as the command
 palette keep their own focus handling and are outside the cycle. None of
