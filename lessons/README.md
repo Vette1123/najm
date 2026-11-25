@@ -4,6 +4,7 @@ One file per finished unit of work. Read the ones touching an area before starti
 
 | Date | Lesson | The one thing |
 |---|---|---|
+| 2026-11-25 | [Release 1.0.18 prep](2026-11-25-release-1-0-18.md) | Najm's latest release is origin's newest `v*` tag; local tags can be Noctty's |
 | 2026-11-25 | [background-blur shows acrylic](2026-11-25-background-blur-acrylic.md) | The backdrop is written in the opacity apply; a Settings Windows note means a disabled control |
 | 2026-11-25 | [Pane label: resize and link preview](2026-11-25-pane-label-resize-and-link-preview.md) | A "no effect" key may only lack its apprt half: the core sent `mouse_over_link` all along |
 | 2026-11-17 | [SEO, analytics, marketing parity](2026-11-17-najm-seo-marketing-parity.md) | Run CI test globs on the CI Node: a folder argument passed on 26 and failed on 22 |
