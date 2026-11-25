@@ -8,6 +8,7 @@ const UINT = runtime.UINT;
 const apprt = runtime.apprt;
 const c = runtime.c;
 const child_window = @import("child_window.zig");
+const pane_label = @import("pane_label.zig");
 const first_frame = runtime.first_frame;
 const lastError = child_window.lastError;
 const log = runtime.log;
@@ -573,9 +574,28 @@ pub fn syncCoreSizeNow(self: *Surface) void {
     self.size = next_size;
 
     if (!self.core_initialized) return;
+    const before = self.core_surface.size.grid();
     self.core_surface.sizeCallback(self.size) catch |err| {
         log.err("win32 size callback failed err={}", .{err});
     };
+    showResizeLabel(self, before, self.core_surface.size.grid());
+}
+
+/// `resize-overlay`: float the pane's new grid ("120 × 30") over it when a
+/// resize changed it. `after-first` waits for the pane's first frame
+/// (`first_frame`), so a window's startup layouts stay quiet. Each change
+/// re-arms the host's one-shot timer, so the label stays up through a drag
+/// and hides `resize-overlay-duration` after the last change.
+fn showResizeLabel(self: *Surface, before: rendererpkg.GridSize, after: rendererpkg.GridSize) void {
+    const host = self.host orelse return;
+    const config = &self.app.config;
+    const old: pane_label.Grid = .{ .columns = before.columns, .rows = before.rows };
+    const new: pane_label.Grid = .{ .columns = after.columns, .rows = after.rows };
+    if (!pane_label.resizeShows(config.@"resize-overlay", self.first_frame.isSettled(), old, new)) return;
+    const duration_ms = pane_label.durationMs(config.@"resize-overlay-duration".duration);
+    if (duration_ms == 0) return;
+    var buf: [32]u8 = undefined;
+    host.showPaneLabel(self, .resize, pane_label.resizeText(&buf, new), duration_ms);
 }
 
 /// The new DPI's font, then the client size, as one terminal resize:

@@ -245,6 +245,7 @@ const win32_shell = @import("../win32_shell.zig");
 const win32_structural_history = @import("../win32_structural_history.zig");
 const win32_tab_drop_zones = @import("../win32_tab_drop_zones.zig");
 const win32_tab_tooltip = @import("../win32_tab_tooltip.zig");
+const pane_label = @import("pane_label.zig");
 const win32_tab_visual = @import("../win32_tab_visual.zig");
 const win32_theme = @import("../win32_theme.zig");
 const win32_tween = @import("../win32_tween.zig");
@@ -1224,6 +1225,15 @@ pub const Host = struct {
     /// The chrome button the same popup describes instead of a tab (the
     /// search bar's icon buttons), and the button a click keeps it down for.
     button_tooltip: ButtonTooltip = .{},
+    /// The label a pane floats over itself (`pane_label.zig`): its grid while
+    /// it resizes, or the hovered link's URL. One popup per window, of the tab
+    /// tooltip's class, so it paints the same card; top level for the same
+    /// reason the tooltip is (`presentTooltip`).
+    pane_label_hwnd: ?HWND = null,
+    pane_label_uia_provider: ?*win32_uia.ChromeControlProvider = null,
+    /// What the label shows; null while it is hidden.
+    pane_label_kind: ?pane_label.Kind = null,
+    pane_label_text: ?[:0]const u8 = null,
 
     // Command palette list UI. Backed by a custom child HWND shown
     // only while the palette is open. `palette_list_ranked` caches the
@@ -3587,6 +3597,12 @@ pub const Host = struct {
         if (self.cached_overlay_accept) |value| self.app.core_app.alloc.free(value);
         if (self.cached_overlay_cancel) |value| self.app.core_app.alloc.free(value);
         if (self.tab_tooltip_text) |value| self.app.core_app.alloc.free(value);
+        if (self.pane_label_text) |value| self.app.core_app.alloc.free(value);
+        self.pane_label_text = null;
+        if (self.pane_label_kind != null) {
+            if (self.hwnd) |h| _ = sys.KillTimer(h, c.PANE_LABEL_TIMER_ID);
+            self.pane_label_kind = null;
+        }
         if (self.profiles) |profiles| windows_shell.deinitProfiles(self.app.core_app.alloc, profiles);
         if (self.selected_profile_key) |value| self.app.core_app.alloc.free(value);
         if (self.cached_window_title) |value| self.app.core_app.alloc.free(value);
@@ -3710,6 +3726,8 @@ pub const Host = struct {
         destroySubclassedWindow(&self.tab_insert_marker_hwnd, &self.tab_insert_marker_prev_proc);
         detachChromeControlProvider(self.app, &self.tab_tooltip_uia_provider);
         destroyChildWindow(&self.tab_tooltip_hwnd);
+        detachChromeControlProvider(self.app, &self.pane_label_uia_provider);
+        destroyChildWindow(&self.pane_label_hwnd);
         self.tab_tooltip_tab_id = null;
 
         self.hovered_button_hwnd = null;
@@ -3982,6 +4000,91 @@ pub const Host = struct {
         }
         const hwnd = self.tab_tooltip_hwnd orelse return;
         _ = sys.ShowWindow(hwnd, c.SW_HIDE);
+    }
+
+    /// Float `text` over `surface`'s pane (`pane_label.zig`). A resize label
+    /// hides `duration_ms` after its last show and takes the place of a link
+    /// preview; a link preview waits while a resize label is up and stays
+    /// until `hidePaneLabel(.link)`. Best-effort like the tooltip: a label
+    /// that cannot be measured, placed or created is not shown.
+    pub fn showPaneLabel(self: *Host, surface: *Surface, kind: pane_label.Kind, text: []const u8, duration_ms: u31) void {
+        const host_hwnd = self.hwnd orelse return;
+        const pane_hwnd = surface.hwnd orelse return;
+        if (text.len == 0) return self.hidePaneLabel(kind);
+        if (kind == .link and self.pane_label_kind == .resize) return;
+        if (sys.IsWindowVisible(pane_hwnd) == 0 or sys.IsIconic(host_hwnd) != 0) return self.hidePaneLabel(null);
+
+        const alloc = self.app.core_app.alloc;
+        const text_w = std.unicode.utf8ToUtf16LeAllocZ(alloc, text) catch return;
+        defer alloc.free(text_w);
+        var pane: RECT = undefined;
+        if (sys.GetWindowRect(pane_hwnd, &pane) == 0) return;
+        const margin = self.scaled(8);
+        const measured = self.measureTabTooltip(host_hwnd, text_w) orelse return;
+        // A URL wider than its pane is cut with an ellipsis when painted.
+        const size: pane_label.Size = .{
+            .width = @min(measured.width, @max(pane.right - pane.left - 2 * margin, 1)),
+            .height = measured.height,
+        };
+        const rect = pane_label.place(
+            kind,
+            self.app.config.@"resize-overlay-position",
+            .{ .left = pane.left, .top = pane.top, .right = pane.right, .bottom = pane.bottom },
+            size,
+            margin,
+        );
+
+        if (self.pane_label_hwnd == null) {
+            self.app.ensureTabTooltipClass() catch return;
+            const created = sys.CreateWindowExW(
+                // As the tooltip: never hit, never activated, not on the taskbar.
+                c.WS_EX_TRANSPARENT | c.WS_EX_NOACTIVATE | c.WS_EX_TOOLWINDOW,
+                tab_tooltip_class_name,
+                std.unicode.utf8ToUtf16LeStringLiteral(""),
+                c.WS_POPUP,
+                0,
+                0,
+                0,
+                0,
+                host_hwnd,
+                null,
+                self.app.hinstance,
+                null,
+            ) orelse return;
+            setWindowData(created, self);
+            self.pane_label_hwnd = created;
+            // AGENTS.md: a new UI widget ships with its provider.
+            self.pane_label_uia_provider = self.createChromeUiaProvider(created, .{
+                .ctx = @ptrCast(self),
+                .role = .tooltip,
+                .name = &paneLabelUiaName,
+            });
+        }
+        const label = self.pane_label_hwnd orelse return;
+        const text_changed = !ownedStringEquals(self.pane_label_text, text);
+        appendOwnedString(alloc, &self.pane_label_text, text) catch return;
+        self.pane_label_kind = kind;
+        if (text_changed) {
+            _ = sys.SetWindowTextW(label, text_w.ptr);
+            if (self.pane_label_uia_provider) |provider| provider.raiseNameChanged();
+        }
+        _ = sys.SetWindowPos(label, null, rect.left, rect.top, rect.width(), rect.height(), c.SWP_NOACTIVATE);
+        _ = sys.ShowWindow(label, c.SW_SHOWNOACTIVATE);
+        if (text_changed) _ = sys.InvalidateRect(label, null, 1);
+        switch (kind) {
+            // Re-armed on every show: it fires once the resizing stops.
+            .resize => _ = sys.SetTimer(host_hwnd, c.PANE_LABEL_TIMER_ID, @max(duration_ms, 1), null),
+            .link => _ = sys.KillTimer(host_hwnd, c.PANE_LABEL_TIMER_ID),
+        }
+    }
+
+    /// Hide the pane label if it shows `kind` (any kind for null).
+    pub fn hidePaneLabel(self: *Host, kind: ?pane_label.Kind) void {
+        const shown = self.pane_label_kind orelse return;
+        if (kind != null and kind.? != shown) return;
+        self.pane_label_kind = null;
+        if (self.hwnd) |h| _ = sys.KillTimer(h, c.PANE_LABEL_TIMER_ID);
+        if (self.pane_label_hwnd) |hwnd| _ = sys.ShowWindow(hwnd, c.SW_HIDE);
     }
 
     /// The name an icon-only chrome button's hover tooltip spells out: the
@@ -8165,6 +8268,14 @@ pub const Host = struct {
             true,
         ) catch return "";
         return writer.buffered();
+    }
+
+    /// UIA name for the pane label: the size or the URL it shows.
+    fn paneLabelUiaName(ctx: *anyopaque, _: usize, buf: []u8) []const u8 {
+        const self: *Host = @ptrCast(@alignCast(ctx));
+        if (self.pane_label_kind == null) return "";
+        const text = self.pane_label_text orelse return "";
+        return std.fmt.bufPrint(buf, "{s}", .{text}) catch "";
     }
 
     /// UIA name for the tab title tooltip: the full title it exists to show.

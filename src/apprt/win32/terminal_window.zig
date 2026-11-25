@@ -4332,6 +4332,8 @@ pub const Surface = struct {
 
     pub fn handleMouseLeave(self: *Surface) void {
         self.handleScrollbarMouseLeave();
+        // A link preview describes what the pointer rests on.
+        if (self.host) |host| host.hidePaneLabel(.link);
         if (!self.core_initialized) return;
         // Captured drags keep reporting their real out-of-pane coordinates
         // for selection auto-scroll. The scrollbar child shares tracking.

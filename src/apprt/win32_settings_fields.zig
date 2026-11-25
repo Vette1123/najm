@@ -253,7 +253,7 @@ pub const descriptors = [_]Descriptor{
     .{ .key = .@"clipboard-read", .native = .{ .binding = "combo_clipboard_read", .id = 422, .order = 0, .form_label = "OSC 52 clipboard read requests", .accessible_name = "OSC 52 clipboard read requests" }, .field = .clipboard_read, .label = "Clipboard read requests (OSC 52)", .help = "Control clipboard read requests from terminal programs using OSC 52.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration clipboard-read osc 52 paste" },
     .{ .key = .@"clipboard-write", .native = .{ .binding = "combo_clipboard_write", .id = 423, .order = 1, .form_label = "OSC 52 clipboard write requests", .accessible_name = "OSC 52 clipboard write requests" }, .field = .clipboard_write, .label = "Clipboard write requests (OSC 52)", .help = "Control clipboard write requests from terminal programs using OSC 52.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration clipboard-write osc 52 copy" },
     .{ .key = .@"link-url", .native = .{ .binding = "combo_link_url", .id = 424, .order = 2, .form_label = "Clickable URL opening", .accessible_name = "Clickable URL opening" }, .field = .link_url, .label = "Clickable URL opening", .help = "Enable opening URLs detected in terminal output.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration link-url url hyperlink" },
-    .{ .key = .@"link-previews", .native = .{ .binding = "combo_link_previews", .id = 425, .order = 3, .form_label = "Link preview popups", .accessible_name = "Link preview popups" }, .support = .unsupported_on_windows, .field = .link_previews, .label = "Link preview popups", .help = "Choose which links request preview popups.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration link-previews url hyperlink tooltip" },
+    .{ .key = .@"link-previews", .native = .{ .binding = "combo_link_previews", .id = 425, .order = 3, .form_label = "Link preview popups", .accessible_name = "Link preview popups" }, .field = .link_previews, .label = "Link preview popups", .help = "Choose which hovered links show their URL at the pane's bottom left.", .section = .privacy, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration link-previews url hyperlink tooltip" },
     .{ .key = .@"window-theme", .native = .{ .binding = "combo_window_theme", .id = 405, .order = 4, .form_label = "Window theme", .accessible_name = "Window theme" }, .field = .window_theme, .label = "Window theme", .help = "Choose the appearance of window chrome independently of the terminal theme.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration window-theme dark light mode", .preview = .theme },
     .{ .key = .@"window-accent", .native = .{ .binding = "combo_window_accent", .id = 428, .order = 5, .form_label = "Accent color", .accessible_name = "Accent color" }, .field = .window_accent, .label = "Accent color", .help = "The color of menus, the command palette, focus rings and the focused split. Windows follows your Windows accent. A window-accent-color in the config file overrides it.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration window-accent window-accent-color accent color colour highlight personalize customize", .preview = .theme },
     .{ .key = .@"text-color", .native = .{ .binding = "combo_text_color", .id = 429, .order = 6, .form_label = "Text color", .accessible_name = "Text color" }, .field = .text_color, .label = "Text color", .help = "The terminal's text color. Theme keeps the theme's; a plain color, such as White, replaces it. Colors a program sets stay as they are.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration text-color foreground font color colour white plain monochrome text" },
@@ -805,7 +805,7 @@ test "settings model separates saved apply timing from edit previews and Windows
     for (descriptors) |spec| {
         const new_terminal = spec.key == .@"scrollback-limit" or spec.key == .command or spec.key == .@"shell-integration" or spec.key == .@"window-padding-x" or spec.key == .@"window-padding-y" or spec.key == .@"window-padding-balance" or spec.key == .@"default-profile";
         try std.testing.expectEqual(if (new_terminal) ApplyPolicy.new_terminals else ApplyPolicy.live, spec.apply);
-        const unavailable = spec.key == .@"background-blur" or spec.key == .@"link-previews";
+        const unavailable = spec.key == .@"background-blur";
         try std.testing.expectEqual(if (unavailable) Support.unsupported_on_windows else Support.available, spec.support);
     }
     try std.testing.expectEqual(PreviewEffect.none, descriptor(.font_size).preview);
@@ -840,13 +840,13 @@ test "settings model names each form row's default from Config.default" {
         // A row of a projected key names its own member only.
         if (comptime row.descriptor.projections.len != 0) try std.testing.expectEqualStrings("On", out.written());
     }
-    // Every row offers a reset but the two Windows does not support.
+    // Every row offers a reset but the one Windows does not support.
     var kept: usize = 0;
     inline for (form_fields) |row| if (comptime !row.resettable()) {
         kept += 1;
-        try std.testing.expect(row.descriptor.key == .@"background-blur" or row.descriptor.key == .@"link-previews");
+        try std.testing.expect(row.descriptor.key == .@"background-blur");
     };
-    try std.testing.expectEqual(@as(usize, 2), kept);
+    try std.testing.expectEqual(@as(usize, 1), kept);
     var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer out.deinit();
     inline for (form_fields) |row| if (comptime row.field == .font_size) try row.writeDefault(&out.writer, &defaults);
