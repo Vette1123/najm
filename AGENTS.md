@@ -6,6 +6,9 @@ reading step under [Self-Correction Log](#self-correction-log).
 
 ## Commands
 
+- **Fetch and pull** (Najm): always both remotes, origin and Noctty's
+  `upstream`: `pwsh -NoProfile -File scripts/najm-fetch.ps1`, then the
+  `najm-fetch` skill (`.claude/skills/najm-fetch/SKILL.md`) lands the sync PR.
 - **Build:** `zig build` (also stages the pinned `conpty.dll` and
   `OpenConsole.exe` beside the exe; staging traps: the 2026-10-10 bundled
   ConPTY entry in `docs/agents/log/conpty.md`)

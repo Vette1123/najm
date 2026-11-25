@@ -3,10 +3,11 @@
 Najm is a fork of [Noctty](https://github.com/amanthanvi/noctty). We merge Noctty when we want
 its work, and ship our own fixes on our own schedule.
 
-## The three commands
+## The commands
 
 | When | Run |
 |---|---|
+| "Fetch and pull": both remotes, then Noctty's `main` through a sync PR | `./scripts/najm-fetch.ps1` (report only: `-NoSync`) |
 | Pull in Noctty's latest release | `./scripts/najm-sync.ps1` |
 | Pull in Noctty's unreleased `main` | `./scripts/najm-sync.ps1 -Ref upstream/main` |
 | Check nothing reverted to Noctty's names | `./scripts/najm-identity-check.ps1` |
