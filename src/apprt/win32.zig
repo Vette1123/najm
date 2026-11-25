@@ -417,6 +417,7 @@ test {
     _ = @import("win32/fancy_menu.zig");
     _ = @import("win32/focus_region.zig");
     _ = @import("win32/focus_cue.zig");
+    _ = @import("win32/pane_label.zig");
     _ = @import("win32/edit_keys.zig");
     _ = @import("win32/first_frame.zig");
     _ = @import("win32/facade_budget.zig");
@@ -9325,7 +9326,10 @@ pub fn tabTooltipProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             const host = windowData(Host, hwnd) orelse
                 return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
             if (!host.app.com_initialized) return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
-            if (host.tab_tooltip_uia_provider) |provider| {
+            // The pane label is a second popup of this class.
+            const is_pane_label = host.pane_label_hwnd != null and host.pane_label_hwnd.? == hwnd;
+            const owned = if (is_pane_label) host.pane_label_uia_provider else host.tab_tooltip_uia_provider;
+            if (owned) |provider| {
                 if (win32_uia.returnChromeControlProvider(hwnd, wParam, lParam, provider)) |lr| return lr;
             }
             return sys.DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -11789,8 +11793,10 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
                     // The tab tooltip is a top-level popup, so losing the
                     // window is not enough to take it down: a pointer that
                     // never left the tab sends no WM_MOUSELEAVE, and the popup
-                    // would sit over whatever the user switched to.
+                    // would sit over whatever the user switched to. The pane
+                    // label is a popup too.
                     v.hideTabTooltip();
+                    v.hidePaneLabel(null);
                     quick_terminal_host.autohideQuickTerminal(v, hwnd);
                 }
             }
@@ -11828,6 +11834,11 @@ pub fn hostWindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) cal
             }
             if (wParam == c.BANNER_TIMER_ID) {
                 if (host) |v| v.bannerExpiryTick();
+                return 0;
+            }
+            if (wParam == c.PANE_LABEL_TIMER_ID) {
+                _ = sys.KillTimer(hwnd, c.PANE_LABEL_TIMER_ID);
+                if (host) |v| v.hidePaneLabel(.resize);
                 return 0;
             }
             if (wParam == c.INPUT_MODE_TIMER_ID) {

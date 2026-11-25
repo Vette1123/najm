@@ -61,13 +61,9 @@ const gtk_only = "Has no effect on Windows: it belongs to the Linux GTK runtime,
 
 pub const windows_notes = [_]WindowsNote{
     .{ .key = "background-blur", .note = "Has no effect on Windows: no window here can show a blur behind it. Setting it logs a warning." },
-    .{ .key = "link-previews", .note = "On Windows, links open, but no preview pops up." },
     .{ .key = "bell-features", .note = "On Windows, the border feature has no effect; the others work." },
     .{ .key = "focus-follows-mouse", .note = no_effect },
     .{ .key = "window-inherit-font-size", .note = no_effect ++ " A new window or tab starts with the configured font size." },
-    .{ .key = "resize-overlay", .note = no_effect },
-    .{ .key = "resize-overlay-position", .note = no_effect },
-    .{ .key = "resize-overlay-duration", .note = no_effect },
     .{ .key = "quick-terminal-space-behavior", .note = no_effect },
     .{ .key = "accent-follow-system", .note = "Retired: it has no effect. The tab strip no longer uses an accent colour; the active tab takes the terminal's background instead. It is kept so a config file that sets it still loads." },
     .{ .key = "window-subtitle", .note = no_effect },

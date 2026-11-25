@@ -388,11 +388,19 @@ proves, and per-reader results are in
 
 ### Link previews
 
-`link-previews` is parsed and the shared core emits link-hover preview
-actions, but the Win32 runtime does not render the preview tooltip. The
-Settings control is disabled and says "not supported on Windows"; the config
-key and tested hover tracker remain for compatibility and future wiring.
-Link matching, hover highlighting, and opening work.
+Hovering a link shows its URL in a small label at the pane's bottom left,
+as `link-previews` allows (`true` every link, `osc8` only OSC 8 hyperlinks,
+`false` none). The label shows control, bidi and zero-width characters as
+U+FFFD, cuts a URL past 200 characters with an ellipsis, and hides when the
+hover ends, the pointer leaves the pane or the window deactivates. A resize
+label (`resize-overlay`) takes its place while it is up.
+
+### Resize overlay
+
+`resize-overlay`, `resize-overlay-position` and `resize-overlay-duration`
+apply: a pane whose grid changes shows its size, "columns × rows", at the
+configured position, and hides it `resize-overlay-duration` after the last
+change. `after-first` skips the pane's first sizing.
 
 ### Status bar
 

@@ -161,6 +161,7 @@
         "src/apprt/win32/text.zig",
         "src/apprt/win32/confirm_text.zig",
         "src/apprt/win32/overlay_view.zig",
+        "src/apprt/win32/pane_label.zig",
         "build.zig.zon"
       ]
     },

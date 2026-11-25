@@ -47,7 +47,7 @@ Last reviewed: 2026-10-16 (jump list, native settings and scrollbar rows; render
 | [Configuration: `unfocused-split-opacity`](https://ghostty.org/docs/config/reference)        | Unfocused splits are dimmed by the renderer on OpenGL and D3D11, toward `unfocused-split-fill` in sRGB space as upstream does, and `split-divider-color` colors the gap between panes. The overlay scrollbar and a docked search bar are not dimmed, the gap and the focus accent do not scale with DPI, and High Contrast keeps system colors with no dim.                   |
 | [Features overview](https://ghostty.org/docs/features)                                       | Accessibility is partial: UI Automation covers the daily chrome and terminal text, but caption buttons, overlay rows, and menus are uncovered. Only NVDA has been measured, with mixed results. See [accessibility notes](#accessibility) and the [screen-reader matrix](accessibility-matrix.md).                                                                            |
 | OSC 52 primary/selection clipboard selectors                                                 | Windows has one native clipboard: writes with selectors `c`, `s`, and `p` all target it; read replies still echo the requested selector.                                                                                                                                                                                                                                      |
-| [Configuration: `link-previews`](https://ghostty.org/docs/config/reference)                  | Link opening works; preview tooltips are not wired on Windows. Settings disables the control and explains why; the config key remains.                                                                                                                                                                                                                                        |
+| [Configuration: `link-previews`](https://ghostty.org/docs/config/reference)                  | Hovered links show their URL at the pane's bottom left (`true`, `osc8` or `false`); unsafe characters show as U+FFFD.                                                                                                                                                                                                                                                         |
 | [Configuration: `key-remap`](https://ghostty.org/docs/config/reference)                      | Focused and in-app keybinds plus terminal encoding honor remaps; `global:` hotkeys keep the literal configured chord. See [keyboard input](#keyboard-input).                                                                                                                                                                                                                  |
 
 ## Windows-Specific
@@ -367,10 +367,9 @@ setting them changes nothing on Windows:
 
 - `background-blur`: no window here can show a blur behind it (see
   [Background blur](#background-blur)).
-- `link-previews`: links open, but no preview pops up.
-- `focus-follows-mouse`, `window-inherit-font-size`, `resize-overlay`,
-  `resize-overlay-position` and `resize-overlay-duration`: the Win32 runtime has no code for them (a new
-  window or tab does not inherit an adjusted font size).
+- `focus-follows-mouse` and `window-inherit-font-size`: the Win32 runtime
+  has no code for them (a new window or tab does not inherit an adjusted font
+  size).
 - `bell-features = border`: accepted and ignored; the other bell features
   are applied (see [Notifications and progress](#notifications-and-progress)).
 - `quick-terminal-space-behavior`: copied into the quick-terminal settings,

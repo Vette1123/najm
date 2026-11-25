@@ -244,6 +244,7 @@ const win32_elevation = @import("../win32_elevation.zig");
 const win32_jump_list = @import("../win32_jump_list.zig");
 const win32_layouts = @import("../win32_layouts.zig");
 const win32_link_preview = @import("../win32_link_preview.zig");
+const pane_label = @import("pane_label.zig");
 const win32_power = @import("../win32_power.zig");
 const win32_powershell_install = @import("../win32_powershell_install.zig");
 const win32_program_status = @import("../win32_program_status.zig");
@@ -1040,11 +1041,9 @@ pub const App = struct {
     /// Hyperlink hover-dwell tracker, meant to be reset via `dismiss()`
     /// whenever focus leaves a surface or a click arrives.
     ///
-    /// Not driven yet: initialized here and in a test, but nothing calls
-    /// `onMouseMove`, `tick` or `dismiss` outside its own tests, and the
-    /// core's `mouse_over_link` action is a no-op in `performAction`. There is
-    /// no link-preview tooltip on Windows (docs/status.md, "Link previews");
-    /// wiring one is the work this field waits for.
+    /// Not driven: the link preview (`mouse_over_link` in `performAction`,
+    /// `Host.showPaneLabel`) shows at once on hover, as upstream's does, so
+    /// it needs no dwell. Kept, as Noctty's, for a dwell if one is wanted.
     link_hover_tracker: win32_link_preview.HoverTracker = undefined,
     /// Windows Action Center toast notifier. `null` when WinRT init
     /// fails (e.g. corporate lockdown, missing combase.dll), in which
@@ -4695,7 +4694,20 @@ pub const App = struct {
                 return true;
             },
 
-            .present_terminal, .color_change, .mouse_over_link => {
+            // `link-previews`: the core sends the hovered link's URL (it has
+            // already applied `true`/`osc8`/`false`) and an empty one when the
+            // hover ends. The URL lives in the core's arena for this call
+            // only; `linkText` copies it, shows spoofing marks as U+FFFD and
+            // bounds it. Never log it (AGENTS.md, Logging).
+            .mouse_over_link => {
+                const surface = self.registry.findSurfaceForTarget(target) orelse return true;
+                const host = surface.host orelse return true;
+                var buf: [pane_label.link_buf_len]u8 = undefined;
+                host.showPaneLabel(surface, .link, pane_label.linkText(&buf, value.url), 0);
+                return true;
+            },
+
+            .present_terminal, .color_change => {
                 if (action == .present_terminal) {
                     if (self.registry.findSurfaceForTarget(target)) |surface| {
                         surface.present();
@@ -10293,10 +10305,8 @@ pub const App = struct {
     fn isSafeLinkText(text: []const u8) bool {
         const view = std.unicode.Utf8View.init(text) catch return false;
         var it = view.iterator();
-        while (it.nextCodepoint()) |cp| switch (cp) {
-            0x00...0x1F, 0x7F...0x9F, 0x061C, 0x200B...0x200F, 0x202A...0x202E, 0x2066...0x2069, 0x2028...0x2029, 0x2060, 0xFEFF => return false,
-            else => {},
-        };
+        // The same set the link preview shows as U+FFFD.
+        while (it.nextCodepoint()) |cp| if (pane_label.isUnsafeLinkCodepoint(cp)) return false;
         return true;
     }
 

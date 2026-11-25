@@ -19008,7 +19008,9 @@ test "CHROME unsupported settings are disabled and UIA names explain why" {
             const settings = &fixture.settings;
             dialog_test.makeAllSections(settings);
 
-            for ([_]HWND{ settings.fields.chk_bg_blur.?, settings.fields.combo_link_previews.? }) |control| {
+            // Link previews show on Windows: their dropdown is enabled.
+            try std.testing.expect(sys.IsWindowEnabled(settings.fields.combo_link_previews.?) != 0);
+            for ([_]HWND{settings.fields.chk_bg_blur.?}) |control| {
                 try std.testing.expect(sys.IsWindowEnabled(control) == 0);
                 const provider = settings.control_uia_providers[settings.controlIndex(control).?].?;
                 var name = com.VARIANT.empty();
@@ -19024,8 +19026,8 @@ test "CHROME unsupported settings are disabled and UIA names explain why" {
     }.body);
 }
 
-test "CHROME unsupported link previews retain their config value and palette focus stays on the section" {
-    try std.testing.expect(std.mem.indexOf(u8, paletteDescriptor(.link_previews).item.subtitle, "not supported on Windows") != null);
+test "CHROME link previews retain their config value and palette focus stays on the section" {
+    try std.testing.expect(std.mem.indexOf(u8, paletteDescriptor(.link_previews).item.subtitle, "not supported on Windows") == null);
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
             const fixture = try dialog_test.Fixture.start();

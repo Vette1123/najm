@@ -438,7 +438,9 @@ that govern each symbol you change, or that none does.
   overlay (`win32/overlay_session.zig`: `showConfirm`,
   `invokeConfirmAccept`/`Cancel` lifetime; what each prompt says and its
   preview pane's text: `win32/confirm_text.zig`, `Words`, `preview`), the
-  profile overlay, host banners and the update notice, what the overlay
+  profile overlay, host banners and the update notice, the pane label
+  (`win32/pane_label.zig`, `Host.showPaneLabel`, `hidePaneLabel`: the
+  resize overlay and the link preview), what the overlay
   says and shows in each mode (`win32/overlay_view.zig`: `compose`, its
   hint lane against chrome paint's feedback lane, `shape`, `nextFocus`,
   `bannerLine`; the palette's hint line, `command-palette-hint`, and the
