@@ -69,7 +69,10 @@ if ($mainMissing -gt 0) {
 }
 
 # 4. Only najm-* workflows run on Najm. A sync that adds an upstream workflow
-# registers it active once it reaches main; turn it off.
+# registers it active once it reaches main; turn it off. Limit: GitHub kept
+# running gui-hidden.yml on pull_request after it was disabled (2026-11-25),
+# so a new upstream workflow with a pull_request trigger also gets an
+# `if: github.repository == 'amanthanvi/noctty'` guard on its jobs.
 $workflows = gh workflow list --repo $repo --all --json name,state,path | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw "gh workflow list failed ($LASTEXITCODE)." }
 $stray = @($workflows | Where-Object {
