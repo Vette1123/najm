@@ -1795,7 +1795,8 @@ renderer. The window is not layered: `DwmEnableBlurBehindWindow` with an empty
 region lets DWM keep the alpha the renderer draws, and the tab strip, the title
 bar, dividers, the search bar, overlays and controls stay solid (the chrome's
 own background in the terminal lane takes the opacity too). What is behind the
-window shows through unblurred; `background-blur` has no effect. A window with
+window shows through, blurred by acrylic where `background-blur` is on and
+Windows is 11 22H2 or later (see the capability matrix). A window with
 a pane on the D3D11 beta fades as a whole instead, as a layered window, because
 DirectComposition presents that pane with its alpha ignored; once every pane
 runs OpenGL (after a fallback), only the background is translucent again.

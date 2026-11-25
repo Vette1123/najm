@@ -5018,14 +5018,16 @@ test "split-divider-color recolors the pane gap" {
     }
 }
 
-/// One notice for a setting Win32 cannot honour, shared by startup and the
-/// config-change path so the two cannot drift. Not a config diagnostic: the
-/// value parses and other platforms honour it.
-pub fn logBackgroundBlurUnsupported() void {
+/// One notice where `background-blur` cannot show, shared by startup and the
+/// config-change path so the two cannot drift: before build 22621 Windows has
+/// no backdrop material to ask for (`window_start.backdropType`). Not a
+/// config diagnostic: the value parses and other platforms honour it.
+pub fn logBackgroundBlurUnsupported(os_build: u32) void {
+    if (supportsDwmSystemBackdropAttribute(os_build)) return;
     log.warn(
-        "background-blur has no effect on Windows in this build: noctty asks DWM for " ++
-            "no backdrop material, so a translucent background-opacity shows what is " ++
-            "behind the window without blur",
+        "background-blur needs Windows 11 22H2 or later: this build has no backdrop " ++
+            "material, so a translucent background-opacity shows what is behind the " ++
+            "window without blur",
         .{},
     );
 }
@@ -5278,12 +5280,10 @@ pub fn applyDwmThemeWithBuild(hwnd: HWND, theme: *const ThemeColors, config: *co
         isHighContrastActive(),
         caption_color,
         text_color,
-        // No backdrop material, so `background-blur` has no effect
-        // (window-frame.md, 2026-09-14). Since #640 a translucent OpenGL
-        // window has blur-behind with an empty region, under which
-        // `DWMSBT_TRANSIENTWINDOW` would show acrylic; with it Windows lays a
-        // light layer over the theme's background (the #640 contributor's
-        // observation, not measured here): a change of its own.
+        // No backdrop here. `background-blur` writes acrylic
+        // (`DWMSBT_TRANSIENTWINDOW`) where the window's background alone is
+        // translucent, in `window_state.applyBackgroundOpacity`, which runs
+        // after this at create and at every theme change.
         c.DWMSBT_NONE,
         supportsDwmSystemBackdropAttribute(os_build),
     );
@@ -21511,7 +21511,7 @@ test "win32 supportsDwmSystemBackdropAttribute gates unsupported builds" {
     try std.testing.expect(supportsDwmSystemBackdropAttribute(c.OS_BUILD_WIN11_22H2));
 }
 
-test "win32 host backdrop stays DWMSBT_NONE with background blur configured" {
+test "win32 the theme writes no backdrop, and background-blur's writer writes acrylic" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     // `windowThemePolicy` forces `DWMSBT_NONE` on its own under High
     // Contrast, so on such a machine this assertion would hold even with the
@@ -21569,6 +21569,17 @@ test "win32 host backdrop stays DWMSBT_NONE with background blur configured" {
         @sizeOf(u32),
     ));
     try std.testing.expectEqual(c.DWMSBT_NONE, backdrop);
+
+    // `background-blur` writes its material on its own after the theme
+    // (`window_state.applyBackgroundOpacity`), and the theme's next write
+    // takes it back to none until that apply follows.
+    win32_theme.WindowThemeAdapter.setHostBackdrop(hwnd, c.DWMSBT_TRANSIENTWINDOW, true);
+    try std.testing.expectEqual(@as(i32, 0), dwm.DwmGetWindowAttribute(hwnd, dwm.DWMWA_SYSTEMBACKDROP_TYPE, @ptrCast(&backdrop), @sizeOf(u32)));
+    try std.testing.expectEqual(c.DWMSBT_TRANSIENTWINDOW, backdrop);
+    // A build without the attribute: nothing is written.
+    win32_theme.WindowThemeAdapter.setHostBackdrop(hwnd, c.DWMSBT_NONE, false);
+    try std.testing.expectEqual(@as(i32, 0), dwm.DwmGetWindowAttribute(hwnd, dwm.DWMWA_SYSTEMBACKDROP_TYPE, @ptrCast(&backdrop), @sizeOf(u32)));
+    try std.testing.expectEqual(c.DWMSBT_TRANSIENTWINDOW, backdrop);
 }
 
 test "win32 configuredHostWindowPosition requires both coordinates" {

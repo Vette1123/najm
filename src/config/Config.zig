@@ -1086,8 +1086,8 @@ palette: Palette = .{},
 /// pane of it runs OpenGL (a D3D11 pane can fall back), only its background
 /// is translucent. At 0 the window chrome's own background between and
 /// around the panes keeps 1/255 of its color: effectively, not exactly,
-/// transparent. High Contrast shows every window opaque, and
-/// `background-blur` has no effect (see below).
+/// transparent. High Contrast shows every window opaque. `background-blur`
+/// shows acrylic behind it on Windows 11 22H2 or later (see below).
 @"background-opacity": f64 = 1.0,
 
 /// Applies background opacity to cells with an explicit background color
@@ -1121,12 +1121,12 @@ palette: Palette = .{},
 ///     reasonable for a good looking blur. Higher blur intensities may
 ///     cause strange rendering and performance issues.
 ///
-/// In the Windows-only fork this setting is accepted but has no effect on
-/// any Windows build, and enabling it logs a warning. noctty asks DWM for no
-/// backdrop material such as Mica or Acrylic, so the background
-/// `background-opacity` makes translucent shows what is behind the window
-/// unblurred (and a window with a Direct3D 11 pane fades as a whole), and
-/// blur intensities are ignored along with the rest of the setting.
+/// On Windows 11 22H2 (build 22621) or later, a window whose background alone
+/// is translucent (`background-opacity` below 1, every pane on OpenGL) shows
+/// the system's acrylic material behind it. Earlier builds have no such
+/// material: enabling it there logs a warning, and the background shows what
+/// is behind the window unblurred. A window with a Direct3D 11 pane fades as a
+/// whole, unblurred. Blur intensities are ignored: Windows has one acrylic.
 @"background-blur": BackgroundBlur = .false,
 
 /// The opacity level (opposite of transparency) of an unfocused split.

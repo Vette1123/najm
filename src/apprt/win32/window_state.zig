@@ -1183,6 +1183,12 @@ fn applyBackgroundOpacity(host: *Host) !void {
         var it = tab.tree.iterator();
         while (it.next()) |entry| entry.view.setBackgroundOpacity(shown.pane_opacity);
     }
+    // `background-blur`: acrylic behind the translucent background. Written
+    // on every apply: `applyDwmThemeWithBuild` writes `DWMSBT_NONE` at create
+    // and at a theme change, and an apply follows each.
+    const blur = host.app.shownConfig().@"background-blur".win32BlurRequested();
+    const backdrop = window_start.backdropType(shown, blur, host.app.os_build);
+    win32_theme.WindowThemeAdapter.setHostBackdrop(hwnd, backdrop, host.app.os_build >= c.OS_BUILD_WIN11_22H2);
     try setLayered(hwnd, shown.layered);
 }
 
