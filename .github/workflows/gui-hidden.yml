@@ -36,6 +36,9 @@ concurrency:
 jobs:
   changes:
     name: GUI suite paths
+    # Najm: Noctty's suite, skipped on the fork. GitHub still runs this disabled
+    # workflow on pull_request, and its helper self-test fails here (2026-11-25).
+    if: github.repository == 'amanthanvi/noctty'
     # Windows, like the suite: the walker reads Windows paths, and one image keeps it and its
     # fixtures comparable.
     runs-on: windows-2025
@@ -164,7 +167,7 @@ jobs:
     needs: [changes, suite]
     # always(), not !cancelled(): under !cancelled() a cancelled run skips the gate, and a skipped
     # required check counts as passing (build-release-ci.md 2026-11-11 CI-GATES-REQUIRED).
-    if: ${{ always() }}
+    if: ${{ always() && github.repository == 'amanthanvi/noctty' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
