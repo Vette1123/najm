@@ -361,8 +361,12 @@ tests (and a one-off UI Automation client run recorded in #394), and neither
 the interactive UI Automation harness nor the screen-reader matrix exercises
 them.
 
-Not yet covered: the profile picker and tab-overview overlay rows, context
-menus, toasts, the tab drag preview, quick-terminal chrome, and the
+The profile picker and the tab overview draw no rows of their own: each is
+the overlay's query box and label, native EDIT and STATIC controls that
+Windows' own UI Automation proxies expose, with the selection in the label's
+text ("Profile 2/5 ..."). Owner-drawn context menus give each item a name
+through `MSAAMENUINFO` (`fancy_menu.zig`), which Windows' menu proxy reads;
+no screen reader has been run against either. Not yet covered: toasts, the tab drag preview, quick-terminal chrome, and the
 in-progress IME composition. noctty draws the composition itself and exposes
 none of it through UI Automation, as Windows Terminal does. NVDA reads IMM32
 and TSF compositions through its own IME support (from its source, not
@@ -375,8 +379,9 @@ hands-on check with real IMEs and screen readers is still owed (see
 move focus between the terminal, the tab strip, the docked search query and
 the host banner, and `Escape` returns to the terminal. The cycle does not
 reach the individual search buttons, the caption buttons (deliberately: they
-are exposed through UIA but not keyboard-focusable), the profile picker, the
-tab-overview rows or context menus.
+are exposed through UIA but not keyboard-focusable) or context menus. The
+profile picker and the tab overview are overlays with their own focus, as the
+command palette is.
 
 No screen reader has been measured against a release yet. NVDA was measured
 against a pre-release branch build, with mixed results: terminal text,
