@@ -2328,7 +2328,17 @@ $startWithEnvironmentFunctions = @(
 if ($startWithEnvironmentFunctions.Count -ne 1) {
     throw 'Accessibility evidence must define one process-environment isolation helper.'
 }
-. ([scriptblock]::Create($startWithEnvironmentFunctions[0].Extent.Text))
+# The helper calls Start-Process by its module, so a function or alias named
+# Start-Process cannot stand in for it; a function whose name itself carries
+# that module qualifier still runs for the call, the residual
+# test/windows/README.md states (Contracts.90-Workflows.ps1,
+# EVIDENCE-TOAST-FOREGROUND). This probe swaps that one call for the stand-in
+# below.
+$startWithEnvironmentText = $startWithEnvironmentFunctions[0].Extent.Text
+if ([regex]::Matches($startWithEnvironmentText, [regex]::Escape('Microsoft.PowerShell.Management\Start-Process')).Count -ne 1) {
+    throw 'Accessibility process-environment helper must call Microsoft.PowerShell.Management\Start-Process once.'
+}
+. ([scriptblock]::Create($startWithEnvironmentText.Replace('Microsoft.PowerShell.Management\Start-Process', 'Start-Process')))
 $environmentProbeName = 'NOCTTY_FLAGSHIP_ENV_' + [Guid]::NewGuid().ToString('N')
 $environmentProbeOriginal = 'original'
 [System.Environment]::SetEnvironmentVariable($environmentProbeName, $environmentProbeOriginal, 'Process')

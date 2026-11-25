@@ -89,7 +89,9 @@ background translucent. While the notice banner is on screen (about
 non-layered child over the pane, which the measurement points to as the
 cause. Once it was gone the pane's presents were `Hardware Composed:
 Independent Flip`, whether the overlay scrollbar was shown, hidden or absent. Overlay ordering, opacity,
-and visible OpenGL handoff require the maintainer desktop check below. GPU loss injection in
+and visible OpenGL handoff can be seen only in the maintainer desktop check below, which is optional: no
+change or release requires it (the maintainer's decision, 2026-11-22), and the hidden-desktop readback,
+the hidden-desktop GUI suite and multi-agent review are the evidence. GPU loss injection in
 the automated harness tests the recovery path, rather than a physical GPU
 reset. Hidden-desktop readback proves rendered pixels, and does not prove DWM
 composition, scanout, unoccluded frame latency, monitor hotplug, or RDP behavior.
@@ -3042,12 +3044,21 @@ and the
   `ESC _ G ... ESC \`, an `OK` or an error, unless `q=1` (suppress success
   replies) or `q=2` (suppress all replies) is set. A successful delete never
   replies (`graphics_exec.zig`, `StreamHandler.apcEnd`).
-  noctty has no ConPTY-specific suppression. The 2026-10-10 audit measured the
-  bundled ConPTY handing a native console program (`[Console]::ReadKey` in
-  pwsh, and `cmd`) a lone `\` for such a reply, while the same reply arrived
-  intact through WSL's raw pty; this was not re-measured for this page. A tool
-  run directly under ConPTY that does not parse APC replies should send
-  `q=2`.
+  noctty has no ConPTY-specific suppression. Measured through the bundled
+  ConPTY with Win32 input mode on (REPLY-PATH-01 in
+  `docs/agents/log/conpty.md`): a console program that reads with
+  `ENABLE_VIRTUAL_TERMINAL_INPUT` on, as records or as bytes, gets the reply
+  whole; one that reads records with it off (PSReadLine does) gets a single
+  Alt+`\` key and nothing of the body. `[Console]::ReadKey` and `cmd` read
+  with it off by default and are expected to get the lone `\` the 2026-10-10
+  audit saw (not re-measured). Before OpenSSH for Windows 9.8.2, `ssh.exe`
+  reads a reply longer than 16 bytes in 16-record parts. That it sends each
+  part as its own channel write is inferred, not observed (no channel trace
+  was taken): with `ObscureKeystrokeTiming` off, a Windows far end lost
+  exactly the first 16 bytes of most such replies, though not all (a 28-byte
+  split reply arrived whole), and with the default timing, at most 1 of 5 in
+  a run. A tool run
+  directly under ConPTY that does not parse APC replies should send `q=2`.
 - **Sixel is passed through but not rendered.** The bundled ConPTY delivers a
   Sixel DCS payload byte-for-byte (see the
   [transport catalog](windows-vt-conformance.md#conpty-transport-generations-and-mangling-catalog)),
