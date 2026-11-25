@@ -1240,7 +1240,8 @@ pub const App = struct {
                 .{},
             );
         }
-        if (self.config.@"background-blur".win32BlurRequested()) logBackgroundBlurUnsupported();
+        // `os_build` is probed below; this notice needs it now.
+        if (self.config.@"background-blur".win32BlurRequested()) logBackgroundBlurUnsupported(probeWindowsBuild());
         warnPortableIgnoredLocalData(core_app.alloc);
         // Snapshot the CLI --config-file override BEFORE any code has
         // a chance to chdir. See the field comment above.
@@ -4554,7 +4555,7 @@ pub const App = struct {
                         self.config.deinit();
                         self.config = config;
                         self.restoreSettingsPreview();
-                        if (background_blur_newly_requested) logBackgroundBlurUnsupported();
+                        if (background_blur_newly_requested) logBackgroundBlurUnsupported(self.os_build);
                         self.config_revision +%= 1;
                         if (self.config_revision == 0) self.config_revision = 1;
                         // Also with no Host open: a discovery still running

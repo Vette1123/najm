@@ -348,6 +348,8 @@ pub const WM_SYSCOLORCHANGE = 0x0015;
 pub const WM_DPICHANGED: UINT = 0x02E0;
 pub const WM_GETDPISCALEDSIZE: UINT = 0x02E4;
 pub const DWMSBT_NONE: u32 = 1;
+/// Acrylic: what `background-blur` shows behind a translucent background.
+pub const DWMSBT_TRANSIENTWINDOW: u32 = 3;
 
 pub const DWMSBT_TABBEDWINDOW: u32 = 4;
 pub const OS_BUILD_WIN10_22H2: u32 = 19045;

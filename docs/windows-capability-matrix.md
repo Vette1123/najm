@@ -23,7 +23,7 @@ Last reviewed: 2026-10-16 (jump list, native settings and scrollbar rows; render
 | [Configuration](https://ghostty.org/docs/config) and [option reference](https://ghostty.org/docs/config/reference) | Same config grammar and generated docs. Config lives at `%LOCALAPPDATA%\noctty\config.ghostty`; live reload via `Ctrl+Shift+,`.                                                                                                                                                                                                                                                                                                        |
 | [Custom keybindings](https://ghostty.org/docs/config/keybind)                                                      | Same `keybind = trigger=action` grammar and `+list-keybinds` flow; defaults are the shared non-macOS set with Windows-specific exceptions.                                                                                                                                                                                                                                                                                             |
 | [Color Theme](https://ghostty.org/docs/features/theme)                                                             | Built-in themes, separate light/dark themes, custom themes, and `+list-themes` ship on Windows.                                                                                                                                                                                                                                                                                                                                        |
-| [Configuration: `background-opacity`](https://ghostty.org/docs/config/reference)                                   | Below 0.999, while every pane of a window draws with OpenGL (the default), only the terminal background is translucent: text, the tab strip, the title bar and the other chrome stay solid, and what is behind shows through unblurred. A window with a D3D11 pane fades as a whole. It can be toggled live; High Contrast shows windows opaque, and `background-blur` has no effect. See [background blur](#background-blur).         |
+| [Configuration: `background-opacity`](https://ghostty.org/docs/config/reference)                                   | Below 0.999, while every pane of a window draws with OpenGL (the default), only the terminal background is translucent: text, the tab strip, the title bar and the other chrome stay solid, and what is behind shows through unblurred. A window with a D3D11 pane fades as a whole. It can be toggled live; High Contrast shows windows opaque; `background-blur` adds acrylic on Windows 11 22H2 or later. See [background blur](#background-blur).         |
 | [Terminal API (VT)](https://ghostty.org/docs/vt) and [VT reference](https://ghostty.org/docs/vt/reference)         | The shared Ghostty terminal core carries the documented VT/OSC/Kitty surface. Win32-validated coverage: [windows-vt-conformance.md](windows-vt-conformance.md).                                                                                                                                                                                                                                                                        |
 | [Kitty keyboard protocol](https://ghostty.org/docs/vt)                                                             | Win32 supplies press, repeat, release, lock, and sided modifier state to the shared encoder. See [keyboard input](#keyboard-input).                                                                                                                                                                                                                                                                                                    |
 | [Features overview: windows, tabs, and splits](https://ghostty.org/docs/features)                                  | Native Win32 windows, tabs, and splits ship today in noctty.                                                                                                                                                                                                                                                                                                                                                                           |
@@ -43,7 +43,7 @@ Last reviewed: 2026-10-16 (jump list, native settings and scrollbar rows; render
 | [Action reference: `toggle_secure_input`](https://ghostty.org/docs/config/keybind/reference) | A local sensitive-input indicator only; no Windows equivalent of macOS Secure Keyboard Entry, and system-wide keyboard hooks are not blocked.                                                                                                                                                                                                                                 |
 | [Configuration: `auto-update`](https://ghostty.org/docs/config/reference)                    | Stable-release checking and prompts backed by GitHub Releases. `download` stages installer releases after SHA-256 and Authenticode verification; portable ZIP staging/apply additionally requires a pinned-publisher-signed manifest covering every payload file and otherwise stays on the release-page path. Apply is user-initiated. See [windows.md](windows.md#updates). |
 | [Configuration: `window-save-state`](https://ghostty.org/docs/config/reference)              | Persists windows, tabs, splits, profiles, working directories, and titles under `%LOCALAPPDATA%\noctty\session-state.json`. `window-save-state-scrollback` opts in to bounded plain-text pane snapshots; child processes are not restored.                                                                                                                                    |
-| [Configuration: `background-blur`](https://ghostty.org/docs/config/reference)                | Accepted but inert on every Windows build: noctty asks DWM for no backdrop material, so a translucent background shows what is behind unblurred. Enabling it logs a warning. See [background blur](#background-blur).                                                                                                                                                         |
+| [Configuration: `background-blur`](https://ghostty.org/docs/config/reference)                | Acrylic behind a translucent OpenGL window on Windows 11 22H2 or later; earlier builds log a warning and show it unblurred. See [background blur](#background-blur).                                                                                                                                                                                                          |
 | [Configuration: `unfocused-split-opacity`](https://ghostty.org/docs/config/reference)        | Unfocused splits are dimmed by the renderer on OpenGL and D3D11, toward `unfocused-split-fill` in sRGB space as upstream does, and `split-divider-color` colors the gap between panes. The overlay scrollbar and a docked search bar are not dimmed, the gap and the focus accent do not scale with DPI, and High Contrast keeps system colors with no dim.                   |
 | [Features overview](https://ghostty.org/docs/features)                                       | Accessibility is partial: UI Automation covers the daily chrome and terminal text, but caption buttons, overlay rows, and menus are uncovered. Only NVDA has been measured, with mixed results. See [accessibility notes](#accessibility) and the [screen-reader matrix](accessibility-matrix.md).                                                                            |
 | OSC 52 primary/selection clipboard selectors                                                 | Windows has one native clipboard: writes with selectors `c`, `s`, and `p` all target it; read replies still echo the requested selector.                                                                                                                                                                                                                                      |
@@ -324,17 +324,21 @@ D3D11 surface ignores them. See
 
 ### Background blur
 
-`background-blur` has no visible effect on Windows in this build, on any build
-number, and noctty never asks for a DWM backdrop material. Since #640 a window
-whose panes all draw with OpenGL shows `background-opacity` per pixel: it turns
-on `DwmEnableBlurBehindWindow` with an empty region, which keeps the alpha the
-renderer draws but blurs nothing, and paints its GDI chrome with an alpha
-(`chrome_scene.AlphaPaint`). A window with a D3D11 pane is still a layered
-window that fades as a whole, because DirectComposition presents that pane with
-its alpha ignored. With blur-behind in place, `DWMSBT_TRANSIENTWINDOW` would
-show acrylic, but Windows lays a light frosted layer over the theme's background
-with it (the #640 contributor's observation, not measured here), so that is left
-for a change of its own.
+On Windows 11 22H2 (build 22621) or later, `background-blur` asks DWM for
+acrylic (`DWMSBT_TRANSIENTWINDOW`) behind a window whose background alone is
+translucent: every pane draws with OpenGL and `background-opacity` is below 1.
+Such a window turns on `DwmEnableBlurBehindWindow` with an empty region, which
+keeps the alpha the renderer draws (#640), and the material shows through
+that alpha (`window_start.backdropType`, written in
+`window_state.applyBackgroundOpacity`). Windows lays a light frosted layer over
+the theme's background with it (the #640 contributor's observation). Not
+measured here: the material as DWM composes it on screen, which only a
+visible run shows.
+
+Nothing shows it, and the backdrop stays none, on earlier builds (which log a
+warning), under High Contrast, in an opaque window, and in a window with a
+D3D11 pane, which is a layered window that fades as a whole because
+DirectComposition presents that pane with its alpha ignored.
 
 Before #640, when every translucent window was layered, this was measured on
 Windows 11 build 26200 over a finely striped desktop, which a real
@@ -346,7 +350,7 @@ Flipping the attribute from outside the process on the same window with
 `WS_EX_LAYERED` stripped by hand changed nothing either, so the layered alpha
 that implements `background-opacity` is not the obstacle — a synthetic window
 that does extend its frame renders a visibly different material per backdrop
-type whether or not it is layered. The obstacle is that noctty never opts in.
+type whether or not it is layered. The obstacle was that noctty never opted in.
 
 A blur now needs a backdrop material whose tint leaves the theme's background
 alone, and a D3D11 window would also need its composition swap chain to carry

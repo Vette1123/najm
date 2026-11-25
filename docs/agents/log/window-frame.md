@@ -21,6 +21,27 @@ See also:
 - A torn-off tab's window (`window_state.Origin.tear_off`, `window_start.Kind.tear_off`, `window_start.placeTearOff`, `window_start.Drop`): its source's decorations, opacity and topmost, never maximize or fullscreen, at the drop point or a cascade step off the source, placed hidden at `.created`; and the window it empties closing after the target is activated: the 2026-11-08 TEAROFF-01 entry in tabs-panes.md.
 - Where the pointer goes in a torn-off tab's window (`Host.restoredClientOffset`, `Host.tearOffDropOn`) repeats two rules of this area: the client top a caption mode gives (`handleNcCalcSize`, `clientCaptionHeight`: 0 for the integrated caption and the 0 px caption row) and the frame style (`window_start.hostStyle`, as `window_start.plan` takes it). A change to either changes where a dropped tab lands: review rounds 16 and 18 of the 2026-11-08 TEAROFF-01 entry in tabs-panes.md.
 
+- 2026-11-25: BLUR-ACRYLIC-01: `background-blur` shows acrylic, correcting the
+  2026-09-14 `background-blur` entry below ("cannot show anything") for a
+  window whose background alone is translucent. What looked true and was not:
+  that the material needs `DwmExtendFrameIntoClientArea` (that entry's
+  positive control used it); the #640 path's blur-behind with an empty region
+  is what lets DWM keep the client area's alpha, and the code's own comment
+  recorded that `DWMSBT_TRANSIENTWINDOW` shows acrylic under it (the #640
+  contributor's observation). Now `window_start.backdropType(shows, blur,
+  os_build)` picks acrylic only for `Shows.background` with the key on and
+  build >= 22621 (High Contrast and a failed blur-behind are already folded
+  into `shows`), and `window_state.applyBackgroundOpacity` writes it on every
+  apply through `WindowThemeAdapter.setHostBackdrop`, since
+  `applyDwmThemeWithBuild` still writes `DWMSBT_NONE` at create and at a
+  theme change and an apply follows each (the 2026-11-06 entry's rule).
+  `logBackgroundBlurUnsupported(os_build)` now warns only before 22621.
+  Evidence: the pure test of `backdropType` and a DWM read-back of the
+  attribute on a hidden test window. Not measured: the material as composed
+  on screen, which needs a visible run (optional, AGENTS.md). Rule: the
+  backdrop belongs to the opacity apply, never to the theme apply; Settings'
+  Windows notes still mean a disabled control (`windows_notes`'s
+  `@compileError`), so blur lost its note when it became available.
 - 2026-11-06: When a window shows its `background-opacity` again: follow-ups to the 2026-11-05 OPACITY-640 entry below (#678, OPACITY-640-FOLLOWUPS). What looked true and was not: that once #678 had a theme change, a reload and a pane close each call `window_state.refreshBackgroundOpacity`, every window re-decided at the right moment, once. A theme change showed the opacity before its own frame write; a reload, the palette's theme and the end of a Settings preview of a theme and an opacity showed it at the value the window was leaving, then at the new one, and a reload and the palette's theme applied it twice at the new value besides; a window that failed in the reload's window loop left every window after it with no apply; a failed blur-behind was latched for good, and once it could try again, a theme change of the app's own made the next system theme message that changed nothing try again too; and a window closing whole re-decided after each pane but its last. It qualifies the 2026-11-02 WINDOW-STATE-01 entry below (where `applyConfig` runs: its See also), trap (c) of the 2026-10-25 PKG-39 entry in settings.md (that file's "Corrected in other files") and the 2026-10-17 PKG-57 entry in chrome-tabs-paint.md (what a system theme broadcast compares with: that file's "See also").
   - The rules.
     1. After the frame write. `App.reconfigureTheme` showed the opacity before its frame-mode `SWP_FRAMECHANGED` (the stock/integrated flip a change of `window-show-tab-bar` makes on Windows 11); it now shows it after, as fullscreen and the decorations toggle do (the OPACITY-640 entry's refresh sites). Not every frame write does: four older ones, not changed here, are open item (d). On the base a reload's `applyConfig` asserted blur-behind again after the flip anyway, so only `reconfigureTheme`'s own order was wrong: the frame mode flips only with a config change (`use_integrated_titlebar` follows `window-show-tab-bar`), whose callers now leave the opacity to `applyConfig` (rule 2).

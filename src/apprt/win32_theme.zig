@@ -390,6 +390,14 @@ pub const WindowThemeAdapter = struct {
         _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, @ptrCast(&color), @sizeOf(u32));
     }
 
+    /// Write the host's system backdrop alone (`window_start.backdropType`),
+    /// after `applyHost` wrote `DWMSBT_NONE`. Builds before 22621 reject the
+    /// attribute, so nothing is written there.
+    pub fn setHostBackdrop(hwnd: HWND, backdrop_type: u32, supports_backdrop: bool) void {
+        if (!supports_backdrop) return;
+        _ = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, @ptrCast(&backdrop_type), @sizeOf(u32));
+    }
+
     pub fn applySettings(hwnd: HWND, colors: SettingsColors) void {
         applyWindow(hwnd, windowThemePolicy(
             .settings,

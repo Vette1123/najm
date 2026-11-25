@@ -98,6 +98,19 @@ pub const TopLevel = struct {
     }
 };
 
+/// The DWM system backdrop a window that shows `shows` takes: acrylic
+/// (`DWMSBT_TRANSIENTWINDOW`) under a translucent background where
+/// `background-blur` asks for it, else none. Only the per-pixel path can show
+/// it: blur-behind with an empty region keeps the panes' alpha, and the
+/// material shows through it; a layered window fades it with everything
+/// else, and an opaque one (High Contrast included, `TopLevel.shows`) covers
+/// it. Builds before 22621 have no such attribute
+/// (`supportsDwmSystemBackdropAttribute`).
+pub fn backdropType(shows: TopLevel.Shows, blur: bool, os_build: u32) u32 {
+    if (!blur or shows.background == null or os_build < c.OS_BUILD_WIN11_22H2) return c.DWMSBT_NONE;
+    return c.DWMSBT_TRANSIENTWINDOW;
+}
+
 /// A monitor as a window on it sees it. `id` is its `HMONITOR`.
 pub const Monitor = struct { id: usize, info: MONITORINFO, dpi: u32 };
 
@@ -1323,6 +1336,23 @@ test "win32 a restored window enters its config's maximize and fullscreen, and a
     }) |case| {
         try std.testing.expectEqual(case.enter, forRestore(case.wants, case.saved));
     }
+}
+
+test "win32 background-blur shows acrylic only under a translucent background on 22621+" {
+    const background: TopLevel.Shows = .{ .background = 204, .pane_opacity = 0.8 };
+    const new = c.OS_BUILD_WIN11_22H2;
+    try std.testing.expectEqual(c.DWMSBT_TRANSIENTWINDOW, backdropType(background, true, new));
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(background, false, new));
+    // Windows 10 and 11 21H2 have no backdrop attribute.
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(background, true, new - 1));
+    // A layered (D3D11) window, and an opaque one: nothing shows it.
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(.{ .layered = 204 }, true, new));
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(.{ .pane_opacity = 1.0 }, true, new));
+    // From `shows` itself: High Contrast and a failed blur-behind show none.
+    const top_level: TopLevel = .{ .opacity = 0.8 };
+    try std.testing.expectEqual(c.DWMSBT_TRANSIENTWINDOW, backdropType(top_level.shows(true, false, false), true, new));
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(top_level.shows(true, true, false), true, new));
+    try std.testing.expectEqual(c.DWMSBT_NONE, backdropType(top_level.shows(true, false, true), true, new));
 }
 
 test "win32 a window shows its opacity as an alpha, and opaque none" {

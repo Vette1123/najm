@@ -259,7 +259,7 @@ pub const descriptors = [_]Descriptor{
     .{ .key = .@"text-color", .native = .{ .binding = "combo_text_color", .id = 429, .order = 6, .form_label = "Text color", .accessible_name = "Text color" }, .field = .text_color, .label = "Text color", .help = "The terminal's text color. Theme keeps the theme's; a plain color, such as White, replaces it. Colors a program sets stay as they are.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration text-color foreground font color colour white plain monochrome text" },
     .{ .key = .@"shell-integration", .native = .{ .binding = "combo_shell_integ", .id = 406, .order = 2, .form_label = "Shell integration", .accessible_name = "Shell integration" }, .field = .shell_integration, .label = "Shell integration", .help = "Enable prompt and command tracking for the selected shell. Automatic includes PowerShell and cmd.", .section = .shell, .kind = .choice, .apply = .new_terminals, .keywords = "settings preferences configuration shell-integration powershell bash prompt" },
     .{ .key = .@"cursor-style", .native = .{ .binding = "combo_cursor_style", .id = 409, .order = 7, .form_label = "Cursor style", .accessible_name = "Cursor style" }, .field = .cursor_style, .label = "Cursor style", .help = "Default cursor shape. A terminal program can choose its own cursor shape.", .section = .appearance, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration cursor-style caret block bar underline" },
-    .{ .key = .@"background-blur", .native = .{ .binding = "chk_bg_blur", .id = 410, .order = 11, .caption = "Background blur", .accessible_name = "Background blur" }, .field = .background_blur, .label = "Background blur", .help = "Request background blur behind the terminal.", .section = .appearance, .kind = .blur, .apply = .live, .support = .unsupported_on_windows, .keywords = "settings preferences configuration background-blur" },
+    .{ .key = .@"background-blur", .native = .{ .binding = "chk_bg_blur", .id = 410, .order = 11, .caption = "Background blur", .accessible_name = "Background blur" }, .field = .background_blur, .label = "Background blur", .help = "Blur what shows through a translucent background (Windows 11 22H2 or later).", .section = .appearance, .kind = .blur, .apply = .live, .keywords = "settings preferences configuration background-blur" },
     .{ .key = .@"window-padding-balance", .native = .{ .binding = "combo_pad_balance", .id = 411, .order = 10, .form_label = "Window padding balance", .accessible_name = "Window padding balance" }, .field = .padding_balance, .label = "Window padding balance", .help = "Distribute remaining cell space across the terminal padding.", .section = .appearance, .kind = .choice, .apply = .new_terminals, .keywords = "settings preferences configuration window-padding-balance margin" },
     .{ .key = .@"auto-update", .native = .{ .binding = "combo_auto_update", .id = 420, .order = 0, .form_label = "Auto-update mode", .accessible_name = "Auto-update mode" }, .field = .auto_update, .label = "Auto-update mode", .help = "Choose whether Najm checks for updates and prompts to install them.", .section = .updates, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration auto-update upgrade" },
     .{ .key = .@"auto-update-channel", .native = .{ .binding = "combo_auto_update_channel", .id = 421, .order = 1, .form_label = "Auto-update channel", .accessible_name = "Auto-update channel" }, .field = .auto_update_channel, .label = "Auto-update channel", .help = "Choose stable releases or tip builds for update checks.", .section = .updates, .kind = .choice, .apply = .live, .keywords = "settings preferences configuration auto-update-channel stable tip release" },
@@ -805,8 +805,8 @@ test "settings model separates saved apply timing from edit previews and Windows
     for (descriptors) |spec| {
         const new_terminal = spec.key == .@"scrollback-limit" or spec.key == .command or spec.key == .@"shell-integration" or spec.key == .@"window-padding-x" or spec.key == .@"window-padding-y" or spec.key == .@"window-padding-balance" or spec.key == .@"default-profile";
         try std.testing.expectEqual(if (new_terminal) ApplyPolicy.new_terminals else ApplyPolicy.live, spec.apply);
-        const unavailable = spec.key == .@"background-blur";
-        try std.testing.expectEqual(if (unavailable) Support.unsupported_on_windows else Support.available, spec.support);
+        // Every row works on Windows since blur and link previews do.
+        try std.testing.expectEqual(Support.available, spec.support);
     }
     try std.testing.expectEqual(PreviewEffect.none, descriptor(.font_size).preview);
     try std.testing.expectEqual(PreviewEffect.opacity, descriptor(.background_opacity).preview);
@@ -840,13 +840,8 @@ test "settings model names each form row's default from Config.default" {
         // A row of a projected key names its own member only.
         if (comptime row.descriptor.projections.len != 0) try std.testing.expectEqualStrings("On", out.written());
     }
-    // Every row offers a reset but the one Windows does not support.
-    var kept: usize = 0;
-    inline for (form_fields) |row| if (comptime !row.resettable()) {
-        kept += 1;
-        try std.testing.expect(row.descriptor.key == .@"background-blur");
-    };
-    try std.testing.expectEqual(@as(usize, 1), kept);
+    // Every row offers a reset.
+    inline for (form_fields) |row| try std.testing.expect(comptime row.resettable());
     var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
     defer out.deinit();
     inline for (form_fields) |row| if (comptime row.field == .font_size) try row.writeDefault(&out.writer, &defaults);

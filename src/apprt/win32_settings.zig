@@ -18439,7 +18439,7 @@ test "settings dropdowns list the text of their labels in order" {
     }.body);
 }
 
-test "settings background blur is shown but cannot be changed" {
+test "settings background blur is shown and can be changed" {
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
             const fixture = try dialog_test.Fixture.start();
@@ -18447,13 +18447,13 @@ test "settings background blur is shown but cannot be changed" {
             const settings = &fixture.settings;
             const blur = settings.fields.chk_bg_blur.?;
 
-            try std.testing.expect(sys.IsWindowEnabled(blur) == 0);
+            try std.testing.expect(sys.IsWindowEnabled(blur) != 0);
             var wide: [128]u16 = undefined;
             const n = sys.GetWindowTextW(blur, &wide, @intCast(wide.len));
             var utf8: [256]u8 = undefined;
             const len = try std.unicode.utf16LeToUtf8(&utf8, wide[0..@intCast(n)]);
             try std.testing.expectEqualStrings(background_blur_label, utf8[0..len]);
-            try std.testing.expect(std.mem.indexOf(u8, background_blur_label, "not supported on Windows") != null);
+            try std.testing.expect(std.mem.indexOf(u8, background_blur_label, "not supported on Windows") == null);
             // The section blurb no longer promises it.
             try std.testing.expect(std.mem.indexOf(u8, Section.appearance.placeholderText(), "blur") == null);
         }
@@ -18998,7 +18998,7 @@ test "settings UIA checkbox and combo actions update the draft and discard resto
     }.body);
 }
 
-test "CHROME unsupported settings are disabled and UIA names explain why" {
+test "CHROME blur and link previews are enabled and their UIA names say nothing of Windows" {
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
             const com = @import("win32_uia/com.zig");
@@ -19008,10 +19008,10 @@ test "CHROME unsupported settings are disabled and UIA names explain why" {
             const settings = &fixture.settings;
             dialog_test.makeAllSections(settings);
 
-            // Link previews show on Windows: their dropdown is enabled.
-            try std.testing.expect(sys.IsWindowEnabled(settings.fields.combo_link_previews.?) != 0);
-            for ([_]HWND{settings.fields.chk_bg_blur.?}) |control| {
-                try std.testing.expect(sys.IsWindowEnabled(control) == 0);
+            // Blur and link previews work on Windows: both are enabled, and
+            // their UIA names no longer say otherwise.
+            for ([_]HWND{ settings.fields.chk_bg_blur.?, settings.fields.combo_link_previews.? }) |control| {
+                try std.testing.expect(sys.IsWindowEnabled(control) != 0);
                 const provider = settings.control_uia_providers[settings.controlIndex(control).?].?;
                 var name = com.VARIANT.empty();
                 try std.testing.expectEqual(com.S_OK, provider.base.vtbl.GetPropertyValue(&provider.base, constants.UIA_NamePropertyId, &name));
@@ -19020,7 +19020,7 @@ test "CHROME unsupported settings are disabled and UIA names explain why" {
                 const bstr = name.value.bstr.?;
                 var utf8: [256]u8 = undefined;
                 const len = try std.unicode.utf16LeToUtf8(&utf8, bstr[0..com.SysStringLen(bstr)]);
-                try std.testing.expect(std.mem.indexOf(u8, utf8[0..len], "not supported on Windows") != null);
+                try std.testing.expect(std.mem.indexOf(u8, utf8[0..len], "not supported on Windows") == null);
             }
         }
     }.body);
@@ -20547,10 +20547,6 @@ test "settings a context menu that is no row's stays the window's own" {
             const at: LPARAM = @bitCast(@as(usize, @as(u16, @bitCast(@as(i16, @intCast(point.x))))) | (@as(usize, @as(u16, @bitCast(@as(i16, @intCast(point.y))))) << 16));
             try std.testing.expect(!settings.showRowMenu(viewport, at));
             try std.testing.expectEqual(@as(usize, 0), calls);
-            // Background blur keeps no room for a Reset button, so just right
-            // of it is no row either.
-            const blur = childRectIn(viewport, settings.fields.chk_bg_blur.?).?;
-            try std.testing.expectEqual(@as(?usize, null), settings.rowAtPoint(.{ .x = blur.right + settings.px(settings_reset_gap) + 2, .y = blur.top + 2 }));
             // A row's own window always has its menu.
             try std.testing.expect(settings.showRowMenu(settings.fields.edit_font_size.?, -1));
             try std.testing.expectEqual(@as(usize, 1), calls);
@@ -27082,18 +27078,6 @@ test "settings F2 on the All settings page edits a key on its own page, and a ke
             try std.testing.expectEqual(Section.reference, settings.active_section);
             try std.testing.expectEqual(window, sys.GetFocus().?);
             answer = 0;
-            _ = sys.SendMessageW(window, WM_CONTEXTMENU, @intFromPtr(window), keyboard);
-            try std.testing.expectEqual(@as(c_int, 2), items);
-
-            // A setting Windows does not support has a control, disabled: no
-            // Edit, and its Windows note says why rather than the read-only line.
-            window = try selectReferenceKey(settings, .@"background-blur");
-            try std.testing.expectEqual(@as(i32, 0), list.ensureMetrics().?.edit_width);
-            const blur_help = referenceUiaRowHelp(list, list.selectedPosition().?, &text);
-            try std.testing.expect(std.mem.indexOf(u8, blur_help, "F2 edits") == null);
-            try std.testing.expect(std.mem.indexOf(u8, blur_help, reference_read_only_note) == null);
-            _ = fixture.pumpKey(@intCast(VK_F2));
-            try std.testing.expectEqual(Section.reference, settings.active_section);
             _ = sys.SendMessageW(window, WM_CONTEXTMENU, @intFromPtr(window), keyboard);
             try std.testing.expectEqual(@as(c_int, 2), items);
         }

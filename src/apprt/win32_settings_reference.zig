@@ -60,7 +60,6 @@ const no_effect = "Has no effect on Windows.";
 const gtk_only = "Has no effect on Windows: it belongs to the Linux GTK runtime, which this build does not have. It is kept so a shared config file still loads.";
 
 pub const windows_notes = [_]WindowsNote{
-    .{ .key = "background-blur", .note = "Has no effect on Windows: no window here can show a blur behind it. Setting it logs a warning." },
     .{ .key = "bell-features", .note = "On Windows, the border feature has no effect; the others work." },
     .{ .key = "focus-follows-mouse", .note = no_effect },
     .{ .key = "window-inherit-font-size", .note = no_effect ++ " A new window or tab starts with the configured font size." },
@@ -916,8 +915,8 @@ test "settings reference rows carry the effective value, its count and the locat
     try testing.expectEqualStrings(try std.fmt.bufPrint(&expected, "Not set in {s}. Line 1 of {s} mentions it, and does not take effect.", .{ path, path }), writer.buffered());
 
     // A key Windows does not honour says so in what the search reads.
-    const blur = &model.rows[index(.@"background-blur")];
-    try testing.expect(std.mem.indexOf(u8, blur.search, "has no effect on windows") != null);
+    const focus = &model.rows[index(.@"focus-follows-mouse")];
+    try testing.expect(std.mem.indexOf(u8, focus.search, "has no effect on windows") != null);
 }
 
 test "settings reference a config that sets nothing has no key away from its default" {
