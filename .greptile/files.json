@@ -24,6 +24,8 @@
         "src/terminal/Screen.zig",
         "src/terminal/resize_replay.zig",
         "test/windows/interactive-win11-conpty-sync.ps1",
+        "test/windows/hidden-win11-conpty-reply-path.ps1",
+        "test/windows/console-reply-reader.c",
         "src/os/local_path.zig"
       ]
     },
@@ -45,6 +47,9 @@
       "scope": [
         "src/terminal/**",
         "src/inspector/widgets/pagelist.zig",
+        "docs/upstream-merge-policy.md",
+        "src/apprt/win32_uia/text.zig",
+        "src/apprt/win32/session.zig",
         "pkg/wuffs/**",
         "src/Surface.zig",
         "src/termio/stream_handler.zig",
@@ -364,6 +369,8 @@
         "scripts/**",
         "dist/**",
         "test/windows/test_dll_init.c",
+        "test/windows/release-promote.ps1",
+        "test/windows/release-fixture-cleanup.ps1",
         "test/windows/flagship/contracts/Contracts.93-ConPty.ps1",
         ".github/**"
       ]
@@ -385,6 +392,7 @@
       "description": "Self-Correction Log: writing or running test/windows harnesses, CI test steps, and test counts that contradict the code.",
       "scope": [
         "test/**",
+        "src/process_shared.zig",
         "scripts/dev-windows.cmd",
         "scripts/interactive-win11*",
         ".github/workflows/**",
@@ -400,8 +408,16 @@
         "src/apprt/win32/sys.zig",
         "scripts/check-test-skips.ps1",
         "scripts/ci-test-timing.ps1",
+        "scripts/capture-test-ran-list.ps1",
+        "scripts/compare-test-ran-list.ps1",
         "src/test_runner.zig",
-        "src/test_shard.zig"
+        "src/test_shard.zig",
+        "ci/soak_judge.py",
+        "ci/test_soak_judge.py",
+        "ci/soak-thresholds.tsv",
+        "scripts/package-windows.ps1",
+        "scripts/ci-gui-selection.ps1",
+        "scripts/ci-script-closure.ps1"
       ]
     },
     {

@@ -5,8 +5,9 @@
 #
 # It merges (never rebases or force-pushes), so Najm's history keeps every
 # upstream commit and every Najm fix. After a clean merge it runs the identity
-# check, records the base in UPSTREAM_BASE and commits. It never pushes:
-# push main yourself once you have looked (CI runs on the push).
+# check, records the base in UPSTREAM_BASE and commits. It never pushes.
+# Run it on main or on a branch cut from origin/main; scripts/najm-fetch.ps1
+# runs it on a sync branch and opens the PR.
 param(
     [string]$Ref = ""
 )
@@ -19,8 +20,6 @@ function Invoke-Git {
 }
 
 if (git status --porcelain) { throw "The working tree has changes. Commit or stash them before syncing." }
-$branch = (git rev-parse --abbrev-ref HEAD).Trim()
-if ($branch -ne "main") { throw "Sync from main, not '$branch'." }
 
 # Upstream tags live under upstream/* so they can never be pushed to Najm as
 # Najm release tags (the release workflow fires on v*).
@@ -33,8 +32,11 @@ git config merge.ours.driver true
 Invoke-Git fetch upstream
 Invoke-Git fetch origin
 
+# Sync on main or on a sync branch cut from it (the PR route): either way the
+# branch must already hold all of origin/main.
+$branch = (git rev-parse --abbrev-ref HEAD).Trim()
 $behindOrigin = [int](git rev-list --count "HEAD..origin/main")
-if ($behindOrigin -gt 0) { throw "main is $behindOrigin commit(s) behind origin/main. Pull first." }
+if ($behindOrigin -gt 0) { throw "'$branch' is $behindOrigin commit(s) behind origin/main. Pull or rebase first." }
 
 if (-not $Ref) {
     $Ref = (git tag -l "upstream/v*" --sort=-v:refname | Select-Object -First 1)
@@ -69,4 +71,4 @@ Set-Content -LiteralPath UPSTREAM_BASE -Value "$label $($refSha.Substring(0,9))"
 Invoke-Git add UPSTREAM_BASE
 Invoke-Git commit -q -m "chore(sync): merge Noctty $label"
 Write-Host ""
-Write-Host "Merged Noctty $label. Next: git push origin main (CI runs), then ./scripts/najm-release.ps1 -Version <x.y.z>."
+Write-Host "Merged Noctty $label on '$branch'. Next: push it (CI runs; a branch goes through a PR), then ./scripts/najm-release.ps1 -Version <x.y.z>."

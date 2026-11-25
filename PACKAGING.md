@@ -299,22 +299,12 @@ Recommended order:
 2. Configure or rotate the `release` environment signing secrets.
 3. Run the **Release Readiness** workflow with the target plain semver
    version, for example `1.3.107`.
-4. Produce interactive evidence for the release SHA: register the
-   self-hosted interactive runner ephemerally, then dispatch the **Test**
-   workflow with `run_interactive_win11=true`. The interactive job runs
-   only on this opted-in dispatch, and the **Release** workflow refuses
-   to publish without its hash-bound evidence at the exact release SHA.
-   The job uses the visible desktop for about 20 to 25 minutes (60 at most)
-   and reads screen pixels, so a window or notification banner over the
-   windows it tests can fail the run. Before dispatching, turn on Do Not
-   Disturb, close any open shell flyout, and minimize every other window,
-   your own noctty windows included. Then leave the machine alone until the
-   job finishes.
-5. After readiness passes, either:
+4. After readiness passes and the **Test** run of that commit's push to
+   `main` has succeeded, either:
    - push tag `v<version>`, or
    - manually dispatch the **Release** workflow with `version=<version>` and
      `prerelease=false`.
-6. Confirm the workflow published artifacts for both x64 and ARM64:
+5. Confirm the workflow published artifacts for both x64 and ARM64:
    - installer
    - portable ZIP
    - `noctty-<version>-windows-x64-portable.manifest.ps1`
@@ -323,8 +313,8 @@ Recommended order:
    - `SHA256SUMS-windows-<arch>.txt`
    - legacy x64 `SHA256SUMS.txt`
    - GitHub Release notes/assets
-7. Confirm build provenance for the eleven non-icon assets.
-8. Confirm follow-on publishes:
+6. Confirm build provenance for the eleven non-icon assets.
+7. Confirm follow-on publishes:
    - Scoop manifest update
    - WinGet submission
    - Chocolatey package push (the step is skipped while the repository
@@ -335,13 +325,181 @@ A release does not require a manual Windows 10 pass. The
 optional pass for a change that needs Windows 10 evidence, not a release step.
 The scheduled **Windows 10 branches** workflow is a non-required check.
 
-If a tag already exists and the workflow failed before publish, configure
-the missing signing secrets and then rerun the failed `Release` workflow or
-manually dispatch **Release** with the same version. The workflow is
-idempotent for release creation/upload because it uses `gh release create`
-on first publish and `gh release upload --clobber` on reruns.
+A release does not require an interactive or visible-desktop run either (the
+maintainer's decision, 2026-11-22). The **Release** workflow gates on a
+completed, successful **Test** run of the exact release SHA, which the push to
+`main` gives, and promotion reads no interactive evidence; multi-agent council
+review takes the place of a visible run. The interactive composite stays an
+optional dispatch, started only on the maintainer's explicit go: register the
+self-hosted interactive runner ephemerally, then dispatch **Test** with
+`run_interactive_win11=true`. It uses the visible desktop for about 20 to 25
+minutes (60 at most) and reads screen pixels, so a window or notification banner
+over the windows it tests can fail the run. Before dispatching, turn on Do Not
+Disturb, close any open shell flyout, and minimize every other window, your own
+noctty windows included. Then leave the machine alone until the job finishes.
+
+Build mode creates a draft targeting the accepted candidate, uploads each asset
+with at most three attempts, checks every uploaded digest against
+`release-manifest.json`, then publishes. The manifest digest is recorded by
+**Write release manifest and record digest**, before **Publish GitHub Release**.
+Uploads are immutable; build mode refuses an existing release and never uses
+`--clobber`. A lost create or promote response is reconciled by reads, never by
+repeating the mutation. Publication flags, the created tag and latest state
+have three-read bounded backoff checks; unresolved state stops and is preserved. Keep the original Release run ID and its summary digest.
+
+For a soaked prerelease, land the stable-copy update to README and the site on
+`main` first, then dispatch **Release** from `main` with `mode=promote`:
+
+```powershell
+gh workflow run release.yml --repo amanthanvi/noctty --ref main -f mode=promote -f tag=<tag> -f candidate_sha=<peeled-sha> -f test_run_id=<test-run> -f release_run_id=<original-build-run> -f manifest_sha256=<summary-sha256>
+```
+
+Promotion runs main's scripts, checks out the candidate for its pinned data and
+generator, authenticates evidence and every asset, regenerates identical
+package-manager files, checks the stable copy, flips the release, verifies it,
+then publishes Scoop, WinGet and Chocolatey in order. Before the flip, each
+channel must have its repository/package ID, token and bootstrap configured,
+or be explicitly disabled by `SCOOP_PUBLISH=off`, `WINGET_PUBLISH=off` or
+`CHOCOLATEY_PUBLISH=off`. Missing configuration fails with
+`PackageManagerNotReady`; disabling a channel is a deliberate operator choice.
+
+**PublishedReleaseResume** uses the same promote inputs for a stable or
+prerelease build whose original Release run failed or was cancelled later.
+It reads every run attempt and its jobs. Some attempt must show
+**Publish GitHub Release** succeeded; the tag must still resolve to the
+candidate, and the summary digest, manifest and every asset must match. The
+original run ID stays fixed. **Do not re-run the original Release workflow**
+after it created a draft or published a release. Use the guarded draft recovery
+below for a draft; dispatch promote for a complete published release. If
+a rerun already happened, resume still authenticates the earlier publishing
+attempt. Take `manifest_sha256` from that attempt's summary, not a later rerun's
+newly generated digest. A stable recovery starts at the first incomplete
+step (verify, Scoop, WinGet, Chocolatey) in the **original publishing attempt**,
+not a later promotion attempt. Verification needs a successful step; each channel
+also needs its durable `publication outcome: published` or `already-present`
+step. `skipped-unconfigured` never counts as complete. Older runs without
+outcome markers conservatively resume at the first unproven publisher and rely
+on its idempotence. Later promotion progress is not used to advance this index.
+A prerelease recovery verifies after its flip. Each publisher is idempotent:
+Scoop compares the desired bytes, WinGet checks open/merged PR manifest paths,
+and Chocolatey checks the exact version. Unknown state stops the run.
+`ReleasePublishNotSuccessful` refuses a failed run without a successful publish
+step. Inspect that run and publication state before choosing recovery.
+
+`DraftRelease` (including a partial or cancelled upload) cannot be promoted.
+Discovery reads all release-list pages and the selected release ID because
+GitHub's tag endpoint hides drafts. `AmbiguousReleaseTag` refuses duplicate
+pending tags for inspection. If the selected ID returns HTTP 200 with a
+non-object JSON value such as `[]`, the read is retried within a three-read
+limit. Exhausting that limit gives `ReleaseLookupIncomplete`. A JSON object
+with a missing or mismatched ID or tag, such as `{}`, immediately gives
+`ReleaseIdentityMismatch`. After a create request, release discovery allows
+up to three reads for a list miss or an ID read returning 404. The build
+continues only if the returned draft carries this attempt's marker in its
+notes and passes the candidate checks. `ReleaseDraftOwnershipUnconfirmed`
+means the build could not prove it created the draft. Preserve it and inspect
+the original run and draft ID before deciding who should recover it.
+
+For manual draft recovery, first list **every** release with this tag,
+including drafts, with a push-authorized token (listing is read-only):
+
+```powershell
+gh api --method GET --paginate 'repos/amanthanvi/noctty/releases?per_page=100' --jq '.[] | select(.tag_name == "<tag>") | {id, tag_name, draft, prerelease}'
+```
+
+Stop unless there is **exactly one** match and it is the inspected incomplete
+draft. A published release plus a draft, or two drafts, requires investigation;
+never delete either on a first-match lookup. Immediately before deletion, repeat
+the full list and read `gh api repos/amanthanvi/noctty/releases/<draft-id>`;
+verify the same ID/tag and `draft: true`. Only then may an operator delete that
+specific draft by ID:
+
+```powershell
+gh api --method DELETE repos/amanthanvi/noctty/releases/<draft-id>
+```
+
+Never use `--cleanup-tag` in this recovery: another published release may share
+the tag, and GitHub may never have created a tag for a tagless draft. Check the
+remote ref separately (`gh api repos/amanthanvi/noctty/git/ref/tags/<tag>`; a 404
+means no ref). Preserve an existing tag; if it points to a different candidate,
+stop for independently audited tag recovery rather than deleting it here. With
+an absent tag or one peeled to the newly accepted candidate, dispatch a fresh
+build from main:
+
+```powershell
+gh workflow run release.yml --repo amanthanvi/noctty --ref main -f mode=build -f version=<version> -f prerelease=true
+```
+
+This is manual draft recovery only, never automatic deletion or promotion.
+It creates a new run/manifest and requires a successful Test run of the new
+commit and a new soak.
+Every published release and its tag must be preserved.
+
+`LegacyReleaseWithoutManifest` identifies any published release from
+before promotion manifests, including the 22 pre-rename winghostty releases and v1.3.136 through v1.3.138. Preserve the
+release and tag; use the verified manual Chocolatey workflow or an audited
+channel-specific recovery. `IncompletePublishedRelease` also requires
+preservation and inspection, not deletion or a rebuild. `ReleaseMissing` means
+no release or draft was visible. Never delete a published historical release
+in response to a promotion refusal.
+
+The candidate generator runs in a separate, hidden `pwsh` process, with
+an environment allowlist containing only Windows runtime/temp locations.
+Arbitrary runner variables and parent scope variables are inaccessible; the
+orchestration process retains its credentials
+for channel preflight. Local metadata generation also works under an outer
+`-WhatIf`; external mutations still honor `-WhatIf`. All
+three `*_PUBLISH=off` switches compare case-insensitively in build, promote,
+preflight and direct publisher scripts.
+
+Test evidence (the portable smoke artifact) is retained for 90 days.
+`EvidenceExpired` identifies the run, artifact and expiry time. Dispatch a
+fresh Test run on the candidate tag, then pass its run ID as `test_run_id` to
+promote, retaining the original Release run ID and manifest digest. No
+interactive run is needed:
+
+```powershell
+gh workflow run test.yml --repo amanthanvi/noctty --ref <tag>
+```
+
+That dispatch also runs the `windows-2025` skip budget, so a budget that drifted
+since the candidate fails it; the path then is a new prerelease.
+
+For read-only verification of historical v1.3.124, pass `-AllowPrerelease`
+explicitly: it is still marked as a prerelease on GitHub. Its portable archives
+predate the bundled ConPTY pair (v1.3.125), so its candidate data need no
+`conpty-redist.json`. Modern releases still require both pinned Microsoft
+binaries. The default verifier continues to require a stable release.
+
+Local promotion rehearsals use the system temp directory by default. Fixture A
+(`scripts/release-promote.ps1 -Fixture historical`) or Fixture B
+(`test/windows/release-promote.ps1`) can use an existing scratch parent via
+`-WorkDirectory` or `NOCTTY_RELEASE_FIXTURE_ROOT`. GitHub Actions defaults
+to `RUNNER_TEMP`. Each fixture creates a child of the selected directory and
+removes it on success. Fixture A removes its child on failure too. Fixture B
+removes bulk data on failure and prints the location of the text evidence it
+kept. An explicit `-AssetDirectory` stays caller-owned. Default downloads
+live inside Fixture B's bulk tree and are removed with it.
 
 ### WinGet
+
+Duplicate discovery checks the default branch's exact version directory and
+searches **open** winget-pkgs PRs for `amanthanvi.noctty` in **title or body**,
+without a version qualifier or an author restriction. The complete candidate
+set must contain at most **100** PRs. Each candidate's state and changed-file
+paths are checked under `manifests/a/AmanThanvi/noctty/<version>/`.
+Reads have a 250-request budget, search-rate pacing and three attempts for
+5xx or connection loss. `WinGetQueryFailed` stops after a failed lookup;
+`WinGetCandidateSetIncomplete` stops for a broad, incomplete or truncated result.
+Neither condition permits submission.
+
+A miss is reported as **absent within the stated limit**, never confirmed
+repository-wide absence. The search omits PRs from any account whose title
+**and** body both omit the identifier, including our own publisher's PRs.
+WinGetCreate includes the identifier when it opens a PR, but later edits can
+remove it. Retitling a PR or omitting the version is covered as long as either
+field retains the identifier. No all-open-PR enumeration is used: that caused
+measured 502s on winget-pkgs.
 
 - Secret: `WINGETCREATE_TOKEN`
 - Repo variable: `WINGET_PACKAGE_IDENTIFIER`

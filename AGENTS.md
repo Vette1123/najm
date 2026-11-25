@@ -6,6 +6,9 @@ reading step under [Self-Correction Log](#self-correction-log).
 
 ## Commands
 
+- **Fetch and pull** (Najm): always both remotes, origin and Noctty's
+  `upstream`: `pwsh -NoProfile -File scripts/najm-fetch.ps1`, then the
+  `najm-fetch` skill (`.claude/skills/najm-fetch/SKILL.md`) lands the sync PR.
 - **Build:** `zig build` (also stages the pinned `conpty.dll` and
   `OpenConsole.exe` beside the exe; staging traps: the 2026-10-10 bundled
   ConPTY entry in `docs/agents/log/conpty.md`)
@@ -18,6 +21,10 @@ reading step under [Self-Correction Log](#self-correction-log).
   - `-Dtest-shards=4` runs it as four concurrent processes with the same
     count, about a third of the time (test-harnesses.md: 2026-11-11
     TEST-SHARDS-01).
+  - `-Dtest-optimize=ReleaseSafe` builds the test executable in that mode
+    (default Debug). `-Doptimize` does not set its mode, and any value but
+    Debug breaks its compile. The summary's `compile test ghostty-test <mode>`
+    line names the mode (build-release-ci.md: 2026-11-18 TEST-OPTIMIZE-01).
   - Bare `zig build test` errors in this fork.
   - `-Dtest-filter=<token>` (one token: quote it or use a no-space
     substring, or `zig build` reads the rest as step names) runs the tests
@@ -27,8 +34,9 @@ reading step under [Self-Correction Log](#self-correction-log).
     70 unnamed `test { ... }` blocks that no filter excludes, so a token that
     matches nothing still reports about 70 passes, not zero. Use `ConPTY` to
     reach the probe tests in `src/pty_transport_probe.zig`. A filtered build
-    compiles the whole tree, about a minute. `Build Summary: 41/41 steps
-    succeeded` counts build steps, not tests. Filter traps: the 2026-10-06
+    compiles the whole tree, about a minute.
+    `Build Summary: 41/41 steps succeeded` counts build steps, not tests.
+    Filter traps: the 2026-10-06
     entry in `docs/agents/log/test-harnesses.md`.
 - **Formatting (Zig):** `zig fmt .`
 - **Formatting (other):** `prettier -w .`
@@ -46,24 +54,72 @@ reading step under [Self-Correction Log](#self-correction-log).
   `scripts/dev-windows.cmd` and raw `zig test`; 2026-05-01 direct
   `zig test src/apprt.zig`.)
 
+## No required interactive tests
+
+- No change, check, review, merge or release requires an interactive or
+  visible-desktop test (the maintainer's decision, 2026-11-22). Evidence
+  comes from hosted CI, private- and hidden-desktop tests, and multi-agent
+  review.
+- Never block, defer or fail work for want of a visible run, and never make
+  one a prerequisite. A visible run (the interactive composite, a tier-3
+  check) is optional: it starts only on the maintainer's explicit go, only
+  while the maintainer is away, and never touches their real state; the
+  rules below say how.
+
 ## Running noctty
 
 - Run noctty on a private desktop (`CreateDesktopW`), and pass
-  `lpDesktop = WinSta0\<desktop>` to every process you start: a driver on a
-  private desktop that passes a null one puts the child on the user's
-  desktop, and noctty takes the foreground. Drive it with posted messages
-  (`SendInput` types into whatever window is in front): a key as a posted
-  `WM_KEYDOWN`/`WM_KEYUP` pair, since a posted triple types it twice and a
-  bare posted `WM_CHAR` types nothing. A posted Alt never reaches
+  `lpDesktop = WinSta0\<desktop>` to every process you start. A process
+  created on a private desktop by name passes it to the children it starts
+  with a null one, but a driver moved there with `SetThreadDesktop` does not:
+  its children land on the user's desktop, and noctty takes the foreground
+  (test-harnesses.md: 2026-11-20 GUI-HIDDEN-DEFAULT-01). Drive it with
+  posted messages (`SendInput` types into whatever window is in front): a
+  key as a posted `WM_KEYDOWN`/`WM_KEYUP` pair, since a posted triple types
+  it twice and a bare posted `WM_CHAR` types nothing. A posted Alt never reaches
   `GetKeyboardState`, and a pass from posted input is not a pass for real
   input. (window-frame.md: 2026-09-24 `window-decoration = none` trap 1,
   2026-09-23 "Item (b) of the #262 entry" harness notes, 2026-10-16 #285
   window menu; renderer.md: 2026-10-14 LAT-01; input.md: 2026-09-19 #250;
   test-harnesses.md: 2026-09-23 #261 trap 3.) What a private desktop cannot
   show (a D3D11 present, which needs a composed, visible desktop; real input)
-  needs a visible run, and a visible run starts only once the user is away.
+  only a visible run shows; such a run is optional and starts only on the
+  maintainer's explicit go, once the user is away.
   (search-scrollbar.md: 2026-10-16 D3D11-IFLIP-01; window-frame.md:
-  2026-10-16 real DPI drag, last trap.)
+  2026-10-16 real DPI drag, last trap.) In a hosted closure (the
+  hidden-desktop suite, `test/windows/gui-hidden-runner.ps1`), real-input and
+  foreground calls are reached only through
+  `scripts/interactive-win11-realinput.ps1` (`InteractiveWin11RealInput`),
+  which window-lib loads only outside hosted mode and which throws if loaded
+  there; a hosted leaf ends by checking that its type was never loaded.
+  Outside the suite's closure, `bench-windows.ps1`, `bench-frame-pacing.ps1`,
+  `gui-hosted-probe.ps1` and `interactive-win11-hints.ps1` keep their own
+  declarations, as do the leaf-local types until later offload PRs move
+  them. Screen capture stays behind `Save-StatefulScreenCapture`
+  (test-harnesses.md: 2026-10-25 EVIDENCE-SCREENSHOT-PRIVACY-01). A
+  hidden-desktop suite run, local or hosted, starts only a fresh portable
+  copy, without `noctty.ico`, of the receipt-bound measurement build, with
+  `NOCTTY_INTERACTIVE_MEASURE_AUMID=1`. Other local GUI runs start either
+  the raw measurement build (test-harnesses.md: 2026-10-20
+  STANDALONE-LEAF-AUMID-01) or a portable copy without `noctty.ico`
+  (app-lifecycle.md: 2026-10-16 "A portable copy"), never a non-portable
+  `zig-out` build, which writes the product AUMID's jump list and
+  registration.
+- A GUI check runs in the lowest tier that can make its assertion: (1) a
+  private desktop in hosted CI, the default; (2) a private desktop on a local
+  machine with a GPU, for OpenGL and custom-shader rendering read back
+  offscreen with the test-tools build, and GL-side traces; (3) a visible run,
+  for real `SendInput` through the message loop, foreground acquisition,
+  pixels as DWM composes them on screen (`CopyFromScreen`, a D3D11 present),
+  the production OpenGL path into the window's framebuffer, and any present
+  paced by vblank. Tier 2's readback never sees the production framebuffer,
+  and a hidden `SwapBuffers` is never vblank-paced (renderer.md: 2026-10-19
+  #408 trap (4), 2026-10-14 LAT-01 trap (1)). Every gating GUI check, in any
+  tier, has a positive oracle and a negative control that fails it. No
+  release, merge or check requires a visible or interactive run (the
+  maintainer's decision, 2026-11-22): tier 3 and the interactive composite
+  stay available, and a multi-agent council review takes their place.
+  (test-harnesses.md: 2026-11-20 GUI-HIDDEN-DEFAULT-01.)
 - Run a scratch portable copy (`noctty.portable` beside the exe) with
   `--window-save-state=never` and `LOCALAPPDATA` redirected for that noctty;
   that isolates session and startup state. If a `zig build` runs under the
@@ -80,9 +136,19 @@ reading step under [Self-Correction Log](#self-correction-log).
   `-Command`, which turns off automatic injection: dot-source
   `integration.ps1` as `buildCommandValue` does). Separately, a `-e` fixture
   sets only `initial-command`, so later tabs and splits start `command`, a
-  PowerShell by default (pwsh, else Windows PowerShell): pin
-  `--command=cmd.exe` unless the fixture tests a
-  configured `command`, and guard the run with
+  PowerShell by default (pwsh, else Windows PowerShell): set it with a
+  `command = direct:<absolute System32 cmd.exe> /D` line in the config file
+  the launched copy reads, unless the fixture tests a configured `command`.
+  A bare `cmd.exe` runs the user's AutoRun (conpty.md: 2026-11-18
+  REPLY-PATH-01 item (6)), and `Start-Process -ArgumentList` joins elements
+  with spaces and quotes nothing, so a spaced `--command=… /D` in argv loses
+  `/D`; only a harness that builds its own quoted command line (the soak, the
+  reply-path harness) may pass it there. Give each `-e` stimulus that starts
+  cmd the absolute path and `/D` as separate arguments. Until the interactive
+  composite is retired, the shared helper (`Get-InteractiveWin11LaunchArguments`)
+  keeps `--command=cmd.exe` on its non-hosted route unless
+  `-UseConfiguredCommand` is set, a standalone run of a legacy leaf included.
+  Guard the run with
   `scripts/windows-harness-history.ps1`, which only detects a change to the
   real history's size or mtime. (test-harnesses.md: 2026-10-11 PKG-13,
   2026-10-17 PKG-76, 2026-10-19 HARNESS-PWSH-HISTORY-01.)
@@ -193,7 +259,11 @@ that govern each symbol you change, or that none does.
   resize, minimize, clear or undo and the column reflow that has to match it
   (`Screen.resize`, the replay tests in `src/terminal/resize_replay.zig` and
   the pty recorder that writes them, `src/termio/pty_record.zig`, the
-  sync harness `test/windows/interactive-win11-conpty-sync.ps1`), the
+  sync harness `test/windows/interactive-win11-conpty-sync.ps1`), which
+  terminal replies reach a console program through ConPTY's input and in what
+  shape (the reply-path harness
+  `test/windows/hidden-win11-conpty-reply-path.ps1` and its reader
+  `test/windows/console-reply-reader.c`), the
   Ctrl+C-ignore attribute hosted shells inherit
   (`process_shared.enableGuiChildCtrlC` in `src/main_ghostty.zig`).
 - [shell-integration.md](docs/agents/log/shell-integration.md): scripts under
@@ -208,9 +278,15 @@ that govern each symbol you change, or that none does.
 - [terminal-core.md](docs/agents/log/terminal-core.md): `src/terminal/` (VT
   parser limits, `PageList` and its page serials (`page_serial_min`,
   `nodeIsValid`, the source renewal in `PageList.split`), `PageList.Node`'s
-  accessors (`page()`, `rows()`, `cols()`, `capacity()`, `Node.Data`), the
-  owner inference in `destroyNodeExt`, and their callers in
-  `src/inspector/widgets/pagelist.zig`, OSC parsers,
+  accessors (`page()`, `rows()`, `cols()`, `capacity()`, `Node.Data`, and
+  from the stepping-stone merge upstream's `pageIfResident()`,
+  `pagePreservingState()`, `pageAssumeResident()`, `storage()` and
+  `Node.owned`), the page owner in `destroyNodeExt` and `compact`, the
+  Node section of `docs/upstream-merge-policy.md`, and their callers in
+  `src/inspector/widgets/pagelist.zig`, `snapshotDocumentWindow` in
+  `src/apprt/win32_uia/text.zig` and the session readers in
+  `src/apprt/win32/session.zig` (`captureTerminalScrollbackSnapshotAlloc`,
+  `terminalScreenIsUnpainted`), OSC parsers,
   OSC 133 exit codes, prompt typeahead
   in `semantic_command.zig`, the scrollback search thread and its cached
   results (`ScreenSearch.pruneHistory`, `LiveNodes`), what a search window
@@ -253,7 +329,11 @@ that govern each symbol you change, or that none does.
   wakeups from `termio` and typing latency, the libxev IOCP timers the
   renderer arms (`Thread.timerCallback`, a `Canceled` run, the libxev pin in
   `build.zig.zon`), repaint during live resize
-  (`win32/surface_presentation.zig`), and which DLLs a CLI action or the D3D11
+  (`win32/surface_presentation.zig`), the line a surface logs once its
+  renderer has started, which the hidden-desktop suite reads (`logStarted`
+  and its scope `renderer_start` in `src/renderer/Windows.zig`; a new line in
+  the `renderer_windows` scope changes the count #738's hosted probe takes),
+  and which DLLs a CLI action or the D3D11
   backend loads (the OpenGL32 static import).
 - [window-frame.md](docs/agents/log/window-frame.md): the top-level window:
   `WM_NCCALCSIZE`/`WM_NCHITTEST` (`win32_nc_layout.zig`), integrated titlebar
@@ -592,7 +672,9 @@ that govern each symbol you change, or that none does.
   Sentry, the COM apartment, default-terminal handoff, the CLI and the
   `noctty.com` wrapper.
 - [build-release-ci.md](docs/agents/log/build-release-ci.md): `build.zig`
-  (including the `bench:*` steps' `addBenchCoreImport`) and resources, the
+  (including the `bench:*` steps' `addBenchCoreImport`, and the test
+  executable's mode, `-Dtest-optimize` through `Config.testModule`) and
+  resources, the
   Zig global cache a build uses (`ZIG_GLOBAL_CACHE_DIR`, which
   `scripts/dev-windows.cmd` keeps when set and otherwise sets to
   `%LOCALAPPDATA%\zig`), the Windows target floor (`src/build/Config.zig`,
@@ -616,9 +698,25 @@ that govern each symbol you change, or that none does.
   `$runtimeFiles`; the portable ZIP's `ghostty-vt.dll` placeholder:
   `src/build/GhosttyVtStub.zig`, `src/ghostty_vt_stub/`,
   `scripts/ghostty-vt-stub.ps1` `Assert-GhosttyVtStub`, and its packaged
-  smoke `test/windows/test_dll_init.c`), release workflows
-  and package managers (WinGet, Scoop,
-  Chocolatey), GitHub Actions CI (path filter, caching, runners, the gates
+  smoke `test/windows/test_dll_init.c`), release workflows and package managers
+  (WinGet, Scoop, Chocolatey): `scripts/release-publication-state.ps1`
+  (`Get-ReleaseByTag`, `Assert-RemoteReleaseTag`, `Get-CreatedReleaseDraft`,
+  `Confirm-ReleasePublication`), `scripts/release-evidence.ps1`
+  (`Invoke-ReleaseGhJson`, `Assert-ReleaseEvidence`),
+  `scripts/release-manifest.ps1` (`Get-ReleasePayloadPaths`, `Write-ReleaseManifest`,
+  `Assert-ReleaseManifest`, `Assert-PackageManagerFiles`),
+  `scripts/release-write-manifest.ps1`,
+  `scripts/release-check-publication.ps1`, `scripts/release-promote.ps1`,
+  `scripts/release-publish-github.ps1`,
+  `scripts/release-fixture-directory.ps1` (`New-ReleaseFixtureDirectory`,
+  `Remove-ReleaseFixtureDirectory`), the release fixtures
+  `test/windows/release-promote.ps1` and `test/windows/release-fixture-cleanup.ps1`,
+  `scripts/release-package-manager-preflight.ps1` (`Test-ReleasePublisherEnabled`,
+  `Assert-PromotionPackageManagers`), `scripts/package-manager-paths.ps1`
+  (`Resolve-ArtifactMetadataPath`), `scripts/release-run-generator.ps1`
+  (`Invoke-ReleaseGenerator`), `scripts/release-publisher-outcome.ps1`
+  (`Set-ReleasePublisherOutcome`), and `scripts/release-submit-winget.ps1`
+  (`Test-WinGetVersionSubmitted`); GitHub Actions CI (path filter, caching, runners, the gates
   the `main: CI gates` ruleset requires and their `always()`, Dependabot's
   `.github/dependabot.yml`, the action pins and the workflow digests the
   contracts pin), CRLF and
@@ -633,13 +731,54 @@ that govern each symbol you change, or that none does.
   `test/windows/` harnesses (hidden desktops, the foreground, sandboxes, the
   interactive composite, the flagship contracts, the renderer parity harness
   `test/windows/renderer/Invoke-RendererParity.ps1`, `bench-windows.ps1`'s
-  `ForceForeground` and render-trace snapshots, transient captures (a banner,
+  `ForceForeground` and render-trace snapshots, its per-copy frame-pacing
+  harness (`-Metric frame-pacing`, `test/windows/bench-frame-pacing.ps1`,
+  and its input watch: the low-level hooks `StartWatch` installs and the gate
+  `Test-FramePacingInputGate`), transient captures (a banner,
   the overlay scrollbar) in the visible check `Invoke-VisibleD3D11Check.ps1`,
   the measure-AUMID builds an A/B compares
   (`Invoke-InteractiveWin11MeasureBuild` in
-  `scripts/interactive-win11-measure-lib.ps1`),
+  `scripts/interactive-win11-measure-lib.ps1`), the shared real-state guard
+  and its clipboard reading (`scripts/interactive-win11-state-guard.ps1`:
+  `Test-InteractiveWin11ClipboardObservable`),
   the PKG-37, LAT-01 and LAT-02 measurement harnesses on the
-  `origin/*-measurement-harness` branches), CI test steps (the raw
+  `origin/*-measurement-harness` branches), which steps of the optional
+  interactive composite job may raise a real toast (the job's order,
+  `Get-InteractiveWin11JobPlan`, the composite's `-DeferCommandFinish`,
+  `$settingsSaveNotificationArguments` in the accessibility leaf and its
+  run-time checks of each saving launch's command line and sandbox,
+  `Assert-AccessibilitySaveLaunchQuiet`, `Get-AccessibilitySaveLaunchVerdict`,
+  `Get-AccessibilityNotificationSettings` and
+  `Assert-AccessibilitySaveSandboxQuiet`, the probe's close prompt button,
+  `Get-AccessibilitySettingsCloseActionInvoke`, the leaf's `# pin-begin:`
+  regions and their SHA-256 pins, `$saveLeafPins`, the cmdlets they call,
+  `$saveRegionCmdlets`, the flow statements its finally blocks may hold,
+  `$saveFinallyFlows`, and the toast-source inventory, who may
+  name the command-finish leaf and the quiet-save grammar in
+  `Contracts.90-Workflows.ps1`), the soak
+  (`test/windows/interactive-win11-soak.ps1`, its judge `ci/soak_judge.py`
+  with `ci/test_soak_judge.py`, and the slope thresholds
+  `ci/soak-thresholds.tsv`), the hidden-desktop GUI suite
+  (`test/windows/gui-hidden-runner.ps1`, its plan
+  `test/windows/gui-hidden-plan.json`, `.github/workflows/gui-hidden.yml`
+  and its selection `scripts/ci-gui-selection.ps1` with the script walker
+  `scripts/ci-script-closure.ps1` and the fixtures
+  `test/windows/gui-hidden-scripts.ps1`, the interactive library's hosted
+  mode (`InteractiveWin11HostedDesktop`,
+  `Start-InteractiveWin11HostedProcess`,
+  `Write-InteractiveWin11HostedConfig`, the argument rule
+  `Get-InteractiveWin11HostedArgumentRefusal` and the run token
+  `Get-InteractiveWin11HostedRunToken`; the harness's path comparison
+  `Test-InteractiveWin11SamePath` and `Get-InteractiveWin11CanonicalPath` in
+  `scripts/interactive-win11-measure-lib.ps1`; the struct layout pins,
+  `Layout()`, the error publisher
+  `test/windows/gui-hidden-publish-error.ps1`, and the log prefixes the
+  runner reads, `logPrefix` and its test in `src/process_shared.zig`), the
+  real-input module
+  `scripts/interactive-win11-realinput.ps1` (`InteractiveWin11RealInput`),
+  the measurement record
+  `test/windows/flagship/measurements/gui-measurements.json` and the
+  contracts `Contracts.99-GuiHidden*.ps1`), CI test steps (the raw
   `zig test src/apprt/win32_compositor_native.zig` step, which confines
   `win32/sys.zig`'s imports to `src/apprt`), the Zig test runner and its
   shards (`src/test_runner.zig`, `src/test_shard.zig`, `-Dtest-shards`,
@@ -650,12 +789,19 @@ that govern each symbol you change, or that none does.
   (`win32/test_support.zig`, `TestSession`, the private-desktop runners
   `runOnHiddenDesktop` and `host.zig` `runOnPrivateDesktop` and the empty
   keyboard they pin), PSReadLine history isolation
-  (`scripts/windows-harness-history.ps1`, `--command=cmd.exe` pins), a bash
+  (`scripts/windows-harness-history.ps1`), the shell a fixture starts (the
+  config line `Get-InteractiveWin11HostedPolicyConfig` writes, the shared
+  helper's legacy `--command=cmd.exe`), a bash
   probe's `HISTFILE`, a suite that seems hung (`scripts/zig-test-stacks.ps1`,
   the `PageList` test helper `growRows`), a failing test's error name (the
-  installed test executable), the skip budget (`scripts/check-test-skips.ps1`,
+  installed test
+  executable), the skip budget (`scripts/check-test-skips.ps1`,
   `test/windows/test-skip-budget.json`) and the nightly per-test log it reads
-  (`scripts/ci-test-timing.ps1`), and a test count or result that
+  (`scripts/ci-test-timing.ps1`), the list of the tests that ran and its
+  compare (`scripts/capture-test-ran-list.ps1`,
+  `scripts/compare-test-ran-list.ps1`, the approved skips
+  `test/windows/ran-list-approved-skips.tsv` and the parser fixtures
+  `test/windows/ran-list-fixtures/`), and a test count or result that
   contradicts the code.
 - [tooling.md](docs/agents/log/tooling.md): declaring `extern` functions or
   structs, casting Win32 handles and `LPARAM`/`LRESULT` (`@intCast`,
@@ -667,8 +813,10 @@ that govern each symbol you change, or that none does.
   `noteRendererFollowupCallback`),
   adding a name to `src/apprt/win32.zig` or to one of its `*_runtime` bags
   (the budget in `win32/facade_budget.zig`, and the facade importer list in
-  `Contracts.20-Zig.ps1`), `union(enum)` tests, PowerShell language traps, and
-  `gh`, git and codex commands.
+  `Contracts.20-Zig.ps1`), `union(enum)` tests, PowerShell language traps
+  (and the GUI script walk's models of command lookup: `Get-CiScriptPathLookup`,
+  `Find-CiScriptLookupFiles` and `Test-CiScriptShippedCmdlet` in
+  `scripts/ci-script-closure.ps1`), and `gh`, git and codex commands.
 
 A comment that cites AGENTS.md (by date, issue number, symbol or an old line
 number such as `AGENTS.md:75`) means a log entry. Run
