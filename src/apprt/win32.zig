@@ -8810,10 +8810,10 @@ test "win32 settings a reset of each kind of field saves its default and leaves 
         }
         try std.testing.expect(!defaults.changed(&reloaded, row.descriptor.key) or row.descriptor.kind == .notifications);
     };
-    // Every kind of field was reset but background blur, the only field of
-    // its kind, which Windows does not support.
+    // Every kind of field was reset, background blur's included now that
+    // Windows 11 22H2 shows it.
     inline for (comptime std.enums.values(field_model.Kind)) |kind| {
-        try std.testing.expectEqual(kind != .blur, kinds.contains(kind));
+        try std.testing.expect(kinds.contains(kind));
     }
 }
 

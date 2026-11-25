@@ -448,6 +448,7 @@ pub fn Fixtures(comptime runtime: anytype) type {
             var app: App = undefined;
             app.os_build = c.OS_BUILD_WIN11_21H2;
             app.config = .{};
+            app.settings_preview = null;
             app.registry.hosts = .empty;
             return app;
         }
