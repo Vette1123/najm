@@ -16766,13 +16766,13 @@ test "settings Enter in the search goes to the first setting found, on another p
             try std.testing.expectEqual(Section.privacy, settings.active_section);
             try std.testing.expectEqual(settings.fields.combo_clipboard_read.?, GetFocus().?);
 
-            // A setting Windows does not support cannot take the focus: its
-            // page's rail button does.
+            // Background blur, which Windows 11 22H2 shows, takes the focus
+            // on its checkbox like any other field.
             _ = SetFocus(search);
             typeSearch(settings, "blur");
             try std.testing.expect(settings.handleAccelerator(search, WM_KEYDOWN, VK_RETURN, 0));
             try std.testing.expectEqual(Section.appearance, settings.active_section);
-            try std.testing.expectEqual(settings.btn_section_appearance.?, GetFocus().?);
+            try std.testing.expectEqual(settings.fields.chk_bg_blur.?, GetFocus().?);
         }
     }.body);
 }
@@ -19026,7 +19026,7 @@ test "CHROME blur and link previews are enabled and their UIA names say nothing 
     }.body);
 }
 
-test "CHROME link previews retain their config value and palette focus stays on the section" {
+test "CHROME link previews retain their config value and the palette focuses their dropdown" {
     try std.testing.expect(std.mem.indexOf(u8, paletteDescriptor(.link_previews).item.subtitle, "not supported on Windows") == null);
     try dialog_test.onHiddenDesktop(struct {
         fn body() !void {
@@ -19040,7 +19040,7 @@ test "CHROME link previews retain their config value and palette focus stays on 
             try settings.openField(.link_previews);
             try std.testing.expectEqual(@as(LRESULT, 1), sys.SendMessageW(settings.fields.combo_link_previews.?, CB_GETCURSEL, 0, 0));
             try std.testing.expectEqual(Section.privacy, settings.active_section);
-            try std.testing.expectEqual(settings.sectionButton(.privacy).?, sys.GetFocus().?);
+            try std.testing.expectEqual(settings.fields.combo_link_previews.?, sys.GetFocus().?);
             try std.testing.expectEqual(@as(@FieldType(Config, "link-previews"), .osc8), settings.pending.?.@"link-previews");
         }
     }.body);
@@ -19386,11 +19386,12 @@ test "settings a row's context menu offers its reset, with the default and the s
             try std.testing.expectEqualStrings("&Reset to default (automatic)\t" ++ reset_shortcut_text, shown());
             try std.testing.expect(settings.pending.?.command == null);
 
-            // A row Windows does not support offers none.
+            // Link previews, a setting since Najm shows them, offers its reset.
             settings.setActiveSection(.privacy);
             const offered = calls;
             _ = sys.SendMessageW(viewport, WM_CONTEXTMENU, @intFromPtr(settings.fields.combo_link_previews.?), keyboard);
-            try std.testing.expectEqual(offered, calls);
+            try std.testing.expectEqual(offered + 1, calls);
+            try std.testing.expect(std.mem.startsWith(u8, shown(), "&Reset to default"));
         }
     }.body);
 }
@@ -20594,8 +20595,8 @@ fn rectsOverlap(a: RECT, b: RECT) bool {
     return a.left < b.right and b.left < a.right and a.top < b.bottom and b.top < a.bottom;
 }
 
-test "settings palette row for background blur says it cannot be changed and focus stays on the section" {
-    try std.testing.expect(std.mem.indexOf(u8, paletteDescriptor(.background_blur).item.subtitle, "not supported") != null);
+test "settings palette row for background blur is a setting and focuses its checkbox" {
+    try std.testing.expectEqualStrings("Setting", paletteDescriptor(.background_blur).item.subtitle);
     try std.testing.expectEqualStrings("Setting", paletteDescriptor(.font_size).item.subtitle);
 
     try dialog_test.onHiddenDesktop(struct {
@@ -20606,7 +20607,7 @@ test "settings palette row for background blur says it cannot be changed and foc
 
             try settings.openField(.background_blur);
             try std.testing.expectEqual(Section.appearance, settings.active_section);
-            try std.testing.expectEqual(settings.sectionButton(.appearance).?, sys.GetFocus().?);
+            try std.testing.expectEqual(settings.fields.chk_bg_blur.?, sys.GetFocus().?);
         }
     }.body);
 }

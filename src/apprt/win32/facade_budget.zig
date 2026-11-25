@@ -116,7 +116,9 @@ const leaves = .{
         // lists.
         // why: `Drop` and `placeTearOff`, where a torn-off tab's window
         // goes, which window_state.zig asks with the monitor under the drop.
-        .pub_decls = 32,
+        // why: Najm adds `backdropType`, the DWM backdrop `background-blur`
+        // asks for, which window_state.zig writes on every opacity apply.
+        .pub_decls = 33,
     },
     .{
         .file = "tab_drag.zig",

@@ -14,6 +14,13 @@ Settings' blur checkbox is enabled; docs and the config doc say where it works.
   undefined, so a placement test crashed. And the Settings reset test still
   expected blur to be the one kind it could not reset. Before an apply path
   reads a new App field, grep the `App = undefined` fixtures that reach it.
+- That crash hid five more failures, which only showed on the next run:
+  three Settings tests (palette row, search Enter, row menu) still expected
+  blur and link previews to be disabled, focus on the rail button and no
+  reset; and `facade_budget` counted `window_start`'s new pub `backdropType`.
+  When a field becomes available, grep its name and "not supported" across
+  the Settings tests, and grep `facade_budget.zig` for each leaf that gains
+  a pub.
 
 - I first planned to add `DwmExtendFrameIntoClientArea`, because the 2026-09-14
   log entry's positive control used it. The code's own comment already said
