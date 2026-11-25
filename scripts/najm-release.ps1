@@ -26,7 +26,15 @@ $behind = [int](git rev-list --count "HEAD..origin/main")
 if ($behind -gt 0) { throw "main is $behind commit(s) behind origin/main. Pull first." }
 if (git tag -l "v$Version") { throw "Tag v$Version already exists." }
 
-$latest = (git tag -l "v*" --sort=-v:refname | Select-Object -First 1)
+# Najm's releases are origin's v* tags. Local v* tags can be Noctty's (a fetch
+# from before upstream's tags were mapped to upstream/*), and a v1.3.x one
+# would block every Najm 1.0.x release.
+$published = @(git ls-remote --tags --refs origin "refs/tags/v*" | ForEach-Object { ($_ -split 'refs/tags/')[1] } |
+    Where-Object { $_ -match '^v\d+\.\d+\.\d+$' })
+if ($LASTEXITCODE -ne 0) { throw "git ls-remote origin failed with exit code $LASTEXITCODE." }
+if ($published -contains "v$Version") { throw "Tag v$Version is already on origin." }
+$latest = ($published | Sort-Object { [version]$_.TrimStart('v') } -Descending | Select-Object -First 1)
+Write-Host "Latest Najm release on origin: $(if ($latest) { $latest } else { 'none' }) ($($published.Count) v* tags)"
 if ($latest -and ([version]$Version -le [version]($latest.TrimStart('v')))) {
     throw "Version $Version is not newer than the latest Najm release $latest; the updater would ignore it."
 }
